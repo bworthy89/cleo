@@ -119,6 +119,14 @@ export async function playAudioFromBase64(base64: string): Promise<void> {
   return await ExpoMusicKit.playAudioFromBase64(base64);
 }
 
+export async function activateDuckingSession(): Promise<void> {
+  return await ExpoMusicKit.activateDuckingSession();
+}
+
+export async function deactivateDuckingSession(): Promise<void> {
+  return await ExpoMusicKit.deactivateDuckingSession();
+}
+
 // ── Event Listeners ────────────────────────────────────────────────────
 
 export function addTrackChangedListener(
