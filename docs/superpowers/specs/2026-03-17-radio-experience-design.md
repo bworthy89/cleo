@@ -37,7 +37,7 @@ Add a mid-song trigger for brief Cleo drops during longer tracks.
 
 **AudioCoordinator** gains:
 - `pendingMidSongTimer: ReturnType<typeof setTimeout> | null` — separate from `pendingPostSongTimer`
-- `lastSegmentEndTime: number` — set to `Date.now()` after any segment finishes playing (in the `finally` blocks of both pre_song and post_song paths)
+- `lastSegmentEndTime: number = 0` — set to `Date.now()` after any segment finishes playing (in the `finally` blocks of both pre_song and post_song paths). Initialized to `0` so the first mid-song drop is never blocked by cooldown.
 - `scheduleMidSongDrop(trackInfo: TrackInfo)` method:
   - Called after `handleTrackChangeWithResult` resolves (for `pre_song`) or after the post-song segment plays (for `post_song`)
   - Guards: `trackInfo.duration && trackInfo.duration > 180` — if not, return
@@ -81,7 +81,7 @@ New MMKV keys, written after every segment generation:
 |---|---|---|
 | `session.lastStationId` | `string` | Station ID from last session |
 | `session.lastVibe` | `string` | Vibe from last session |
-| `session.lastArtists` | `string[]` | Last 10 artists heard (FIFO — newest first, drop oldest beyond 10) |
+| `session.lastArtists` | `string[]` | Last 10 artists heard (bounded list — newest first, capped at 10, drop oldest) |
 | `session.lastTrackTitle` | `string` | Last track that was playing |
 | `session.lastArtistName` | `string` | Artist of last track |
 | `session.lastTimestamp` | `number` | `Date.now()` of last segment |
@@ -125,7 +125,7 @@ Thin MMKV read/write layer. No business logic — just storage.
 | `lastTimestamp` | `SegmentController.generateNext()` / `generateMidSongDrop()` | Every segment generation |
 | `sessionCount` | `SegmentController.startSession()` via `incrementSessionCount()` | Session start |
 
-`startSession()` gains two new parameters: `stationId: string` and `vibe: Vibe`. Callers (PlayerScreen) already have both values.
+`startSession()` gains two new parameters: `stationId: string` and `vibe: Vibe`. This replaces the separate `setVibe(vibe)` call — `startSession` now handles vibe internally. Callers (PlayerScreen) should remove the separate `setVibe()` call.
 
 ### How Cleo Uses It
 
@@ -221,10 +221,10 @@ At the fade point (~2 seconds before Cleo finishes), deactivate ducking so iOS r
 
 - **Short segments (≤ 3s):** No crossfade — hard transition as today
 - **User skips during crossfade:** `stopAudio()` kills the fade timer, resets `crossfadeActive`
-- **`post_song` mode:** Music is already playing and ducked. No crossfade — Cleo ducks and speaks, then ducking deactivates on finish as today.
-- **Mid-song drops:** Same as `post_song` — music already playing, no crossfade needed
+- **`post_song` mode:** Music is playing but ducked during Cleo's speech. Crossfade still applies — ducking deactivates 2s early so music ramps up under Cleo's last words. This is intentional and feels natural for all segment types.
+- **Mid-song drops:** Same as `post_song` — music is ducked during speech, crossfade un-ducks 2s early
 - **Crossfade timer fires but audio was stopped:** `audioPlayer?.isPlaying` guard prevents action
-- **Crossfade only applies to `pre_song` segments:** The JS layer does not need to signal this — the native module applies crossfade logic to ALL `playAudioFromBase64` calls, but for `post_song`/mid-song, the music is already unducked, so the `setActive(false)` call at fade point is a no-op.
+- **Crossfade applies to all segment types:** The native module applies crossfade logic to ALL `playAudioFromBase64` calls. For `post_song`/mid-song, music is ducked during speech, so the fade-point deactivation un-ducks 2s early — music rises under Cleo's last words regardless of delivery mode. No JS-side flag needed.
 
 ### JS Layer
 
@@ -240,7 +240,7 @@ No changes. The crossfade is entirely native. The `playAudioFromBase64` promise 
 | 2 | `src/services/CleoScriptGenerator.ts` | Add `maxWords?: number` and `previousSession?` to `SegmentContext`; add PREVIOUS SESSION block and variable word limit to dynamic prompt |
 | 3 | `src/engines/SegmentController.ts` | Add `generateMidSongDrop()` (standalone, no rotation/mode side effects); add `duration?: number` to `TrackInfo`; update `startSession(stationId, vibe)` to read/write SessionMemory; write SessionMemory on every `generateNext()` |
 | 4 | `src/engines/AudioCoordinator.ts` | Add `duration?: number` to `TrackInfo`; add `scheduleMidSongDrop()`, `pendingMidSongTimer`, `lastSegmentEndTime`; update `cancelPendingTimer()` to clear mid-song timer |
-| 5 | `src/screens/player/PlayerScreen.tsx` | Pass `duration` in track info to `handleTrackChangeWithResult`; pass `stationId` and `vibe` to `segmentController.startSession()` |
+| 5 | `src/screens/player/PlayerScreen.tsx` | Pass `duration` and `genre` in track info to `handleTrackChangeWithResult`; pass `stationId` and `vibe` to `segmentController.startSession()`; remove separate `setVibe()` call |
 | 6 | `modules/expo-music-kit/ios/ExpoMusicKitModule.swift` | Add `crossfadeTimer`, `crossfadeActive` flag; add fade-point timer logic in `playAudioFromBase64`; branch `audioPlayerDidFinishPlaying` on crossfade state; update `stopAudio` to clean up crossfade state |
 
 ---
