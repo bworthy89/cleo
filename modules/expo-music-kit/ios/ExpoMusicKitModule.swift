@@ -250,6 +250,10 @@ public class ExpoMusicKitModule: Module {
         self.audioPlayer?.delegate = self.audioDelegate
         self.audioPlayer?.prepareToPlay()
 
+        if let dur = self.audioPlayer?.duration {
+          print("[ExpoMusicKit] Audio duration: \(String(format: "%.1f", dur))s, crossfade: \(dur > 3.0 ? "yes (fade at \(String(format: "%.1f", dur - 2.0))s)" : "no (too short)")")
+        }
+
         // Crossfade: schedule ducking deactivation 2s before audio ends
         self.crossfadeActive = false
         self.crossfadeTimer?.invalidate()
@@ -262,8 +266,8 @@ public class ExpoMusicKitModule: Module {
             self.crossfadeTimer = Timer.scheduledTimer(withTimeInterval: fadePoint, repeats: false) { [weak self] _ in
               guard let self = self, self.audioPlayer?.isPlaying == true else { return }
               self.crossfadeActive = true
-              // Deactivate ducking — iOS ramps music back up naturally (~0.5s)
-              try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+              // Remove duckOthers but keep session active — un-ducks music without stopping Cleo's audio
+              try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
             }
           }
         }
@@ -470,6 +474,7 @@ class AudioPlayerDelegate: NSObject, AVAudioPlayerDelegate {
   }
 
   func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+    print("[ExpoMusicKit] audioPlayerDidFinishPlaying — success: \(flag), currentTime: \(String(format: "%.1f", player.currentTime))s / \(String(format: "%.1f", player.duration))s")
     if let observer = interruptionObserver {
       NotificationCenter.default.removeObserver(observer)
       interruptionObserver = nil

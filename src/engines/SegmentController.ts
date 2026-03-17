@@ -156,31 +156,9 @@ class SegmentControllerEngine {
       return { text, type: 'song_intro', deliveryMode: 'pre_song' };
     }
 
-    // Use buffer if available and mode constraints allow it
-    if (this.bufferedSegment) {
-      const buffered = this.bufferedSegment;
-      // Check mode constraint: never two post_song in a row
-      const modeValid = !(buffered.deliveryMode === 'post_song' && this.lastDeliveryMode === 'post_song');
-
-      if (modeValid) {
-        this.bufferedSegment = null;
-        this.history.unshift(buffered.text);
-        if (this.history.length > 3) this.history.pop();
-        this.segmentCount++;
-        this.addToTracksReferenced(currentTrack.artistName);
-        // Update mode tracking to match what was buffered
-        this.lastDeliveryMode = buffered.deliveryMode;
-        if (buffered.deliveryMode === 'pre_song') {
-          this.consecutivePreSong++;
-        } else {
-          this.consecutivePreSong = 0;
-        }
-        return buffered;
-      } else {
-        // Discard stale buffered segment — regenerate below
-        this.bufferedSegment = null;
-      }
-    }
+    // Discard any buffered segment — prompts now bake in track names,
+    // so preloaded text would reference the wrong track
+    this.bufferedSegment = null;
 
     let segmentType = this.getNextSegmentType();
 
