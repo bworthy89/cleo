@@ -37,9 +37,10 @@ interface HomeScreenProps {
     vibe: Vibe;
   }) => void;
   onNavigateToSettings?: () => void;
+  onNavigateToActivePlayer?: () => void;
 }
 
-export function HomeScreen({ onNavigateToPlayer, onNavigateToSettings }: HomeScreenProps) {
+export function HomeScreen({ onNavigateToPlayer, onNavigateToSettings, onNavigateToActivePlayer }: HomeScreenProps) {
   const [authState, setAuthState] = useState<AuthState>('loading');
   const [stations, setStations] = useState<Station[]>([]);
   const [playlists, setPlaylists] = useState<MusicPlaylist[]>([]);
@@ -182,11 +183,14 @@ export function HomeScreen({ onNavigateToPlayer, onNavigateToSettings }: HomeScr
       </View>
 
       {nowPlaying && (
-        <View style={styles.nowPlaying}>
+        <Pressable style={styles.nowPlaying} onPress={onNavigateToActivePlayer}>
           <Text style={styles.mono}>NOW PLAYING</Text>
-          <Text style={styles.nowPlayingTitle}>{nowPlaying.title}</Text>
-          <Text style={styles.nowPlayingArtist}>{nowPlaying.artistName}</Text>
-        </View>
+          <Text style={styles.nowPlayingTitle} numberOfLines={1}>{nowPlaying.title}</Text>
+          <View style={styles.nowPlayingRow}>
+            <Text style={styles.nowPlayingArtist} numberOfLines={1}>{nowPlaying.artistName}</Text>
+            <Text style={styles.nowPlayingTap}>TAP TO OPEN {'\u2192'}</Text>
+          </View>
+        </Pressable>
       )}
 
       {stations.length > 0 && (
@@ -300,12 +304,25 @@ const styles = StyleSheet.create({
     color: Colors.vibe.morning.text,
     marginTop: Spacing.xs,
   },
+  nowPlayingRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: Spacing.xs,
+  },
   nowPlayingArtist: {
     fontFamily: Typography.label.family,
     fontSize: 14,
     color: Colors.vibe.morning.text,
     opacity: 0.7,
-    marginTop: Spacing.xs,
+    flex: 1,
+  },
+  nowPlayingTap: {
+    fontFamily: Typography.mono.family,
+    fontSize: 9,
+    color: Colors.vibe.morning.accent,
+    letterSpacing: 2,
+    marginLeft: Spacing.md,
   },
   section: {
     marginTop: Spacing.lg,
