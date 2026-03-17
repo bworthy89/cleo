@@ -86,10 +86,14 @@ export function PlayerScreen({
 
   const handlePlayPause = async () => {
     try {
-      if (isPlaying) {
+      // Check actual status from MusicKit rather than relying on event state
+      const status = await musicKitPlayer.getPlaybackStatus();
+      if (status === 'playing') {
         await musicKitPlayer.pause();
+        setIsPlaying(false);
       } else {
         await musicKitPlayer.play();
+        setIsPlaying(true);
       }
     } catch {
       // MusicKit may throw if queue is empty — non-fatal
