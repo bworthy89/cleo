@@ -1,5 +1,6 @@
 import { synthesizeAndPlay } from '../services/CleoVoiceEngine';
 import { segmentController } from './SegmentController';
+import type { SegmentResult } from './SegmentController';
 import { queueManager } from './QueueManager';
 import type { EnrichedFacts } from '../services/TrackEnrichmentService';
 
@@ -53,6 +54,43 @@ class AudioCoordinatorEngine {
       segmentController.preloadNext(trackInfo, nextTrack);
     } catch (error) {
       console.error('[AudioCoordinator] Handoff failed:', error);
+    } finally {
+      this.isSpeaking = false;
+    }
+  }
+
+  async handleTrackChangeWithResult(
+    currentTrack: TrackInfo,
+    nextTrack?: TrackInfo
+  ): Promise<SegmentResult | null> {
+    if (this.isSpeaking) return null;
+    this.isSpeaking = true;
+
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+
+      let trackInfo = currentTrack;
+      if (currentTrack.id) {
+        const enrichedProfile = queueManager.getTrackProfile(currentTrack.id);
+        if (enrichedProfile) {
+          trackInfo = {
+            ...currentTrack,
+            enrichedFacts: enrichedProfile.enrichedFacts,
+            hasRichData: enrichedProfile.hasRichData,
+          };
+        }
+      }
+
+      const segment = await segmentController.generateNext(trackInfo, nextTrack);
+      console.log(`[Cleo] ${segment.type}: ${segment.text}`);
+
+      await synthesizeAndPlay(segment.text);
+      segmentController.preloadNext(trackInfo, nextTrack);
+
+      return segment;
+    } catch (error) {
+      console.error('[AudioCoordinator] Handoff failed:', error);
+      return null;
     } finally {
       this.isSpeaking = false;
     }
