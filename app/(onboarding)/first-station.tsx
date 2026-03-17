@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import { Colors, Typography, Spacing } from '../../src/tokens/design-tokens';
 import { StationCard } from '../../src/components/StationCard';
 import { musicKitPlayer } from '../../src/services/MusicKitPlayer';
-import { addStation } from '../../src/services/Storage';
+import { addStation, getUser } from '../../src/services/Storage';
 import type { MusicPlaylist } from '../../modules/expo-music-kit';
 
 export default function FirstStationScreen() {
@@ -33,7 +33,7 @@ export default function FirstStationScreen() {
         id: `station-${Date.now()}`,
         name: playlist.name,
         playlistId: playlist.id,
-        defaultVibe: 'chill',
+        defaultVibe: getUser()?.defaultVibe ?? 'chill',
         artworkUrl: playlist.artworkUrl,
         createdAt: new Date().toISOString(),
       });
