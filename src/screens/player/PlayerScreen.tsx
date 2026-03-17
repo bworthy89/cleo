@@ -15,6 +15,7 @@ import { musicKitPlayer } from '../../services/MusicKitPlayer';
 import { audioCoordinator } from '../../engines/AudioCoordinator';
 import { segmentController } from '../../engines/SegmentController';
 import { queueManager } from '../../engines/QueueManager';
+import { sessionEngine } from '../../engines/SessionEngine';
 import { addRecentlyPlayedTrack } from '../../services/Storage';
 import type { Vibe } from '../../cleo/fallbacks';
 import type { NowPlaying } from '../../../modules/expo-music-kit';
@@ -43,9 +44,17 @@ export function PlayerScreen({
 
   const vibeTheme = Colors.vibe[vibe] ?? Colors.vibe.chill;
 
-  // Start session on mount
+  // Start session on mount — skip if already playing this station
   useEffect(() => {
     (async () => {
+      const existing = sessionEngine.getSession();
+      if (existing && existing.stationId === stationId && existing.tracksPlayed.length > 0) {
+        // Returning to an active session — just refresh UI
+        setSessionStarted(true);
+        refreshNowPlaying();
+        return;
+      }
+
       segmentController.startSession();
       segmentController.setVibe(vibe);
       await queueManager.initializeSession(playlistId, vibe, stationId);
