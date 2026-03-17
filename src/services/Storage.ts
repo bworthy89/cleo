@@ -1,4 +1,5 @@
 import { createMMKV, type MMKV } from 'react-native-mmkv';
+import type { Vibe } from '../cleo/fallbacks';
 
 export const storage: MMKV = createMMKV({ id: 'cleo-storage' });
 
@@ -16,14 +17,14 @@ export interface UserData {
   name?: string;
   appleMusicAuthorized: boolean;
   createdAt: string;
-  defaultVibe?: string;
+  defaultVibe?: Vibe;
 }
 
 export interface Station {
   id: string;
   name: string;
   playlistId: string;
-  defaultVibe: string;
+  defaultVibe: Vibe;
   artworkUrl?: string;
   createdAt: string;
 }

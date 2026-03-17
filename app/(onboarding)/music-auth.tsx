@@ -1,18 +1,29 @@
+import { useState } from 'react';
 import { Pressable, SafeAreaView, StyleSheet, Text, View, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { Colors, Typography, Spacing } from '../../src/tokens/design-tokens';
 import { musicKitPlayer } from '../../src/services/MusicKitPlayer';
 
 export default function MusicAuthScreen() {
+  const [loading, setLoading] = useState(false);
+
   const handleConnect = async () => {
-    const result = await musicKitPlayer.authorize();
-    if (result.status === 'authorized') {
-      router.push('/(onboarding)/vibe-setup');
-    } else {
-      Alert.alert(
-        'Apple Music Required',
-        'Cleo needs access to your Apple Music library to play your playlists. Please enable it in Settings.',
-      );
+    if (loading) return;
+    setLoading(true);
+    try {
+      const result = await musicKitPlayer.authorize();
+      if (result.status === 'authorized') {
+        router.push('/(onboarding)/vibe-setup');
+      } else {
+        Alert.alert(
+          'Apple Music Required',
+          'Cleo needs access to your Apple Music library to play your playlists. Please enable it in Settings.',
+        );
+      }
+    } catch {
+      Alert.alert('Error', 'Could not connect to Apple Music. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -26,8 +37,8 @@ export default function MusicAuthScreen() {
         </Text>
       </View>
       <View style={styles.bottom}>
-        <Pressable style={styles.button} onPress={handleConnect}>
-          <Text style={styles.buttonText}>CONNECT APPLE MUSIC</Text>
+        <Pressable style={[styles.button, loading && styles.buttonDisabled]} onPress={handleConnect} disabled={loading}>
+          <Text style={styles.buttonText}>{loading ? 'CONNECTING...' : 'CONNECT APPLE MUSIC'}</Text>
         </Pressable>
       </View>
     </SafeAreaView>
@@ -72,6 +83,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.base.black,
     paddingVertical: Spacing.md,
     alignItems: 'center',
+  },
+  buttonDisabled: {
+    opacity: 0.5,
   },
   buttonText: {
     fontFamily: Typography.mono.family,
