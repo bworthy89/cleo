@@ -1,21 +1,11 @@
-import { useEffect, useState } from 'react';
-import { StatusBar } from 'expo-status-bar';
+import { useEffect } from 'react';
+import { Stack } from 'expo-router';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
-import { HomeScreen } from './src/screens/home/HomeScreen';
-import { PlayerScreen } from './src/screens/player/PlayerScreen';
-import type { Vibe } from './src/cleo/fallbacks';
 
 SplashScreen.preventAutoHideAsync();
 
-interface PlayerParams {
-  stationName: string;
-  playlistId: string;
-  stationId: string;
-  vibe: Vibe;
-}
-
-export default function App() {
+export default function RootLayout() {
   const [fontsLoaded] = useFonts({
     PlayfairDisplay_400Regular: require('@expo-google-fonts/playfair-display/400Regular/PlayfairDisplay_400Regular.ttf'),
     WorkSans_400Regular: require('@expo-google-fonts/work-sans/400Regular/WorkSans_400Regular.ttf'),
@@ -25,8 +15,6 @@ export default function App() {
     DMMono_400Regular: require('@expo-google-fonts/dm-mono/400Regular/DMMono_400Regular.ttf'),
   });
 
-  const [playerParams, setPlayerParams] = useState<PlayerParams | null>(null);
-
   useEffect(() => {
     if (fontsLoaded) {
       SplashScreen.hideAsync();
@@ -35,25 +23,12 @@ export default function App() {
 
   if (!fontsLoaded) return null;
 
-  if (playerParams) {
-    return (
-      <>
-        <PlayerScreen
-          stationName={playerParams.stationName}
-          playlistId={playerParams.playlistId}
-          stationId={playerParams.stationId}
-          vibe={playerParams.vibe}
-          onBack={() => setPlayerParams(null)}
-        />
-        <StatusBar style="light" />
-      </>
-    );
-  }
-
   return (
-    <>
-      <HomeScreen onNavigateToPlayer={setPlayerParams} />
-      <StatusBar style="dark" />
-    </>
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="index" />
+      <Stack.Screen name="(onboarding)" />
+      <Stack.Screen name="(main)" />
+      <Stack.Screen name="(settings)" />
+    </Stack>
   );
 }
