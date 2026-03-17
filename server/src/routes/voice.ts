@@ -11,26 +11,30 @@ voiceRouter.post('/synthesize-voice', async (req: Request, res: Response) => {
       return;
     }
 
-    const apiKey = process.env.GOOGLE_TTS_API_KEY;
-    if (!apiKey) {
-      res.status(500).json({ error: 'GOOGLE_TTS_API_KEY not configured' });
+    const apiKey = process.env.ELEVENLABS_API_KEY;
+    const voiceId = process.env.ELEVENLABS_VOICE_ID;
+
+    if (!apiKey || !voiceId) {
+      res.status(500).json({ error: 'ElevenLabs not configured' });
       return;
     }
 
     const response = await fetch(
-      `https://texttospeech.googleapis.com/v1/text:synthesize?key=${apiKey}`,
+      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'xi-api-key': apiKey,
+        },
         body: JSON.stringify({
-          input: { text },
-          voice: {
-            languageCode: 'en-US',
-            name: 'en-US-Journey-F',
-          },
-          audioConfig: {
-            audioEncoding: 'MP3',
-            speakingRate: 0.93,
+          text,
+          model_id: 'eleven_multilingual_v2',
+          voice_settings: {
+            stability: 0.5,
+            similarity_boost: 0.75,
+            style: 0.4,
+            use_speaker_boost: true,
           },
         }),
       }
@@ -42,8 +46,11 @@ voiceRouter.post('/synthesize-voice', async (req: Request, res: Response) => {
       return;
     }
 
-    const data = await response.json();
-    res.json({ audioContent: data.audioContent });
+    // ElevenLabs returns raw audio bytes, convert to base64
+    const arrayBuffer = await response.arrayBuffer();
+    const base64Audio = Buffer.from(arrayBuffer).toString('base64');
+
+    res.json({ audioContent: base64Audio });
   } catch (error) {
     console.error('Voice synthesis error:', error);
     res.status(500).json({ error: 'Failed to synthesize voice' });
