@@ -38,6 +38,12 @@ voiceRouter.post('/synthesize-voice', async (req: Request, res: Response) => {
             style: 0.40,
             use_speaker_boost: true,
           },
+          pronunciation_dictionary_locators: process.env.ELEVENLABS_PRONUNCIATION_DICT_ID ? [
+            {
+              pronunciation_dictionary_id: process.env.ELEVENLABS_PRONUNCIATION_DICT_ID,
+              version_id: process.env.ELEVENLABS_PRONUNCIATION_DICT_VERSION,
+            },
+          ] : undefined,
         }),
       }
     );
