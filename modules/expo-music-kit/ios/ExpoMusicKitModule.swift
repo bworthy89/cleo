@@ -40,31 +40,51 @@ public class ExpoMusicKitModule: Module {
       request.sort(by: \.lastPlayedDate, ascending: false)
       let response = try await request.response()
 
-      // For playlists without HTTP artwork, try to get artwork from their first track via catalog
-      var results: [[String: Any]] = []
-      for playlist in response.items {
-        var dict: [String: Any] = [
-          "id": playlist.id.rawValue,
-          "name": playlist.name
-        ]
-        if let trackCount = playlist.tracks?.count {
-          dict["trackCount"] = trackCount
-        }
+      // Resolve artwork in parallel using TaskGroup
+      let playlistItems = Array(response.items)
 
-        // Try playlist artwork first
-        if let artworkUrl = self.artworkUrlString(playlist.artwork, width: 600, height: 600) {
-          dict["artworkUrl"] = artworkUrl
-        } else {
-          // Fall back to first track's catalog artwork
-          let detailed = try? await playlist.with(.tracks, preferredSource: .catalog)
-          if let firstTrack = detailed?.tracks?.first,
-             let artworkUrl = self.artworkUrlString(firstTrack.artwork, width: 600, height: 600) {
-            dict["artworkUrl"] = artworkUrl
+      let results: [[String: Any]] = await withTaskGroup(of: [String: Any].self) { group in
+        for playlist in playlistItems {
+          group.addTask {
+            var dict: [String: Any] = [
+              "id": playlist.id.rawValue,
+              "name": playlist.name
+            ]
+            if let trackCount = playlist.tracks?.count {
+              dict["trackCount"] = trackCount
+            }
+
+            // Try playlist artwork first
+            if let artworkUrl = self.artworkUrlString(playlist.artwork, width: 300, height: 300) {
+              dict["artworkUrl"] = artworkUrl
+            } else {
+              // Fall back to first track's catalog artwork
+              let detailed = try? await playlist.with(.tracks, preferredSource: .catalog)
+              if let firstTrack = detailed?.tracks?.first,
+                 let artworkUrl = self.artworkUrlString(firstTrack.artwork, width: 300, height: 300) {
+                dict["artworkUrl"] = artworkUrl
+              }
+            }
+            return dict
           }
         }
-        results.append(dict)
+
+        var collected: [[String: Any]] = []
+        for await result in group {
+          collected.append(result)
+        }
+        return collected
       }
-      return results
+
+      // TaskGroup returns results in completion order, not insertion order.
+      // Re-sort to match the original lastPlayedDate order.
+      let idOrder = playlistItems.map { $0.id.rawValue }
+      let sorted = results.sorted { a, b in
+        let aIndex = idOrder.firstIndex(of: a["id"] as! String) ?? Int.max
+        let bIndex = idOrder.firstIndex(of: b["id"] as! String) ?? Int.max
+        return aIndex < bIndex
+      }
+      return sorted
     }
 
     AsyncFunction("fetchPlaylistTracks") { (playlistId: String) -> [[String: Any]] in

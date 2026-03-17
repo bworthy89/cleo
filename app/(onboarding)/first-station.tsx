@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import { Colors, Typography, Spacing } from '../../src/tokens/design-tokens';
 import { StationCard } from '../../src/components/StationCard';
 import { musicKitPlayer } from '../../src/services/MusicKitPlayer';
-import { addStation, getUser } from '../../src/services/Storage';
+import { addStation, getUser, setCachedPlaylists } from '../../src/services/Storage';
 import type { MusicPlaylist } from '../../modules/expo-music-kit';
 
 export default function FirstStationScreen() {
@@ -16,6 +16,7 @@ export default function FirstStationScreen() {
       try {
         const lists = await musicKitPlayer.fetchPlaylists();
         setPlaylists(lists);
+        setCachedPlaylists(lists);
       } catch {
         // playlists may fail — non-fatal, user sees empty grid
       }
