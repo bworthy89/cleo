@@ -114,7 +114,7 @@ public class ExpoMusicKitModule: Module {
         "status": self.playbackStatusString(player.state.playbackStatus)
       ]
       if case .song(let song) = entry.item {
-        let trackInfo = self.trackToDictionary(song)
+        let trackInfo = self.songToDictionary(song)
         result.merge(trackInfo) { _, new in new }
       }
       return result
@@ -163,7 +163,25 @@ public class ExpoMusicKitModule: Module {
     }
   }
 
-  private func trackToDictionary(_ song: Song) -> [String: Any] {
+  private func trackToDictionary(_ track: Track) -> [String: Any] {
+    var dict: [String: Any] = [
+      "id": track.id.rawValue,
+      "title": track.title,
+      "artistName": track.artistName,
+      "albumTitle": track.albumTitle ?? "",
+      "duration": track.duration ?? 0,
+      "genreNames": track.genreNames,
+      "trackNumber": track.trackNumber ?? 0,
+      "discNumber": track.discNumber ?? 0
+    ]
+    if let artwork = track.artwork,
+       let url = artwork.url(width: 800, height: 800) {
+      dict["artworkUrl"] = url.absoluteString
+    }
+    return dict
+  }
+
+  private func songToDictionary(_ song: Song) -> [String: Any] {
     var dict: [String: Any] = [
       "id": song.id.rawValue,
       "title": song.title,

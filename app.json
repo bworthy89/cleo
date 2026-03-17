@@ -18,8 +18,11 @@
         "NSAppleMusicUsageDescription": "Cleo uses Apple Music to play your playlists with AI-powered radio hosting."
       },
       "entitlements": {
-        "com.apple.developer.musickit": true
-      }
+        "com.apple.developer.musickit": [
+          "music-items"
+        ]
+      },
+      "deploymentTarget": "16.0"
     },
     "android": {
       "adaptiveIcon": {
@@ -27,20 +30,19 @@
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
-      }
+      },
+      "permissions": [
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ],
+      "package": "com.worthymedia.cleo"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-font",
-      "react-native-video",
-      [
-        "expo-av",
-        {
-          "microphonePermission": false
-        }
-      ]
+      "react-native-video"
     ]
   }
 }
