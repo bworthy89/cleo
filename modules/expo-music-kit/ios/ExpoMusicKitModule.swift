@@ -157,10 +157,8 @@ public class ExpoMusicKitModule: Module {
 
         self.audioPlayer = try AVAudioPlayer(data: data)
         self.audioDelegate = AudioPlayerDelegate {
-          try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
-          // Restore normal playback category after speaking
+          // Just restore normal category — don't deactivate session, as that pauses MusicKit
           try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
-          try? AVAudioSession.sharedInstance().setActive(true)
           promise.resolve(nil)
         }
         self.audioPlayer?.delegate = self.audioDelegate
