@@ -13,24 +13,31 @@ export default function FirstStationScreen() {
 
   useEffect(() => {
     (async () => {
-      const lists = await musicKitPlayer.fetchPlaylists();
-      setPlaylists(lists);
+      try {
+        const lists = await musicKitPlayer.fetchPlaylists();
+        setPlaylists(lists);
+      } catch {
+        // playlists may fail — non-fatal, user sees empty grid
+      }
     })();
   }, []);
 
   const handleSelect = (playlist: MusicPlaylist) => {
     setSelected(playlist.id);
-    addStation({
-      id: `station-${Date.now()}`,
-      name: playlist.name,
-      playlistId: playlist.id,
-      defaultVibe: 'chill',
-      artworkUrl: playlist.artworkUrl,
-      createdAt: new Date().toISOString(),
-    });
   };
 
   const handleDone = () => {
+    const playlist = playlists.find(p => p.id === selected);
+    if (playlist) {
+      addStation({
+        id: `station-${Date.now()}`,
+        name: playlist.name,
+        playlistId: playlist.id,
+        defaultVibe: 'chill',
+        artworkUrl: playlist.artworkUrl,
+        createdAt: new Date().toISOString(),
+      });
+    }
     router.replace('/(main)');
   };
 
