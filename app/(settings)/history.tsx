@@ -1,6 +1,6 @@
 import { FlatList, StyleSheet, Text, View } from 'react-native';
 import { Colors, Typography, Spacing } from '../../src/tokens/design-tokens';
-import { storage } from '../../src/services/Storage';
+import { storage, StorageKeys } from '../../src/services/Storage';
 
 interface SessionRecord {
   id: string;
@@ -11,7 +11,7 @@ interface SessionRecord {
 }
 
 function getSessionHistory(): SessionRecord[] {
-  const raw = storage.getString('sessionHistory');
+  const raw = storage.getString(StorageKeys.SESSIONS);
   return raw ? JSON.parse(raw) : [];
 }
 
