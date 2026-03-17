@@ -54,6 +54,13 @@ export async function planQueue(
     workout: 'Workout — high energy, minimal breaks',
     lateNight: 'Late Night — intimate, slow, atmospheric',
     party: 'Party — loud energy, momentum, crowd pleasers',
+    general: 'General — no particular mood, let the music lead',
+    focus: 'Focus — deep work, minimal distraction, steady energy',
+    feelGood: 'Feel Good — warm, upbeat, celebratory',
+    throwback: 'Throwback — nostalgic, classic era, storytelling-heavy',
+    elevated: 'Elevated — sophisticated, measured, soulful',
+    melancholy: 'Melancholy — introspective, honest, slow burns',
+    sunday: 'Sunday — slow, unhurried, domestic warmth',
   }[vibe];
 
   const arcDescription = {
