@@ -35,7 +35,10 @@ public class ExpoMusicKitModule: Module {
       var request = MusicLibraryRequest<Playlist>()
       request.sort(by: \.lastPlayedDate, ascending: false)
       let response = try await request.response()
-      return response.items.map { playlist in
+
+      // For playlists without HTTP artwork, try to get artwork from their first track via catalog
+      var results: [[String: Any]] = []
+      for playlist in response.items {
         var dict: [String: Any] = [
           "id": playlist.id.rawValue,
           "name": playlist.name
@@ -43,11 +46,21 @@ public class ExpoMusicKitModule: Module {
         if let trackCount = playlist.tracks?.count {
           dict["trackCount"] = trackCount
         }
+
+        // Try playlist artwork first
         if let artworkUrl = self.artworkUrlString(playlist.artwork, width: 600, height: 600) {
           dict["artworkUrl"] = artworkUrl
+        } else {
+          // Fall back to first track's catalog artwork
+          let detailed = try? await playlist.with(.tracks, preferredSource: .catalog)
+          if let firstTrack = detailed?.tracks?.first,
+             let artworkUrl = self.artworkUrlString(firstTrack.artwork, width: 600, height: 600) {
+            dict["artworkUrl"] = artworkUrl
+          }
         }
-        return dict
+        results.append(dict)
       }
+      return results
     }
 
     AsyncFunction("fetchPlaylistTracks") { (playlistId: String) -> [[String: Any]] in
@@ -63,7 +76,7 @@ public class ExpoMusicKitModule: Module {
         )
       }
 
-      let detailedPlaylist = try await playlist.with([.tracks])
+      let detailedPlaylist = try await playlist.with(.tracks, preferredSource: .catalog)
 
       guard let tracks = detailedPlaylist.tracks else {
         return []
