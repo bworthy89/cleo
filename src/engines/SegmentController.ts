@@ -2,6 +2,7 @@ import { generateSegment, type SegmentContext, type SessionPhase, type DeliveryM
 import type { SegmentType, Vibe } from '../cleo/fallbacks';
 import { getColdOpen } from '../cleo/cold-opens';
 import type { EnrichedFacts } from '../services/TrackEnrichmentService';
+import { saveSessionMemory, loadSessionMemory, getTimeSinceLastSession, incrementSessionCount } from '../services/SessionMemory';
 
 // DeliveryMode is defined and exported from CleoScriptGenerator — re-export for consumers
 export type { DeliveryMode } from '../services/CleoScriptGenerator';
@@ -14,6 +15,7 @@ interface TrackInfo {
   genre?: string;
   enrichedFacts?: EnrichedFacts;
   hasRichData?: boolean;
+  duration?: number;
 }
 
 export interface SegmentResult {
@@ -62,6 +64,8 @@ class SegmentControllerEngine {
   private lastDeliveryMode: DeliveryMode = 'pre_song';
   private consecutivePreSong = 0;
   private tracksReferenced: string[] = [];
+  private sessionMemory: ReturnType<typeof loadSessionMemory> = null;
+  private currentStationId = '';
 
   setVibe(vibe: Vibe) {
     this.currentVibe = vibe;
@@ -71,7 +75,10 @@ class SegmentControllerEngine {
     this.listenerName = name;
   }
 
-  startSession() {
+  startSession(stationId?: string, vibe?: Vibe) {
+    // Load previous session memory before resetting
+    this.sessionMemory = loadSessionMemory();
+
     this.history = [];
     this.rotationIndex = 0;
     this.segmentCount = 0;
@@ -80,6 +87,14 @@ class SegmentControllerEngine {
     this.lastDeliveryMode = 'pre_song';
     this.consecutivePreSong = 0;
     this.tracksReferenced = [];
+
+    if (stationId) this.currentStationId = stationId;
+    if (vibe) this.currentVibe = vibe;
+
+    // Persist new session start
+    incrementSessionCount();
+    if (stationId) saveSessionMemory({ lastStationId: stationId });
+    if (vibe) saveSessionMemory({ lastVibe: vibe });
   }
 
   private getNextSegmentType(): SegmentType {
@@ -189,6 +204,7 @@ class SegmentControllerEngine {
       listenerName: this.listenerName,
       enrichedFacts: currentTrack.enrichedFacts,
       tracksReferenced: [...this.tracksReferenced],
+      previousSession: this.buildPreviousSession(),
     };
 
     const text = await generateSegment(context);
@@ -197,6 +213,14 @@ class SegmentControllerEngine {
     if (this.history.length > 3) this.history.pop();
     this.segmentCount++;
     this.addToTracksReferenced(currentTrack.artistName);
+
+    // Persist session context for cross-session continuity
+    saveSessionMemory({
+      lastTrackTitle: currentTrack.title,
+      lastArtistName: currentTrack.artistName,
+      lastArtists: [...this.tracksReferenced].slice(0, 10),
+      lastTimestamp: Date.now(),
+    });
 
     return { text, type: segmentType, deliveryMode };
   }
@@ -232,6 +256,62 @@ class SegmentControllerEngine {
 
   getSegmentCount(): number {
     return this.segmentCount;
+  }
+
+  private buildPreviousSession(): SegmentContext['previousSession'] {
+    if (!this.sessionMemory) return undefined;
+    const timeSince = getTimeSinceLastSession();
+    if (!timeSince) return undefined;
+
+    return {
+      stationName: this.sessionMemory.lastStationId,
+      vibe: this.sessionMemory.lastVibe,
+      lastTrack: this.sessionMemory.lastTrackTitle,
+      lastArtist: this.sessionMemory.lastArtistName,
+      timeSince: timeSince.label,
+      artists: this.sessionMemory.lastArtists ?? [],
+      sessionNumber: this.sessionMemory.sessionCount ?? 1,
+      returningToSameStation: this.sessionMemory.lastStationId === this.currentStationId,
+      switchedStation: this.sessionMemory.lastStationId !== this.currentStationId,
+    };
+  }
+
+  private static MID_SONG_TYPES: SegmentType[] = ['station_id', 'session_checkin', 'post_track_reflection'];
+
+  async generateMidSongDrop(currentTrack: TrackInfo): Promise<SegmentResult> {
+    const segmentType = SegmentControllerEngine.MID_SONG_TYPES[
+      Math.floor(Math.random() * SegmentControllerEngine.MID_SONG_TYPES.length)
+    ];
+
+    const context: SegmentContext = {
+      segmentType,
+      vibe: this.currentVibe,
+      deliveryMode: 'post_song',
+      sessionPhase: this.getSessionPhase(),
+      currentTrack,
+      sessionDurationMinutes: this.getSessionDuration(),
+      segmentHistory: this.history.slice(0, 3),
+      listenerName: this.listenerName,
+      enrichedFacts: currentTrack.enrichedFacts,
+      tracksReferenced: [...this.tracksReferenced],
+      maxWords: 25,
+    };
+
+    const text = await generateSegment(context);
+
+    this.history.unshift(text);
+    if (this.history.length > 3) this.history.pop();
+    this.segmentCount++;
+    this.addToTracksReferenced(currentTrack.artistName);
+
+    saveSessionMemory({
+      lastTrackTitle: currentTrack.title,
+      lastArtistName: currentTrack.artistName,
+      lastArtists: [...this.tracksReferenced].slice(0, 10),
+      lastTimestamp: Date.now(),
+    });
+
+    return { text, type: segmentType, deliveryMode: 'post_song' };
   }
 }
 
