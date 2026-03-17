@@ -4,7 +4,7 @@ export const segmentRouter = Router();
 
 segmentRouter.post('/generate-segment', async (req: Request, res: Response) => {
   try {
-    const { systemPrompt, userPrompt } = req.body;
+    const { systemPrompt, userPrompt, maxTokens } = req.body;
 
     if (!systemPrompt || !userPrompt) {
       res.status(400).json({ error: 'systemPrompt and userPrompt are required' });
@@ -27,7 +27,7 @@ segmentRouter.post('/generate-segment', async (req: Request, res: Response) => {
           contents: [{ parts: [{ text: userPrompt }] }],
           generationConfig: {
             temperature: 0.9,
-            maxOutputTokens: 1024,
+            maxOutputTokens: maxTokens ?? 1024,
             topP: 0.95,
           },
         }),
