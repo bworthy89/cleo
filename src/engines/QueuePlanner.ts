@@ -108,10 +108,12 @@ Include ALL tracks. Every track must appear exactly once. Order them to create t
     const data = await response.json();
     let text = data.text.trim();
 
-    // Strip markdown code fences if present
-    if (text.startsWith('```')) {
-      text = text.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+    // Extract JSON from response — Gemini may include thinking text, markdown fences, etc.
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error('No JSON object found in response');
     }
+    text = jsonMatch[0];
 
     const plan: QueuePlan = JSON.parse(text);
 
