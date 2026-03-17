@@ -2,8 +2,10 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Image,
   Pressable,
   SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -27,6 +29,7 @@ type AuthState = 'loading' | 'unauthorized' | 'ready' | 'playing';
 interface NowPlayingInfo {
   title: string;
   artistName: string;
+  artworkUrl?: string;
 }
 
 interface HomeScreenProps {
@@ -60,14 +63,14 @@ export function HomeScreen({ onNavigateToPlayer, onNavigateToSettings, onNavigat
     })();
   }, []);
 
-  // Listen for track changes — update now playing info only
+  // Listen for track changes — update now playing info
   useEffect(() => {
     const unsub = musicKitPlayer.onTrackChanged(async (event) => {
       if (event.trackId) {
         addRecentlyPlayedTrack(event.trackId);
         const np = await musicKitPlayer.getNowPlaying();
         if (np) {
-          setNowPlaying({ title: np.title, artistName: np.artistName });
+          setNowPlaying({ title: np.title, artistName: np.artistName, artworkUrl: np.artworkUrl });
           setAuthState('playing');
         }
       }
@@ -100,7 +103,7 @@ export function HomeScreen({ onNavigateToPlayer, onNavigateToSettings, onNavigat
   async function refreshNowPlaying() {
     const np = await musicKitPlayer.getNowPlaying();
     if (np) {
-      setNowPlaying({ title: np.title, artistName: np.artistName });
+      setNowPlaying({ title: np.title, artistName: np.artistName, artworkUrl: np.artworkUrl });
       setAuthState('playing');
     }
   }
@@ -148,10 +151,17 @@ export function HomeScreen({ onNavigateToPlayer, onNavigateToSettings, onNavigat
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centered}>
-          <Text style={styles.title}>CLEO</Text>
-          <Text style={styles.subtitle}>AI RADIO HOST</Text>
-          <Pressable style={styles.authButton} onPress={handleAuthorize}>
-            <Text style={styles.authButtonText}>Connect Apple Music</Text>
+          <Text style={styles.heroTitle}>CLEO</Text>
+          <View style={styles.heroAccentLine} />
+          <Text style={styles.heroTagline}>AI RADIO HOST</Text>
+          <Text style={styles.heroDescription}>
+            Your personal DJ. Plays your music,{'\n'}tells the stories behind the songs.
+          </Text>
+          <Pressable
+            style={({ pressed }) => [styles.authButton, pressed && styles.buttonPressed]}
+            onPress={handleAuthorize}
+          >
+            <Text style={styles.authButtonText}>CONNECT APPLE MUSIC</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -163,7 +173,8 @@ export function HomeScreen({ onNavigateToPlayer, onNavigateToSettings, onNavigat
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centered}>
-          <Text style={styles.mono}>LOADING...</Text>
+          <Text style={styles.heroTitle}>CLEO</Text>
+          <ActivityIndicator style={{ marginTop: Spacing.lg }} color={Colors.accent} />
         </View>
       </SafeAreaView>
     );
@@ -172,67 +183,92 @@ export function HomeScreen({ onNavigateToPlayer, onNavigateToSettings, onNavigat
   // ── Ready / Playing ─────────────────────────────────────────────────
   return (
     <SafeAreaView style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>CLEO</Text>
-        <View style={styles.headerRight}>
-          <Text style={styles.onAir}>ON AIR</Text>
-          <Pressable onPress={onNavigateToSettings}>
-            <Text style={styles.settingsButton}>SETTINGS</Text>
-          </Pressable>
-        </View>
+        <Pressable
+          style={({ pressed }) => [styles.settingsButton, pressed && styles.buttonPressed]}
+          onPress={onNavigateToSettings}
+          hitSlop={12}
+        >
+          <Text style={styles.settingsText}>{'\u2699'}</Text>
+        </Pressable>
       </View>
 
-      {nowPlaying && (
-        <Pressable style={styles.nowPlaying} onPress={onNavigateToActivePlayer}>
-          <Text style={styles.mono}>NOW PLAYING</Text>
-          <Text style={styles.nowPlayingTitle} numberOfLines={1}>{nowPlaying.title}</Text>
-          <View style={styles.nowPlayingRow}>
-            <Text style={styles.nowPlayingArtist} numberOfLines={1}>{nowPlaying.artistName}</Text>
-            <Text style={styles.nowPlayingTap}>TAP TO OPEN {'\u2192'}</Text>
-          </View>
-        </Pressable>
-      )}
+      <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Now Playing Bar */}
+        {nowPlaying && (
+          <Pressable
+            style={({ pressed }) => [styles.nowPlaying, pressed && styles.nowPlayingPressed]}
+            onPress={onNavigateToActivePlayer}
+          >
+            <View style={styles.nowPlayingAccent} />
+            {nowPlaying.artworkUrl ? (
+              <Image source={{ uri: nowPlaying.artworkUrl }} style={styles.nowPlayingArt} />
+            ) : (
+              <View style={[styles.nowPlayingArt, styles.nowPlayingArtPlaceholder]} />
+            )}
+            <View style={styles.nowPlayingInfo}>
+              <Text style={styles.nowPlayingLabel}>NOW PLAYING</Text>
+              <Text style={styles.nowPlayingTitle} numberOfLines={1}>{nowPlaying.title}</Text>
+              <Text style={styles.nowPlayingArtist} numberOfLines={1}>{nowPlaying.artistName}</Text>
+            </View>
+            <Text style={styles.nowPlayingArrow}>{'\u203A'}</Text>
+          </Pressable>
+        )}
 
-      {stations.length > 0 && (
+        {/* Your Stations */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>YOUR STATIONS</Text>
-          <FlatList
-            data={stations}
-            keyExtractor={(item) => item.id}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.listContent}
-            renderItem={({ item }) => (
-              <StationCard
-                name={item.name}
-                artworkUrl={item.artworkUrl}
-                onPress={() => handleStationPress(item)}
-              />
-            )}
-          />
+          {stations.length > 0 ? (
+            <FlatList
+              data={stations}
+              keyExtractor={(item) => item.id}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.listContent}
+              renderItem={({ item }) => (
+                <StationCard
+                  name={item.name}
+                  artworkUrl={item.artworkUrl}
+                  onPress={() => handleStationPress(item)}
+                />
+              )}
+            />
+          ) : (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyEmoji}>{'\uD83D\uDCFB'}</Text>
+              <Text style={styles.emptyText}>No stations yet</Text>
+              <Text style={styles.emptyHint}>
+                Tap a playlist below to create your first station
+              </Text>
+            </View>
+          )}
         </View>
-      )}
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>PLAYLISTS</Text>
-        {playlists.length === 0 && playlistsLoading && (
-          <ActivityIndicator style={{ marginTop: Spacing.lg }} color={Colors.vibe.morning.accent} />
-        )}
-        <FlatList
-          data={playlists}
-          keyExtractor={(item) => item.id}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.listContent}
-          renderItem={({ item }) => (
-            <StationCard
-              name={item.name}
-              artworkUrl={item.artworkUrl}
-              onPress={() => handlePlaylistPress(item)}
+        {/* Playlists */}
+        <View style={[styles.section, { marginBottom: Spacing.xxl }]}>
+          <Text style={styles.sectionTitle}>PLAYLISTS</Text>
+          {playlists.length === 0 && playlistsLoading ? (
+            <ActivityIndicator style={{ marginTop: Spacing.lg }} color={Colors.accent} />
+          ) : (
+            <FlatList
+              data={playlists}
+              keyExtractor={(item) => item.id}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.listContent}
+              renderItem={({ item }) => (
+                <StationCard
+                  name={item.name}
+                  artworkUrl={item.artworkUrl}
+                  onPress={() => handlePlaylistPress(item)}
+                />
+              )}
             />
           )}
-        />
-      </View>
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -246,10 +282,16 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: Spacing.xl,
   },
+  scrollContent: {
+    flex: 1,
+  },
+
+  // ── Header ──────────────────────────────────────────────────────────
   header: {
     flexDirection: 'row',
-    alignItems: 'baseline',
+    alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.md,
@@ -261,94 +303,167 @@ const styles = StyleSheet.create({
     color: Colors.vibe.morning.text,
     letterSpacing: 4,
   },
-  subtitle: {
-    fontFamily: Typography.label.familyMedium,
-    fontSize: 12,
-    color: Colors.vibe.morning.text,
-    letterSpacing: 3,
-    textTransform: 'uppercase',
-    marginTop: Spacing.sm,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: Spacing.md,
-  },
-  onAir: {
-    fontFamily: Typography.mono.family,
-    fontSize: 10,
-    color: Colors.vibe.morning.accent,
-    letterSpacing: 3,
-  },
   settingsButton: {
-    fontFamily: Typography.mono.family,
-    fontSize: 10,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  settingsText: {
+    fontSize: 18,
     color: Colors.vibe.morning.text,
-    letterSpacing: 2,
     opacity: 0.5,
   },
-  mono: {
-    fontFamily: Typography.mono.family,
-    fontSize: 10,
-    color: Colors.vibe.morning.accent,
-    letterSpacing: 2,
-    textTransform: 'uppercase',
+
+  // ── Hero (unauthorized/loading) ─────────────────────────────────────
+  heroTitle: {
+    fontFamily: Typography.display.family,
+    fontSize: 72,
+    color: Colors.vibe.morning.text,
+    letterSpacing: 8,
   },
-  nowPlaying: {
-    paddingHorizontal: Spacing.lg,
+  heroAccentLine: {
+    width: 40,
+    height: 2,
+    backgroundColor: Colors.accent,
+    marginVertical: Spacing.lg,
+  },
+  heroTagline: {
+    fontFamily: Typography.mono.family,
+    fontSize: 11,
+    color: Colors.accent,
+    letterSpacing: 4,
+  },
+  heroDescription: {
+    fontFamily: Typography.label.family,
+    fontSize: 15,
+    color: Colors.vibe.morning.text,
+    opacity: 0.5,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginTop: Spacing.md,
+  },
+  authButton: {
+    marginTop: Spacing.xl,
+    backgroundColor: Colors.base.black,
     paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.xl,
+  },
+  authButtonText: {
+    fontFamily: Typography.mono.family,
+    fontSize: 12,
+    color: Colors.base.white,
+    letterSpacing: 3,
+  },
+
+  // ── Now Playing Bar ─────────────────────────────────────────────────
+  nowPlaying: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.sm,
+    backgroundColor: Colors.base.cream,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  nowPlayingPressed: {
+    opacity: 0.8,
+  },
+  nowPlayingAccent: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 3,
+    backgroundColor: Colors.accent,
+  },
+  nowPlayingArt: {
+    width: 56,
+    height: 56,
+    marginLeft: 3,
+  },
+  nowPlayingArtPlaceholder: {
+    backgroundColor: Colors.base.black,
+  },
+  nowPlayingInfo: {
+    flex: 1,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  nowPlayingLabel: {
+    fontFamily: Typography.mono.family,
+    fontSize: 8,
+    color: Colors.accent,
+    letterSpacing: 2,
   },
   nowPlayingTitle: {
     fontFamily: Typography.display.family,
-    fontSize: 28,
+    fontSize: 17,
     color: Colors.vibe.morning.text,
-    marginTop: Spacing.xs,
-  },
-  nowPlayingRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: Spacing.xs,
+    marginTop: 2,
   },
   nowPlayingArtist: {
     fontFamily: Typography.label.family,
-    fontSize: 14,
+    fontSize: 12,
     color: Colors.vibe.morning.text,
-    opacity: 0.7,
-    flex: 1,
+    opacity: 0.5,
+    marginTop: 1,
   },
-  nowPlayingTap: {
-    fontFamily: Typography.mono.family,
-    fontSize: 9,
-    color: Colors.vibe.morning.accent,
-    letterSpacing: 2,
-    marginLeft: Spacing.md,
+  nowPlayingArrow: {
+    fontFamily: Typography.display.family,
+    fontSize: 28,
+    color: Colors.vibe.morning.text,
+    opacity: 0.2,
+    paddingRight: Spacing.md,
   },
+
+  // ── Sections ────────────────────────────────────────────────────────
   section: {
-    marginTop: Spacing.lg,
+    marginTop: Spacing.xl,
   },
   sectionTitle: {
     fontFamily: Typography.mono.family,
-    fontSize: 10,
+    fontSize: 11,
     color: Colors.vibe.morning.text,
     letterSpacing: 3,
     textTransform: 'uppercase',
     paddingHorizontal: Spacing.lg,
     marginBottom: Spacing.md,
+    opacity: 0.4,
   },
   listContent: {
     paddingHorizontal: Spacing.lg,
   },
-  authButton: {
-    marginTop: Spacing.xl,
-    backgroundColor: Colors.vibe.morning.accent,
-    paddingVertical: Spacing.md,
+
+  // ── Empty State ─────────────────────────────────────────────────────
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: Spacing.xl,
     paddingHorizontal: Spacing.xl,
-    borderRadius: 8,
   },
-  authButtonText: {
+  emptyEmoji: {
+    fontSize: 32,
+    marginBottom: Spacing.sm,
+  },
+  emptyText: {
     fontFamily: Typography.label.familyMedium,
-    fontSize: 16,
-    color: Colors.base.white,
+    fontSize: 15,
+    color: Colors.vibe.morning.text,
+    opacity: 0.6,
+  },
+  emptyHint: {
+    fontFamily: Typography.label.family,
+    fontSize: 13,
+    color: Colors.vibe.morning.text,
+    opacity: 0.35,
+    marginTop: Spacing.xs,
+    textAlign: 'center',
+  },
+
+  // ── Shared ──────────────────────────────────────────────────────────
+  buttonPressed: {
+    opacity: 0.7,
   },
 });
