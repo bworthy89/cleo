@@ -7,9 +7,12 @@ import {
   Text,
   View,
 } from 'react-native';
+import { Alert } from 'react-native';
 import { Colors, Typography, Spacing } from '../../tokens/design-tokens';
 import { StationCard } from '../../components/StationCard';
 import { musicKitPlayer } from '../../services/MusicKitPlayer';
+import { generateSegment } from '../../services/CleoScriptGenerator';
+import { synthesizeAndPlay } from '../../services/CleoVoiceEngine';
 import {
   getStations,
   addStation,
@@ -30,6 +33,28 @@ export function HomeScreen() {
   const [stations, setStations] = useState<Station[]>([]);
   const [playlists, setPlaylists] = useState<MusicPlaylist[]>([]);
   const [nowPlaying, setNowPlaying] = useState<NowPlayingInfo | null>(null);
+  const [cleoSpeaking, setCleoSpeaking] = useState(false);
+
+  const handleTestCleo = useCallback(async () => {
+    if (!nowPlaying || cleoSpeaking) return;
+    setCleoSpeaking(true);
+    try {
+      const script = await generateSegment({
+        segmentType: 'song_intro',
+        vibe: 'chill',
+        currentTrack: {
+          title: nowPlaying.title,
+          artistName: nowPlaying.artistName,
+        },
+      });
+      console.log('Cleo says:', script);
+      await synthesizeAndPlay(script);
+    } catch (error) {
+      console.error('Test Cleo failed:', error);
+    } finally {
+      setCleoSpeaking(false);
+    }
+  }, [nowPlaying, cleoSpeaking]);
 
   // Check auth on mount
   useEffect(() => {
@@ -155,6 +180,15 @@ export function HomeScreen() {
           <Text style={styles.mono}>NOW PLAYING</Text>
           <Text style={styles.nowPlayingTitle}>{nowPlaying.title}</Text>
           <Text style={styles.nowPlayingArtist}>{nowPlaying.artistName}</Text>
+          <Pressable
+            style={[styles.testButton, cleoSpeaking && styles.testButtonDisabled]}
+            onPress={handleTestCleo}
+            disabled={cleoSpeaking}
+          >
+            <Text style={styles.testButtonText}>
+              {cleoSpeaking ? 'CLEO SPEAKING...' : 'TEST CLEO'}
+            </Text>
+          </Pressable>
         </View>
       )}
 
@@ -287,5 +321,21 @@ const styles = StyleSheet.create({
     fontFamily: Typography.label.familyMedium,
     fontSize: 16,
     color: Colors.base.white,
+  },
+  testButton: {
+    backgroundColor: Colors.accent,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    alignSelf: 'flex-start',
+    marginTop: Spacing.md,
+  },
+  testButtonDisabled: {
+    opacity: 0.5,
+  },
+  testButtonText: {
+    fontFamily: Typography.mono.family,
+    fontSize: 12,
+    color: Colors.base.white,
+    letterSpacing: 2,
   },
 });
