@@ -27,7 +27,7 @@ segmentRouter.post('/generate-segment', async (req: Request, res: Response) => {
           contents: [{ parts: [{ text: userPrompt }] }],
           generationConfig: {
             temperature: 0.9,
-            maxOutputTokens: maxTokens ?? 1024,
+            maxOutputTokens: maxTokens ?? 8192,
             topP: 0.95,
           },
         }),
@@ -42,6 +42,9 @@ segmentRouter.post('/generate-segment', async (req: Request, res: Response) => {
 
     const data = await response.json();
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+    const finishReason = data.candidates?.[0]?.finishReason ?? 'unknown';
+    const wordCount = text.trim().split(/\s+/).length;
+    console.log(`[Gemini] ${wordCount} words, finishReason: ${finishReason}, text: "${text.trim().substring(0, 120)}..."`);
 
     res.json({ text: text.trim() });
   } catch (error) {

@@ -22,6 +22,8 @@ function formatForSpeech(text: string): string {
 export async function synthesizeAndPlay(text: string): Promise<void> {
   try {
     const formatted = formatForSpeech(text);
+    const wordCount = formatted.split(/\s+/).length;
+    console.log(`[CleoVoice] Sending ${wordCount} words (${formatted.length} chars) to TTS: "${formatted.substring(0, 80)}..."`);
 
     const response = await fetch(`${API_BASE_URL}/synthesize-voice`, {
       method: 'POST',
@@ -40,7 +42,11 @@ export async function synthesizeAndPlay(text: string): Promise<void> {
       throw new Error('No audio content returned');
     }
 
+    const audioSizeKB = Math.round((base64Audio.length * 3 / 4) / 1024);
+    console.log(`[CleoVoice] Audio received: ${audioSizeKB}KB`);
+
     await playAudioFromBase64(base64Audio);
+    console.log(`[CleoVoice] Playback finished`);
   } catch (error) {
     console.error('Voice playback failed:', error);
   }

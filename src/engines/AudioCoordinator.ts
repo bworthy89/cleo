@@ -67,7 +67,7 @@ class AudioCoordinatorEngine {
 
       if (segment.deliveryMode === 'pre_song') {
         await synthesizeAndPlay(segment.text);
-        if (myId === this.generationId) segmentController.preloadNext(trackInfo, nextTrack);
+        // preloadNext disabled — prompts now bake in track names, buffer would have stale context
         if (myId === this.generationId) this.scheduleMidSongDrop(trackInfo);
       } else {
         this.isSpeaking = false;
@@ -80,7 +80,7 @@ class AudioCoordinatorEngine {
           this.isSpeaking = true;
           try {
             await synthesizeAndPlay(segment.text);
-            if (myId === this.generationId) segmentController.preloadNext(trackInfo, nextTrack);
+            // preloadNext disabled — prompts now bake in track names, buffer would have stale context
             if (myId === this.generationId) this.scheduleMidSongDrop(trackInfo);
           } finally {
             if (myId === this.generationId) {
@@ -127,7 +127,7 @@ class AudioCoordinatorEngine {
       onSegmentReady?.(segment);
       try {
         await synthesizeAndPlay(segment.text);
-        if (myId === this.generationId) segmentController.preloadNext(trackInfo, nextTrack);
+        // preloadNext disabled — prompts now bake in track names, buffer would have stale context
         if (myId === this.generationId) this.scheduleMidSongDrop(trackInfo);
       } catch (error) {
         console.error('[AudioCoordinator] pre_song playback failed:', error);
@@ -157,7 +157,7 @@ class AudioCoordinatorEngine {
           try {
             onSegmentReady?.(segment);
             await synthesizeAndPlay(segment.text);
-            if (myId === this.generationId) segmentController.preloadNext(trackInfo, nextTrack);
+            // preloadNext disabled — prompts now bake in track names, buffer would have stale context
             if (myId === this.generationId) this.scheduleMidSongDrop(trackInfo);
           } catch (error) {
             console.error('[AudioCoordinator] post_song playback failed:', error);
