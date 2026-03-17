@@ -10,6 +10,7 @@ public class ExpoMusicKitModule: Module {
   private var lastTrackId: String?
   private var audioPlayer: AVAudioPlayer?
   private var audioDelegate: AudioPlayerDelegate?
+  private var cachedTracks: [String: Track] = [:]
 
   public func definition() -> ModuleDefinition {
     Name("ExpoMusicKit")
@@ -85,6 +86,11 @@ public class ExpoMusicKitModule: Module {
         return []
       }
 
+      // Cache tracks for later queue building
+      for track in tracks {
+        self.cachedTracks[track.id.rawValue] = track
+      }
+
       return tracks.map { self.trackToDictionary($0) }
     }
 
@@ -92,16 +98,21 @@ public class ExpoMusicKitModule: Module {
 
     AsyncFunction("play") { (trackIds: [String]?) in
       if let trackIds = trackIds, !trackIds.isEmpty {
-        let musicItemIds = trackIds.map { MusicItemID($0) }
-        var request = MusicLibraryRequest<Song>()
-        request.filter(matching: \.id, memberOf: musicItemIds)
-        let response = try await request.response()
+        // Use cached tracks from fetchPlaylistTracks, preserving requested order
+        let orderedTracks = trackIds.compactMap { self.cachedTracks[$0] }
 
-        // Reorder songs to match the requested trackIds order
-        let songMap = Dictionary(uniqueKeysWithValues: response.items.map { ($0.id.rawValue, $0) })
-        let orderedSongs = trackIds.compactMap { songMap[$0] }
-
-        player.queue = ApplicationMusicPlayer.Queue(for: orderedSongs)
+        if !orderedTracks.isEmpty {
+          player.queue = ApplicationMusicPlayer.Queue(for: orderedTracks)
+        } else {
+          // Fallback: try fetching as Songs
+          let musicItemIds = trackIds.map { MusicItemID($0) }
+          var request = MusicLibraryRequest<Song>()
+          request.filter(matching: \.id, memberOf: musicItemIds)
+          let response = try await request.response()
+          let songMap = Dictionary(uniqueKeysWithValues: response.items.map { ($0.id.rawValue, $0) })
+          let orderedSongs = trackIds.compactMap { songMap[$0] }
+          player.queue = ApplicationMusicPlayer.Queue(for: orderedSongs)
+        }
       }
       try await player.play()
     }
