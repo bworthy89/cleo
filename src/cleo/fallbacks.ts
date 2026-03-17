@@ -1,5 +1,7 @@
 export type SegmentType =
   | 'song_intro'
+  | 'track_story'
+  | 'artist_context'
   | 'station_id'
   | 'listener_shoutout'
   | 'session_checkin'
@@ -59,6 +61,26 @@ const fallbacks: FallbackEntry[] = [
       "Don't slow down — this next one won't let you.",
       'Keep that energy. Here we go.',
       "This one's going to take it up a notch. Stay ready.",
+    ],
+  },
+  {
+    type: 'track_story',
+    lines: [
+      "There's a story behind this one that most people don't know. Listen a little closer.",
+      "The way this track came together — there's more to it than you'd think.",
+      'This one has layers. The production alone is worth paying attention to.',
+      'Someone put their whole heart into making this. You can hear it.',
+      'The story behind this recording is one of my favorites.',
+    ],
+  },
+  {
+    type: 'artist_context',
+    lines: [
+      'This artist has been on a journey. You can hear it in the music.',
+      "There's a reason this artist keeps coming back to your rotation.",
+      'When you listen to enough of their catalog, you start to hear the evolution.',
+      'Not everyone can make music that sticks with you like this.',
+      'This is someone who understands their craft. Every detail is intentional.',
     ],
   },
   {

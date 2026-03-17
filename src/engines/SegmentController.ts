@@ -1,12 +1,16 @@
 import { generateSegment, type SegmentContext } from '../services/CleoScriptGenerator';
 import type { SegmentType, Vibe } from '../cleo/fallbacks';
 import { getColdOpen } from '../cleo/cold-opens';
+import type { EnrichedFacts } from '../services/TrackEnrichmentService';
 
 interface TrackInfo {
+  id?: string;
   title: string;
   artistName: string;
   albumTitle?: string;
   genre?: string;
+  enrichedFacts?: EnrichedFacts;
+  hasRichData?: boolean;
 }
 
 interface SegmentResult {
@@ -16,13 +20,13 @@ interface SegmentResult {
 
 const ROTATION: SegmentType[] = [
   'song_intro',
-  'song_intro',
+  'artist_context',
   'station_id',
   'song_intro',
-  'song_intro',
+  'track_story',
   'listener_shoutout',
   'song_intro',
-  'song_intro',
+  'artist_context',
   'session_checkin',
 ];
 
@@ -80,7 +84,12 @@ class SegmentControllerEngine {
       return buffered;
     }
 
-    const segmentType = this.getNextSegmentType();
+    let segmentType = this.getNextSegmentType();
+
+    // track_story requires rich data — fall back to artist_context if not available
+    if (segmentType === 'track_story' && !currentTrack.hasRichData) {
+      segmentType = 'artist_context';
+    }
 
     const context: SegmentContext = {
       segmentType,
@@ -90,6 +99,7 @@ class SegmentControllerEngine {
       sessionDurationMinutes: this.getSessionDuration(),
       segmentHistory: this.history.slice(0, 3),
       listenerName: this.listenerName,
+      enrichedFacts: currentTrack.enrichedFacts,
     };
 
     const text = await generateSegment(context);
@@ -114,6 +124,7 @@ class SegmentControllerEngine {
       sessionDurationMinutes: this.getSessionDuration(),
       segmentHistory: this.history.slice(0, 3),
       listenerName: this.listenerName,
+      enrichedFacts: currentTrack.enrichedFacts,
     };
 
     try {
