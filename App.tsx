@@ -1,10 +1,19 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { HomeScreen } from './src/screens/home/HomeScreen';
+import { PlayerScreen } from './src/screens/player/PlayerScreen';
+import type { Vibe } from './src/cleo/fallbacks';
 
 SplashScreen.preventAutoHideAsync();
+
+interface PlayerParams {
+  stationName: string;
+  playlistId: string;
+  stationId: string;
+  vibe: Vibe;
+}
 
 export default function App() {
   const [fontsLoaded] = useFonts({
@@ -16,19 +25,34 @@ export default function App() {
     DMMono_400Regular: require('@expo-google-fonts/dm-mono/400Regular/DMMono_400Regular.ttf'),
   });
 
+  const [playerParams, setPlayerParams] = useState<PlayerParams | null>(null);
+
   useEffect(() => {
     if (fontsLoaded) {
       SplashScreen.hideAsync();
     }
   }, [fontsLoaded]);
 
-  if (!fontsLoaded) {
-    return null;
+  if (!fontsLoaded) return null;
+
+  if (playerParams) {
+    return (
+      <>
+        <PlayerScreen
+          stationName={playerParams.stationName}
+          playlistId={playerParams.playlistId}
+          stationId={playerParams.stationId}
+          vibe={playerParams.vibe}
+          onBack={() => setPlayerParams(null)}
+        />
+        <StatusBar style="light" />
+      </>
+    );
   }
 
   return (
     <>
-      <HomeScreen />
+      <HomeScreen onNavigateToPlayer={setPlayerParams} />
       <StatusBar style="dark" />
     </>
   );
