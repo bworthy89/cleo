@@ -1,6 +1,7 @@
 import { CLEO_STATIC_CORE } from '../cleo/static-core';
 import { getFallbackLine, type SegmentType, type Vibe } from '../cleo/fallbacks';
 import { API_BASE_URL } from './api';
+import type { EnrichedFacts } from './TrackEnrichmentService';
 
 export interface SegmentContext {
   segmentType: SegmentType;
@@ -19,6 +20,7 @@ export interface SegmentContext {
   sessionDurationMinutes?: number;
   segmentHistory?: string[];
   listenerName?: string;
+  enrichedFacts?: EnrichedFacts;
 }
 
 const TIMEOUT_MS = 10000;
@@ -59,6 +61,15 @@ function buildDynamicPrompt(context: SegmentContext): string {
     if (context.nextTrack.genre) {
       prompt += `  |  Genre: ${context.nextTrack.genre}`;
     }
+  }
+
+  if (context.enrichedFacts) {
+    const facts = context.enrichedFacts;
+    prompt += '\n\nVERIFIED TRACK FACTS (use only what is provided — never invent)';
+    if (facts.sample) prompt += `\n- Sample: ${facts.sample}`;
+    if (facts.context) prompt += `\n- Context: ${facts.context}`;
+    if (facts.producer) prompt += `\n- Producer: ${facts.producer}`;
+    if (facts.songwriter) prompt += `\n- Written by: ${facts.songwriter}`;
   }
 
   if (context.segmentHistory && context.segmentHistory.length > 0) {

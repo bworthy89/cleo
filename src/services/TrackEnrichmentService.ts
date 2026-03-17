@@ -2,11 +2,21 @@ import { API_BASE_URL } from './api';
 import { storage } from './Storage';
 import type { MusicTrack } from '../../modules/expo-music-kit';
 
+export interface EnrichedFacts {
+  producer?: string;
+  songwriter?: string;
+  sample?: string;
+  context?: string;
+  geniusUrl?: string;
+}
+
 export interface TrackProfile extends MusicTrack {
   tempo?: number;
   tags?: string[];
   year?: string;
   mbEnriched: boolean;
+  enrichedFacts?: EnrichedFacts;
+  hasRichData: boolean;
 }
 
 const CACHE_KEY_PREFIX = 'enrichment:';
@@ -28,17 +38,19 @@ export async function enrichTrack(track: MusicTrack): Promise<TrackProfile> {
     ...track,
     tags: [],
     mbEnriched: false,
+    hasRichData: false,
   };
 
+  // MusicBrainz enrichment
   try {
-    const response = await fetch(`${API_BASE_URL}/enrich-musicbrainz`, {
+    const mbResponse = await fetch(`${API_BASE_URL}/enrich-musicbrainz`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title: track.title, artist: track.artistName }),
     });
 
-    if (response.ok) {
-      const data = await response.json();
+    if (mbResponse.ok) {
+      const data = await mbResponse.json();
       if (data.found) {
         profile.tags = data.tags ?? [];
         profile.year = data.firstReleaseYear ?? undefined;
@@ -46,7 +58,29 @@ export async function enrichTrack(track: MusicTrack): Promise<TrackProfile> {
       }
     }
   } catch {
-    // Enrichment failure is non-fatal
+    // Non-fatal
+  }
+
+  // Genius enrichment
+  try {
+    const geniusResponse = await fetch(`${API_BASE_URL}/enrich-track`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: track.title, artist: track.artistName }),
+    });
+
+    if (geniusResponse.ok) {
+      const data = await geniusResponse.json();
+      if (data.results && data.results.length > 0) {
+        const topResult = data.results[0];
+        profile.enrichedFacts = {
+          geniusUrl: topResult.url,
+        };
+        profile.hasRichData = true;
+      }
+    }
+  } catch {
+    // Non-fatal
   }
 
   setCache(track.id, profile);

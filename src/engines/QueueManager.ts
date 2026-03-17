@@ -24,6 +24,7 @@ class QueueManagerService {
       ...t,
       tags: [],
       mbEnriched: false,
+      hasRichData: false,
     }));
 
     const rawPlan = await planQueue(this.trackProfiles, vibe);
