@@ -58,8 +58,7 @@ export function PlayerScreen({
         return;
       }
 
-      segmentController.startSession();
-      segmentController.setVibe(vibe);
+      segmentController.startSession(stationId, vibe);
       await queueManager.initializeSession(playlistId, vibe, stationId);
       setSessionStarted(true);
       refreshNowPlaying();
@@ -137,6 +136,8 @@ export function PlayerScreen({
               title: np.title,
               artistName: np.artistName,
               albumTitle: np.albumTitle,
+              duration: np.duration,
+              genre: np.genreNames?.[0],
             },
             undefined,
             (segment) => {
