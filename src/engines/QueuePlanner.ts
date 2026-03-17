@@ -108,14 +108,35 @@ Include ALL tracks. Every track must appear exactly once. Order them to create t
     const data = await response.json();
     let text = data.text.trim();
 
+    console.log('[QueuePlanner] Gemini response length:', text.length);
+
     // Extract JSON from response — Gemini may include thinking text, markdown fences, etc.
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      throw new Error('No JSON object found in response');
+      throw new Error('No JSON object found in response: ' + text.substring(0, 200));
     }
     text = jsonMatch[0];
 
-    const plan: QueuePlan = JSON.parse(text);
+    // If JSON is truncated (no closing brace), try to repair it
+    let plan: QueuePlan;
+    try {
+      plan = JSON.parse(text);
+    } catch {
+      // Try to fix truncated JSON by closing open arrays/objects
+      let repaired = text;
+      // Close any unclosed array entries
+      if (!repaired.trimEnd().endsWith('}')) {
+        repaired += '"}';
+      }
+      if (!repaired.includes('],"arcShape"')) {
+        repaired += `],"arcShape":"${getArcShape(tracks.length)}"}`;
+      }
+      try {
+        plan = JSON.parse(repaired);
+      } catch {
+        throw new Error('Could not parse queue JSON even after repair');
+      }
+    }
 
     // Validate all tracks are present
     const plannedIds = new Set(plan.queue.map((q) => q.trackId));
