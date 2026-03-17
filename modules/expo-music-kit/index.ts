@@ -83,6 +83,10 @@ export async function play(trackIds?: string[]): Promise<void> {
   return await ExpoMusicKit.play(trackIds ?? null);
 }
 
+export async function setUpcomingQueue(trackIds: string[]): Promise<void> {
+  return await ExpoMusicKit.setUpcomingQueue(trackIds);
+}
+
 export async function pause(): Promise<void> {
   return await ExpoMusicKit.pause();
 }
