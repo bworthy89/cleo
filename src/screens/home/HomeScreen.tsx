@@ -70,6 +70,7 @@ export function HomeScreen() {
 
           // Auto-trigger Cleo
           audioCoordinator.handleTrackChange({
+            id: np.id,
             title: np.title,
             artistName: np.artistName,
             albumTitle: np.albumTitle,
