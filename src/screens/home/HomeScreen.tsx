@@ -13,6 +13,9 @@ import { StationCard } from '../../components/StationCard';
 import { musicKitPlayer } from '../../services/MusicKitPlayer';
 import { audioCoordinator } from '../../engines/AudioCoordinator';
 import { segmentController } from '../../engines/SegmentController';
+import { queueManager } from '../../engines/QueueManager';
+import { sessionEngine } from '../../engines/SessionEngine';
+import type { Vibe } from '../../cleo/fallbacks';
 import {
   getStations,
   addStation,
@@ -127,16 +130,15 @@ export function HomeScreen() {
 
   const handleStationPress = useCallback(async (station: Station) => {
     try {
-      const tracks = await musicKitPlayer.fetchPlaylistTracks(
+      await queueManager.initializeSession(
         station.playlistId,
+        (station.defaultVibe as Vibe) ?? 'chill',
+        station.id
       );
-      if (tracks.length > 0) {
-        await musicKitPlayer.play(tracks.map((t) => t.id));
-        setAuthState('playing');
-        refreshNowPlaying();
-      }
-    } catch {
-      // playback may fail in simulator
+      setAuthState('playing');
+      refreshNowPlaying();
+    } catch (error) {
+      console.error('Failed to start session:', error);
     }
   }, []);
 
