@@ -30,10 +30,11 @@ class QueueManagerService {
     const validatedPlan = enforceRules(rawPlan, this.trackProfiles);
     sessionEngine.setQueuePlan(validatedPlan);
 
-    const firstTrackId = validatedPlan.queue[0]?.trackId;
-    if (firstTrackId) {
-      await musicKitPlayer.play([firstTrackId]);
-      sessionEngine.advanceTrack(firstTrackId);
+    // Load the full planned queue into MusicKit at once
+    const allTrackIds = validatedPlan.queue.map((q) => q.trackId);
+    if (allTrackIds.length > 0) {
+      await musicKitPlayer.play(allTrackIds);
+      sessionEngine.advanceTrack(allTrackIds[0]);
     }
 
     this.enrichInBackground(tracks);
@@ -43,7 +44,9 @@ class QueueManagerService {
     const nextId = sessionEngine.getNextTrackId();
     if (!nextId) return null;
 
-    await musicKitPlayer.play([nextId]);
+    // MusicKit auto-advances through the queue we loaded at session start.
+    // Just skip to next track.
+    await musicKitPlayer.skip();
     sessionEngine.advanceTrack(nextId);
     return nextId;
   }
