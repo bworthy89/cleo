@@ -9,14 +9,17 @@ interface StationCardProps {
 
 export function StationCard({ name, artworkUrl, onPress }: StationCardProps) {
   return (
-    <Pressable style={styles.card} onPress={onPress}>
+    <Pressable
+      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+      onPress={onPress}
+    >
       {artworkUrl ? (
         <Image source={{ uri: artworkUrl }} style={styles.artwork} />
       ) : (
         <View style={[styles.artwork, styles.placeholder]} />
       )}
       <View style={styles.labelContainer}>
-        <Text style={styles.label} numberOfLines={1}>
+        <Text style={styles.label} numberOfLines={2}>
           {name}
         </Text>
       </View>
@@ -32,7 +35,12 @@ const styles = StyleSheet.create({
     width: CARD_WIDTH,
     height: CARD_HEIGHT,
     marginRight: Spacing.md,
+    borderRadius: 6,
     overflow: 'hidden',
+  },
+  cardPressed: {
+    opacity: 0.85,
+    transform: [{ scale: 0.97 }],
   },
   artwork: {
     width: '100%',
@@ -47,14 +55,16 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    padding: Spacing.sm,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.sm + 2,
+    backgroundColor: 'rgba(0,0,0,0.55)',
   },
   label: {
     fontFamily: Typography.mono.family,
-    fontSize: 11,
+    fontSize: 10,
     color: Colors.base.white,
     textTransform: 'uppercase',
     letterSpacing: 1,
+    lineHeight: 14,
   },
 });
