@@ -156,9 +156,14 @@ public class ExpoMusicKitModule: Module {
         try AVAudioSession.sharedInstance().setActive(true)
 
         self.audioPlayer = try AVAudioPlayer(data: data)
-        self.audioDelegate = AudioPlayerDelegate {
-          // Just restore normal category — don't deactivate session, as that pauses MusicKit
-          try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
+        self.audioDelegate = AudioPlayerDelegate { [weak self] in
+          self?.audioPlayer = nil
+          self?.audioDelegate = nil
+          // Deactivate ducking session, then resume MusicKit playback
+          try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+          Task {
+            try? await self?.player.play()
+          }
           promise.resolve(nil)
         }
         self.audioPlayer?.delegate = self.audioDelegate
