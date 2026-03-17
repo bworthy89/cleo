@@ -60,8 +60,6 @@ export function HomeScreen() {
 
   // Listen for track changes — auto-trigger Cleo
   useEffect(() => {
-    segmentController.startSession();
-
     const unsub = musicKitPlayer.onTrackChanged(async (event) => {
       if (event.trackId) {
         addRecentlyPlayedTrack(event.trackId);
@@ -130,6 +128,8 @@ export function HomeScreen() {
 
   const handleStationPress = useCallback(async (station: Station) => {
     try {
+      segmentController.startSession();
+      segmentController.setVibe((station.defaultVibe as Vibe) ?? 'chill');
       await queueManager.initializeSession(
         station.playlistId,
         (station.defaultVibe as Vibe) ?? 'chill',

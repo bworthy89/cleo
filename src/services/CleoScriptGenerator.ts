@@ -93,6 +93,7 @@ export async function generateSegment(context: SegmentContext): Promise<string> 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
+    console.log('[CleoScript] Calling Gemini for segment:', context.segmentType);
     const response = await fetch(`${API_BASE_URL}/generate-segment`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -110,6 +111,7 @@ export async function generateSegment(context: SegmentContext): Promise<string> 
     }
 
     const data = await response.json();
+    console.log('[CleoScript] Gemini response:', data.text?.substring(0, 80));
     if (data.text && data.text.length > 0) {
       return data.text;
     }
