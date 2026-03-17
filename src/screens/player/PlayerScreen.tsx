@@ -44,6 +44,7 @@ export function PlayerScreen({
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const progressAnim = useRef(new Animated.Value(0)).current;
+  const durationRef = useRef(0);
 
   const vibeTheme = Colors.vibe[vibe] ?? Colors.vibe.chill;
 
@@ -69,8 +70,9 @@ export function PlayerScreen({
   useEffect(() => {
     const unsub = musicKitPlayer.onPlaybackStateChanged((event) => {
       setIsPlaying(event.status === 'playing');
-      if (nowPlaying?.duration && nowPlaying.duration > 0) {
-        const pct = Math.min(event.playbackTime / nowPlaying.duration, 1);
+      const dur = durationRef.current;
+      if (dur > 0) {
+        const pct = Math.min(event.playbackTime / dur, 1);
         setProgress(pct);
         Animated.timing(progressAnim, {
           toValue: pct,
@@ -80,13 +82,17 @@ export function PlayerScreen({
       }
     });
     return unsub;
-  }, [nowPlaying?.duration]);
+  }, []);
 
   const handlePlayPause = async () => {
-    if (isPlaying) {
-      await musicKitPlayer.pause();
-    } else {
-      await musicKitPlayer.play();
+    try {
+      if (isPlaying) {
+        await musicKitPlayer.pause();
+      } else {
+        await musicKitPlayer.play();
+      }
+    } catch {
+      // MusicKit may throw if queue is empty — non-fatal
     }
   };
 
@@ -118,6 +124,7 @@ export function PlayerScreen({
         if (np) {
           const profile = queueManager.getTrackProfile(event.trackId);
           const artworkUrl = profile?.artworkUrl ?? np.artworkUrl;
+          durationRef.current = np.duration ?? 0;
           setNowPlaying({ ...np, artworkUrl });
 
           await audioCoordinator.handleTrackChangeWithResult(
@@ -145,7 +152,10 @@ export function PlayerScreen({
 
   async function refreshNowPlaying() {
     const np = await musicKitPlayer.getNowPlaying();
-    if (np) setNowPlaying(np);
+    if (np) {
+      durationRef.current = np.duration ?? 0;
+      setNowPlaying(np);
+    }
   }
 
   function formatTime(seconds: number): string {
