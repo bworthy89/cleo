@@ -113,6 +113,12 @@ export async function getPlaybackStatus(): Promise<PlaybackStatus> {
   return await ExpoMusicKit.getPlaybackStatus();
 }
 
+// ── Audio Playback (TTS) ──────────────────────────────────────────────
+
+export async function playAudioFromBase64(base64: string): Promise<void> {
+  return await ExpoMusicKit.playAudioFromBase64(base64);
+}
+
 // ── Event Listeners ────────────────────────────────────────────────────
 
 export function addTrackChangedListener(
