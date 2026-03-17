@@ -152,12 +152,15 @@ public class ExpoMusicKitModule: Module {
       }
 
       do {
-        try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.duckOthers])
+        try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers, .duckOthers])
         try AVAudioSession.sharedInstance().setActive(true)
 
         self.audioPlayer = try AVAudioPlayer(data: data)
         self.audioDelegate = AudioPlayerDelegate {
           try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+          // Restore normal playback category after speaking
+          try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
+          try? AVAudioSession.sharedInstance().setActive(true)
           promise.resolve(nil)
         }
         self.audioPlayer?.delegate = self.audioDelegate
