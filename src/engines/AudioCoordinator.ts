@@ -53,6 +53,7 @@ class AudioCoordinatorEngine {
 
     try {
       const trackInfo = this.enrichTrack(currentTrack);
+      const generationStart = Date.now();
       const segment = await this._runSegment(trackInfo, nextTrack, previous ?? undefined);
       if (segment) {
         if (segment.deliveryMode === 'pre_song') {
@@ -61,7 +62,7 @@ class AudioCoordinatorEngine {
         } else {
           // post_song: release speaking lock, fire after delay
           this.isSpeaking = false;
-          const elapsed = 1500; // approximate _runSegment delay
+          const elapsed = Date.now() - generationStart;
           const targetDelay = 8000 + Math.floor(Math.random() * 4000);
           const remainingMs = Math.max(0, targetDelay - elapsed);
           this.pendingPostSongTimer = setTimeout(async () => {
