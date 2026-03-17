@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "cleo",
+    "name": "Cleo",
     "slug": "cleo",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -9,22 +9,38 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#FAF6EF"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": false,
+      "bundleIdentifier": "com.worthymedia.cleo",
+      "infoPlist": {
+        "NSAppleMusicUsageDescription": "Cleo uses Apple Music to play your playlists with AI-powered radio hosting."
+      },
+      "entitlements": {
+        "com.apple.developer.musickit": true
+      }
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#FAF6EF",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
-      },
-      "predictiveBackGestureEnabled": false
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-font",
+      "react-native-video",
+      [
+        "expo-av",
+        {
+          "microphonePermission": false
+        }
+      ]
+    ]
   }
 }
