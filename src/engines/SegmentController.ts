@@ -1,5 +1,6 @@
 import { generateSegment, type SegmentContext } from '../services/CleoScriptGenerator';
 import type { SegmentType, Vibe } from '../cleo/fallbacks';
+import { getColdOpen } from '../cleo/cold-opens';
 
 interface TrackInfo {
   title: string;
@@ -61,6 +62,15 @@ class SegmentControllerEngine {
   }
 
   async generateNext(currentTrack: TrackInfo, nextTrack?: TrackInfo): Promise<SegmentResult> {
+    // Cold open for first segment
+    if (this.segmentCount === 0) {
+      const text = getColdOpen(this.currentVibe);
+      this.history.unshift(text);
+      if (this.history.length > 3) this.history.pop();
+      this.segmentCount++;
+      return { text, type: 'song_intro' };
+    }
+
     if (this.bufferedSegment) {
       const buffered = this.bufferedSegment;
       this.bufferedSegment = null;
