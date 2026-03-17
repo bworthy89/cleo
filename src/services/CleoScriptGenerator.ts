@@ -115,8 +115,8 @@ export async function generateSegment(context: SegmentContext): Promise<string> 
     }
 
     throw new Error('Empty response');
-  } catch (error) {
-    console.warn('Segment generation failed, using fallback:', error);
+  } catch (error: any) {
+    console.warn('Segment generation failed, using fallback. Error:', error?.message ?? error);
     return getFallbackLine(context.segmentType, context.vibe);
   }
 }
