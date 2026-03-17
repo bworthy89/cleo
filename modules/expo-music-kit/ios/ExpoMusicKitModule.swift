@@ -140,13 +140,27 @@ public class ExpoMusicKitModule: Module {
         return nil
       }
       var result: [String: Any] = [
+        "title": entry.title,
+        "artistName": entry.subtitle ?? "",
         "playbackTime": player.playbackTime,
         "status": self.playbackStatusString(player.state.playbackStatus)
       ]
+      // Try to get full metadata from song item
       if case .song(let song) = entry.item {
         let trackInfo = self.songToDictionary(song)
         result.merge(trackInfo) { _, new in new }
       }
+      // Also look up artwork from cached tracks
+      let trackId: String? = {
+        if case .song(let song) = entry.item { return song.id.rawValue }
+        return nil
+      }()
+      if let trackId = trackId, let cached = self.cachedTracks[trackId] {
+        if let artworkUrl = self.artworkUrlString(cached.artwork, width: 800, height: 800) {
+          result["artworkUrl"] = artworkUrl
+        }
+      }
+      if trackId != nil { result["id"] = trackId }
       return result
     }
 
@@ -291,11 +305,19 @@ public class ExpoMusicKitModule: Module {
       guard let self = self else { return }
       DispatchQueue.main.async {
         let currentId: String? = {
-          guard let entry = self.player.queue.currentEntry,
-                case .song(let song) = entry.item else {
+          guard let entry = self.player.queue.currentEntry else {
             return nil
           }
-          return song.id.rawValue
+          // Extract ID from any item type
+          switch entry.item {
+          case .song(let song):
+            return song.id.rawValue
+          case .musicVideo(let mv):
+            return mv.id.rawValue
+          @unknown default:
+            // Fallback: use entry title as identifier
+            return entry.title
+          }
         }()
 
         if currentId != self.lastTrackId {
