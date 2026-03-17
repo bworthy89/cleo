@@ -10,6 +10,7 @@ import {
   setUpcomingQueue,
   getNowPlaying,
   getPlaybackTime,
+  getPlaybackStatus as getPlaybackStatusNative,
   addTrackChangedListener,
   addPlaybackStateListener,
   type AuthResult,
@@ -74,6 +75,10 @@ class MusicKitPlayerService {
 
   async getPlaybackTime(): Promise<number> {
     return getPlaybackTime();
+  }
+
+  async getPlaybackStatus(): Promise<PlaybackStatus> {
+    return getPlaybackStatusNative();
   }
 
   onTrackChanged(callback: TrackChangeCallback): () => void {
