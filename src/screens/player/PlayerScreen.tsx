@@ -65,24 +65,26 @@ export function PlayerScreen({
           const artworkUrl = profile?.artworkUrl ?? np.artworkUrl;
           setNowPlaying({ ...np, artworkUrl });
 
-          // Auto-trigger Cleo — set text before speech starts so subtitle appears during playback
-          const segment = await audioCoordinator.handleTrackChangeWithResult({
-            id: np.id,
-            title: np.title,
-            artistName: np.artistName,
-            albumTitle: np.albumTitle,
-          });
-          if (segment) {
-            setCleoText(segment.text);
-            setIsPullQuote(segment.type === 'track_story');
-            setCleoSpeaking(true);
-            // Keep words visible for duration of text + hold time
-            const wordCount = segment.text.split(/\s+/).length;
-            const displayMs = wordCount * 40 + 2000; // stagger time + hold
-            setTimeout(() => {
-              setCleoSpeaking(false);
-            }, displayMs);
-          }
+          // Auto-trigger Cleo — callback fires when text is ready, before audio plays
+          await audioCoordinator.handleTrackChangeWithResult(
+            {
+              id: np.id,
+              title: np.title,
+              artistName: np.artistName,
+              albumTitle: np.albumTitle,
+            },
+            undefined,
+            (segment) => {
+              // This fires right before audio starts — sync words with speech
+              setCleoText(segment.text);
+              setIsPullQuote(segment.type === 'track_story');
+              setCleoSpeaking(true);
+            }
+          );
+          // Audio finished — hide words after brief hold
+          setTimeout(() => {
+            setCleoSpeaking(false);
+          }, 1500);
         }
       }
     });

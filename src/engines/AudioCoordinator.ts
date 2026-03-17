@@ -61,7 +61,8 @@ class AudioCoordinatorEngine {
 
   async handleTrackChangeWithResult(
     currentTrack: TrackInfo,
-    nextTrack?: TrackInfo
+    nextTrack?: TrackInfo,
+    onSegmentReady?: (segment: SegmentResult) => void
   ): Promise<SegmentResult | null> {
     if (this.isSpeaking) return null;
     this.isSpeaking = true;
@@ -83,6 +84,9 @@ class AudioCoordinatorEngine {
 
       const segment = await segmentController.generateNext(trackInfo, nextTrack);
       console.log(`[Cleo] ${segment.type}: ${segment.text}`);
+
+      // Notify UI BEFORE playing audio so words sync with speech
+      onSegmentReady?.(segment);
 
       await synthesizeAndPlay(segment.text);
       segmentController.preloadNext(trackInfo, nextTrack);
