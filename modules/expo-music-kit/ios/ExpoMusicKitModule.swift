@@ -96,8 +96,12 @@ public class ExpoMusicKitModule: Module {
         var request = MusicLibraryRequest<Song>()
         request.filter(matching: \.id, memberOf: musicItemIds)
         let response = try await request.response()
-        let songs = response.items
-        player.queue = ApplicationMusicPlayer.Queue(for: songs)
+
+        // Reorder songs to match the requested trackIds order
+        let songMap = Dictionary(uniqueKeysWithValues: response.items.map { ($0.id.rawValue, $0) })
+        let orderedSongs = trackIds.compactMap { songMap[$0] }
+
+        player.queue = ApplicationMusicPlayer.Queue(for: orderedSongs)
       }
       try await player.play()
     }
