@@ -43,9 +43,8 @@ public class ExpoMusicKitModule: Module {
         if let trackCount = playlist.tracks?.count {
           dict["trackCount"] = trackCount
         }
-        if let artwork = playlist.artwork,
-           let url = artwork.url(width: 600, height: 600) {
-          dict["artworkUrl"] = url.absoluteString
+        if let artworkUrl = self.artworkUrlString(playlist.artwork, width: 600, height: 600) {
+          dict["artworkUrl"] = artworkUrl
         }
         return dict
       }
@@ -163,6 +162,18 @@ public class ExpoMusicKitModule: Module {
     }
   }
 
+  private func artworkUrlString(_ artwork: Artwork?, width: Int, height: Int) -> String? {
+    guard let artwork = artwork,
+          let url = artwork.url(width: width, height: height) else { return nil }
+    let urlString = url.absoluteString
+    // MusicKit returns musickit:// URLs for local library items — these can't be loaded by React Native Image.
+    // Filter to only return http/https URLs.
+    if urlString.hasPrefix("http") {
+      return urlString
+    }
+    return nil
+  }
+
   private func trackToDictionary(_ track: Track) -> [String: Any] {
     var dict: [String: Any] = [
       "id": track.id.rawValue,
@@ -174,9 +185,8 @@ public class ExpoMusicKitModule: Module {
       "trackNumber": track.trackNumber ?? 0,
       "discNumber": track.discNumber ?? 0
     ]
-    if let artwork = track.artwork,
-       let url = artwork.url(width: 800, height: 800) {
-      dict["artworkUrl"] = url.absoluteString
+    if let artworkUrl = artworkUrlString(track.artwork, width: 800, height: 800) {
+      dict["artworkUrl"] = artworkUrl
     }
     return dict
   }
@@ -192,9 +202,8 @@ public class ExpoMusicKitModule: Module {
       "trackNumber": song.trackNumber ?? 0,
       "discNumber": song.discNumber ?? 0
     ]
-    if let artwork = song.artwork,
-       let url = artwork.url(width: 800, height: 800) {
-      dict["artworkUrl"] = url.absoluteString
+    if let artworkUrl = artworkUrlString(song.artwork, width: 800, height: 800) {
+      dict["artworkUrl"] = artworkUrl
     }
     return dict
   }
