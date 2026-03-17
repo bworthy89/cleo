@@ -1,5 +1,6 @@
 import { createMMKV, type MMKV } from 'react-native-mmkv';
 import type { Vibe } from '../cleo/fallbacks';
+import type { MusicPlaylist } from '../../modules/expo-music-kit';
 
 export const storage: MMKV = createMMKV({ id: 'cleo-storage' });
 
@@ -11,6 +12,7 @@ export const StorageKeys = {
   COLD_OPEN_HISTORY: 'coldOpenHistory',
   CLEO_VIDEO_CACHE: 'cleoVideoCache',
   ENRICHMENT_CACHE: 'enrichmentCache',
+  PLAYLISTS_CACHE: 'playlistsCache',
 } as const;
 
 export interface UserData {
@@ -82,4 +84,15 @@ export function addRecentlyPlayedTrack(trackId: string): void {
     trackIds: updated,
     lastUpdated: new Date().toISOString(),
   });
+}
+
+// Playlists Cache
+export function getCachedPlaylists(): MusicPlaylist[] | undefined {
+  const raw = storage.getString(StorageKeys.PLAYLISTS_CACHE);
+  if (!raw) return undefined;
+  return JSON.parse(raw) as MusicPlaylist[];
+}
+
+export function setCachedPlaylists(playlists: MusicPlaylist[]): void {
+  storage.set(StorageKeys.PLAYLISTS_CACHE, JSON.stringify(playlists));
 }
