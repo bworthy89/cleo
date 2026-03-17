@@ -11,8 +11,8 @@ import { Alert } from 'react-native';
 import { Colors, Typography, Spacing } from '../../tokens/design-tokens';
 import { StationCard } from '../../components/StationCard';
 import { musicKitPlayer } from '../../services/MusicKitPlayer';
-import { generateSegment } from '../../services/CleoScriptGenerator';
-import { synthesizeAndPlay } from '../../services/CleoVoiceEngine';
+import { audioCoordinator } from '../../engines/AudioCoordinator';
+import { segmentController } from '../../engines/SegmentController';
 import {
   getStations,
   addStation,
@@ -33,28 +33,14 @@ export function HomeScreen() {
   const [stations, setStations] = useState<Station[]>([]);
   const [playlists, setPlaylists] = useState<MusicPlaylist[]>([]);
   const [nowPlaying, setNowPlaying] = useState<NowPlayingInfo | null>(null);
-  const [cleoSpeaking, setCleoSpeaking] = useState(false);
 
   const handleTestCleo = useCallback(async () => {
-    if (!nowPlaying || cleoSpeaking) return;
-    setCleoSpeaking(true);
-    try {
-      const script = await generateSegment({
-        segmentType: 'song_intro',
-        vibe: 'chill',
-        currentTrack: {
-          title: nowPlaying.title,
-          artistName: nowPlaying.artistName,
-        },
-      });
-      console.log('Cleo says:', script);
-      await synthesizeAndPlay(script);
-    } catch (error) {
-      console.error('Test Cleo failed:', error);
-    } finally {
-      setCleoSpeaking(false);
-    }
-  }, [nowPlaying, cleoSpeaking]);
+    if (!nowPlaying || audioCoordinator.getIsSpeaking()) return;
+    await audioCoordinator.handleTrackChange({
+      title: nowPlaying.title,
+      artistName: nowPlaying.artistName,
+    });
+  }, [nowPlaying]);
 
   // Check auth on mount
   useEffect(() => {
@@ -69,12 +55,25 @@ export function HomeScreen() {
     })();
   }, []);
 
-  // Listen for track changes
+  // Listen for track changes — auto-trigger Cleo
   useEffect(() => {
-    const unsub = musicKitPlayer.onTrackChanged((event) => {
+    segmentController.startSession();
+
+    const unsub = musicKitPlayer.onTrackChanged(async (event) => {
       if (event.trackId) {
         addRecentlyPlayedTrack(event.trackId);
-        refreshNowPlaying();
+        const np = await musicKitPlayer.getNowPlaying();
+        if (np) {
+          setNowPlaying({ title: np.title, artistName: np.artistName });
+          setAuthState('playing');
+
+          // Auto-trigger Cleo
+          audioCoordinator.handleTrackChange({
+            title: np.title,
+            artistName: np.artistName,
+            albumTitle: np.albumTitle,
+          });
+        }
       }
     });
     return unsub;
@@ -181,12 +180,12 @@ export function HomeScreen() {
           <Text style={styles.nowPlayingTitle}>{nowPlaying.title}</Text>
           <Text style={styles.nowPlayingArtist}>{nowPlaying.artistName}</Text>
           <Pressable
-            style={[styles.testButton, cleoSpeaking && styles.testButtonDisabled]}
+            style={[styles.testButton, false && styles.testButtonDisabled]}
             onPress={handleTestCleo}
-            disabled={cleoSpeaking}
+            disabled={false}
           >
             <Text style={styles.testButtonText}>
-              {cleoSpeaking ? 'CLEO SPEAKING...' : 'TEST CLEO'}
+              {false ? 'CLEO SPEAKING...' : 'TEST CLEO'}
             </Text>
           </Pressable>
         </View>
