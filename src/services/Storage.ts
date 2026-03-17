@@ -16,6 +16,7 @@ export interface UserData {
   name?: string;
   appleMusicAuthorized: boolean;
   createdAt: string;
+  defaultVibe?: string;
 }
 
 export interface Station {
