@@ -7,14 +7,9 @@ import {
   Text,
   View,
 } from 'react-native';
-import { Alert } from 'react-native';
 import { Colors, Typography, Spacing } from '../../tokens/design-tokens';
 import { StationCard } from '../../components/StationCard';
 import { musicKitPlayer } from '../../services/MusicKitPlayer';
-import { audioCoordinator } from '../../engines/AudioCoordinator';
-import { segmentController } from '../../engines/SegmentController';
-import { queueManager } from '../../engines/QueueManager';
-import { sessionEngine } from '../../engines/SessionEngine';
 import type { Vibe } from '../../cleo/fallbacks';
 import {
   getStations,
@@ -31,19 +26,20 @@ interface NowPlayingInfo {
   artistName: string;
 }
 
-export function HomeScreen() {
+interface HomeScreenProps {
+  onNavigateToPlayer?: (params: {
+    stationName: string;
+    playlistId: string;
+    stationId: string;
+    vibe: Vibe;
+  }) => void;
+}
+
+export function HomeScreen({ onNavigateToPlayer }: HomeScreenProps) {
   const [authState, setAuthState] = useState<AuthState>('loading');
   const [stations, setStations] = useState<Station[]>([]);
   const [playlists, setPlaylists] = useState<MusicPlaylist[]>([]);
   const [nowPlaying, setNowPlaying] = useState<NowPlayingInfo | null>(null);
-
-  const handleTestCleo = useCallback(async () => {
-    if (!nowPlaying || audioCoordinator.getIsSpeaking()) return;
-    await audioCoordinator.handleTrackChange({
-      title: nowPlaying.title,
-      artistName: nowPlaying.artistName,
-    });
-  }, [nowPlaying]);
 
   // Check auth on mount
   useEffect(() => {
@@ -58,7 +54,7 @@ export function HomeScreen() {
     })();
   }, []);
 
-  // Listen for track changes — auto-trigger Cleo
+  // Listen for track changes — update now playing info only
   useEffect(() => {
     const unsub = musicKitPlayer.onTrackChanged(async (event) => {
       if (event.trackId) {
@@ -67,14 +63,6 @@ export function HomeScreen() {
         if (np) {
           setNowPlaying({ title: np.title, artistName: np.artistName });
           setAuthState('playing');
-
-          // Auto-trigger Cleo
-          audioCoordinator.handleTrackChange({
-            id: np.id,
-            title: np.title,
-            artistName: np.artistName,
-            albumTitle: np.albumTitle,
-          });
         }
       }
     });
@@ -128,20 +116,15 @@ export function HomeScreen() {
   );
 
   const handleStationPress = useCallback(async (station: Station) => {
-    try {
-      segmentController.startSession();
-      segmentController.setVibe((station.defaultVibe as Vibe) ?? 'chill');
-      await queueManager.initializeSession(
-        station.playlistId,
-        (station.defaultVibe as Vibe) ?? 'chill',
-        station.id
-      );
-      setAuthState('playing');
-      refreshNowPlaying();
-    } catch (error) {
-      console.error('Failed to start session:', error);
+    if (onNavigateToPlayer) {
+      onNavigateToPlayer({
+        stationName: station.name,
+        playlistId: station.playlistId,
+        stationId: station.id,
+        vibe: (station.defaultVibe as Vibe) ?? 'chill',
+      });
     }
-  }, []);
+  }, [onNavigateToPlayer]);
 
   // ── Unauthorized ────────────────────────────────────────────────────
   if (authState === 'unauthorized') {
@@ -182,15 +165,6 @@ export function HomeScreen() {
           <Text style={styles.mono}>NOW PLAYING</Text>
           <Text style={styles.nowPlayingTitle}>{nowPlaying.title}</Text>
           <Text style={styles.nowPlayingArtist}>{nowPlaying.artistName}</Text>
-          <Pressable
-            style={[styles.testButton, false && styles.testButtonDisabled]}
-            onPress={handleTestCleo}
-            disabled={false}
-          >
-            <Text style={styles.testButtonText}>
-              {false ? 'CLEO SPEAKING...' : 'TEST CLEO'}
-            </Text>
-          </Pressable>
         </View>
       )}
 
@@ -323,21 +297,5 @@ const styles = StyleSheet.create({
     fontFamily: Typography.label.familyMedium,
     fontSize: 16,
     color: Colors.base.white,
-  },
-  testButton: {
-    backgroundColor: Colors.accent,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.lg,
-    alignSelf: 'flex-start',
-    marginTop: Spacing.md,
-  },
-  testButtonDisabled: {
-    opacity: 0.5,
-  },
-  testButtonText: {
-    fontFamily: Typography.mono.family,
-    fontSize: 12,
-    color: Colors.base.white,
-    letterSpacing: 2,
   },
 });
