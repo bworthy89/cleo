@@ -13,7 +13,7 @@ interface TrackInfo {
   hasRichData?: boolean;
 }
 
-interface SegmentResult {
+export interface SegmentResult {
   text: string;
   type: SegmentType;
 }
