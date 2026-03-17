@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   FlatList,
   Pressable,
   SafeAreaView,
@@ -15,6 +16,8 @@ import {
   getStations,
   addStation,
   addRecentlyPlayedTrack,
+  getCachedPlaylists,
+  setCachedPlaylists,
   type Station,
 } from '../../services/Storage';
 import type { MusicPlaylist } from '../../../modules/expo-music-kit';
@@ -41,6 +44,7 @@ export function HomeScreen({ onNavigateToPlayer, onNavigateToSettings }: HomeScr
   const [stations, setStations] = useState<Station[]>([]);
   const [playlists, setPlaylists] = useState<MusicPlaylist[]>([]);
   const [nowPlaying, setNowPlaying] = useState<NowPlayingInfo | null>(null);
+  const [playlistsLoading, setPlaylistsLoading] = useState(true);
 
   // Check auth on mount
   useEffect(() => {
@@ -72,11 +76,22 @@ export function HomeScreen({ onNavigateToPlayer, onNavigateToSettings }: HomeScr
 
   async function loadData() {
     setStations(getStations());
+
+    // Show cached playlists immediately
+    const cached = getCachedPlaylists();
+    if (cached) {
+      setPlaylists(cached);
+    }
+
+    // Fetch fresh in background
     try {
       const lists = await musicKitPlayer.fetchPlaylists();
       setPlaylists(lists);
+      setCachedPlaylists(lists);
     } catch {
       // playlists may fail in simulator — non-fatal
+    } finally {
+      setPlaylistsLoading(false);
     }
     await refreshNowPlaying();
   }
@@ -196,6 +211,9 @@ export function HomeScreen({ onNavigateToPlayer, onNavigateToSettings }: HomeScr
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>PLAYLISTS</Text>
+        {playlists.length === 0 && playlistsLoading && (
+          <ActivityIndicator style={{ marginTop: Spacing.lg }} color={Colors.vibe.morning.accent} />
+        )}
         <FlatList
           data={playlists}
           keyExtractor={(item) => item.id}
