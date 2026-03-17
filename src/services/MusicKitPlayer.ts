@@ -7,6 +7,7 @@ import {
   pause,
   skip,
   seekTo,
+  setUpcomingQueue,
   getNowPlaying,
   getPlaybackTime,
   addTrackChangedListener,
@@ -49,6 +50,10 @@ class MusicKitPlayerService {
 
   async play(trackIds?: string[]): Promise<void> {
     return play(trackIds);
+  }
+
+  async setUpcomingQueue(trackIds: string[]): Promise<void> {
+    return setUpcomingQueue(trackIds);
   }
 
   async pause(): Promise<void> {

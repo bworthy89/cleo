@@ -1,4 +1,5 @@
 import { planQueue, type QueuePlan } from './QueuePlanner';
+import { planQueueLocally } from './LocalQueuePlanner';
 import { enforceRules } from './RulesEngine';
 import { enrichTracks, type TrackProfile } from '../services/TrackEnrichmentService';
 import { sessionEngine } from './SessionEngine';
@@ -27,18 +28,56 @@ class QueueManagerService {
       hasRichData: false,
     }));
 
-    const rawPlan = await planQueue(this.trackProfiles, vibe);
-    const validatedPlan = enforceRules(rawPlan, this.trackProfiles);
-    sessionEngine.setQueuePlan(validatedPlan);
+    // Fast path: local plan → start playing immediately
+    const localPlan = planQueueLocally(this.trackProfiles, vibe);
+    const localValidated = enforceRules(localPlan, this.trackProfiles);
+    sessionEngine.setQueuePlan(localValidated);
 
-    // Load the full planned queue into MusicKit at once
-    const allTrackIds = validatedPlan.queue.map((q) => q.trackId);
+    const allTrackIds = localValidated.queue.map((q) => q.trackId);
     if (allTrackIds.length > 0) {
       await musicKitPlayer.play(allTrackIds);
       sessionEngine.advanceTrack(allTrackIds[0]);
     }
 
+    // Slow path: AI plan in background → upgrade remaining queue
+    this.upgradeQueueInBackground(vibe);
     this.enrichInBackground(tracks);
+  }
+
+  private async upgradeQueueInBackground(vibe: Vibe): Promise<void> {
+    try {
+      const aiPlan = await planQueue(this.trackProfiles, vibe);
+      const validated = enforceRules(aiPlan, this.trackProfiles);
+
+      const session = sessionEngine.getSession();
+      if (!session) return;
+
+      // Keep already-played tracks, replace upcoming with AI plan
+      const playedIds = new Set(session.tracksPlayed);
+      const upcomingAi = validated.queue.filter((q) => !playedIds.has(q.trackId));
+
+      if (upcomingAi.length === 0) return;
+
+      // Merge: played portion stays, upcoming replaced by AI ordering
+      const playedQueue = session.queuePlan?.queue.slice(0, session.currentQueueIndex) ?? [];
+      const mergedPlan: QueuePlan = {
+        queue: [
+          ...playedQueue,
+          ...upcomingAi.map((q, i) => ({ ...q, position: playedQueue.length + i + 1 })),
+        ],
+        arcShape: validated.arcShape,
+      };
+      sessionEngine.setQueuePlan(mergedPlan);
+
+      // Update MusicKit's upcoming queue
+      const upcomingIds = upcomingAi.map((q) => q.trackId);
+      await musicKitPlayer.setUpcomingQueue(upcomingIds);
+
+      console.log('[QueueManager] Upgraded to AI-planned queue');
+    } catch (error) {
+      // Non-fatal — local plan keeps playing
+      console.log('[QueueManager] AI plan failed, continuing with local plan:', error);
+    }
   }
 
   async playNextTrack(): Promise<string | null> {
