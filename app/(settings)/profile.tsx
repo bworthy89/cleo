@@ -13,7 +13,8 @@ export default function ProfileScreen() {
 
   const handleSave = () => {
     setUser({
-      ...user!,
+      appleMusicAuthorized: user?.appleMusicAuthorized ?? false,
+      createdAt: user?.createdAt ?? new Date().toISOString(),
       name: name.trim() || undefined,
       defaultVibe: vibe,
     });
