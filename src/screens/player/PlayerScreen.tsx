@@ -39,6 +39,7 @@ export function PlayerScreen({
   const [cleoSpeaking, setCleoSpeaking] = useState(false);
   const [isPullQuote, setIsPullQuote] = useState(false);
   const [sessionStarted, setSessionStarted] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   const vibeTheme = Colors.vibe[vibe] ?? Colors.vibe.chill;
 
@@ -52,6 +53,26 @@ export function PlayerScreen({
       refreshNowPlaying();
     })();
   }, []);
+
+  // Listen for playback state
+  useEffect(() => {
+    const unsub = musicKitPlayer.onPlaybackStateChanged((event) => {
+      setIsPlaying(event.status === 'playing');
+    });
+    return unsub;
+  }, []);
+
+  const handlePlayPause = async () => {
+    if (isPlaying) {
+      await musicKitPlayer.pause();
+    } else {
+      await musicKitPlayer.play();
+    }
+  };
+
+  const handleSkip = async () => {
+    await musicKitPlayer.skip();
+  };
 
   // Listen for track changes
   useEffect(() => {
@@ -148,6 +169,20 @@ export function PlayerScreen({
         </Text>
       </View>
 
+      {/* Playback Controls */}
+      <View style={styles.controls}>
+        <Pressable onPress={handlePlayPause} style={styles.playPauseButton}>
+          <Text style={[styles.playPauseIcon, { color: vibeTheme.text }]}>
+            {isPlaying ? '\u275A\u275A' : '\u25B6'}
+          </Text>
+        </Pressable>
+        <Pressable onPress={handleSkip} style={styles.skipButton}>
+          <Text style={[styles.skipIcon, { color: vibeTheme.text }]}>
+            {'\u25B6\u25B6'}
+          </Text>
+        </Pressable>
+      </View>
+
       {/* ON AIR Indicator */}
       <OnAirIndicator active={cleoSpeaking} accentColor={vibeTheme.accent} />
 
@@ -224,6 +259,36 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xs,
     letterSpacing: 1,
     textTransform: 'uppercase',
+  },
+  controls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: Spacing.lg,
+    gap: Spacing.xl,
+  },
+  playPauseButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    borderWidth: 1.5,
+    borderColor: 'rgba(128,128,128,0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  playPauseIcon: {
+    fontSize: 22,
+  },
+  skipButton: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  skipIcon: {
+    fontSize: 14,
+    opacity: 0.6,
+    letterSpacing: -4,
   },
   progressContainer: {
     flex: 1,
