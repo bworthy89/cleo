@@ -103,6 +103,10 @@ class QueueManagerService {
   getTrackProfiles(): TrackProfile[] {
     return this.trackProfiles;
   }
+
+  getTrackProfile(trackId: string): TrackProfile | undefined {
+    return this.trackProfiles.find((t) => t.id === trackId);
+  }
 }
 
 export const queueManager = new QueueManagerService();
