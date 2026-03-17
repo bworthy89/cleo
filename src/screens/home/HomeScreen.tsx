@@ -33,9 +33,10 @@ interface HomeScreenProps {
     stationId: string;
     vibe: Vibe;
   }) => void;
+  onNavigateToSettings?: () => void;
 }
 
-export function HomeScreen({ onNavigateToPlayer }: HomeScreenProps) {
+export function HomeScreen({ onNavigateToPlayer, onNavigateToSettings }: HomeScreenProps) {
   const [authState, setAuthState] = useState<AuthState>('loading');
   const [stations, setStations] = useState<Station[]>([]);
   const [playlists, setPlaylists] = useState<MusicPlaylist[]>([]);
@@ -157,7 +158,12 @@ export function HomeScreen({ onNavigateToPlayer }: HomeScreenProps) {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>CLEO</Text>
-        <Text style={styles.onAir}>ON AIR</Text>
+        <View style={styles.headerRight}>
+          <Text style={styles.onAir}>ON AIR</Text>
+          <Pressable onPress={onNavigateToSettings}>
+            <Text style={styles.settingsButton}>SETTINGS</Text>
+          </Pressable>
+        </View>
       </View>
 
       {nowPlaying && (
@@ -241,11 +247,23 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     marginTop: Spacing.sm,
   },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: Spacing.md,
+  },
   onAir: {
     fontFamily: Typography.mono.family,
     fontSize: 10,
     color: Colors.vibe.morning.accent,
     letterSpacing: 3,
+  },
+  settingsButton: {
+    fontFamily: Typography.mono.family,
+    fontSize: 10,
+    color: Colors.vibe.morning.text,
+    letterSpacing: 2,
+    opacity: 0.5,
   },
   mono: {
     fontFamily: Typography.mono.family,
