@@ -100,7 +100,7 @@ Include ALL tracks. Every track must appear exactly once. Order them to create t
     const response = await fetch(`${API_BASE_URL}/generate-segment`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ systemPrompt, userPrompt }),
+      body: JSON.stringify({ systemPrompt, userPrompt, maxTokens: 8192 }),
     });
 
     if (!response.ok) throw new Error(`Queue planning failed: ${response.status}`);
