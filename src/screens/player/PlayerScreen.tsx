@@ -60,10 +60,12 @@ export function PlayerScreen({
         addRecentlyPlayedTrack(event.trackId);
         const np = await musicKitPlayer.getNowPlaying();
         if (np) {
-          setNowPlaying(np);
+          // Use artwork from cached track profiles (catalog URLs) if available
+          const profile = queueManager.getTrackProfile(event.trackId);
+          const artworkUrl = profile?.artworkUrl ?? np.artworkUrl;
+          setNowPlaying({ ...np, artworkUrl });
 
-          // Auto-trigger Cleo
-          setCleoSpeaking(true);
+          // Auto-trigger Cleo — set text before speech starts so subtitle appears during playback
           const segment = await audioCoordinator.handleTrackChangeWithResult({
             id: np.id,
             title: np.title,
@@ -73,8 +75,14 @@ export function PlayerScreen({
           if (segment) {
             setCleoText(segment.text);
             setIsPullQuote(segment.type === 'track_story');
+            setCleoSpeaking(true);
+            // Keep words visible for duration of text + hold time
+            const wordCount = segment.text.split(/\s+/).length;
+            const displayMs = wordCount * 40 + 2000; // stagger time + hold
+            setTimeout(() => {
+              setCleoSpeaking(false);
+            }, displayMs);
           }
-          setCleoSpeaking(false);
         }
       }
     });
