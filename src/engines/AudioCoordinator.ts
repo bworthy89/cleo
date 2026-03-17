@@ -1,6 +1,5 @@
 import { synthesizeAndPlay } from '../services/CleoVoiceEngine';
 import { segmentController } from './SegmentController';
-import { queueManager } from './QueueManager';
 
 interface TrackInfo {
   title: string;
@@ -29,13 +28,8 @@ class AudioCoordinatorEngine {
       console.log(`[Cleo] ${segment.type}: ${segment.text}`);
 
       // Play TTS — ducking is handled inside playAudioFromBase64 natively
+      // MusicKit auto-advances through the queue, no manual skip needed
       await synthesizeAndPlay(segment.text);
-
-      // Play next track from queue
-      const nextId = await queueManager.playNextTrack();
-      if (nextId) {
-        console.log('[AudioCoordinator] Playing next from queue:', nextId);
-      }
 
       // Pre-load next segment while music plays
       segmentController.preloadNext(currentTrack, nextTrack);
