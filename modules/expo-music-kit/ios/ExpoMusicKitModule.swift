@@ -10,6 +10,8 @@ public class ExpoMusicKitModule: Module {
   private var lastTrackId: String?
   private var audioPlayer: AVAudioPlayer?
   private var audioDelegate: AudioPlayerDelegate?
+  private var crossfadeTimer: Timer?
+  private var crossfadeActive: Bool = false
   private var cachedTracks: [String: Track] = [:]
 
   public func definition() -> ModuleDefinition {
@@ -214,25 +216,72 @@ public class ExpoMusicKitModule: Module {
       }
 
       do {
+        // Stop any currently playing audio and resolve its pending promise
+        if let existing = self.audioPlayer, existing.isPlaying {
+          existing.stop()
+        }
+        self.audioPlayer = nil
+        self.audioDelegate = nil
+
         try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers, .duckOthers])
         try AVAudioSession.sharedInstance().setActive(true)
 
-        self.audioPlayer = try AVAudioPlayer(data: data)
-        self.audioDelegate = AudioPlayerDelegate { [weak self] in
+        let newPlayer = try AVAudioPlayer(data: data)
+        self.audioPlayer = newPlayer
+        self.audioDelegate = AudioPlayerDelegate(player: newPlayer) { [weak self] in
           self?.audioPlayer = nil
           self?.audioDelegate = nil
-          // Deactivate ducking session, then resume MusicKit playback
-          try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
-          Task {
-            try? await self?.player.play()
+          self?.crossfadeTimer?.invalidate()
+          self?.crossfadeTimer = nil
+
+          if self?.crossfadeActive == true {
+            // Music already resumed from fade point — just resolve
+            self?.crossfadeActive = false
+            promise.resolve(nil)
+          } else {
+            // No crossfade — hard transition (short segment or timer didn't fire)
+            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+            Task {
+              try? await self?.player.play()
+            }
+            promise.resolve(nil)
           }
-          promise.resolve(nil)
         }
         self.audioPlayer?.delegate = self.audioDelegate
+        self.audioPlayer?.prepareToPlay()
+
+        // Crossfade: schedule ducking deactivation 2s before audio ends
+        self.crossfadeActive = false
+        self.crossfadeTimer?.invalidate()
+        self.crossfadeTimer = nil
+
+        if let duration = self.audioPlayer?.duration, duration > 3.0 {
+          let fadePoint = duration - 2.0
+          // Schedule on main thread to ensure RunLoop is active
+          DispatchQueue.main.async {
+            self.crossfadeTimer = Timer.scheduledTimer(withTimeInterval: fadePoint, repeats: false) { [weak self] _ in
+              guard let self = self, self.audioPlayer?.isPlaying == true else { return }
+              self.crossfadeActive = true
+              // Deactivate ducking — iOS ramps music back up naturally (~0.5s)
+              try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+            }
+          }
+        }
+
         self.audioPlayer?.play()
       } catch {
         promise.reject("ERR", error.localizedDescription)
       }
+    }
+
+    AsyncFunction("stopAudio") {
+      self.crossfadeTimer?.invalidate()
+      self.crossfadeTimer = nil
+      self.crossfadeActive = false
+      self.audioPlayer?.stop()
+      self.audioPlayer = nil
+      self.audioDelegate = nil
+      try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
     AsyncFunction("activateDuckingSession") {
@@ -390,12 +439,41 @@ public class ExpoMusicKitModule: Module {
 
 class AudioPlayerDelegate: NSObject, AVAudioPlayerDelegate {
   let onFinish: () -> Void
+  private var interruptionObserver: Any?
 
-  init(onFinish: @escaping () -> Void) {
+  init(player: AVAudioPlayer, onFinish: @escaping () -> Void) {
     self.onFinish = onFinish
+    super.init()
+
+    // Handle audio session interruptions (e.g., MusicKit reconfiguring the session)
+    interruptionObserver = NotificationCenter.default.addObserver(
+      forName: AVAudioSession.interruptionNotification,
+      object: AVAudioSession.sharedInstance(),
+      queue: .main
+    ) { [weak player] notification in
+      guard let userInfo = notification.userInfo,
+            let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
+            let type = AVAudioSession.InterruptionType(rawValue: typeValue) else { return }
+
+      if type == .ended {
+        // Resume playback after interruption
+        try? AVAudioSession.sharedInstance().setActive(true)
+        player?.play()
+      }
+    }
+  }
+
+  deinit {
+    if let observer = interruptionObserver {
+      NotificationCenter.default.removeObserver(observer)
+    }
   }
 
   func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+    if let observer = interruptionObserver {
+      NotificationCenter.default.removeObserver(observer)
+      interruptionObserver = nil
+    }
     onFinish()
   }
 }
