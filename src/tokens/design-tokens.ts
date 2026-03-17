@@ -9,6 +9,13 @@ export const Colors = {
     lateNight: { bg: '#080A0F', text: '#EDE8E0', accent: '#7B5EA7' },
     workout:   { bg: '#0A0A0A', text: '#FFFFFF', accent: '#FF4D3D' },
     party:     { bg: '#0D0010', text: '#F0F0F0', accent: '#FF8C42' },
+    general:   { bg: '#F5F0E8', text: '#1A1208', accent: '#C8832A' },
+    focus:     { bg: '#F0F4F0', text: '#0F1A0F', accent: '#4A7A5B' },
+    feelGood:  { bg: '#FFF8EE', text: '#1A1208', accent: '#E8923A' },
+    throwback: { bg: '#F8F2E8', text: '#1A1208', accent: '#B87A3A' },
+    elevated:  { bg: '#0F0F14', text: '#E8E4DC', accent: '#8B7BA8' },
+    melancholy:{ bg: '#12141A', text: '#D8D4CC', accent: '#5B6A8A' },
+    sunday:    { bg: '#FAF8F0', text: '#1A1208', accent: '#A88B6A' },
   },
 };
 
