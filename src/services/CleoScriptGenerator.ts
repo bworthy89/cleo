@@ -3,13 +3,23 @@ import { getFallbackLine, type SegmentType, type Vibe } from '../cleo/fallbacks'
 import { API_BASE_URL } from './api';
 import type { EnrichedFacts } from './TrackEnrichmentService';
 
+export type DeliveryMode = 'pre_song' | 'post_song';
+export type SessionPhase = 'opening' | 'mid' | 'late';
+
 export interface SegmentContext {
   segmentType: SegmentType;
   vibe: Vibe;
+  deliveryMode: DeliveryMode;
+  sessionPhase: SessionPhase;
   currentTrack: {
     title: string;
     artistName: string;
     albumTitle?: string;
+    genre?: string;
+  };
+  previousTrack?: {
+    title: string;
+    artistName: string;
     genre?: string;
   };
   nextTrack?: {
@@ -21,9 +31,22 @@ export interface SegmentContext {
   segmentHistory?: string[];
   listenerName?: string;
   enrichedFacts?: EnrichedFacts;
+  tracksReferenced?: string[];
 }
 
 const TIMEOUT_MS = 10000;
+
+const SEGMENT_BRIEFS: Record<SegmentType, string> = {
+  song_intro: 'Tease or bridge. Create anticipation without over-explaining.',
+  track_story: 'Drop one specific detail that makes the listener lean in.',
+  artist_context: "One true thing about this artist that most people haven't considered.",
+  station_id: 'Brief, warm, present. Cleo is here. Nothing more needed.',
+  genre_bridge: 'Narrate the musical shift like a journey, not a playlist change.',
+  post_track_reflection: 'One honest reaction to what the listener is currently hearing. No recap.',
+  listener_shoutout: 'Specific, not generic. Make someone feel seen.',
+  session_checkin: 'Acknowledge the time spent together. Where are we in this journey?',
+  sign_off: 'Warm send-off. Brief. Leave them wanting to come back.',
+};
 
 function buildDynamicPrompt(context: SegmentContext): string {
   const timeOfDay = getTimeOfDay();
@@ -33,15 +56,37 @@ function buildDynamicPrompt(context: SegmentContext): string {
     workout: 'Workout',
     lateNight: 'Late Night',
     party: 'Party',
+    general: 'General',
+    focus: 'Focus',
+    feelGood: 'Feel Good',
+    throwback: 'Throwback',
+    elevated: 'Elevated',
+    melancholy: 'Melancholy',
+    sunday: 'Sunday',
   };
 
   let prompt = `CURRENT SESSION CONTEXT
 - Session vibe: ${vibeLabel[context.vibe]}
 - Time of day: ${timeOfDay}
+- Session phase: ${context.sessionPhase}
 - Session duration: ${context.sessionDurationMinutes ?? 0} minutes in`;
 
   if (context.listenerName) {
     prompt += `\n- Listener name: ${context.listenerName}`;
+  }
+
+  // Delivery mode framing
+  if (context.deliveryMode === 'pre_song') {
+    if (context.previousTrack) {
+      prompt += `\n\nDELIVERY MODE: pre_song
+The listener just finished hearing "${context.previousTrack.title}" by ${context.previousTrack.artistName}. The next track is about to start. You may reflect on what was just heard and/or bridge to what's coming.`;
+    } else {
+      prompt += `\n\nDELIVERY MODE: pre_song
+You are speaking between tracks. The next track is about to play. Set it up naturally.`;
+    }
+  } else {
+    prompt += `\n\nDELIVERY MODE: post_song
+The listener is currently hearing "${context.currentTrack.title}" by ${context.currentTrack.artistName} right now. Comment naturally, as if dropping in mid-listen. No need to hand off to the next song.`;
   }
 
   prompt += `\n\nCURRENT TRACK
@@ -72,6 +117,10 @@ function buildDynamicPrompt(context: SegmentContext): string {
     if (facts.songwriter) prompt += `\n- Written by: ${facts.songwriter}`;
   }
 
+  if (context.tracksReferenced && context.tracksReferenced.length > 0) {
+    prompt += `\n\nARTISTS HEARD THIS SESSION (available for organic callbacks):\n${context.tracksReferenced.join(', ')}`;
+  }
+
   if (context.segmentHistory && context.segmentHistory.length > 0) {
     prompt += '\n\nSEGMENT HISTORY (last 3 — do not repeat these structures)';
     context.segmentHistory.slice(0, 3).forEach((seg, i) => {
@@ -79,7 +128,9 @@ function buildDynamicPrompt(context: SegmentContext): string {
     });
   }
 
+  const brief = SEGMENT_BRIEFS[context.segmentType];
   prompt += `\n\nSEGMENT TYPE: ${context.segmentType}
+CREATIVE BRIEF: ${brief}
 
 OUTPUT RULES
 - 40 to 75 words maximum.
@@ -104,7 +155,7 @@ export async function generateSegment(context: SegmentContext): Promise<string> 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
-    console.log('[CleoScript] Calling Gemini for segment:', context.segmentType);
+    console.log('[CleoScript] Calling Gemini for segment:', context.segmentType, `(${context.deliveryMode})`);
     const response = await fetch(`${API_BASE_URL}/generate-segment`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
