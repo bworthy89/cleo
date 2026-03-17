@@ -32,6 +32,18 @@ export interface SegmentContext {
   listenerName?: string;
   enrichedFacts?: EnrichedFacts;
   tracksReferenced?: string[];
+  maxWords?: number;
+  previousSession?: {
+    stationName: string;
+    vibe: string;
+    lastTrack: string;
+    lastArtist: string;
+    timeSince: string;
+    artists: string[];
+    sessionNumber: number;
+    returningToSameStation: boolean;
+    switchedStation: boolean;
+  };
 }
 
 const TIMEOUT_MS = 10000;
@@ -79,14 +91,14 @@ function buildDynamicPrompt(context: SegmentContext): string {
   if (context.deliveryMode === 'pre_song') {
     if (context.previousTrack) {
       prompt += `\n\nDELIVERY MODE: pre_song
-The listener just finished hearing "${context.previousTrack.title}" by ${context.previousTrack.artistName}. The next track is about to start. You may reflect on what was just heard and/or bridge to what's coming.`;
+The listener was just hearing "${context.previousTrack.title}" by ${context.previousTrack.artistName}. "${context.currentTrack.title}" by ${context.currentTrack.artistName} just started playing. Bridge from what was heard to what's now playing — do NOT say the song is "coming up" or "next," it is already on.`;
     } else {
       prompt += `\n\nDELIVERY MODE: pre_song
-You are speaking between tracks. The next track is about to play. Set it up naturally.`;
+"${context.currentTrack.title}" by ${context.currentTrack.artistName} just started playing. Introduce what the listener is now hearing — do NOT say the song is "coming up" or "next," it is already on.`;
     }
   } else {
     prompt += `\n\nDELIVERY MODE: post_song
-The listener is currently hearing "${context.currentTrack.title}" by ${context.currentTrack.artistName} right now. Comment naturally, as if dropping in mid-listen. No need to hand off to the next song.`;
+The listener is currently hearing "${context.currentTrack.title}" by ${context.currentTrack.artistName} right now. Comment naturally, as if dropping in mid-listen. Do not hand off to the next song.`;
   }
 
   prompt += `\n\nCURRENT TRACK
@@ -128,12 +140,31 @@ The listener is currently hearing "${context.currentTrack.title}" by ${context.c
     });
   }
 
+  if (context.previousSession) {
+    const ps = context.previousSession;
+    prompt += `\n\nPREVIOUS SESSION`;
+    prompt += `\n- Last station: ${ps.stationName}`;
+    prompt += `\n- Last vibe: ${ps.vibe}`;
+    prompt += `\n- Last track: "${ps.lastTrack}" by ${ps.lastArtist}`;
+    prompt += `\n- Time since: ${ps.timeSince}`;
+    if (ps.artists.length > 0) {
+      prompt += `\n- Artists from last session: ${ps.artists.join(', ')}`;
+    }
+    prompt += `\n- Session number: ${ps.sessionNumber}`;
+    if (ps.returningToSameStation) {
+      prompt += `\n- Returning to same station: yes`;
+    }
+    if (ps.switchedStation) {
+      prompt += `\n- Switched to a different station: yes`;
+    }
+  }
+
   const brief = SEGMENT_BRIEFS[context.segmentType];
   prompt += `\n\nSEGMENT TYPE: ${context.segmentType}
 CREATIVE BRIEF: ${brief}
 
 OUTPUT RULES
-- 40 to 75 words maximum.
+- ${context.maxWords ? `15 to ${context.maxWords}` : '40 to 75'} words maximum.
 - Plain text only. No quotes, no stage directions, no labels.
 - Do not include the segment type name in your response.`;
 
