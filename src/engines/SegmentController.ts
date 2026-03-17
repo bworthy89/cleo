@@ -108,7 +108,7 @@ class SegmentControllerEngine {
   }
 
   // Determines delivery mode AND updates tracking state. Used by generateNext.
-  getDeliveryMode(segmentType: SegmentType): DeliveryMode {
+  private getDeliveryMode(segmentType: SegmentType): DeliveryMode {
     const mode = this._peekDeliveryMode(segmentType);
     if (mode === 'post_song') {
       this.consecutivePreSong = 0;
