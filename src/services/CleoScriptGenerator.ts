@@ -21,7 +21,7 @@ export interface SegmentContext {
   listenerName?: string;
 }
 
-const TIMEOUT_MS = 3500;
+const TIMEOUT_MS = 10000;
 
 function buildDynamicPrompt(context: SegmentContext): string {
   const timeOfDay = getTimeOfDay();
