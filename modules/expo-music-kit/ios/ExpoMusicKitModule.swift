@@ -9,6 +9,7 @@ public class ExpoMusicKitModule: Module {
   private var playbackTimer: Timer?
   private var lastTrackId: String?
   private var audioPlayer: AVAudioPlayer?
+  private var audioDelegate: AudioPlayerDelegate?
 
   public func definition() -> ModuleDefinition {
     Name("ExpoMusicKit")
@@ -144,18 +145,42 @@ public class ExpoMusicKitModule: Module {
 
     // MARK: - Audio Playback (for TTS)
 
-    AsyncFunction("playAudioFromBase64") { (base64String: String) in
+    AsyncFunction("playAudioFromBase64") { (base64String: String, promise: Promise) in
       guard let data = Data(base64Encoded: base64String) else {
-        throw NSError(domain: "ExpoMusicKit", code: 2, userInfo: [
-          NSLocalizedDescriptionKey: "Invalid base64 audio data"
-        ])
+        promise.reject("ERR", "Invalid base64 audio data")
+        return
       }
 
-      try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
-      try AVAudioSession.sharedInstance().setActive(true)
+      do {
+        try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.duckOthers])
+        try AVAudioSession.sharedInstance().setActive(true)
 
-      self.audioPlayer = try AVAudioPlayer(data: data)
-      self.audioPlayer?.play()
+        self.audioPlayer = try AVAudioPlayer(data: data)
+        self.audioDelegate = AudioPlayerDelegate {
+          try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+          promise.resolve(nil)
+        }
+        self.audioPlayer?.delegate = self.audioDelegate
+        self.audioPlayer?.play()
+      } catch {
+        promise.reject("ERR", error.localizedDescription)
+      }
+    }
+
+    AsyncFunction("activateDuckingSession") {
+      try AVAudioSession.sharedInstance().setCategory(
+        .playback,
+        mode: .default,
+        options: [.duckOthers]
+      )
+      try AVAudioSession.sharedInstance().setActive(true)
+    }
+
+    AsyncFunction("deactivateDuckingSession") {
+      try AVAudioSession.sharedInstance().setActive(
+        false,
+        options: .notifyOthersOnDeactivation
+      )
     }
 
     // MARK: - Observation Lifecycle
@@ -284,5 +309,17 @@ public class ExpoMusicKitModule: Module {
     queueObservation = nil
     playbackTimer?.invalidate()
     playbackTimer = nil
+  }
+}
+
+class AudioPlayerDelegate: NSObject, AVAudioPlayerDelegate {
+  let onFinish: () -> Void
+
+  init(onFinish: @escaping () -> Void) {
+    self.onFinish = onFinish
+  }
+
+  func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+    onFinish()
   }
 }
