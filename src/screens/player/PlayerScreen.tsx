@@ -141,7 +141,7 @@ export function PlayerScreen({
             undefined,
             (segment) => {
               setCleoText(segment.text);
-              setIsPullQuote(segment.type === 'track_story');
+              setIsPullQuote(segment.type === 'track_story' || segment.type === 'post_track_reflection');
               setCleoSpeaking(true);
             }
           );
