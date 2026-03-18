@@ -1,27 +1,42 @@
 import { useState } from 'react';
 import { StyleSheet, Switch, Text, View } from 'react-native';
-import { Colors, Typography, Spacing } from '../../src/tokens/design-tokens';
+import { Colors, Typography, Spacing, Opacity, withAlpha } from '../../src/tokens/design-tokens';
+import { getUser } from '../../src/services/Storage';
 
 export default function HostSettingsScreen() {
   const [commentary, setCommentary] = useState(true);
   const [pullQuotes, setPullQuotes] = useState(true);
 
+  const user = getUser();
+  const userVibe = (user?.defaultVibe as keyof typeof Colors.vibe) ?? 'morning';
+  const vibeTheme = Colors.vibe[userVibe] ?? Colors.vibe.morning;
+
   return (
-    <View style={styles.container}>
-      <View style={styles.row}>
+    <View style={[styles.container, { backgroundColor: vibeTheme.bg }]}>
+      <View style={[styles.row, { borderBottomColor: withAlpha(vibeTheme.text, 0.08) }]}>
         <View style={styles.rowText}>
-          <Text style={styles.rowTitle}>Cleo Commentary</Text>
-          <Text style={styles.rowSubtitle}>Cleo speaks between tracks</Text>
+          <Text style={[styles.rowTitle, { color: vibeTheme.text }]}>Cleo Commentary</Text>
+          <Text style={[styles.rowSubtitle, { color: vibeTheme.text }]}>Cleo speaks between tracks</Text>
         </View>
-        <Switch value={commentary} onValueChange={setCommentary} />
+        <Switch
+          value={commentary}
+          onValueChange={setCommentary}
+          thumbColor={vibeTheme.accent}
+          trackColor={{ true: vibeTheme.accent, false: withAlpha(vibeTheme.text, 0.15) }}
+        />
       </View>
 
-      <View style={styles.row}>
+      <View style={[styles.row, { borderBottomColor: withAlpha(vibeTheme.text, 0.08) }]}>
         <View style={styles.rowText}>
-          <Text style={styles.rowTitle}>Pull Quotes</Text>
-          <Text style={styles.rowSubtitle}>Full-screen track story moments</Text>
+          <Text style={[styles.rowTitle, { color: vibeTheme.text }]}>Pull Quotes</Text>
+          <Text style={[styles.rowSubtitle, { color: vibeTheme.text }]}>Full-screen track story moments</Text>
         </View>
-        <Switch value={pullQuotes} onValueChange={setPullQuotes} />
+        <Switch
+          value={pullQuotes}
+          onValueChange={setPullQuotes}
+          thumbColor={vibeTheme.accent}
+          trackColor={{ true: vibeTheme.accent, false: withAlpha(vibeTheme.text, 0.15) }}
+        />
       </View>
     </View>
   );
@@ -30,7 +45,6 @@ export default function HostSettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.vibe.morning.bg,
     paddingTop: Spacing.md,
   },
   row: {
@@ -40,7 +54,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xl,
     paddingVertical: Spacing.lg,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.08)',
   },
   rowText: {
     flex: 1,
@@ -49,12 +62,10 @@ const styles = StyleSheet.create({
   rowTitle: {
     fontFamily: Typography.label.familyMedium,
     fontSize: 16,
-    color: Colors.vibe.morning.text,
   },
   rowSubtitle: {
     fontFamily: Typography.label.family,
     fontSize: 13,
-    color: Colors.vibe.morning.text,
     opacity: 0.5,
     marginTop: Spacing.xs,
   },
