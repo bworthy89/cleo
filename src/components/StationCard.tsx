@@ -1,5 +1,6 @@
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Colors, Typography, Spacing } from '../tokens/design-tokens';
+import { useEffect, useRef } from 'react';
+import { Animated, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Colors, Typography, Spacing, Tracking, Shadow } from '../tokens/design-tokens';
 
 interface StationCardProps {
   name: string;
@@ -15,6 +16,20 @@ export function StationCard({ name, artworkUrl, accentColor, width, onPress }: S
   const cardWidth = width ?? DEFAULT_WIDTH;
   const cardHeight = cardWidth * 1.5;
   const accent = accentColor ?? Colors.accent;
+  const shimmerAnim = useRef(new Animated.Value(0.3)).current;
+
+  // Shimmer animation when no artwork
+  useEffect(() => {
+    if (artworkUrl) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(shimmerAnim, { toValue: 0.6, duration: 1000, useNativeDriver: true }),
+        Animated.timing(shimmerAnim, { toValue: 0.3, duration: 1000, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [artworkUrl]);
 
   return (
     <Pressable
@@ -24,11 +39,13 @@ export function StationCard({ name, artworkUrl, accentColor, width, onPress }: S
         pressed && styles.cardPressed,
       ]}
       onPress={onPress}
+      accessibilityLabel={`Station: ${name}`}
+      accessibilityRole="button"
     >
       {artworkUrl ? (
         <Image source={{ uri: artworkUrl }} style={styles.artwork} />
       ) : (
-        <View style={[styles.artwork, styles.placeholder]} />
+        <Animated.View style={[styles.artwork, styles.placeholder, { opacity: shimmerAnim }]} />
       )}
       <Text style={styles.label} numberOfLines={2}>
         {name}
@@ -64,11 +81,11 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: Colors.base.white,
     textTransform: 'uppercase',
-    letterSpacing: 1,
+    letterSpacing: Tracking.normal,
     lineHeight: 15,
-    textShadowColor: 'rgba(0,0,0,0.8)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 6,
+    textShadowColor: `rgba(0,0,0,${Shadow.text.opacity})`,
+    textShadowOffset: Shadow.text.offset,
+    textShadowRadius: Shadow.text.radius,
   },
   accentLine: {
     position: 'absolute',

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
-import { Typography, Colors, Spacing } from '../tokens/design-tokens';
+import { Typography, Colors, Spacing, Tracking } from '../tokens/design-tokens';
 
 interface OnAirIndicatorProps {
   active: boolean;
@@ -26,14 +26,14 @@ export function OnAirIndicator({ active, paused, accentColor }: OnAirIndicatorPr
       }).start(() => {
         pulseLoop.current = Animated.loop(
           Animated.sequence([
-            Animated.timing(pulseAnim, { toValue: 1.15, duration: 800, useNativeDriver: true }),
-            Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
+            Animated.timing(pulseAnim, { toValue: 1.15, duration: 400, useNativeDriver: true }),
+            Animated.timing(pulseAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
           ])
         );
         glowLoop.current = Animated.loop(
           Animated.sequence([
-            Animated.timing(glowAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
-            Animated.timing(glowAnim, { toValue: 0.3, duration: 800, useNativeDriver: true }),
+            Animated.timing(glowAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
+            Animated.timing(glowAnim, { toValue: 0.3, duration: 400, useNativeDriver: true }),
           ])
         );
         pulseLoop.current.start();
@@ -105,5 +105,5 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  label: { fontFamily: Typography.mono.family, fontSize: 10, letterSpacing: 3 },
+  label: { fontFamily: Typography.mono.family, fontSize: 10, letterSpacing: Tracking.wide },
 });
