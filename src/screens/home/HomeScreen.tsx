@@ -142,7 +142,7 @@ export function HomeScreen({ onNavigateToPlayer, onNavigateToSettings, onNavigat
   );
 
   const handleStationPress = useCallback(async (station: Station) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     if (onNavigateToPlayer) {
       onNavigateToPlayer({
         stationName: station.name,
