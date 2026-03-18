@@ -1,25 +1,37 @@
 import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
-import { Typography, Colors, Animation } from '../tokens/design-tokens';
+import { Typography, Colors, Animation, Spacing } from '../tokens/design-tokens';
 
 interface WordByWordSubtitleProps {
   text: string;
   visible: boolean;
+  accentColor?: string;
   onFinish?: () => void;
 }
 
-export function WordByWordSubtitle({ text, visible, onFinish }: WordByWordSubtitleProps) {
+export function WordByWordSubtitle({ text, visible, accentColor, onFinish }: WordByWordSubtitleProps) {
+  const color = accentColor ?? Colors.accent;
   const words = text.split(/\s+/);
   const opacities = useRef(words.map(() => new Animated.Value(0))).current;
+  const containerOpacity = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     if (!visible) {
-      // Reset all opacities
-      opacities.forEach((o) => o.setValue(0));
+      Animated.timing(containerOpacity, {
+        toValue: 0,
+        duration: 600,
+        useNativeDriver: true,
+      }).start(() => {
+        opacities.forEach((o) => o.setValue(0));
+        containerOpacity.setValue(1);
+        onFinish?.();
+      });
       return;
     }
 
-    // Stagger fade-in for each word
+    containerOpacity.setValue(1);
+    opacities.forEach((o) => o.setValue(0));
+
     const animations = opacities.map((opacity, index) =>
       Animated.timing(opacity, {
         toValue: 1,
@@ -29,41 +41,30 @@ export function WordByWordSubtitle({ text, visible, onFinish }: WordByWordSubtit
       })
     );
 
-    Animated.parallel(animations).start(() => {
-      // Hold for 1 second after all words visible
-      setTimeout(() => {
-        // Fade out all words
-        Animated.timing(new Animated.Value(1), {
-          toValue: 0,
-          duration: 600,
-          useNativeDriver: true,
-        }).start();
-        onFinish?.();
-      }, 1000);
-    });
+    Animated.parallel(animations).start();
   }, [visible, text]);
 
-  if (!visible || !text) return null;
+  if (!text) return null;
 
   return (
-    <View style={styles.container}>
+    <Animated.View style={[styles.container, { opacity: containerOpacity }]}>
       <View style={styles.wordWrap}>
         {words.map((word, index) => (
           <Animated.Text
             key={`${word}-${index}`}
-            style={[styles.word, { opacity: opacities[index] ?? 1 }]}
+            style={[styles.word, { opacity: opacities[index] ?? 1, color }]}
           >
             {word}{' '}
           </Animated.Text>
         ))}
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 24,
+    paddingHorizontal: Spacing.lg,
     minHeight: 60,
   },
   wordWrap: {
@@ -74,7 +75,6 @@ const styles = StyleSheet.create({
     fontFamily: Typography.cleoVoice.family,
     fontStyle: 'italic',
     fontSize: 18,
-    color: Colors.accent,
     lineHeight: 28,
   },
 });
