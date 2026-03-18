@@ -15,7 +15,7 @@ export default function PlayerRoute() {
       stationName={params.stationName ?? 'Station'}
       playlistId={params.playlistId ?? ''}
       stationId={params.stationId ?? ''}
-      vibe={(params.vibe as Vibe) ?? 'chill'}
+      vibe={(params.vibe as Vibe) ?? 'morning'}
       onBack={() => router.back()}
     />
   );
