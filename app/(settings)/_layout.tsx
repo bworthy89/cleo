@@ -1,14 +1,19 @@
 import { Pressable, Text } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { Colors, Typography } from '../../src/tokens/design-tokens';
+import { getUser } from '../../src/services/Storage';
 
 export default function SettingsLayout() {
+  const user = getUser();
+  const vibe = (user?.defaultVibe as keyof typeof Colors.vibe) ?? 'morning';
+  const vibeTheme = Colors.vibe[vibe] ?? Colors.vibe.morning;
+
   return (
     <Stack
       screenOptions={{
         headerShown: true,
-        headerStyle: { backgroundColor: Colors.vibe.morning.bg },
-        headerTintColor: Colors.vibe.morning.text,
+        headerStyle: { backgroundColor: vibeTheme.bg },
+        headerTintColor: vibeTheme.text,
         headerTitleStyle: { fontFamily: 'WorkSans_500Medium', fontSize: 16 },
         headerBackTitle: 'Back',
       }}
@@ -22,7 +27,7 @@ export default function SettingsLayout() {
               <Text style={{
                 fontFamily: Typography.mono.family,
                 fontSize: 12,
-                color: Colors.vibe.morning.text,
+                color: vibeTheme.text,
                 letterSpacing: 1,
               }}>
                 {'\u2190'} BACK
