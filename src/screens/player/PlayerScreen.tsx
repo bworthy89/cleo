@@ -8,7 +8,10 @@ import {
   Text,
   View,
 } from 'react-native';
-import { Colors, Typography, Spacing } from '../../tokens/design-tokens';
+import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
+import { GrainOverlay } from '../../components/GrainOverlay';
+import { Colors, Typography, Spacing, Opacity, Tracking, withAlpha, isDarkVibe } from '../../tokens/design-tokens';
 import { WordByWordSubtitle } from '../../components/WordByWordSubtitle';
 import { PullQuoteOverlay } from '../../components/PullQuoteOverlay';
 import { OnAirIndicator } from '../../components/OnAirIndicator';
@@ -45,6 +48,9 @@ export function PlayerScreen({
   const [progress, setProgress] = useState(0);
   const progressAnim = useRef(new Animated.Value(0)).current;
   const durationRef = useRef(0);
+  const artOpacity = useRef(new Animated.Value(1)).current;
+  const accentLineOpacity = useRef(new Animated.Value(0.5)).current;
+  const bgColorAnim = useRef(new Animated.Value(0)).current;
 
   const vibeTheme = Colors.vibe[vibe] ?? Colors.vibe.chill;
 
@@ -65,6 +71,24 @@ export function PlayerScreen({
     })();
   }, []);
 
+  // Background entrance animation
+  useEffect(() => {
+    Animated.timing(bgColorAnim, {
+      toValue: 1,
+      duration: 800,
+      useNativeDriver: false,
+    }).start();
+  }, []);
+
+  // Art dim effect when Cleo speaks
+  useEffect(() => {
+    Animated.timing(artOpacity, {
+      toValue: cleoSpeaking ? 0.85 : 1,
+      duration: cleoSpeaking ? 300 : 400,
+      useNativeDriver: true,
+    }).start();
+  }, [cleoSpeaking]);
+
   // Listen for playback state + progress
   useEffect(() => {
     const unsub = musicKitPlayer.onPlaybackStateChanged((event) => {
@@ -84,6 +108,7 @@ export function PlayerScreen({
   }, []);
 
   const handlePlayPause = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
       // Check actual status from MusicKit rather than relying on event state
       const status = await musicKitPlayer.getPlaybackStatus();
@@ -100,6 +125,7 @@ export function PlayerScreen({
   };
 
   const handleSkip = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     await musicKitPlayer.skip();
   };
 
@@ -129,6 +155,12 @@ export function PlayerScreen({
           const artworkUrl = profile?.artworkUrl ?? np.artworkUrl;
           durationRef.current = np.duration ?? 0;
           setNowPlaying({ ...np, artworkUrl });
+
+          // Accent line flash on track change
+          Animated.sequence([
+            Animated.timing(accentLineOpacity, { toValue: 1, duration: 100, useNativeDriver: true }),
+            Animated.timing(accentLineOpacity, { toValue: 0.5, duration: 500, useNativeDriver: true }),
+          ]).start();
 
           await audioCoordinator.handleTrackChangeWithResult(
             {
@@ -173,290 +205,132 @@ export function PlayerScreen({
   const remaining = nowPlaying?.duration ? nowPlaying.duration - elapsed : 0;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: vibeTheme.bg }]}>
-      {/* Pull Quote Overlay */}
-      <PullQuoteOverlay
-        text={cleoText}
-        visible={isPullQuote && cleoSpeaking}
-        onFinish={() => setIsPullQuote(false)}
-      />
+    <Animated.View style={[styles.container, {
+      flex: 1,
+      backgroundColor: bgColorAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [Colors.base.cream, vibeTheme.bg],
+      }),
+    }]}>
+      <SafeAreaView style={{ flex: 1 }}>
+        <GrainOverlay />
+        <PullQuoteOverlay text={cleoText} visible={isPullQuote && cleoSpeaking} onFinish={() => setIsPullQuote(false)} />
 
-      {/* Header */}
-      <View style={styles.header}>
-        <Pressable
-          onPress={onBack}
-          hitSlop={12}
-          style={({ pressed }) => pressed && styles.pressed}
-        >
-          <Text style={[styles.backButton, { color: vibeTheme.text }]}>
-            {'\u2039'}
-          </Text>
-        </Pressable>
-        <Text style={[styles.stationName, { color: vibeTheme.text }]}>
-          {stationName.toUpperCase()}
-        </Text>
-        <View style={styles.headerSpacer} />
-      </View>
-
-      {/* Accent Line */}
-      <View style={[styles.accentLine, { backgroundColor: vibeTheme.accent }]} />
-
-      {/* Album Art */}
-      <View style={styles.artworkContainer}>
-        {nowPlaying?.artworkUrl ? (
-          <Image
-            source={{ uri: nowPlaying.artworkUrl }}
-            style={styles.artwork}
-            resizeMode="cover"
-          />
-        ) : (
-          <View style={[styles.artwork, styles.artworkPlaceholder]} />
-        )}
-      </View>
-
-      {/* Track Info */}
-      <View style={styles.trackInfo}>
-        <Text
-          style={[styles.songTitle, { color: vibeTheme.text }]}
-          numberOfLines={2}
-        >
-          {nowPlaying?.title ?? 'Loading...'}
-        </Text>
-        <Text style={[styles.artistName, { color: vibeTheme.text }]} numberOfLines={1}>
-          {nowPlaying?.artistName ?? ''}
-        </Text>
-        {nowPlaying?.albumTitle ? (
-          <Text style={[styles.albumName, { color: vibeTheme.text }]} numberOfLines={1}>
-            {nowPlaying.albumTitle}
-          </Text>
-        ) : null}
-      </View>
-
-      {/* Progress Bar */}
-      <View style={styles.progressSection}>
-        <View style={[styles.progressTrack, { backgroundColor: vibeTheme.text }]}>
-          <Animated.View
-            style={[
-              styles.progressFill,
-              {
-                backgroundColor: vibeTheme.accent,
-                width: progressAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: ['0%', '100%'],
-                }),
-              },
-            ]}
-          />
+        {/* Header */}
+        <View style={styles.header}>
+          <Pressable onPress={onBack} hitSlop={12} style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}>
+            <Text style={[styles.backChevron, { color: vibeTheme.text }]}>{'\u2039'}</Text>
+          </Pressable>
+          <Text style={[styles.stationName, { color: vibeTheme.text }]}>{stationName.toUpperCase()}</Text>
         </View>
-        <View style={styles.progressTimes}>
-          <Text style={[styles.timeText, { color: vibeTheme.text }]}>
-            {formatTime(elapsed)}
-          </Text>
-          <Text style={[styles.timeText, { color: vibeTheme.text }]}>
-            -{formatTime(remaining)}
+
+        {/* Accent Line */}
+        <Animated.View style={[styles.accentLine, { backgroundColor: vibeTheme.accent, opacity: accentLineOpacity }]} />
+
+        {/* Album Art with Title Over */}
+        <View style={styles.artworkContainer}>
+          <Animated.View style={{ width: '100%', height: '100%', opacity: artOpacity }}>
+            {nowPlaying?.artworkUrl ? (
+              <Image source={{ uri: nowPlaying.artworkUrl }} style={styles.artwork} resizeMode="cover" />
+            ) : (
+              <View style={[styles.artwork, styles.artworkPlaceholder]} />
+            )}
+          </Animated.View>
+          {isDarkVibe(vibeTheme.bg) && (
+            <View style={[styles.vibeGlow, { backgroundColor: vibeTheme.accent }]} />
+          )}
+          <LinearGradient colors={['transparent', 'rgba(0,0,0,0.7)']} style={styles.artGradient}>
+            <Text style={styles.songTitle} numberOfLines={2}>
+              {(nowPlaying?.title ?? 'Loading...').toUpperCase()}
+            </Text>
+          </LinearGradient>
+        </View>
+
+        {/* Artist + Album */}
+        <View style={styles.trackInfo}>
+          <Text style={[styles.artistName, { color: vibeTheme.text }]} numberOfLines={1}>
+            {[nowPlaying?.artistName, nowPlaying?.albumTitle].filter(Boolean).join(' \u00B7 ')}
           </Text>
         </View>
-      </View>
 
-      {/* Playback Controls */}
-      <View style={styles.controls}>
-        <Pressable
-          onPress={handlePrevious}
-          style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}
-          hitSlop={8}
-        >
-          <Text style={[styles.secondaryIcon, { color: vibeTheme.text }]}>
-            {'\u25C0\u25C0'}
-          </Text>
-        </Pressable>
+        {/* Progress Bar */}
+        <View style={styles.progressSection}>
+          <View style={[styles.progressTrack, { backgroundColor: withAlpha(vibeTheme.text, 0.1) }]}>
+            <Animated.View style={[styles.progressFill, {
+              backgroundColor: vibeTheme.accent,
+              width: progressAnim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }),
+            }]} />
+          </View>
+          <View style={styles.progressTimes}>
+            <Text style={[styles.timeText, { color: vibeTheme.text }]}>{formatTime(elapsed)}</Text>
+            <Text style={[styles.timeText, { color: vibeTheme.text }]}>-{formatTime(remaining)}</Text>
+          </View>
+        </View>
 
-        <Pressable
-          onPress={handlePlayPause}
-          style={({ pressed }) => [
-            styles.playPauseButton,
-            { borderColor: vibeTheme.accent },
-            pressed && styles.pressed,
-          ]}
-        >
-          <Text style={[styles.playPauseIcon, { color: vibeTheme.text }]}>
-            {isPlaying ? '\u275A\u275A' : '\u25B6'}
-          </Text>
-        </Pressable>
+        {/* Controls */}
+        <View style={styles.controls}>
+          <Pressable onPress={handlePrevious} style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]} hitSlop={8}>
+            <Text style={[styles.secondaryIcon, { color: vibeTheme.text }]}>{'\u00AB'}</Text>
+          </Pressable>
+          <Pressable onPress={handlePlayPause} style={({ pressed }) => [styles.playPauseButton, { borderColor: vibeTheme.accent }, pressed && styles.pressed]}>
+            {isPlaying ? (
+              <View style={styles.pauseIcon}>
+                <View style={[styles.pauseBar, { backgroundColor: vibeTheme.text }]} />
+                <View style={[styles.pauseBar, { backgroundColor: vibeTheme.text }]} />
+              </View>
+            ) : (
+              <Text style={[styles.playIcon, { color: vibeTheme.text }]}>{'\u25B6'}</Text>
+            )}
+          </Pressable>
+          <Pressable onPress={handleSkip} style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]} hitSlop={8}>
+            <Text style={[styles.secondaryIcon, { color: vibeTheme.text }]}>{'\u00BB'}</Text>
+          </Pressable>
+        </View>
 
-        <Pressable
-          onPress={handleSkip}
-          style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}
-          hitSlop={8}
-        >
-          <Text style={[styles.secondaryIcon, { color: vibeTheme.text }]}>
-            {'\u25B6\u25B6'}
-          </Text>
-        </Pressable>
-      </View>
-
-      {/* ON AIR / Cleo Section */}
-      <View style={styles.cleoSection}>
-        <OnAirIndicator active={cleoSpeaking} accentColor={vibeTheme.accent} />
-
-        {!isPullQuote && cleoSpeaking ? (
-          <WordByWordSubtitle text={cleoText} visible={cleoSpeaking} />
-        ) : !cleoSpeaking ? (
-          <Text style={[styles.cleoResting, { color: vibeTheme.text }]}>
-            CLEO {'\u00B7'} {stationName.toUpperCase()}
-          </Text>
-        ) : null}
-      </View>
-    </SafeAreaView>
+        {/* Cleo Section */}
+        <View style={styles.cleoSection}>
+          <OnAirIndicator active={cleoSpeaking} paused={!isPlaying} accentColor={vibeTheme.accent} />
+          {!isPullQuote && cleoSpeaking ? (
+            <WordByWordSubtitle text={cleoText} visible={cleoSpeaking} accentColor={vibeTheme.accent} />
+          ) : !cleoSpeaking ? (
+            <Text style={[styles.cleoResting, { color: vibeTheme.text }]}>
+              CLEO {'\u00B7'} {stationName.toUpperCase()}
+            </Text>
+          ) : null}
+        </View>
+      </SafeAreaView>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  pressed: {
-    opacity: 0.6,
-  },
-
-  // ── Header ──────────────────────────────────────────────────────────
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.xs,
-  },
-  backButton: {
-    fontSize: 32,
-    fontFamily: Typography.display.family,
-    lineHeight: 36,
-  },
-  headerSpacer: {
-    width: 32,
-  },
-  stationName: {
-    fontFamily: Typography.mono.family,
-    fontSize: 10,
-    letterSpacing: 3,
-    opacity: 0.5,
-  },
-  accentLine: {
-    height: 1,
-    marginHorizontal: Spacing.lg,
-    marginTop: Spacing.xs,
-  },
-
-  // ── Artwork ─────────────────────────────────────────────────────────
-  artworkContainer: {
-    marginHorizontal: Spacing.lg,
-    marginTop: Spacing.md,
-    aspectRatio: 1,
-    borderRadius: 6,
-    overflow: 'hidden',
-  },
-  artwork: {
-    width: '100%',
-    height: '100%',
-  },
-  artworkPlaceholder: {
-    backgroundColor: Colors.base.black,
-  },
-
-  // ── Track Info ──────────────────────────────────────────────────────
-  trackInfo: {
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.md,
-  },
-  songTitle: {
-    fontFamily: Typography.display.family,
-    fontSize: 26,
-    letterSpacing: 0.5,
-    lineHeight: 32,
-  },
-  artistName: {
-    fontFamily: Typography.label.familyMedium,
-    fontSize: 14,
-    opacity: 0.7,
-    marginTop: Spacing.xs,
-  },
-  albumName: {
-    fontFamily: Typography.label.family,
-    fontSize: 13,
-    opacity: 0.4,
-    marginTop: 2,
-  },
-
-  // ── Progress ────────────────────────────────────────────────────────
-  progressSection: {
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.md,
-  },
-  progressTrack: {
-    height: 3,
-    borderRadius: 1.5,
-    opacity: 0.1,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 1.5,
-    opacity: 10, // counteracts parent 0.1 opacity: 10 * 0.1 = 1.0
-  },
-  progressTimes: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: Spacing.xs,
-  },
-  timeText: {
-    fontFamily: Typography.mono.family,
-    fontSize: 10,
-    opacity: 0.35,
-    letterSpacing: 1,
-  },
-
-  // ── Controls ────────────────────────────────────────────────────────
-  controls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: Spacing.md,
-    gap: Spacing.xl,
-  },
-  playPauseButton: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  playPauseIcon: {
-    fontSize: 22,
-  },
-  secondaryButton: {
-    width: 48,
-    height: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  secondaryIcon: {
-    fontSize: 13,
-    opacity: 0.5,
-    letterSpacing: -4,
-  },
-
-  // ── Cleo Section ────────────────────────────────────────────────────
-  cleoSection: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    paddingBottom: Spacing.xl,
-  },
-  cleoResting: {
-    fontFamily: Typography.mono.family,
-    fontSize: 9,
-    letterSpacing: 3,
-    textAlign: 'center',
-    opacity: 0.2,
-    paddingBottom: Spacing.sm,
-  },
+  container: { flex: 1 },
+  pressed: { opacity: 0.6 },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.lg, paddingTop: Spacing.xs, position: 'relative' },
+  backButton: { width: 44, height: 44, justifyContent: 'center' },
+  backChevron: { fontSize: 24, fontFamily: Typography.display.family },
+  stationName: { fontFamily: Typography.mono.family, fontSize: 10, letterSpacing: Tracking.wide, opacity: Opacity.ghost, position: 'absolute', left: 0, right: 0, textAlign: 'center', zIndex: -1 },
+  accentLine: { height: 1, marginHorizontal: Spacing.lg, marginTop: Spacing.xs },
+  artworkContainer: { marginTop: Spacing.sm, aspectRatio: 1, position: 'relative' },
+  artwork: { width: '100%', height: '100%' },
+  artworkPlaceholder: { backgroundColor: Colors.base.black },
+  vibeGlow: { position: 'absolute', bottom: -20, left: '20%', right: '20%', height: 80, borderRadius: 40, opacity: 0.08 },
+  artGradient: { position: 'absolute', bottom: 0, left: 0, right: 0, height: '60%', justifyContent: 'flex-end', paddingHorizontal: Spacing.lg, paddingBottom: Spacing.md },
+  songTitle: { fontFamily: Typography.display.family, fontSize: 36, color: Colors.base.white, textTransform: 'uppercase', letterSpacing: 0.5, lineHeight: 40, textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 8 },
+  trackInfo: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm },
+  artistName: { fontFamily: Typography.label.familyMedium, fontSize: 13, textTransform: 'uppercase', letterSpacing: Tracking.normal, opacity: Opacity.secondary },
+  progressSection: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.md },
+  progressTrack: { height: 3, borderRadius: 1.5, overflow: 'hidden' },
+  progressFill: { height: '100%', borderRadius: 1.5 },
+  progressTimes: { flexDirection: 'row', justifyContent: 'space-between', marginTop: Spacing.xs },
+  timeText: { fontFamily: Typography.mono.family, fontSize: 10, opacity: Opacity.muted, letterSpacing: Tracking.normal },
+  controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingTop: Spacing.md, gap: Spacing.xl },
+  playPauseButton: { width: 56, height: 56, borderRadius: 28, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
+  playIcon: { fontSize: 20 },
+  pauseIcon: { flexDirection: 'row', gap: 4 },
+  pauseBar: { width: 3, height: 16, borderRadius: 1 },
+  secondaryButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  secondaryIcon: { fontFamily: Typography.mono.family, fontSize: 18, opacity: Opacity.muted },
+  cleoSection: { flex: 1, justifyContent: 'flex-end', paddingBottom: Spacing.xl, minHeight: 100 },
+  cleoResting: { fontFamily: Typography.mono.family, fontSize: 9, letterSpacing: Tracking.wide, textAlign: 'center', opacity: Opacity.ghost, paddingBottom: Spacing.sm },
 });
