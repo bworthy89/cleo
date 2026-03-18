@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Colors, Typography, Spacing } from '../tokens/design-tokens';
+import * as Haptics from 'expo-haptics';
+import { Colors, Typography, Spacing, Opacity } from '../tokens/design-tokens';
 import type { Vibe } from '../cleo/fallbacks';
 
 interface VibeSelectorProps {
@@ -7,15 +8,20 @@ interface VibeSelectorProps {
   onSelect: (vibe: Vibe) => void;
 }
 
-const VIBES: { id: Vibe; label: string; emoji: string }[] = [
-  { id: 'morning', label: 'Morning', emoji: '☀️' },
-  { id: 'chill', label: 'Chill', emoji: '🌊' },
-  { id: 'workout', label: 'Workout', emoji: '🔥' },
-  { id: 'lateNight', label: 'Late Night', emoji: '🌙' },
-  { id: 'party', label: 'Party', emoji: '🎉' },
+const VIBES: { id: Vibe; label: string }[] = [
+  { id: 'morning', label: 'Morning' },
+  { id: 'chill', label: 'Chill' },
+  { id: 'workout', label: 'Workout' },
+  { id: 'lateNight', label: 'Late Night' },
+  { id: 'party', label: 'Party' },
 ];
 
 export function VibeSelector({ selected, onSelect }: VibeSelectorProps) {
+  const handleSelect = (id: Vibe) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onSelect(id);
+  };
+
   return (
     <View style={styles.container}>
       {VIBES.map((vibe) => {
@@ -26,11 +32,14 @@ export function VibeSelector({ selected, onSelect }: VibeSelectorProps) {
             key={vibe.id}
             style={[
               styles.card,
-              { backgroundColor: theme.bg, borderColor: isSelected ? theme.accent : 'transparent' },
+              {
+                backgroundColor: theme.bg,
+                borderColor: isSelected ? theme.accent : 'transparent',
+                opacity: isSelected ? 1 : Opacity.secondary,
+              },
             ]}
-            onPress={() => onSelect(vibe.id)}
+            onPress={() => handleSelect(vibe.id)}
           >
-            <Text style={styles.emoji}>{vibe.emoji}</Text>
             <Text style={[styles.label, { color: theme.text }]}>{vibe.label}</Text>
           </Pressable>
         );
@@ -52,11 +61,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderRadius: 4,
-  },
-  emoji: {
-    fontSize: 28,
-    marginBottom: Spacing.xs,
   },
   label: {
     fontFamily: Typography.mono.family,
