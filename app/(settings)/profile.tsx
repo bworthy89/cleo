@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { Colors, Typography, Spacing } from '../../src/tokens/design-tokens';
+import { Colors, Typography, Spacing, Opacity, Tracking, withAlpha } from '../../src/tokens/design-tokens';
 import { getUser, setUser } from '../../src/services/Storage';
 import { VibeSelector } from '../../src/components/VibeSelector';
 import type { Vibe } from '../../src/cleo/fallbacks';
@@ -10,6 +10,10 @@ export default function ProfileScreen() {
   const [name, setName] = useState(user?.name ?? '');
   const [vibe, setVibe] = useState<Vibe>((user?.defaultVibe as Vibe) ?? 'chill');
   const [saved, setSaved] = useState(false);
+
+  const currentUser = getUser();
+  const userVibe = (currentUser?.defaultVibe as keyof typeof Colors.vibe) ?? 'morning';
+  const vibeTheme = Colors.vibe[userVibe] ?? Colors.vibe.morning;
 
   const handleSave = () => {
     setUser({
@@ -23,10 +27,10 @@ export default function ProfileScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.label}>YOUR NAME</Text>
+    <View style={[styles.container, { backgroundColor: vibeTheme.bg }]}>
+      <Text style={[styles.label, { color: vibeTheme.text }]}>YOUR NAME</Text>
       <TextInput
-        style={styles.input}
+        style={[styles.input, { color: vibeTheme.text }]}
         value={name}
         onChangeText={setName}
         placeholder="Your name"
@@ -34,15 +38,20 @@ export default function ProfileScreen() {
         autoCapitalize="words"
       />
 
-      <Text style={[styles.label, { marginTop: Spacing.xl }]}>DEFAULT VIBE</Text>
+      <Text style={[styles.label, { marginTop: Spacing.xl, color: vibeTheme.text }]}>DEFAULT VIBE</Text>
       <VibeSelector selected={vibe} onSelect={setVibe} />
 
-      <Text style={[styles.label, { marginTop: Spacing.xl }]}>APPLE MUSIC</Text>
-      <Text style={styles.status}>✓ Connected</Text>
+      <Text style={[styles.label, { marginTop: Spacing.xl, color: vibeTheme.text }]}>APPLE MUSIC</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: Spacing.sm }}>
+        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: vibeTheme.accent, marginRight: Spacing.sm }} />
+        <Text style={{ fontFamily: Typography.mono.family, fontSize: 10, letterSpacing: 2, color: vibeTheme.accent, textTransform: 'uppercase' }}>CONNECTED</Text>
+      </View>
 
       <View style={styles.bottom}>
         <Pressable style={styles.button} onPress={handleSave}>
-          <Text style={styles.buttonText}>{saved ? 'SAVED ✓' : 'SAVE'}</Text>
+          <Text style={[styles.buttonText, saved && { color: vibeTheme.accent, backgroundColor: 'transparent' }]}>
+            {saved ? 'SAVED' : 'SAVE'}
+          </Text>
         </Pressable>
       </View>
     </View>
@@ -52,21 +61,18 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.vibe.morning.bg,
     paddingHorizontal: Spacing.xl,
     paddingTop: Spacing.lg,
   },
   label: {
     fontFamily: Typography.mono.family,
     fontSize: 10,
-    color: Colors.vibe.morning.text,
     letterSpacing: 3,
     marginBottom: Spacing.sm,
   },
   input: {
     fontFamily: Typography.label.family,
     fontSize: 18,
-    color: Colors.vibe.morning.text,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(0,0,0,0.15)',
     paddingVertical: Spacing.md,
@@ -87,7 +93,7 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontFamily: Typography.mono.family,
-    fontSize: 14,
+    fontSize: 12,
     color: Colors.base.white,
     letterSpacing: 3,
   },
