@@ -17,6 +17,7 @@
     "@expo-google-fonts/eb-garamond": "^0.4.2",
     "@expo-google-fonts/playfair-display": "^0.4.2",
     "@expo-google-fonts/work-sans": "^0.4.2",
+    "@expo/vector-icons": "^15.1.1",
     "expo": "~55.0.6",
     "expo-apple-music": "^0.1.9",
     "expo-constants": "~55.0.7",
