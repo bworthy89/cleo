@@ -74,20 +74,8 @@ voiceRouter.post('/synthesize-voice', async (req: Request, res: Response) => {
       },
     ] : undefined;
 
-    let arrayBuffer: ArrayBuffer;
-    let modelUsed = 'eleven_multilingual_v2';
-
-    try {
-      arrayBuffer = await callElevenLabs(text, 'eleven_multilingual_v2', apiKey, voiceId, 10000, pronunciationConfig);
-    } catch (primaryError: any) {
-      if (primaryError.name === 'AbortError') {
-        console.warn(`[TTS] Fallback: eleven_multilingual_v2 timed out (10s), retrying with turbo_v2_5`);
-      } else {
-        console.warn(`[TTS] Fallback: eleven_multilingual_v2 failed (${primaryError.message}), retrying with turbo_v2_5`);
-      }
-      modelUsed = 'eleven_turbo_v2_5 (fallback)';
-      arrayBuffer = await callElevenLabs(text, 'eleven_turbo_v2_5', apiKey, voiceId, 8000, pronunciationConfig);
-    }
+    const arrayBuffer = await callElevenLabs(text, 'eleven_turbo_v2_5', apiKey, voiceId, 10000, pronunciationConfig);
+    const modelUsed = 'eleven_turbo_v2_5';
 
     const audioSizeKB = Math.round(arrayBuffer.byteLength / 1024);
     const estimatedDurationS = Math.round(arrayBuffer.byteLength / 16000);
