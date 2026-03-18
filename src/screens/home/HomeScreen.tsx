@@ -256,7 +256,7 @@ export function HomeScreen({ onNavigateToPlayer, onNavigateToSettings, onNavigat
         </View>
 
         {/* Playlists */}
-        <View style={[styles.section, { marginBottom: Spacing.xxl }]}>
+        <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: vibeTheme.text }]}>PLAYLISTS</Text>
           {playlists.length === 0 && playlistsLoading ? (
             <ActivityIndicator style={{ marginTop: Spacing.lg }} color={Colors.accent} />
@@ -294,6 +294,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flex: 1,
+    paddingBottom: Spacing.xxl,
   },
 
   // ── Header ──────────────────────────────────────────────────────────
@@ -425,7 +426,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     paddingHorizontal: Spacing.lg,
     marginBottom: Spacing.md,
-    opacity: Opacity.muted,
+    opacity: Opacity.label,
   },
   listContent: {
     paddingHorizontal: Spacing.lg,
