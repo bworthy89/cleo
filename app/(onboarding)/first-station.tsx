@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react';
-import { FlatList, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { Dimensions, FlatList, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { Colors, Typography, Spacing } from '../../src/tokens/design-tokens';
+import { Colors, Typography, Spacing, Tracking } from '../../src/tokens/design-tokens';
 import { StationCard } from '../../src/components/StationCard';
 import { musicKitPlayer } from '../../src/services/MusicKitPlayer';
 import { addStation, getUser, setCachedPlaylists } from '../../src/services/Storage';
 import type { MusicPlaylist } from '../../modules/expo-music-kit';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const CARD_WIDTH = (SCREEN_WIDTH - Spacing.lg * 2 - Spacing.md) / 2;
 
 export default function FirstStationScreen() {
   const [playlists, setPlaylists] = useState<MusicPlaylist[]>([]);
@@ -58,10 +61,12 @@ export default function FirstStationScreen() {
         contentContainerStyle={styles.grid}
         columnWrapperStyle={styles.row}
         renderItem={({ item }) => (
-          <View style={[styles.cardWrapper, selected === item.id && styles.cardSelected]}>
+          <View style={{ transform: [{ scale: selected === item.id ? 1.02 : 1 }] }}>
             <StationCard
               name={item.name}
               artworkUrl={item.artworkUrl}
+              width={CARD_WIDTH}
+              accentColor={selected === item.id ? Colors.accent : 'transparent'}
               onPress={() => handleSelect(item)}
             />
           </View>
@@ -110,13 +115,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: Spacing.md,
   },
-  cardWrapper: {
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  cardSelected: {
-    borderColor: Colors.accent,
-  },
   bottom: {
     paddingHorizontal: Spacing.xl,
     paddingBottom: Spacing.xxl,
@@ -131,7 +129,7 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontFamily: Typography.mono.family,
-    fontSize: 14,
+    fontSize: 12,
     color: Colors.base.white,
     letterSpacing: 3,
   },

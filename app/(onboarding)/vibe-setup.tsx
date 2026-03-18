@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Pressable, SafeAreaView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
-import { Colors, Typography, Spacing } from '../../src/tokens/design-tokens';
+import { Colors, Typography, Spacing, Tracking } from '../../src/tokens/design-tokens';
 import { VibeSelector } from '../../src/components/VibeSelector';
 import { setUser } from '../../src/services/Storage';
 import type { Vibe } from '../../src/cleo/fallbacks';
@@ -90,7 +90,7 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontFamily: Typography.mono.family,
-    fontSize: 14,
+    fontSize: 12,
     color: Colors.base.white,
     letterSpacing: 3,
   },
