@@ -108,7 +108,7 @@ export function PlayerScreen({
   }, []);
 
   const handlePlayPause = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     try {
       // Check actual status from MusicKit rather than relying on event state
       const status = await musicKitPlayer.getPlaybackStatus();
@@ -125,7 +125,7 @@ export function PlayerScreen({
   };
 
   const handleSkip = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     await musicKitPlayer.skip();
   };
 

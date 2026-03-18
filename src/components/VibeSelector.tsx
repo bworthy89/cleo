@@ -18,7 +18,7 @@ const VIBES: { id: Vibe; label: string }[] = [
 
 export function VibeSelector({ selected, onSelect }: VibeSelectorProps) {
   const handleSelect = (id: Vibe) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     onSelect(id);
   };
 
