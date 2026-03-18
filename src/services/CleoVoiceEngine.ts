@@ -26,7 +26,7 @@ function splitLongSentence(sentence: string): string[] {
   if (words.length <= 15) return [sentence];
 
   // Strategy 1: Split at "comma + conjunction" — e.g. "carries the whole track, and if you..."
-  const commaConjunction = sentence.match(/^(.{20,}?,)\s+(and|but|so|or)\s+(.+)$/i);
+  const commaConjunction = sentence.match(/^(.+?,)\s+(and|but|so|or)\s+(.+)$/i);
   if (commaConjunction) {
     const before = commaConjunction[1].replace(/,$/, '');
     const conjunction = commaConjunction[2];
