@@ -4,69 +4,85 @@ import { Typography, Colors, Spacing } from '../tokens/design-tokens';
 
 interface OnAirIndicatorProps {
   active: boolean;
+  paused?: boolean;
   accentColor?: string;
 }
 
-export function OnAirIndicator({ active, accentColor }: OnAirIndicatorProps) {
+export function OnAirIndicator({ active, paused, accentColor }: OnAirIndicatorProps) {
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  const glowAnim = useRef(new Animated.Value(0.3)).current;
-
-  useEffect(() => {
-    if (active) {
-      const pulse = Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulseAnim, {
-            toValue: 1.15,
-            duration: 800,
-            useNativeDriver: true,
-          }),
-          Animated.timing(pulseAnim, {
-            toValue: 1,
-            duration: 800,
-            useNativeDriver: true,
-          }),
-        ])
-      );
-      const glow = Animated.loop(
-        Animated.sequence([
-          Animated.timing(glowAnim, {
-            toValue: 1,
-            duration: 800,
-            useNativeDriver: true,
-          }),
-          Animated.timing(glowAnim, {
-            toValue: 0.3,
-            duration: 800,
-            useNativeDriver: true,
-          }),
-        ])
-      );
-      pulse.start();
-      glow.start();
-      return () => {
-        pulse.stop();
-        glow.stop();
-        pulseAnim.setValue(1);
-        glowAnim.setValue(0.3);
-      };
-    } else {
-      pulseAnim.setValue(1);
-      glowAnim.setValue(0.3);
-    }
-  }, [active]);
+  const glowAnim = useRef(new Animated.Value(0.15)).current;
 
   const color = accentColor ?? Colors.accent;
+  const isLive = active && !paused;
+
+  useEffect(() => {
+    if (isLive) {
+      Animated.timing(glowAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }).start(() => {
+        const pulse = Animated.loop(
+          Animated.sequence([
+            Animated.timing(pulseAnim, { toValue: 1.15, duration: 800, useNativeDriver: true }),
+            Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
+          ])
+        );
+        const glow = Animated.loop(
+          Animated.sequence([
+            Animated.timing(glowAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
+            Animated.timing(glowAnim, { toValue: 0.3, duration: 800, useNativeDriver: true }),
+          ])
+        );
+        pulse.start();
+        glow.start();
+      });
+    } else {
+      pulseAnim.setValue(1);
+      Animated.timing(glowAnim, {
+        toValue: 0.15,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
+    }
+    return () => {
+      pulseAnim.stopAnimation();
+      glowAnim.stopAnimation();
+    };
+  }, [isLive]);
 
   return (
     <View style={styles.container}>
       <Animated.View
-        style={[styles.dot, { backgroundColor: color, opacity: glowAnim, transform: [{ scale: pulseAnim }] }]}
+        style={[
+          styles.dot,
+          {
+            backgroundColor: color,
+            opacity: glowAnim,
+            transform: [{ scale: pulseAnim }],
+            shadowColor: color,
+            shadowRadius: isLive ? 4 : 0,
+            shadowOpacity: isLive ? 0.4 : 0,
+            shadowOffset: { width: 0, height: 0 },
+          },
+        ]}
       />
-      <Animated.Text style={[styles.label, { color, opacity: active ? glowAnim : 0.3 }]}>
+      <Animated.Text style={[styles.label, { color, opacity: glowAnim }]}>
         ON AIR
       </Animated.Text>
       <Animated.View
-        style={[styles.dot, { backgroundColor: color, opacity: glowAnim, transform: [{ scale: pulseAnim }] }]}
+        style={[
+          styles.dot,
+          {
+            backgroundColor: color,
+            opacity: glowAnim,
+            transform: [{ scale: pulseAnim }],
+            shadowColor: color,
+            shadowRadius: isLive ? 4 : 0,
+            shadowOpacity: isLive ? 0.4 : 0,
+            shadowOffset: { width: 0, height: 0 },
+          },
+        ]}
       />
     </View>
   );
@@ -80,6 +96,6 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     gap: Spacing.sm,
   },
-  dot: { width: 6, height: 6, borderRadius: 3 },
+  dot: { width: 8, height: 8, borderRadius: 4 },
   label: { fontFamily: Typography.mono.family, fontSize: 10, letterSpacing: 3 },
 });
