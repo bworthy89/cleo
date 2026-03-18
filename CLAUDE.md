@@ -20,7 +20,7 @@ like a personalized radio broadcast — not a playlist shuffler.
 
 ### AI & Voice
 - Gemini 2.5 Flash API — host script generation (maxOutputTokens: 8192 — thinking tokens consume budget)
-- ElevenLabs TTS (`eleven_turbo_v2_5`, custom Cleo voice) — voice synthesis
+- ElevenLabs TTS (`eleven_multilingual_v2`, custom Cleo voice) — voice synthesis
 - ~~HeyGen API~~ — deferred, not needed for MVP
 
 ### Data & Enrichment
@@ -109,7 +109,7 @@ cleo/
 - Full radio loop: track change → Cleo speaks → music resumes
 
 ### Cleo Polish — Voice, Timing & Storytelling
-- ElevenLabs voice tuning: `eleven_turbo_v2_5` model, stability 0.15, style 0.40
+- ElevenLabs voice tuning: `eleven_multilingual_v2` model, stability 0.35, style 0.55, turbo fallback
 - `formatForSpeech()` post-process (em-dashes, strip stage directions)
 - Delivery modes: `pre_song` (bridges between tracks) and `post_song` (drops in 8-12s into track)
 - `previousTrack` buffering in AudioCoordinator for temporal context
@@ -185,7 +185,7 @@ ELEVENLABS_VOICE_ID
 - MusicBrainz: max 1 request/second — use a queue with 1100ms minimum interval
 - Segment generation: 10s timeout → fallback on loss
 - Gemini 2.5 Flash: maxOutputTokens must be 8192+ (thinking tokens consume budget)
-- ElevenLabs: `eleven_turbo_v2_5` model with low stability (0.15) for natural inflection
+- ElevenLabs: `eleven_multilingual_v2` model (stability 0.35, style 0.55) with turbo_v2_5 fallback on timeout
 - MMKV for all local persistence — never AsyncStorage
 - Native builds must use no-spaces path (`/Users/kari/Documents/cleo-app/`)
 - After rsync to cleo-app, check that `Cleo.entitlements` has empty dict (no musickit key)
