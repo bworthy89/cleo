@@ -108,6 +108,15 @@ export function PlayerScreen({
     return unsub;
   }, []);
 
+  const handleNext = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    try {
+      await musicKitPlayer.skip();
+    } catch {
+      // skip may throw if at end of queue — non-fatal
+    }
+  };
+
   const handlePlayPause = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     try {
@@ -257,6 +266,9 @@ export function PlayerScreen({
           <Pressable onPress={handlePlayPause} style={({ pressed }) => [styles.playPauseButton, { borderColor: vibeTheme.accent }, pressed && styles.pressed]}>
             <Ionicons name={isPlaying ? 'pause' : 'play'} size={24} color={vibeTheme.text} style={!isPlaying ? { marginLeft: 3 } : undefined} />
           </Pressable>
+          <Pressable onPress={handleNext} hitSlop={12} style={({ pressed }) => [styles.skipButton, pressed && styles.pressed]}>
+            <Ionicons name="play-forward" size={22} color={vibeTheme.text} style={{ opacity: safeOpacity(Opacity.secondary, vibeTheme.bg) }} />
+          </Pressable>
         </View>
 
         {/* Cleo Section */}
@@ -297,6 +309,7 @@ const styles = StyleSheet.create({
   timeText: { fontFamily: Typography.mono.family, fontSize: 10, letterSpacing: Tracking.normal },
   controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingTop: Spacing.md, gap: Spacing.xl },
   playPauseButton: { width: 56, height: 56, borderRadius: Radius.lg, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
+  skipButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   cleoSection: { flex: 1, justifyContent: 'flex-end', paddingBottom: Spacing.xl, minHeight: 100 },
   cleoResting: { fontFamily: Typography.mono.family, fontSize: 9, letterSpacing: Tracking.wide, textAlign: 'center', opacity: Opacity.ghost, paddingBottom: Spacing.sm },
 });
