@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   FlatList,
   Image,
   Pressable,
@@ -44,6 +45,27 @@ interface HomeScreenProps {
   }) => void;
   onNavigateToSettings?: () => void;
   onNavigateToActivePlayer?: () => void;
+}
+
+function LoadingScreen({ bg, text }: { bg: string; text: string }) {
+  const pulseAnim = useRef(new Animated.Value(0.3)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1, duration: 1200, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 0.3, duration: 1200, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, []);
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor: bg }]}>
+      <View style={styles.centered}>
+        <Animated.Text style={[styles.heroTitle, { color: text, opacity: pulseAnim }]}>CLEO</Animated.Text>
+      </View>
+    </SafeAreaView>
+  );
 }
 
 export function HomeScreen({ onNavigateToPlayer, onNavigateToSettings, onNavigateToActivePlayer }: HomeScreenProps) {
@@ -178,14 +200,7 @@ export function HomeScreen({ onNavigateToPlayer, onNavigateToSettings, onNavigat
 
   // ── Loading ─────────────────────────────────────────────────────────
   if (authState === 'loading') {
-    return (
-      <SafeAreaView style={[styles.container, { backgroundColor: vibeTheme.bg }]}>
-        <View style={styles.centered}>
-          <Text style={[styles.heroTitle, { color: vibeTheme.text }]}>CLEO</Text>
-          <ActivityIndicator style={{ marginTop: Spacing.lg }} color={Colors.accent} />
-        </View>
-      </SafeAreaView>
-    );
+    return <LoadingScreen bg={vibeTheme.bg} text={vibeTheme.text} />;
   }
 
   // ── Ready / Playing ─────────────────────────────────────────────────

@@ -59,6 +59,11 @@ export function withAlpha(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
+/** Returns an opacity value with a minimum floor for dark backgrounds to maintain WCAG AA contrast. */
+export function safeOpacity(baseOpacity: number, bg: string): number {
+  return isDarkVibe(bg) ? Math.max(baseOpacity, 0.6) : baseOpacity;
+}
+
 export function isDarkVibe(bg: string): boolean {
   const r = parseInt(bg.slice(1, 3), 16) / 255;
   const g = parseInt(bg.slice(3, 5), 16) / 255;
