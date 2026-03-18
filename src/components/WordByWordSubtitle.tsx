@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 import { Typography, Colors, Animation, Spacing } from '../tokens/design-tokens';
 
@@ -12,7 +12,7 @@ interface WordByWordSubtitleProps {
 export function WordByWordSubtitle({ text, visible, accentColor, onFinish }: WordByWordSubtitleProps) {
   const color = accentColor ?? Colors.accent;
   const words = text.split(/\s+/);
-  const opacities = useRef(words.map(() => new Animated.Value(0))).current;
+  const opacities = useMemo(() => words.map(() => new Animated.Value(0)), [text]);
   const containerOpacity = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -51,7 +51,7 @@ export function WordByWordSubtitle({ text, visible, accentColor, onFinish }: Wor
       <View style={styles.wordWrap}>
         {words.map((word, index) => (
           <Animated.Text
-            key={`${word}-${index}`}
+            key={`${text.length}-${index}`}
             style={[styles.word, { opacity: opacities[index] ?? 1, color }]}
           >
             {word}{' '}

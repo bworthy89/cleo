@@ -12,7 +12,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { GrainOverlay } from '../../components/GrainOverlay';
-import { Colors, Typography, Spacing, Radius, Opacity, Tracking, withAlpha, isDarkVibe } from '../../tokens/design-tokens';
+import { Colors, Typography, Spacing, Radius, Opacity, Tracking, withAlpha, isDarkVibe, safeOpacity } from '../../tokens/design-tokens';
 import { WordByWordSubtitle } from '../../components/WordByWordSubtitle';
 import { PullQuoteOverlay } from '../../components/PullQuoteOverlay';
 import { OnAirIndicator } from '../../components/OnAirIndicator';
@@ -198,15 +198,15 @@ export function PlayerScreen({
       }),
     }]}>
       <SafeAreaView style={{ flex: 1 }}>
-        <GrainOverlay />
-        <PullQuoteOverlay text={cleoText} visible={isPullQuote && cleoSpeaking} onFinish={() => setIsPullQuote(false)} />
+        <GrainOverlay isDark={isDarkVibe(vibeTheme.bg)} />
+        <PullQuoteOverlay text={cleoText} visible={isPullQuote && cleoSpeaking} vibeBg={vibeTheme.bg} onFinish={() => setIsPullQuote(false)} />
 
         {/* Header */}
         <View style={styles.header}>
           <Pressable onPress={onBack} hitSlop={12} style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}>
             <Ionicons name="chevron-back" size={22} color={vibeTheme.text} />
           </Pressable>
-          <Text style={[styles.stationName, { color: vibeTheme.text }]}>{stationName.toUpperCase()}</Text>
+          <Text style={[styles.stationName, { color: vibeTheme.text, opacity: safeOpacity(Opacity.muted, vibeTheme.bg) }]}>{stationName.toUpperCase()}</Text>
         </View>
 
         {/* Accent Line */}
@@ -233,7 +233,7 @@ export function PlayerScreen({
 
         {/* Artist + Album */}
         <View style={styles.trackInfo}>
-          <Text style={[styles.artistName, { color: vibeTheme.text }]} numberOfLines={1}>
+          <Text style={[styles.artistName, { color: vibeTheme.text, opacity: safeOpacity(Opacity.secondary, vibeTheme.bg) }]} numberOfLines={1}>
             {[nowPlaying?.artistName, nowPlaying?.albumTitle].filter(Boolean).join(' \u00B7 ')}
           </Text>
         </View>
@@ -247,8 +247,8 @@ export function PlayerScreen({
             }]} />
           </View>
           <View style={styles.progressTimes}>
-            <Text style={[styles.timeText, { color: vibeTheme.text }]}>{formatTime(elapsed)}</Text>
-            <Text style={[styles.timeText, { color: vibeTheme.text }]}>-{formatTime(remaining)}</Text>
+            <Text style={[styles.timeText, { color: vibeTheme.text, opacity: safeOpacity(Opacity.muted, vibeTheme.bg) }]}>{formatTime(elapsed)}</Text>
+            <Text style={[styles.timeText, { color: vibeTheme.text, opacity: safeOpacity(Opacity.muted, vibeTheme.bg) }]}>-{formatTime(remaining)}</Text>
           </View>
         </View>
 
@@ -280,7 +280,7 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.6 },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.lg, paddingTop: Spacing.xs, position: 'relative' },
   backButton: { width: 44, height: 44, justifyContent: 'center' },
-  stationName: { fontFamily: Typography.mono.family, fontSize: 10, letterSpacing: Tracking.wide, opacity: Opacity.muted, position: 'absolute', left: 0, right: 0, textAlign: 'center', zIndex: -1 },
+  stationName: { fontFamily: Typography.mono.family, fontSize: 10, letterSpacing: Tracking.wide, position: 'absolute', left: 0, right: 0, textAlign: 'center', zIndex: -1 },
   accentLine: { height: 1, marginHorizontal: Spacing.lg, marginTop: Spacing.xs },
   artworkContainer: { marginTop: Spacing.sm, aspectRatio: 1, position: 'relative' },
   artwork: { width: '100%', height: '100%' },
@@ -289,12 +289,12 @@ const styles = StyleSheet.create({
   artGradient: { position: 'absolute', bottom: 0, left: 0, right: 0, height: '60%', justifyContent: 'flex-end', paddingHorizontal: Spacing.lg, paddingBottom: Spacing.md },
   songTitle: { fontFamily: Typography.display.family, fontSize: 56, color: Colors.base.white, textTransform: 'uppercase', letterSpacing: 0.5, lineHeight: 62, textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 8 },
   trackInfo: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm },
-  artistName: { fontFamily: Typography.label.familyMedium, fontSize: 13, textTransform: 'uppercase', letterSpacing: Tracking.normal, opacity: Opacity.secondary },
+  artistName: { fontFamily: Typography.label.familyMedium, fontSize: 13, textTransform: 'uppercase', letterSpacing: Tracking.normal },
   progressSection: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.md },
   progressTrack: { height: 3, borderRadius: 1.5, overflow: 'hidden' },
   progressFill: { height: '100%', borderRadius: 1.5 },
   progressTimes: { flexDirection: 'row', justifyContent: 'space-between', marginTop: Spacing.xs },
-  timeText: { fontFamily: Typography.mono.family, fontSize: 10, opacity: Opacity.muted, letterSpacing: Tracking.normal },
+  timeText: { fontFamily: Typography.mono.family, fontSize: 10, letterSpacing: Tracking.normal },
   controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingTop: Spacing.md, gap: Spacing.xl },
   playPauseButton: { width: 56, height: 56, borderRadius: Radius.lg, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
   cleoSection: { flex: 1, justifyContent: 'flex-end', paddingBottom: Spacing.xl, minHeight: 100 },
