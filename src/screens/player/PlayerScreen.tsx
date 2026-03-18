@@ -12,7 +12,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { GrainOverlay } from '../../components/GrainOverlay';
-import { Colors, Typography, Spacing, Opacity, Tracking, withAlpha, isDarkVibe } from '../../tokens/design-tokens';
+import { Colors, Typography, Spacing, Radius, Opacity, Tracking, withAlpha, isDarkVibe } from '../../tokens/design-tokens';
 import { WordByWordSubtitle } from '../../components/WordByWordSubtitle';
 import { PullQuoteOverlay } from '../../components/PullQuoteOverlay';
 import { OnAirIndicator } from '../../components/OnAirIndicator';
@@ -296,7 +296,7 @@ const styles = StyleSheet.create({
   progressTimes: { flexDirection: 'row', justifyContent: 'space-between', marginTop: Spacing.xs },
   timeText: { fontFamily: Typography.mono.family, fontSize: 10, opacity: Opacity.muted, letterSpacing: Tracking.normal },
   controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingTop: Spacing.md, gap: Spacing.xl },
-  playPauseButton: { width: 56, height: 56, borderRadius: 28, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
+  playPauseButton: { width: 56, height: 56, borderRadius: Radius.lg, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
   cleoSection: { flex: 1, justifyContent: 'flex-end', paddingBottom: Spacing.xl, minHeight: 100 },
   cleoResting: { fontFamily: Typography.mono.family, fontSize: 9, letterSpacing: Tracking.wide, textAlign: 'center', opacity: Opacity.ghost, paddingBottom: Spacing.sm },
 });
