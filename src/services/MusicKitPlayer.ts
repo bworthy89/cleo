@@ -49,8 +49,8 @@ class MusicKitPlayerService {
     return fetchPlaylistTracks(playlistId);
   }
 
-  async play(trackIds?: string[]): Promise<void> {
-    return play(trackIds);
+  async play(trackIds?: string[], playlistId?: string): Promise<void> {
+    return play(trackIds, playlistId);
   }
 
   async setUpcomingQueue(trackIds: string[]): Promise<void> {
