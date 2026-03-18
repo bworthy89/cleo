@@ -16,7 +16,8 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.worthymedia.cleo",
       "infoPlist": {
-        "NSAppleMusicUsageDescription": "Cleo uses Apple Music to play your playlists with AI-powered radio hosting."
+        "NSAppleMusicUsageDescription": "Cleo uses Apple Music to play your playlists with AI-powered radio hosting.",
+        "UIBackgroundModes": ["audio"]
       },
       "entitlements": {
         "com.apple.developer.musickit": [
