@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Colors, Typography, Spacing, Tracking, Opacity, withAlpha } from '../tokens/design-tokens';
@@ -12,28 +12,33 @@ interface VibeSelectorProps {
 const VIBES: { id: Vibe; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
   { id: 'morning', label: 'Morning', icon: 'sunny-outline' },
   { id: 'chill', label: 'Chill', icon: 'water-outline' },
-  { id: 'workout', label: 'Workout', icon: 'flash-outline' },
+  { id: 'feelGood', label: 'Feel Good', icon: 'heart-outline' },
+  { id: 'elevated', label: 'Elevated', icon: 'diamond-outline' },
+  { id: 'throwback', label: 'Throwback', icon: 'time-outline' },
+  { id: 'melancholy', label: 'Melancholy', icon: 'rainy-outline' },
+  { id: 'sunday', label: 'Sunday', icon: 'cafe-outline' },
   { id: 'lateNight', label: 'Late Night', icon: 'moon-outline' },
+  { id: 'focus', label: 'Focus', icon: 'eye-outline' },
+  { id: 'workout', label: 'Workout', icon: 'flash-outline' },
   { id: 'party', label: 'Party', icon: 'musical-notes-outline' },
+  { id: 'general', label: 'General', icon: 'radio-outline' },
 ];
 
+const CARD_SIZE = 72;
 const CARD_GAP = Spacing.md;
-const CARD_COUNT = VIBES.length;
-const HORIZONTAL_PADDING = Spacing.lg * 2;
 
 export function VibeSelector({ selected, onSelect }: VibeSelectorProps) {
-  const { width: screenWidth } = useWindowDimensions();
-  const cardSize = Math.floor(
-    (screenWidth - HORIZONTAL_PADDING - CARD_GAP * (CARD_COUNT - 1)) / CARD_COUNT
-  );
-
   const handleSelect = (id: Vibe) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     onSelect(id);
   };
 
   return (
-    <View style={styles.container}>
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.container}
+    >
       {VIBES.map((vibe) => {
         const isSelected = selected === vibe.id;
         const theme = Colors.vibe[vibe.id];
@@ -43,8 +48,6 @@ export function VibeSelector({ selected, onSelect }: VibeSelectorProps) {
             style={[
               styles.card,
               {
-                width: cardSize,
-                height: cardSize,
                 backgroundColor: theme.bg,
                 borderColor: isSelected ? theme.accent : withAlpha(theme.text, 0.08),
                 opacity: isSelected ? 1 : Opacity.secondary,
@@ -63,18 +66,19 @@ export function VibeSelector({ selected, onSelect }: VibeSelectorProps) {
           </Pressable>
         );
       })}
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    justifyContent: 'center',
     gap: CARD_GAP,
     paddingHorizontal: Spacing.lg,
   },
   card: {
+    width: CARD_SIZE,
+    height: CARD_SIZE,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1.5,
