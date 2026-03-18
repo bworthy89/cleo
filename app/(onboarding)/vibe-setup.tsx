@@ -54,7 +54,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.vibe.morning.bg,
   },
   content: {
-    flex: 1,
     paddingHorizontal: Spacing.xl,
     paddingTop: Spacing.xxl,
   },
@@ -81,6 +80,7 @@ const styles = StyleSheet.create({
   },
   bottom: {
     paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.xl,
     paddingBottom: Spacing.xxl,
   },
   button: {

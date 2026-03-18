@@ -28,31 +28,33 @@ export default function ProfileScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: vibeTheme.bg }]}>
-      <Text style={[styles.label, { color: vibeTheme.text }]}>YOUR NAME</Text>
-      <TextInput
-        style={[styles.input, { color: vibeTheme.text }]}
-        value={name}
-        onChangeText={setName}
-        placeholder="Your name"
-        placeholderTextColor="rgba(0,0,0,0.3)"
-        autoCapitalize="words"
-      />
+      <View>
+        <Text style={[styles.label, { color: vibeTheme.text }]}>YOUR NAME</Text>
+        <TextInput
+          style={[styles.input, { color: vibeTheme.text }]}
+          value={name}
+          onChangeText={setName}
+          placeholder="Your name"
+          placeholderTextColor="rgba(0,0,0,0.3)"
+          autoCapitalize="words"
+        />
 
-      <Text style={[styles.label, { marginTop: Spacing.xl, color: vibeTheme.text }]}>DEFAULT VIBE</Text>
-      <VibeSelector selected={vibe} onSelect={setVibe} />
+        <Text style={[styles.label, { marginTop: Spacing.xl, color: vibeTheme.text }]}>DEFAULT VIBE</Text>
+        <VibeSelector selected={vibe} onSelect={setVibe} />
 
-      <Text style={[styles.label, { marginTop: Spacing.xl, color: vibeTheme.text }]}>APPLE MUSIC</Text>
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: Spacing.sm }}>
-        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: vibeTheme.accent, marginRight: Spacing.sm }} />
-        <Text style={{ fontFamily: Typography.mono.family, fontSize: 10, letterSpacing: 2, color: vibeTheme.accent, textTransform: 'uppercase' }}>CONNECTED</Text>
-      </View>
+        <Text style={[styles.label, { marginTop: Spacing.xl, color: vibeTheme.text }]}>APPLE MUSIC</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: Spacing.sm }}>
+          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: vibeTheme.accent, marginRight: Spacing.sm }} />
+          <Text style={{ fontFamily: Typography.mono.family, fontSize: 10, letterSpacing: 2, color: vibeTheme.accent, textTransform: 'uppercase' }}>CONNECTED</Text>
+        </View>
 
-      <View style={styles.bottom}>
-        <Pressable style={styles.button} onPress={handleSave}>
-          <Text style={[styles.buttonText, saved && { color: vibeTheme.accent, backgroundColor: 'transparent' }]}>
-            {saved ? 'SAVED' : 'SAVE'}
-          </Text>
-        </Pressable>
+        <View style={styles.bottom}>
+          <Pressable style={styles.button} onPress={handleSave}>
+            <Text style={[styles.buttonText, saved && { color: vibeTheme.accent, backgroundColor: 'transparent' }]}>
+              {saved ? 'SAVED' : 'SAVE'}
+            </Text>
+          </Pressable>
+        </View>
       </View>
     </View>
   );
