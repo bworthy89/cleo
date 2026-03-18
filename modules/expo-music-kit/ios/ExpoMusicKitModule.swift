@@ -13,6 +13,8 @@ public class ExpoMusicKitModule: Module {
   private var crossfadeTimer: Timer?
   private var crossfadeActive: Bool = false
   private var cachedTracks: [String: Track] = [:]
+  private var cachedSongs: [String: Song] = [:]
+  private var cachedPlaylists: [String: Playlist] = [:]
 
   public func definition() -> ModuleDefinition {
     Name("ExpoMusicKit")
@@ -41,52 +43,27 @@ public class ExpoMusicKitModule: Module {
       var request = MusicLibraryRequest<Playlist>()
       request.sort(by: \.lastPlayedDate, ascending: false)
       let response = try await request.response()
-
-      // Resolve artwork in parallel using TaskGroup
       let playlistItems = Array(response.items)
 
-      let results: [[String: Any]] = await withTaskGroup(of: [String: Any].self) { group in
-        for playlist in playlistItems {
-          group.addTask {
-            var dict: [String: Any] = [
-              "id": playlist.id.rawValue,
-              "name": playlist.name
-            ]
-            if let trackCount = playlist.tracks?.count {
-              dict["trackCount"] = trackCount
-            }
-
-            // Try playlist artwork first
-            if let artworkUrl = self.artworkUrlString(playlist.artwork, width: 300, height: 300) {
-              dict["artworkUrl"] = artworkUrl
-            } else {
-              // Fall back to first track's catalog artwork
-              let detailed = try? await playlist.with(.tracks, preferredSource: .catalog)
-              if let firstTrack = detailed?.tracks?.first,
-                 let artworkUrl = self.artworkUrlString(firstTrack.artwork, width: 300, height: 300) {
-                dict["artworkUrl"] = artworkUrl
-              }
-            }
-            return dict
-          }
+      // Build results synchronously — no catalog network calls.
+      // playlist.with(.tracks, preferredSource: .catalog) can hang indefinitely
+      // when Apple Music catalog is unreachable, blocking the entire TaskGroup.
+      // Artwork will be resolved later when fetchPlaylistTracks is called.
+      let results: [[String: Any]] = playlistItems.map { playlist in
+        var dict: [String: Any] = [
+          "id": playlist.id.rawValue,
+          "name": playlist.name
+        ]
+        if let trackCount = playlist.tracks?.count {
+          dict["trackCount"] = trackCount
         }
-
-        var collected: [[String: Any]] = []
-        for await result in group {
-          collected.append(result)
+        if let artworkUrl = self.artworkUrlString(playlist.artwork, width: 300, height: 300) {
+          dict["artworkUrl"] = artworkUrl
         }
-        return collected
+        return dict
       }
 
-      // TaskGroup returns results in completion order, not insertion order.
-      // Re-sort to match the original lastPlayedDate order.
-      let idOrder = playlistItems.map { $0.id.rawValue }
-      let sorted = results.sorted { a, b in
-        let aIndex = idOrder.firstIndex(of: a["id"] as! String) ?? Int.max
-        let bIndex = idOrder.firstIndex(of: b["id"] as! String) ?? Int.max
-        return aIndex < bIndex
-      }
-      return sorted
+      return results
     }
 
     AsyncFunction("fetchPlaylistTracks") { (playlistId: String) -> [[String: Any]] in
@@ -101,55 +78,188 @@ public class ExpoMusicKitModule: Module {
           userInfo: [NSLocalizedDescriptionKey: "Playlist not found"]
         )
       }
+      // Try multiple strategies to resolve tracks. Catalog source is needed for
+      // playback descriptors but can hang, so race against a timeout.
+      let (tracks, entries) = try await withCheckedThrowingContinuation {
+        (continuation: CheckedContinuation<([Track], [Playlist.Entry]), Error>) in
+        let resumed = MKAtomicFlag()
 
-      let detailedPlaylist = try await playlist.with(.tracks, preferredSource: .catalog)
+        Task {
+          do {
+            // Strategy 1: .tracks with catalog
+            let withTracks = try await playlist.with(.tracks, preferredSource: .catalog)
+            if let t = withTracks.tracks, !t.isEmpty {
+              if resumed.trySet() {
+                continuation.resume(returning: (Array(t), []))
+              }
+              return
+            }
 
-      guard let tracks = detailedPlaylist.tracks else {
-        return []
+            // Strategy 2: .entries with catalog
+            let withEntries = try await playlist.with(.entries, preferredSource: .catalog)
+            if let e = withEntries.entries, !e.isEmpty {
+              if resumed.trySet() {
+                continuation.resume(returning: ([], Array(e)))
+              }
+              return
+            }
+
+            // Strategy 3: .entries without preferredSource
+            let withEntriesDefault = try await playlist.with(.entries)
+            if let e = withEntriesDefault.entries, !e.isEmpty {
+              if resumed.trySet() {
+                continuation.resume(returning: ([], Array(e)))
+              }
+              return
+            }
+
+            // Strategy 4: .tracks without preferredSource
+            let withTracksDefault = try await playlist.with(.tracks)
+            if let t = withTracksDefault.tracks, !t.isEmpty {
+              if resumed.trySet() {
+                continuation.resume(returning: (Array(t), []))
+              }
+              return
+            }
+
+            if resumed.trySet() {
+              continuation.resume(returning: ([], []))
+            }
+          } catch {
+            if resumed.trySet() {
+              continuation.resume(throwing: error)
+            }
+          }
+        }
+
+        // 15s timeout
+        Task {
+          try? await Task.sleep(nanoseconds: 15_000_000_000)
+          if resumed.trySet() {
+            continuation.resume(throwing: NSError(
+              domain: "ExpoMusicKit",
+              code: -1,
+              userInfo: [NSLocalizedDescriptionKey: "Catalog fetch timed out after 15s"]
+            ))
+          }
+        }
       }
 
-      // Cache tracks for later queue building
-      for track in tracks {
-        self.cachedTracks[track.id.rawValue] = track
+      // Build results from whichever strategy succeeded
+      if !tracks.isEmpty {
+        // Cache Track objects for queue building
+        for track in tracks {
+          self.cachedTracks[track.id.rawValue] = track
+        }
+        return tracks.map { self.trackToDictionary($0) }
       }
 
-      return tracks.map { self.trackToDictionary($0) }
+      if !entries.isEmpty {
+        // Extract Song objects from entries for individual track playback + queue ordering
+        var results: [[String: Any]] = []
+        var songCount = 0
+        var nilItemCount = 0
+        var otherItemCount = 0
+        for entry in entries {
+          if let item = entry.item {
+            if case .song(let song) = item {
+              songCount += 1
+              self.cachedSongs[song.id.rawValue] = song
+              results.append(self.songToDictionary(song))
+            } else {
+              otherItemCount += 1
+              // Non-song entry — use entry metadata
+              var dict: [String: Any] = [
+                "id": entry.id.rawValue,
+                "title": entry.title,
+                "artistName": entry.artistName,
+                "albumTitle": entry.albumTitle ?? "",
+                "duration": entry.duration ?? 0,
+                "genreNames": entry.genreNames,
+                "trackNumber": 0,
+                "discNumber": 0
+              ]
+              if let artworkUrl = self.artworkUrlString(entry.artwork, width: 800, height: 800) {
+                dict["artworkUrl"] = artworkUrl
+              }
+              results.append(dict)
+            }
+          } else {
+            nilItemCount += 1
+            // entry.item is nil — use entry metadata, entry ID
+            var dict: [String: Any] = [
+              "id": entry.id.rawValue,
+              "title": entry.title,
+              "artistName": entry.artistName,
+              "albumTitle": entry.albumTitle ?? "",
+              "duration": entry.duration ?? 0,
+              "genreNames": entry.genreNames,
+              "trackNumber": 0,
+              "discNumber": 0
+            ]
+            if let artworkUrl = self.artworkUrlString(entry.artwork, width: 800, height: 800) {
+              dict["artworkUrl"] = artworkUrl
+            }
+            results.append(dict)
+          }
+        }
+        // Also cache playlist as last-resort fallback
+        self.cachedPlaylists[playlistId] = playlist
+        return results
+      }
+
+      // Last resort: cache the playlist for direct playback
+      self.cachedPlaylists[playlistId] = playlist
+      return []
     }
 
     // MARK: - Playback
 
-    AsyncFunction("play") { (trackIds: [String]?) in
-      if let trackIds = trackIds, !trackIds.isEmpty {
-        // Use cached tracks from fetchPlaylistTracks, preserving requested order
-        let orderedTracks = trackIds.compactMap { self.cachedTracks[$0] }
+    AsyncFunction("play") { (trackIds: [String]?, playlistId: String?) in
+      // Cap initial queue to avoid crashing MusicKit's XPC connection
+      // (1000+ items overloads the IPC channel). Remaining tracks are added
+      // via setUpcomingQueue as playback progresses.
+      let maxInitialQueue = 50
 
+      if let trackIds = trackIds, !trackIds.isEmpty {
+        let limitedIds = Array(trackIds.prefix(maxInitialQueue))
+
+        // Strategy 1: cached Track objects (from .tracks)
+        let orderedTracks = limitedIds.compactMap { self.cachedTracks[$0] }
         if !orderedTracks.isEmpty {
-          player.queue = ApplicationMusicPlayer.Queue(for: orderedTracks)
+          self.player.queue = ApplicationMusicPlayer.Queue(for: orderedTracks)
         } else {
-          // Fallback: try fetching as Songs
-          let musicItemIds = trackIds.map { MusicItemID($0) }
-          var request = MusicLibraryRequest<Song>()
-          request.filter(matching: \.id, memberOf: musicItemIds)
-          let response = try await request.response()
-          let songMap = Dictionary(uniqueKeysWithValues: response.items.map { ($0.id.rawValue, $0) })
-          let orderedSongs = trackIds.compactMap { songMap[$0] }
-          player.queue = ApplicationMusicPlayer.Queue(for: orderedSongs)
+          // Strategy 2: cached Song objects (from .entries)
+          let orderedSongs = limitedIds.compactMap { self.cachedSongs[$0] }
+          if !orderedSongs.isEmpty {
+            self.player.queue = ApplicationMusicPlayer.Queue(for: orderedSongs)
+          } else if let playlistId = playlistId, let playlist = self.cachedPlaylists[playlistId] {
+            // Strategy 3: queue the whole playlist
+            self.player.queue = [playlist]
+          }
         }
+      } else if let playlistId = playlistId, let playlist = self.cachedPlaylists[playlistId] {
+        // No track IDs — queue playlist directly
+        self.player.queue = [playlist]
       }
-      try await player.play()
+
+      try await self.player.play()
     }
 
     // Set queue to new track order without restarting current track
     AsyncFunction("setUpcomingQueue") { (trackIds: [String]) in
-      // Use cached tracks, preserving requested order
+      // Try cached Track objects first, then cached Song objects
       let orderedTracks = trackIds.compactMap { self.cachedTracks[$0] }
-      guard !orderedTracks.isEmpty else { return }
-
-      // Insert upcoming tracks after the current entry
-      try await self.player.queue.insert(
-        ApplicationMusicPlayer.Queue(for: orderedTracks),
-        position: .afterCurrentEntry
-      )
+      if !orderedTracks.isEmpty {
+        for track in orderedTracks.reversed() {
+          try await self.player.queue.insert(track, position: .afterCurrentEntry)
+        }
+      } else {
+        let orderedSongs = trackIds.compactMap { self.cachedSongs[$0] }
+        for song in orderedSongs.reversed() {
+          try await self.player.queue.insert(song, position: .afterCurrentEntry)
+        }
+      }
     }
 
     AsyncFunction("pause") { () in
@@ -438,6 +548,21 @@ public class ExpoMusicKitModule: Module {
     queueObservation = nil
     playbackTimer?.invalidate()
     playbackTimer = nil
+  }
+}
+
+/// Thread-safe one-shot flag for racing continuations.
+final class MKAtomicFlag: @unchecked Sendable {
+  private var flag = os_unfair_lock_s()
+  private var set = false
+
+  /// Returns `true` on the first call, `false` on all subsequent calls.
+  func trySet() -> Bool {
+    os_unfair_lock_lock(&flag)
+    defer { os_unfair_lock_unlock(&flag) }
+    if set { return false }
+    set = true
+    return true
   }
 }
 
