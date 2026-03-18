@@ -41,3 +41,4 @@ server/.env
 # generated native folders
 /ios/
 /android/
+GoogleService-Info.plist
