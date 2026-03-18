@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { GrainOverlay } from '../../components/GrainOverlay';
 import { Colors, Typography, Spacing, Opacity, Tracking, withAlpha, isDarkVibe } from '../../tokens/design-tokens';
@@ -124,22 +125,6 @@ export function PlayerScreen({
     }
   };
 
-  const handleSkip = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-    await musicKitPlayer.skip();
-  };
-
-  const handlePrevious = async () => {
-    // If more than 3s in, restart current track; otherwise go to previous
-    const time = await musicKitPlayer.getPlaybackTime();
-    if (time > 3) {
-      await musicKitPlayer.seekTo(0);
-    } else {
-      // No native "previous" in our queue — just restart
-      await musicKitPlayer.seekTo(0);
-    }
-  };
-
   // Listen for track changes
   useEffect(() => {
     const unsub = musicKitPlayer.onTrackChanged(async (event) => {
@@ -219,7 +204,7 @@ export function PlayerScreen({
         {/* Header */}
         <View style={styles.header}>
           <Pressable onPress={onBack} hitSlop={12} style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}>
-            <Text style={[styles.backChevron, { color: vibeTheme.text }]}>{'\u2039'}</Text>
+            <Ionicons name="chevron-back" size={22} color={vibeTheme.text} />
           </Pressable>
           <Text style={[styles.stationName, { color: vibeTheme.text }]}>{stationName.toUpperCase()}</Text>
         </View>
@@ -269,21 +254,8 @@ export function PlayerScreen({
 
         {/* Controls */}
         <View style={styles.controls}>
-          <Pressable onPress={handlePrevious} style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]} hitSlop={8}>
-            <Text style={[styles.secondaryIcon, { color: vibeTheme.text }]}>{'\u00AB'}</Text>
-          </Pressable>
           <Pressable onPress={handlePlayPause} style={({ pressed }) => [styles.playPauseButton, { borderColor: vibeTheme.accent }, pressed && styles.pressed]}>
-            {isPlaying ? (
-              <View style={styles.pauseIcon}>
-                <View style={[styles.pauseBar, { backgroundColor: vibeTheme.text }]} />
-                <View style={[styles.pauseBar, { backgroundColor: vibeTheme.text }]} />
-              </View>
-            ) : (
-              <Text style={[styles.playIcon, { color: vibeTheme.text }]}>{'\u25B6'}</Text>
-            )}
-          </Pressable>
-          <Pressable onPress={handleSkip} style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]} hitSlop={8}>
-            <Text style={[styles.secondaryIcon, { color: vibeTheme.text }]}>{'\u00BB'}</Text>
+            <Ionicons name={isPlaying ? 'pause' : 'play'} size={24} color={vibeTheme.text} style={!isPlaying ? { marginLeft: 3 } : undefined} />
           </Pressable>
         </View>
 
@@ -308,15 +280,14 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.6 },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.lg, paddingTop: Spacing.xs, position: 'relative' },
   backButton: { width: 44, height: 44, justifyContent: 'center' },
-  backChevron: { fontSize: 24, fontFamily: Typography.display.family },
-  stationName: { fontFamily: Typography.mono.family, fontSize: 10, letterSpacing: Tracking.wide, opacity: Opacity.ghost, position: 'absolute', left: 0, right: 0, textAlign: 'center', zIndex: -1 },
+  stationName: { fontFamily: Typography.mono.family, fontSize: 10, letterSpacing: Tracking.wide, opacity: Opacity.muted, position: 'absolute', left: 0, right: 0, textAlign: 'center', zIndex: -1 },
   accentLine: { height: 1, marginHorizontal: Spacing.lg, marginTop: Spacing.xs },
   artworkContainer: { marginTop: Spacing.sm, aspectRatio: 1, position: 'relative' },
   artwork: { width: '100%', height: '100%' },
   artworkPlaceholder: { backgroundColor: Colors.base.black },
   vibeGlow: { position: 'absolute', bottom: -20, left: '20%', right: '20%', height: 80, borderRadius: 40, opacity: 0.08 },
   artGradient: { position: 'absolute', bottom: 0, left: 0, right: 0, height: '60%', justifyContent: 'flex-end', paddingHorizontal: Spacing.lg, paddingBottom: Spacing.md },
-  songTitle: { fontFamily: Typography.display.family, fontSize: 36, color: Colors.base.white, textTransform: 'uppercase', letterSpacing: 0.5, lineHeight: 40, textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 8 },
+  songTitle: { fontFamily: Typography.display.family, fontSize: 56, color: Colors.base.white, textTransform: 'uppercase', letterSpacing: 0.5, lineHeight: 62, textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 8 },
   trackInfo: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm },
   artistName: { fontFamily: Typography.label.familyMedium, fontSize: 13, textTransform: 'uppercase', letterSpacing: Tracking.normal, opacity: Opacity.secondary },
   progressSection: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.md },
@@ -326,11 +297,6 @@ const styles = StyleSheet.create({
   timeText: { fontFamily: Typography.mono.family, fontSize: 10, opacity: Opacity.muted, letterSpacing: Tracking.normal },
   controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingTop: Spacing.md, gap: Spacing.xl },
   playPauseButton: { width: 56, height: 56, borderRadius: 28, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
-  playIcon: { fontSize: 20 },
-  pauseIcon: { flexDirection: 'row', gap: 4 },
-  pauseBar: { width: 3, height: 16, borderRadius: 1 },
-  secondaryButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  secondaryIcon: { fontFamily: Typography.mono.family, fontSize: 18, opacity: Opacity.muted },
   cleoSection: { flex: 1, justifyContent: 'flex-end', paddingBottom: Spacing.xl, minHeight: 100 },
   cleoResting: { fontFamily: Typography.mono.family, fontSize: 9, letterSpacing: Tracking.wide, textAlign: 'center', opacity: Opacity.ghost, paddingBottom: Spacing.sm },
 });

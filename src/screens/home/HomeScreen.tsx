@@ -10,6 +10,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Colors, Typography, Spacing, Opacity, Tracking, withAlpha } from '../../tokens/design-tokens';
 import { StationCard } from '../../components/StationCard';
@@ -198,7 +199,7 @@ export function HomeScreen({ onNavigateToPlayer, onNavigateToSettings, onNavigat
           onPress={onNavigateToSettings}
           hitSlop={12}
         >
-          <Text style={[styles.settingsText, { color: vibeTheme.text }]}>SETTINGS</Text>
+          <Ionicons name="settings-outline" size={20} color={vibeTheme.text} style={{ opacity: Opacity.secondary }} />
         </Pressable>
       </View>
 
@@ -221,9 +222,6 @@ export function HomeScreen({ onNavigateToPlayer, onNavigateToSettings, onNavigat
               <Text style={[styles.nowPlayingArtist, { color: vibeTheme.text }]} numberOfLines={1}>{nowPlaying.artistName}</Text>
             </View>
             <View style={[styles.nowPlayingDot, { backgroundColor: vibeTheme.accent }]} />
-            <View style={[styles.nowPlayingProgress, { backgroundColor: withAlpha(vibeTheme.text, 0.08) }]}>
-              <View style={{ width: '35%', height: '100%', backgroundColor: vibeTheme.accent }} />
-            </View>
           </Pressable>
         )}
 
@@ -320,12 +318,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  settingsText: {
-    fontFamily: Typography.mono.family,
-    fontSize: 9,
-    letterSpacing: 1,
-    opacity: Opacity.muted,
-  },
 
   // ── Hero (unauthorized/loading) ─────────────────────────────────────
   heroTitle: {
@@ -420,13 +412,6 @@ const styles = StyleSheet.create({
     height: 6,
     borderRadius: 3,
     marginRight: Spacing.md,
-  },
-  nowPlayingProgress: {
-    position: 'absolute',
-    bottom: 0,
-    left: 3,
-    right: 0,
-    height: 2,
   },
 
   // ── Sections ────────────────────────────────────────────────────────
