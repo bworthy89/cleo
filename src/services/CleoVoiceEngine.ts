@@ -3,24 +3,103 @@ import { API_BASE_URL } from './api';
 
 /**
  * Post-process Gemini output for natural ElevenLabs delivery.
- * Em-dashes signal a beat/pause. Ellipses trail off naturally.
- * Strips quotation marks and stage directions.
+ *
+ * 1. Strips quotes and stage directions
+ * 2. Splits long sentences at natural clause boundaries
+ * 3. Adds breath marks (em-dashes, ellipses) between complete thoughts
  *
  * Artist name pronunciation is handled server-side via ElevenLabs
  * Pronunciation Dictionary (ID: Tz7qFxqqoRQ7cvPkOlof).
- * To add new names: use the ElevenLabs API to add rules to that dictionary.
  */
+
+// No `g` flag — these are used with .test() and must not maintain lastIndex state
+const ABBREVIATIONS = /\b(?:feat|vs|Dr|Mr|Mrs|Ms|Jr|Sr|St)\./i;
+const SINGLE_INITIAL = /\b[A-Z]\./;
+
+function isAbbreviationOrInitial(text: string, periodIndex: number): boolean {
+  const before = text.substring(Math.max(0, periodIndex - 5), periodIndex + 1);
+  return ABBREVIATIONS.test(before) || SINGLE_INITIAL.test(before);
+}
+
+function splitLongSentence(sentence: string): string[] {
+  const words = sentence.split(/\s+/);
+  if (words.length <= 15) return [sentence];
+
+  // Strategy 1: Split at "comma + conjunction" — e.g. "carries the whole track, and if you..."
+  const commaConjunction = sentence.match(/^(.{20,}?,)\s+(and|but|so|or)\s+(.+)$/i);
+  if (commaConjunction) {
+    const before = commaConjunction[1].replace(/,$/, '');
+    const conjunction = commaConjunction[2];
+    const after = commaConjunction[3];
+    if (before.split(/\s+/).length >= 4) {
+      return [before + '.', conjunction.charAt(0).toUpperCase() + conjunction.slice(1) + ' ' + after];
+    }
+  }
+
+  // Strategy 2: Split at a bare conjunction (no comma) if sentence is long enough
+  const conjunctionOnly = sentence.match(/^((?:\S+\s+){4,}?\S+)\s+(and|but|so|or)\s+(.+)$/i);
+  if (conjunctionOnly && conjunctionOnly[1].split(/\s+/).length >= 5) {
+    return [conjunctionOnly[1] + ' —', conjunctionOnly[3]];
+  }
+
+  // Strategy 3: Split at a comma with 4+ words before it
+  const commaMatch = sentence.match(/^((?:\S+\s+){3,}\S+,)\s+(.+)$/);
+  if (commaMatch) {
+    return [commaMatch[1].replace(/,$/, '') + ' —', commaMatch[2]];
+  }
+
+  return [sentence];
+}
+
+function addBreathMarks(sentences: string[]): string {
+  if (sentences.length <= 1) return sentences.join(' ');
+
+  return sentences.map((s, i) => {
+    if (i === sentences.length - 1) return s;
+    // Short fragments (1-3 words) — natural emphasis points, leave as-is
+    if (s.split(/\s+/).length <= 3) return s;
+    // Sentences ending with em-dash already have a pause cue
+    if (s.endsWith('—')) return s;
+    // Sentences ending with period — add an ellipsis beat on ~every other one
+    if (s.endsWith('.') && i % 2 === 0) {
+      return s.slice(0, -1) + '...';
+    }
+    return s;
+  }).join(' ');
+}
+
 function formatForSpeech(text: string): string {
-  return text
+  let processed = text
     // Remove any stray quotation marks
     .replace(/["""]/g, '')
     // Remove stage directions like (pause) or [beat]
-    .replace(/[\(\[][^\)\]]{1,20}[\)\]]/g, '')
+    .replace(/[\(\[][^\)\]]{0,40}[\)\]]/g, '')
     // Comma before "and/but/so" at clause boundary → em-dash for stronger pause
     .replace(/, (and|but|so) /g, ' — $1 ')
     // Clean up any double spaces
     .replace(/  +/g, ' ')
     .trim();
+
+  // Split into sentences, preserving abbreviations and initials
+  const sentences: string[] = [];
+  let current = '';
+  for (let i = 0; i < processed.length; i++) {
+    current += processed[i];
+    if (processed[i] === '.' || processed[i] === '!' || processed[i] === '?') {
+      if (processed[i] === '.' && isAbbreviationOrInitial(processed, i)) {
+        continue;
+      }
+      if (i === processed.length - 1 || processed[i + 1] === ' ') {
+        sentences.push(current.trim());
+        current = '';
+      }
+    }
+  }
+  if (current.trim()) sentences.push(current.trim());
+
+  // Split long sentences and add breath marks
+  const split = sentences.flatMap(s => splitLongSentence(s));
+  return addBreathMarks(split);
 }
 
 export async function synthesizeAndPlay(text: string): Promise<void> {
