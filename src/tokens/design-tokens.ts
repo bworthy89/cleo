@@ -52,6 +52,30 @@ export const Tracking = {
   ultra: 8,
 };
 
+export const Grain = {
+  light: 0.06,
+  dark: 0.035,
+};
+
+export const Shadow = {
+  text:   { offset: { width: 0, height: 1 } as const, radius: 3, opacity: 0.3 },
+  subtle: { offset: { width: 0, height: 2 } as const, radius: 4, opacity: 0.08 },
+  medium: { offset: { width: 0, height: 4 } as const, radius: 8, opacity: 0.12 },
+};
+
+export const ZIndex = {
+  base: 1,
+  overlay: 10,
+  modal: 100,
+};
+
+export const LineHeight = {
+  tight: 1.15,
+  normal: 1.4,
+  relaxed: 1.55,
+  loose: 1.7,
+};
+
 export function withAlpha(hex: string, alpha: number): string {
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);

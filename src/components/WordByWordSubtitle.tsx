@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef } from 'react';
-import { Animated, StyleSheet, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { AccessibilityInfo, Animated, StyleSheet, View } from 'react-native';
 import { Typography, Colors, Animation, Spacing } from '../tokens/design-tokens';
 
 interface WordByWordSubtitleProps {
@@ -14,9 +14,22 @@ export function WordByWordSubtitle({ text, visible, accentColor, onFinish }: Wor
   const words = text.split(/\s+/);
   const opacities = useMemo(() => words.map(() => new Animated.Value(0)), [text]);
   const containerOpacity = useRef(new Animated.Value(1)).current;
+  const [reduceMotion, setReduceMotion] = useState(false);
+
+  useEffect(() => {
+    AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion);
+    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
     if (!visible) {
+      if (reduceMotion) {
+        opacities.forEach((o) => o.setValue(0));
+        containerOpacity.setValue(1);
+        onFinish?.();
+        return;
+      }
       Animated.timing(containerOpacity, {
         toValue: 0,
         duration: 600,
@@ -30,6 +43,12 @@ export function WordByWordSubtitle({ text, visible, accentColor, onFinish }: Wor
     }
 
     containerOpacity.setValue(1);
+
+    if (reduceMotion) {
+      opacities.forEach((o) => o.setValue(1));
+      return;
+    }
+
     opacities.forEach((o) => o.setValue(0));
 
     const animations = opacities.map((opacity, index) =>
@@ -66,10 +85,12 @@ const styles = StyleSheet.create({
   container: {
     paddingHorizontal: Spacing.lg,
     minHeight: 60,
+    alignItems: 'center',
   },
   wordWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    maxWidth: '85%',
   },
   word: {
     fontFamily: Typography.cleoVoice.family,

@@ -1,7 +1,7 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { Colors, Typography, Spacing, Opacity, withAlpha } from '../tokens/design-tokens';
+import { Colors, Typography, Spacing, Tracking, Opacity, withAlpha } from '../tokens/design-tokens';
 import type { Vibe } from '../cleo/fallbacks';
 
 interface VibeSelectorProps {
@@ -17,7 +17,16 @@ const VIBES: { id: Vibe; label: string; icon: keyof typeof Ionicons.glyphMap }[]
   { id: 'party', label: 'Party', icon: 'musical-notes-outline' },
 ];
 
+const CARD_GAP = Spacing.md;
+const CARD_COUNT = VIBES.length;
+const HORIZONTAL_PADDING = Spacing.lg * 2;
+
 export function VibeSelector({ selected, onSelect }: VibeSelectorProps) {
+  const { width: screenWidth } = useWindowDimensions();
+  const cardSize = Math.floor(
+    (screenWidth - HORIZONTAL_PADDING - CARD_GAP * (CARD_COUNT - 1)) / CARD_COUNT
+  );
+
   const handleSelect = (id: Vibe) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     onSelect(id);
@@ -34,6 +43,8 @@ export function VibeSelector({ selected, onSelect }: VibeSelectorProps) {
             style={[
               styles.card,
               {
+                width: cardSize,
+                height: cardSize,
                 backgroundColor: theme.bg,
                 borderColor: isSelected ? theme.accent : withAlpha(theme.text, 0.08),
                 opacity: isSelected ? 1 : Opacity.secondary,
@@ -59,13 +70,11 @@ export function VibeSelector({ selected, onSelect }: VibeSelectorProps) {
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     justifyContent: 'center',
-    gap: Spacing.md,
+    gap: CARD_GAP,
+    paddingHorizontal: Spacing.lg,
   },
   card: {
-    width: 110,
-    height: 110,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1.5,
@@ -76,7 +85,7 @@ const styles = StyleSheet.create({
   label: {
     fontFamily: Typography.mono.family,
     fontSize: 10,
-    letterSpacing: 2,
+    letterSpacing: Tracking.normal,
     textTransform: 'uppercase',
   },
   accentDot: {
