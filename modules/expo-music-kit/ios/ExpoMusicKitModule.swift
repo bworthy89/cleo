@@ -15,6 +15,7 @@ public class ExpoMusicKitModule: Module {
   private var cachedTracks: [String: Track] = [:]
   private var cachedSongs: [String: Song] = [:]
   private var cachedPlaylists: [String: Playlist] = [:]
+  private var lastPlaybackStatus: ApplicationMusicPlayer.PlaybackStatus?
 
   public func definition() -> ModuleDefinition {
     Name("ExpoMusicKit")
@@ -45,11 +46,12 @@ public class ExpoMusicKitModule: Module {
       let response = try await request.response()
       let playlistItems = Array(response.items)
 
-      // Build results synchronously — no catalog network calls.
+      // Build results — no catalog network calls for tracks.
       // playlist.with(.tracks, preferredSource: .catalog) can hang indefinitely
-      // when Apple Music catalog is unreachable, blocking the entire TaskGroup.
-      // Artwork will be resolved later when fetchPlaylistTracks is called.
-      let results: [[String: Any]] = playlistItems.map { playlist in
+      // when Apple Music catalog is unreachable.
+      // For artwork, we handle musickit:// URLs by caching locally.
+      var results: [[String: Any]] = []
+      for playlist in playlistItems {
         var dict: [String: Any] = [
           "id": playlist.id.rawValue,
           "name": playlist.name
@@ -57,10 +59,10 @@ public class ExpoMusicKitModule: Module {
         if let trackCount = playlist.tracks?.count {
           dict["trackCount"] = trackCount
         }
-        if let artworkUrl = self.artworkUrlString(playlist.artwork, width: 300, height: 300) {
+        if let artworkUrl = self.resolveArtworkUrl(playlist.artwork, id: playlist.id.rawValue, width: 300, height: 300) {
           dict["artworkUrl"] = artworkUrl
         }
-        return dict
+        results.append(dict)
       }
 
       return results
@@ -350,7 +352,8 @@ public class ExpoMusicKitModule: Module {
             promise.resolve(nil)
           } else {
             // No crossfade — hard transition (short segment or timer didn't fire)
-            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+            // Remove duckOthers but keep session active — setActive(false) would kill MusicKit playback
+            try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
             Task {
               try? await self?.player.play()
             }
@@ -395,23 +398,22 @@ public class ExpoMusicKitModule: Module {
       self.audioPlayer?.stop()
       self.audioPlayer = nil
       self.audioDelegate = nil
-      try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+      // Remove duckOthers but keep session active — setActive(false) would kill MusicKit playback
+      try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
     }
 
     AsyncFunction("activateDuckingSession") {
       try AVAudioSession.sharedInstance().setCategory(
         .playback,
         mode: .default,
-        options: [.duckOthers]
+        options: [.mixWithOthers, .duckOthers]
       )
       try AVAudioSession.sharedInstance().setActive(true)
     }
 
     AsyncFunction("deactivateDuckingSession") {
-      try AVAudioSession.sharedInstance().setActive(
-        false,
-        options: .notifyOthersOnDeactivation
-      )
+      // Remove duckOthers but keep session active — setActive(false) would kill MusicKit playback
+      try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
     }
 
     // MARK: - Observation Lifecycle
@@ -459,6 +461,39 @@ public class ExpoMusicKitModule: Module {
       return urlString
     }
     return nil
+  }
+
+  /// Resolves artwork to a URL that React Native Image can load.
+  /// For http:// URLs, returns as-is. For musickit:// URLs (local library items),
+  /// loads the image data and caches to a temp file, returning a file:// URL.
+  private func resolveArtworkUrl(_ artwork: Artwork?, id: String, width: Int, height: Int) -> String? {
+    guard let artwork = artwork,
+          let url = artwork.url(width: width, height: height) else { return nil }
+    let urlString = url.absoluteString
+
+    // HTTP URLs can be loaded directly by React Native Image
+    if urlString.hasPrefix("http") {
+      return urlString
+    }
+
+    // For musickit:// or other local URLs, cache the image data to a temp file
+    let cacheDir = FileManager.default.temporaryDirectory.appendingPathComponent("artwork")
+    try? FileManager.default.createDirectory(at: cacheDir, withIntermediateDirectories: true)
+    let sanitizedId = id.replacingOccurrences(of: "/", with: "_")
+    let filePath = cacheDir.appendingPathComponent("\(sanitizedId)_\(width)x\(height).jpg")
+
+    // Return cached file if it exists
+    if FileManager.default.fileExists(atPath: filePath.path) {
+      return filePath.absoluteString
+    }
+
+    // Try to load the image data from the musickit:// URL
+    guard let data = try? Data(contentsOf: url),
+          let image = UIImage(data: data),
+          let jpegData = image.jpegData(compressionQuality: 0.85) else { return nil }
+
+    try? jpegData.write(to: filePath)
+    return filePath.absoluteString
   }
 
   private func trackToDictionary(_ track: Track) -> [String: Any] {
@@ -534,10 +569,25 @@ public class ExpoMusicKitModule: Module {
     // Timer-based polling for playback state
     playbackTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
       guard let self = self else { return }
-      let status = self.playbackStatusString(self.player.state.playbackStatus)
+      let currentStatus = self.player.state.playbackStatus
+      let statusStr = self.playbackStatusString(currentStatus)
       let time = self.player.playbackTime
+
+      // Stop TTS when music is paused/stopped externally (Lock Screen, AirPods, Control Center)
+      if let last = self.lastPlaybackStatus, last == .playing,
+         (currentStatus == .paused || currentStatus == .stopped) {
+        if let ttsPlayer = self.audioPlayer, ttsPlayer.isPlaying {
+          self.crossfadeTimer?.invalidate()
+          self.crossfadeTimer = nil
+          self.crossfadeActive = false
+          ttsPlayer.stop()
+          // audioPlayerDidFinishPlaying will fire and resolve the promise
+        }
+      }
+      self.lastPlaybackStatus = currentStatus
+
       self.sendEvent("onPlaybackStateChanged", [
-        "status": status,
+        "status": statusStr,
         "playbackTime": time
       ])
     }
@@ -548,6 +598,7 @@ public class ExpoMusicKitModule: Module {
     queueObservation = nil
     playbackTimer?.invalidate()
     playbackTimer = nil
+    lastPlaybackStatus = nil
   }
 }
 
@@ -585,9 +636,12 @@ class AudioPlayerDelegate: NSObject, AVAudioPlayerDelegate {
             let type = AVAudioSession.InterruptionType(rawValue: typeValue) else { return }
 
       if type == .ended {
-        // Resume playback after interruption
-        try? AVAudioSession.sharedInstance().setActive(true)
-        player?.play()
+        // Only resume if iOS indicates we should (e.g., not after phone calls where user expects silence)
+        if let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt,
+           AVAudioSession.InterruptionOptions(rawValue: optionsValue).contains(.shouldResume) {
+          try? AVAudioSession.sharedInstance().setActive(true)
+          player?.play()
+        }
       }
     }
   }
