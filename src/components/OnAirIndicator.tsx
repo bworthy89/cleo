@@ -11,6 +11,8 @@ interface OnAirIndicatorProps {
 export function OnAirIndicator({ active, paused, accentColor }: OnAirIndicatorProps) {
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const glowAnim = useRef(new Animated.Value(0.15)).current;
+  const pulseLoop = useRef<Animated.CompositeAnimation | null>(null);
+  const glowLoop = useRef<Animated.CompositeAnimation | null>(null);
 
   const color = accentColor ?? Colors.accent;
   const isLive = active && !paused;
@@ -22,22 +24,26 @@ export function OnAirIndicator({ active, paused, accentColor }: OnAirIndicatorPr
         duration: 300,
         useNativeDriver: true,
       }).start(() => {
-        const pulse = Animated.loop(
+        pulseLoop.current = Animated.loop(
           Animated.sequence([
             Animated.timing(pulseAnim, { toValue: 1.15, duration: 800, useNativeDriver: true }),
             Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
           ])
         );
-        const glow = Animated.loop(
+        glowLoop.current = Animated.loop(
           Animated.sequence([
             Animated.timing(glowAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
             Animated.timing(glowAnim, { toValue: 0.3, duration: 800, useNativeDriver: true }),
           ])
         );
-        pulse.start();
-        glow.start();
+        pulseLoop.current.start();
+        glowLoop.current.start();
       });
     } else {
+      pulseLoop.current?.stop();
+      glowLoop.current?.stop();
+      pulseLoop.current = null;
+      glowLoop.current = null;
       pulseAnim.setValue(1);
       Animated.timing(glowAnim, {
         toValue: 0.15,
@@ -46,8 +52,10 @@ export function OnAirIndicator({ active, paused, accentColor }: OnAirIndicatorPr
       }).start();
     }
     return () => {
-      pulseAnim.stopAnimation();
-      glowAnim.stopAnimation();
+      pulseLoop.current?.stop();
+      glowLoop.current?.stop();
+      pulseLoop.current = null;
+      glowLoop.current = null;
     };
   }, [isLive]);
 

@@ -1,19 +1,21 @@
 import { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, View, Dimensions } from 'react-native';
-import { Typography, Colors, Spacing } from '../tokens/design-tokens';
-
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+import { Animated, StyleSheet, View } from 'react-native';
+import { Typography, Colors, Spacing, isDarkVibe } from '../tokens/design-tokens';
 
 interface PullQuoteOverlayProps {
   text: string;
   visible: boolean;
+  vibeBg?: string;
   onFinish?: () => void;
 }
 
-export function PullQuoteOverlay({ text, visible, onFinish }: PullQuoteOverlayProps) {
+export function PullQuoteOverlay({ text, visible, vibeBg, onFinish }: PullQuoteOverlayProps) {
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   const textOpacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(0)).current;
+
+  // For dark vibes, use a deeper shade; for light vibes, use near-black
+  const backdropColor = vibeBg && isDarkVibe(vibeBg) ? '#020204' : Colors.base.black;
 
   useEffect(() => {
     if (!visible) {
@@ -26,7 +28,7 @@ export function PullQuoteOverlay({ text, visible, onFinish }: PullQuoteOverlayPr
     // Fade in backdrop and text
     Animated.parallel([
       Animated.timing(backdropOpacity, {
-        toValue: 0.7,
+        toValue: vibeBg && isDarkVibe(vibeBg) ? 0.85 : 0.7,
         duration: 400,
         useNativeDriver: true,
       }),
@@ -66,7 +68,7 @@ export function PullQuoteOverlay({ text, visible, onFinish }: PullQuoteOverlayPr
 
   return (
     <View style={styles.overlay} pointerEvents="none">
-      <Animated.View style={[styles.backdrop, { opacity: backdropOpacity }]} />
+      <Animated.View style={[styles.backdrop, { backgroundColor: backdropColor, opacity: backdropOpacity }]} />
       <Animated.Text
         style={[
           styles.quoteText,
@@ -91,7 +93,6 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: Colors.base.black,
   },
   quoteText: {
     fontFamily: Typography.cleoVoice.family,
