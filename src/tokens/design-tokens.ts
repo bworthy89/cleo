@@ -35,11 +35,12 @@ export const Animation = {
   cleoScale: { speaking: 1.03, resting: 1.0 },
 };
 
-export const Radius = { none: 0, sm: 2 };
+export const Radius = { none: 0, sm: 2, md: 12, lg: 28, full: 9999 };
 
 export const Opacity = {
   primary: 0.7,
-  secondary: 0.5,
+  secondary: 0.65,
+  label: 0.45,
   muted: 0.35,
   ghost: 0.2,
 };

@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { Colors, Typography, Spacing, Opacity } from '../tokens/design-tokens';
+import { Colors, Typography, Spacing, Opacity, withAlpha } from '../tokens/design-tokens';
 import type { Vibe } from '../cleo/fallbacks';
 
 interface VibeSelectorProps {
@@ -8,12 +9,12 @@ interface VibeSelectorProps {
   onSelect: (vibe: Vibe) => void;
 }
 
-const VIBES: { id: Vibe; label: string }[] = [
-  { id: 'morning', label: 'Morning' },
-  { id: 'chill', label: 'Chill' },
-  { id: 'workout', label: 'Workout' },
-  { id: 'lateNight', label: 'Late Night' },
-  { id: 'party', label: 'Party' },
+const VIBES: { id: Vibe; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { id: 'morning', label: 'Morning', icon: 'sunny-outline' },
+  { id: 'chill', label: 'Chill', icon: 'water-outline' },
+  { id: 'workout', label: 'Workout', icon: 'flash-outline' },
+  { id: 'lateNight', label: 'Late Night', icon: 'moon-outline' },
+  { id: 'party', label: 'Party', icon: 'musical-notes-outline' },
 ];
 
 export function VibeSelector({ selected, onSelect }: VibeSelectorProps) {
@@ -34,13 +35,20 @@ export function VibeSelector({ selected, onSelect }: VibeSelectorProps) {
               styles.card,
               {
                 backgroundColor: theme.bg,
-                borderColor: isSelected ? theme.accent : 'transparent',
+                borderColor: isSelected ? theme.accent : withAlpha(theme.text, 0.08),
                 opacity: isSelected ? 1 : Opacity.secondary,
               },
             ]}
             onPress={() => handleSelect(vibe.id)}
           >
+            <Ionicons
+              name={vibe.icon}
+              size={20}
+              color={isSelected ? theme.accent : withAlpha(theme.text, 0.4)}
+              style={styles.icon}
+            />
             <Text style={[styles.label, { color: theme.text }]}>{vibe.label}</Text>
+            {isSelected && <View style={[styles.accentDot, { backgroundColor: theme.accent }]} />}
           </Pressable>
         );
       })}
@@ -56,16 +64,25 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   card: {
-    width: 100,
-    height: 100,
+    width: 110,
+    height: 110,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
+    borderWidth: 1.5,
+  },
+  icon: {
+    marginBottom: Spacing.sm,
   },
   label: {
     fontFamily: Typography.mono.family,
     fontSize: 10,
     letterSpacing: 2,
     textTransform: 'uppercase',
+  },
+  accentDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    marginTop: Spacing.sm,
   },
 });
