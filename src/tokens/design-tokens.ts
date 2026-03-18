@@ -34,3 +34,34 @@ export const Animation = {
   wordFade:  { stagger: 40 },
   cleoScale: { speaking: 1.03, resting: 1.0 },
 };
+
+export const Radius = { none: 0, sm: 2 };
+
+export const Opacity = {
+  primary: 0.7,
+  secondary: 0.5,
+  muted: 0.35,
+  ghost: 0.2,
+};
+
+export const Tracking = {
+  tight: 0.5,
+  normal: 1,
+  wide: 3,
+  ultra: 8,
+};
+
+export function withAlpha(hex: string, alpha: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+export function isDarkVibe(bg: string): boolean {
+  const r = parseInt(bg.slice(1, 3), 16) / 255;
+  const g = parseInt(bg.slice(3, 5), 16) / 255;
+  const b = parseInt(bg.slice(5, 7), 16) / 255;
+  const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  return luminance < 0.2;
+}
