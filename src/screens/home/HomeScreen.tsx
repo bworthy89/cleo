@@ -10,7 +10,8 @@ import {
   Text,
   View,
 } from 'react-native';
-import { Colors, Typography, Spacing } from '../../tokens/design-tokens';
+import * as Haptics from 'expo-haptics';
+import { Colors, Typography, Spacing, Opacity, Tracking, withAlpha } from '../../tokens/design-tokens';
 import { StationCard } from '../../components/StationCard';
 import { musicKitPlayer } from '../../services/MusicKitPlayer';
 import type { Vibe } from '../../cleo/fallbacks';
@@ -20,6 +21,7 @@ import {
   addRecentlyPlayedTrack,
   getCachedPlaylists,
   setCachedPlaylists,
+  getUser,
   type Station,
 } from '../../services/Storage';
 import type { MusicPlaylist } from '../../../modules/expo-music-kit';
@@ -49,6 +51,10 @@ export function HomeScreen({ onNavigateToPlayer, onNavigateToSettings, onNavigat
   const [playlists, setPlaylists] = useState<MusicPlaylist[]>([]);
   const [nowPlaying, setNowPlaying] = useState<NowPlayingInfo | null>(null);
   const [playlistsLoading, setPlaylistsLoading] = useState(true);
+
+  const user = getUser();
+  const userVibe = (user?.defaultVibe as keyof typeof Colors.vibe) ?? 'morning';
+  const vibeTheme = Colors.vibe[userVibe] ?? Colors.vibe.morning;
 
   // Check auth on mount
   useEffect(() => {
@@ -136,6 +142,7 @@ export function HomeScreen({ onNavigateToPlayer, onNavigateToSettings, onNavigat
   );
 
   const handleStationPress = useCallback(async (station: Station) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (onNavigateToPlayer) {
       onNavigateToPlayer({
         stationName: station.name,
@@ -149,12 +156,12 @@ export function HomeScreen({ onNavigateToPlayer, onNavigateToSettings, onNavigat
   // ── Unauthorized ────────────────────────────────────────────────────
   if (authState === 'unauthorized') {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={[styles.container, { backgroundColor: vibeTheme.bg }]}>
         <View style={styles.centered}>
-          <Text style={styles.heroTitle}>CLEO</Text>
+          <Text style={[styles.heroTitle, { color: vibeTheme.text }]}>CLEO</Text>
           <View style={styles.heroAccentLine} />
           <Text style={styles.heroTagline}>AI RADIO HOST</Text>
-          <Text style={styles.heroDescription}>
+          <Text style={[styles.heroDescription, { color: vibeTheme.text }]}>
             Your personal DJ. Plays your music,{'\n'}tells the stories behind the songs.
           </Text>
           <Pressable
@@ -171,9 +178,9 @@ export function HomeScreen({ onNavigateToPlayer, onNavigateToSettings, onNavigat
   // ── Loading ─────────────────────────────────────────────────────────
   if (authState === 'loading') {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={[styles.container, { backgroundColor: vibeTheme.bg }]}>
         <View style={styles.centered}>
-          <Text style={styles.heroTitle}>CLEO</Text>
+          <Text style={[styles.heroTitle, { color: vibeTheme.text }]}>CLEO</Text>
           <ActivityIndicator style={{ marginTop: Spacing.lg }} color={Colors.accent} />
         </View>
       </SafeAreaView>
@@ -182,16 +189,16 @@ export function HomeScreen({ onNavigateToPlayer, onNavigateToSettings, onNavigat
 
   // ── Ready / Playing ─────────────────────────────────────────────────
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: vibeTheme.bg }]}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.title}>CLEO</Text>
+        <Text style={[styles.title, { color: vibeTheme.text }]}>CLEO</Text>
         <Pressable
           style={({ pressed }) => [styles.settingsButton, pressed && styles.buttonPressed]}
           onPress={onNavigateToSettings}
           hitSlop={12}
         >
-          <Text style={styles.settingsText}>{'\u2699'}</Text>
+          <Text style={[styles.settingsText, { color: vibeTheme.text }]}>SETTINGS</Text>
         </Pressable>
       </View>
 
@@ -199,7 +206,7 @@ export function HomeScreen({ onNavigateToPlayer, onNavigateToSettings, onNavigat
         {/* Now Playing Bar */}
         {nowPlaying && (
           <Pressable
-            style={({ pressed }) => [styles.nowPlaying, pressed && styles.nowPlayingPressed]}
+            style={({ pressed }) => [styles.nowPlaying, { backgroundColor: withAlpha(vibeTheme.text, 0.05) }, pressed && styles.nowPlayingPressed]}
             onPress={onNavigateToActivePlayer}
           >
             <View style={styles.nowPlayingAccent} />
@@ -210,16 +217,19 @@ export function HomeScreen({ onNavigateToPlayer, onNavigateToSettings, onNavigat
             )}
             <View style={styles.nowPlayingInfo}>
               <Text style={styles.nowPlayingLabel}>NOW PLAYING</Text>
-              <Text style={styles.nowPlayingTitle} numberOfLines={1}>{nowPlaying.title}</Text>
-              <Text style={styles.nowPlayingArtist} numberOfLines={1}>{nowPlaying.artistName}</Text>
+              <Text style={[styles.nowPlayingTitle, { color: vibeTheme.text }]} numberOfLines={1}>{nowPlaying.title}</Text>
+              <Text style={[styles.nowPlayingArtist, { color: vibeTheme.text }]} numberOfLines={1}>{nowPlaying.artistName}</Text>
             </View>
-            <Text style={styles.nowPlayingArrow}>{'\u203A'}</Text>
+            <View style={[styles.nowPlayingDot, { backgroundColor: vibeTheme.accent }]} />
+            <View style={[styles.nowPlayingProgress, { backgroundColor: withAlpha(vibeTheme.text, 0.08) }]}>
+              <View style={{ width: '35%', height: '100%', backgroundColor: vibeTheme.accent }} />
+            </View>
           </Pressable>
         )}
 
         {/* Your Stations */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>YOUR STATIONS</Text>
+          <Text style={[styles.sectionTitle, { color: vibeTheme.text }]}>YOUR STATIONS</Text>
           {stations.length > 0 ? (
             <FlatList
               data={stations}
@@ -237,9 +247,10 @@ export function HomeScreen({ onNavigateToPlayer, onNavigateToSettings, onNavigat
             />
           ) : (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyEmoji}>{'\uD83D\uDCFB'}</Text>
-              <Text style={styles.emptyText}>No stations yet</Text>
-              <Text style={styles.emptyHint}>
+              <Text style={[styles.emptyCleoVoice, { color: vibeTheme.accent }]}>
+                Pick a playlist. I'll do the rest.
+              </Text>
+              <Text style={[styles.emptyHint, { color: vibeTheme.text }]}>
                 Tap a playlist below to create your first station
               </Text>
             </View>
@@ -248,7 +259,7 @@ export function HomeScreen({ onNavigateToPlayer, onNavigateToSettings, onNavigat
 
         {/* Playlists */}
         <View style={[styles.section, { marginBottom: Spacing.xxl }]}>
-          <Text style={styles.sectionTitle}>PLAYLISTS</Text>
+          <Text style={[styles.sectionTitle, { color: vibeTheme.text }]}>PLAYLISTS</Text>
           {playlists.length === 0 && playlistsLoading ? (
             <ActivityIndicator style={{ marginTop: Spacing.lg }} color={Colors.accent} />
           ) : (
@@ -276,7 +287,6 @@ export function HomeScreen({ onNavigateToPlayer, onNavigateToSettings, onNavigat
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.vibe.morning.bg,
   },
   centered: {
     flex: 1,
@@ -300,7 +310,6 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: Typography.display.family,
     fontSize: 42,
-    color: Colors.vibe.morning.text,
     letterSpacing: 4,
   },
   settingsButton: {
@@ -312,16 +321,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   settingsText: {
-    fontSize: 18,
-    color: Colors.vibe.morning.text,
-    opacity: 0.5,
+    fontFamily: Typography.mono.family,
+    fontSize: 9,
+    letterSpacing: 1,
+    opacity: Opacity.muted,
   },
 
   // ── Hero (unauthorized/loading) ─────────────────────────────────────
   heroTitle: {
     fontFamily: Typography.display.family,
     fontSize: 72,
-    color: Colors.vibe.morning.text,
     letterSpacing: 8,
   },
   heroAccentLine: {
@@ -339,7 +348,6 @@ const styles = StyleSheet.create({
   heroDescription: {
     fontFamily: Typography.label.family,
     fontSize: 15,
-    color: Colors.vibe.morning.text,
     opacity: 0.5,
     textAlign: 'center',
     lineHeight: 22,
@@ -364,8 +372,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginHorizontal: Spacing.lg,
     marginTop: Spacing.sm,
-    backgroundColor: Colors.base.cream,
-    borderRadius: 4,
     overflow: 'hidden',
   },
   nowPlayingPressed: {
@@ -401,22 +407,26 @@ const styles = StyleSheet.create({
   nowPlayingTitle: {
     fontFamily: Typography.display.family,
     fontSize: 17,
-    color: Colors.vibe.morning.text,
     marginTop: 2,
   },
   nowPlayingArtist: {
     fontFamily: Typography.label.family,
     fontSize: 12,
-    color: Colors.vibe.morning.text,
     opacity: 0.5,
     marginTop: 1,
   },
-  nowPlayingArrow: {
-    fontFamily: Typography.display.family,
-    fontSize: 28,
-    color: Colors.vibe.morning.text,
-    opacity: 0.2,
-    paddingRight: Spacing.md,
+  nowPlayingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: Spacing.md,
+  },
+  nowPlayingProgress: {
+    position: 'absolute',
+    bottom: 0,
+    left: 3,
+    right: 0,
+    height: 2,
   },
 
   // ── Sections ────────────────────────────────────────────────────────
@@ -426,12 +436,11 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontFamily: Typography.mono.family,
     fontSize: 11,
-    color: Colors.vibe.morning.text,
     letterSpacing: 3,
     textTransform: 'uppercase',
     paddingHorizontal: Spacing.lg,
     marginBottom: Spacing.md,
-    opacity: 0.4,
+    opacity: Opacity.muted,
   },
   listContent: {
     paddingHorizontal: Spacing.lg,
@@ -443,20 +452,16 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.xl,
     paddingHorizontal: Spacing.xl,
   },
-  emptyEmoji: {
-    fontSize: 32,
+  emptyCleoVoice: {
+    fontFamily: Typography.cleoVoice.family,
+    fontStyle: 'italic',
+    fontSize: 18,
+    textAlign: 'center',
     marginBottom: Spacing.sm,
-  },
-  emptyText: {
-    fontFamily: Typography.label.familyMedium,
-    fontSize: 15,
-    color: Colors.vibe.morning.text,
-    opacity: 0.6,
   },
   emptyHint: {
     fontFamily: Typography.label.family,
     fontSize: 13,
-    color: Colors.vibe.morning.text,
     opacity: 0.35,
     marginTop: Spacing.xs,
     textAlign: 'center',
