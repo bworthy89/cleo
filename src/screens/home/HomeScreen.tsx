@@ -48,12 +48,12 @@ interface HomeScreenProps {
 }
 
 function LoadingScreen({ bg, text }: { bg: string; text: string }) {
-  const pulseAnim = useRef(new Animated.Value(0.3)).current;
+  const pulseAnim = useRef(new Animated.Value(0.6)).current;
   useEffect(() => {
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1, duration: 1200, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 0.3, duration: 1200, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 0.6, duration: 800, useNativeDriver: true }),
       ])
     );
     loop.start();
@@ -182,16 +182,18 @@ export function HomeScreen({ onNavigateToPlayer, onNavigateToSettings, onNavigat
       <SafeAreaView style={[styles.container, { backgroundColor: vibeTheme.bg }]}>
         <View style={styles.centered}>
           <Text style={[styles.heroTitle, { color: vibeTheme.text }]}>CLEO</Text>
-          <View style={styles.heroAccentLine} />
-          <Text style={styles.heroTagline}>AI RADIO HOST</Text>
+          <View style={[styles.heroAccentLine, { backgroundColor: vibeTheme.accent }]} />
+          <Text style={[styles.heroTagline, { color: vibeTheme.accent }]}>AI RADIO HOST</Text>
           <Text style={[styles.heroDescription, { color: vibeTheme.text }]}>
             Your personal DJ. Plays your music,{'\n'}tells the stories behind the songs.
           </Text>
           <Pressable
-            style={({ pressed }) => [styles.authButton, pressed && styles.buttonPressed]}
+            style={({ pressed }) => [styles.authButton, { backgroundColor: vibeTheme.text }, pressed && styles.buttonPressed]}
             onPress={handleAuthorize}
+            accessibilityLabel="Connect Apple Music"
+            accessibilityRole="button"
           >
-            <Text style={styles.authButtonText}>CONNECT APPLE MUSIC</Text>
+            <Text style={[styles.authButtonText, { color: vibeTheme.bg }]}>CONNECT APPLE MUSIC</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -213,8 +215,10 @@ export function HomeScreen({ onNavigateToPlayer, onNavigateToSettings, onNavigat
           style={({ pressed }) => [styles.settingsButton, pressed && styles.buttonPressed]}
           onPress={onNavigateToSettings}
           hitSlop={12}
+          accessibilityLabel="Settings"
+          accessibilityRole="button"
         >
-          <Ionicons name="settings-outline" size={20} color={vibeTheme.text} style={{ opacity: Opacity.secondary }} />
+          <Ionicons name="settings-outline" size={20} color={vibeTheme.text} style={{ opacity: Opacity.secondary }} accessibilityElementsHidden />
         </Pressable>
       </View>
 
@@ -222,17 +226,19 @@ export function HomeScreen({ onNavigateToPlayer, onNavigateToSettings, onNavigat
         {/* Now Playing Bar */}
         {nowPlaying && (
           <Pressable
-            style={({ pressed }) => [styles.nowPlaying, { backgroundColor: withAlpha(vibeTheme.text, 0.05) }, pressed && styles.nowPlayingPressed]}
+            style={({ pressed }) => [styles.nowPlaying, { backgroundColor: withAlpha(vibeTheme.text, 0.08), borderTopWidth: 1, borderTopColor: withAlpha(vibeTheme.text, Opacity.ghost) }, pressed && styles.nowPlayingPressed]}
             onPress={onNavigateToActivePlayer}
+            accessibilityLabel={`Now playing: ${nowPlaying.title} by ${nowPlaying.artistName}`}
+            accessibilityRole="button"
           >
-            <View style={styles.nowPlayingAccent} />
+            <View style={[styles.nowPlayingAccent, { backgroundColor: vibeTheme.accent }]} />
             {nowPlaying.artworkUrl ? (
               <Image source={{ uri: nowPlaying.artworkUrl }} style={styles.nowPlayingArt} />
             ) : (
               <View style={[styles.nowPlayingArt, styles.nowPlayingArtPlaceholder]} />
             )}
             <View style={styles.nowPlayingInfo}>
-              <Text style={styles.nowPlayingLabel}>NOW PLAYING</Text>
+              <Text style={[styles.nowPlayingLabel, { color: vibeTheme.accent }]}>NOW PLAYING</Text>
               <Text style={[styles.nowPlayingTitle, { color: vibeTheme.text }]} numberOfLines={1}>{nowPlaying.title}</Text>
               <Text style={[styles.nowPlayingArtist, { color: vibeTheme.text }]} numberOfLines={1}>{nowPlaying.artistName}</Text>
             </View>
@@ -274,7 +280,7 @@ export function HomeScreen({ onNavigateToPlayer, onNavigateToSettings, onNavigat
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: vibeTheme.text }]}>PLAYLISTS</Text>
           {playlists.length === 0 && playlistsLoading ? (
-            <ActivityIndicator style={{ marginTop: Spacing.lg }} color={Colors.accent} />
+            <ActivityIndicator style={{ marginTop: Spacing.lg }} color={vibeTheme.accent} />
           ) : (
             <FlatList
               data={playlists}
@@ -324,7 +330,7 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: Typography.display.family,
     fontSize: 42,
-    letterSpacing: 4,
+    letterSpacing: Tracking.wide,
   },
   settingsButton: {
     width: 36,
@@ -339,19 +345,17 @@ const styles = StyleSheet.create({
   heroTitle: {
     fontFamily: Typography.display.family,
     fontSize: 72,
-    letterSpacing: 8,
+    letterSpacing: Tracking.ultra,
   },
   heroAccentLine: {
     width: 40,
     height: 2,
-    backgroundColor: Colors.accent,
     marginVertical: Spacing.lg,
   },
   heroTagline: {
     fontFamily: Typography.mono.family,
     fontSize: 11,
-    color: Colors.accent,
-    letterSpacing: 4,
+    letterSpacing: Tracking.wide,
   },
   heroDescription: {
     fontFamily: Typography.label.family,
@@ -363,15 +367,13 @@ const styles = StyleSheet.create({
   },
   authButton: {
     marginTop: Spacing.xl,
-    backgroundColor: Colors.base.black,
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.xl,
   },
   authButtonText: {
     fontFamily: Typography.mono.family,
     fontSize: 12,
-    color: Colors.base.white,
-    letterSpacing: 3,
+    letterSpacing: Tracking.wide,
   },
 
   // ── Now Playing Bar ─────────────────────────────────────────────────
@@ -379,7 +381,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginHorizontal: Spacing.lg,
-    marginTop: Spacing.sm,
+    marginTop: Spacing.lg,
     overflow: 'hidden',
   },
   nowPlayingPressed: {
@@ -391,7 +393,6 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: 3,
-    backgroundColor: Colors.accent,
   },
   nowPlayingArt: {
     width: 56,
@@ -409,8 +410,7 @@ const styles = StyleSheet.create({
   nowPlayingLabel: {
     fontFamily: Typography.mono.family,
     fontSize: 8,
-    color: Colors.accent,
-    letterSpacing: 2,
+    letterSpacing: Tracking.normal,
   },
   nowPlayingTitle: {
     fontFamily: Typography.display.family,
@@ -437,7 +437,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontFamily: Typography.mono.family,
     fontSize: 11,
-    letterSpacing: 3,
+    letterSpacing: Tracking.wide,
     textTransform: 'uppercase',
     paddingHorizontal: Spacing.lg,
     marginBottom: Spacing.md,

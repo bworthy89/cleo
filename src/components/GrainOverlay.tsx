@@ -1,4 +1,5 @@
 import { Image, StyleSheet, View } from 'react-native';
+import { Grain, ZIndex } from '../tokens/design-tokens';
 
 interface GrainOverlayProps {
   isDark?: boolean;
@@ -9,7 +10,7 @@ export function GrainOverlay({ isDark }: GrainOverlayProps) {
     <View style={styles.container} pointerEvents="none">
       <Image
         source={require('../../assets/textures/grain.png')}
-        style={[styles.grain, { opacity: isDark ? 0.035 : 0.06 }]}
+        style={[styles.grain, { opacity: isDark ? Grain.dark : Grain.light }]}
         resizeMode="repeat"
       />
     </View>
@@ -19,7 +20,7 @@ export function GrainOverlay({ isDark }: GrainOverlayProps) {
 const styles = StyleSheet.create({
   container: {
     ...StyleSheet.absoluteFillObject,
-    zIndex: 1,
+    zIndex: ZIndex.base,
   },
   grain: {
     width: '100%',

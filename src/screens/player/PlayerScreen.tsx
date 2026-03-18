@@ -12,7 +12,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { GrainOverlay } from '../../components/GrainOverlay';
-import { Colors, Typography, Spacing, Radius, Opacity, Tracking, withAlpha, isDarkVibe, safeOpacity } from '../../tokens/design-tokens';
+import { Colors, Typography, Spacing, Radius, Opacity, Tracking, Shadow, withAlpha, isDarkVibe, safeOpacity } from '../../tokens/design-tokens';
 import { WordByWordSubtitle } from '../../components/WordByWordSubtitle';
 import { PullQuoteOverlay } from '../../components/PullQuoteOverlay';
 import { OnAirIndicator } from '../../components/OnAirIndicator';
@@ -85,7 +85,7 @@ export function PlayerScreen({
   useEffect(() => {
     Animated.timing(artOpacity, {
       toValue: cleoSpeaking ? 0.85 : 1,
-      duration: cleoSpeaking ? 300 : 400,
+      duration: 400,
       useNativeDriver: true,
     }).start();
   }, [cleoSpeaking]);
@@ -100,7 +100,7 @@ export function PlayerScreen({
         setProgress(pct);
         Animated.timing(progressAnim, {
           toValue: pct,
-          duration: 400,
+          duration: 100,
           useNativeDriver: false,
         }).start();
       }
@@ -153,7 +153,7 @@ export function PlayerScreen({
           // Accent line flash on track change
           Animated.sequence([
             Animated.timing(accentLineOpacity, { toValue: 1, duration: 100, useNativeDriver: true }),
-            Animated.timing(accentLineOpacity, { toValue: 0.5, duration: 500, useNativeDriver: true }),
+            Animated.timing(accentLineOpacity, { toValue: 0.5, duration: 800, useNativeDriver: true }),
           ]).start();
 
           await audioCoordinator.handleTrackChangeWithResult(
@@ -212,7 +212,7 @@ export function PlayerScreen({
 
         {/* Header */}
         <View style={styles.header}>
-          <Pressable onPress={onBack} hitSlop={12} style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}>
+          <Pressable onPress={onBack} hitSlop={12} style={({ pressed }) => [styles.backButton, pressed && styles.pressed]} accessibilityLabel="Go back" accessibilityRole="button">
             <Ionicons name="chevron-back" size={22} color={vibeTheme.text} />
           </Pressable>
           <Text style={[styles.stationName, { color: vibeTheme.text, opacity: safeOpacity(Opacity.muted, vibeTheme.bg) }]}>{stationName.toUpperCase()}</Text>
@@ -263,10 +263,10 @@ export function PlayerScreen({
 
         {/* Controls */}
         <View style={styles.controls}>
-          <Pressable onPress={handlePlayPause} style={({ pressed }) => [styles.playPauseButton, { borderColor: vibeTheme.accent }, pressed && styles.pressed]}>
-            <Ionicons name={isPlaying ? 'pause' : 'play'} size={24} color={vibeTheme.text} style={!isPlaying ? { marginLeft: 3 } : undefined} />
+          <Pressable onPress={handlePlayPause} style={({ pressed }) => [styles.playPauseButton, { borderColor: vibeTheme.accent }, pressed && styles.pressed]} accessibilityLabel={isPlaying ? 'Pause' : 'Play'} accessibilityRole="button">
+            <Ionicons name={isPlaying ? 'pause' : 'play'} size={24} color={vibeTheme.text} style={!isPlaying ? styles.playIconOffset : undefined} />
           </Pressable>
-          <Pressable onPress={handleNext} hitSlop={12} style={({ pressed }) => [styles.skipButton, pressed && styles.pressed]}>
+          <Pressable onPress={handleNext} hitSlop={12} style={({ pressed }) => [styles.skipButton, pressed && styles.pressed]} accessibilityLabel="Skip to next track" accessibilityRole="button">
             <Ionicons name="play-forward" size={22} color={vibeTheme.text} style={{ opacity: safeOpacity(Opacity.secondary, vibeTheme.bg) }} />
           </Pressable>
         </View>
@@ -299,7 +299,7 @@ const styles = StyleSheet.create({
   artworkPlaceholder: { backgroundColor: Colors.base.black },
   vibeGlow: { position: 'absolute', bottom: -20, left: '20%', right: '20%', height: 80, borderRadius: 40, opacity: 0.08 },
   artGradient: { position: 'absolute', bottom: 0, left: 0, right: 0, height: '60%', justifyContent: 'flex-end', paddingHorizontal: Spacing.lg, paddingBottom: Spacing.md },
-  songTitle: { fontFamily: Typography.display.family, fontSize: 56, color: Colors.base.white, textTransform: 'uppercase', letterSpacing: 0.5, lineHeight: 62, textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 8 },
+  songTitle: { fontFamily: Typography.display.family, fontSize: 56, color: Colors.base.white, textTransform: 'uppercase', letterSpacing: Tracking.tight, lineHeight: 62, textShadowColor: `rgba(0,0,0,0.6)`, textShadowOffset: Shadow.text.offset, textShadowRadius: Shadow.medium.radius },
   trackInfo: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm },
   artistName: { fontFamily: Typography.label.familyMedium, fontSize: 13, textTransform: 'uppercase', letterSpacing: Tracking.normal },
   progressSection: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.md },
@@ -312,4 +312,5 @@ const styles = StyleSheet.create({
   skipButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   cleoSection: { flex: 1, justifyContent: 'flex-end', paddingBottom: Spacing.xl, minHeight: 100 },
   cleoResting: { fontFamily: Typography.mono.family, fontSize: 9, letterSpacing: Tracking.wide, textAlign: 'center', opacity: Opacity.ghost, paddingBottom: Spacing.sm },
+  playIconOffset: { paddingLeft: 3 },
 });
