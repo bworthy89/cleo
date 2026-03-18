@@ -79,8 +79,8 @@ export async function fetchPlaylistTracks(playlistId: string): Promise<MusicTrac
 
 // ── Playback ───────────────────────────────────────────────────────────
 
-export async function play(trackIds?: string[]): Promise<void> {
-  return await ExpoMusicKit.play(trackIds ?? null);
+export async function play(trackIds?: string[], playlistId?: string): Promise<void> {
+  return await ExpoMusicKit.play(trackIds ?? null, playlistId ?? null);
 }
 
 export async function setUpcomingQueue(trackIds: string[]): Promise<void> {

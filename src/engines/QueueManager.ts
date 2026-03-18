@@ -19,7 +19,12 @@ class QueueManagerService {
     sessionEngine.startSession(stationId, vibe);
 
     const tracks = await musicKitPlayer.fetchPlaylistTracks(playlistId);
-    if (tracks.length === 0) return;
+    if (tracks.length === 0) {
+      // No individual tracks resolved — try queuing the playlist directly
+      console.log('[QueueManager] No tracks resolved, queuing playlist directly');
+      await musicKitPlayer.play(undefined, playlistId);
+      return;
+    }
 
     this.trackProfiles = tracks.map((t) => ({
       ...t,
@@ -35,8 +40,21 @@ class QueueManagerService {
 
     const allTrackIds = localValidated.queue.map((q) => q.trackId);
     if (allTrackIds.length > 0) {
-      await musicKitPlayer.play(allTrackIds);
+      // Native play() caps at 50 items to avoid XPC crashes.
+      // Pass all IDs — native queues first 50, we add the rest below.
+      await musicKitPlayer.play(allTrackIds, playlistId);
       sessionEngine.advanceTrack(allTrackIds[0]);
+
+      // Queue next batch after initial 50 (cap at 100 more — no session needs 1000+)
+      if (allTrackIds.length > 50) {
+        const remaining = allTrackIds.slice(50, 150);
+        await musicKitPlayer.setUpcomingQueue(remaining).catch(() => {
+          // Non-fatal — playback continues with initial batch
+        });
+      }
+    } else {
+      // No tracks resolved — try playing the playlist directly
+      await musicKitPlayer.play(undefined, playlistId);
     }
 
     // Slow path: AI plan in background → upgrade remaining queue
