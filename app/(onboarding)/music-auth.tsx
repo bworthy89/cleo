@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Pressable, SafeAreaView, StyleSheet, Text, View, Alert } from 'react-native';
 import { router } from 'expo-router';
-import { Colors, Typography, Spacing } from '../../src/tokens/design-tokens';
+import { Colors, Typography, Spacing, Tracking } from '../../src/tokens/design-tokens';
 import { musicKitPlayer } from '../../src/services/MusicKitPlayer';
 
 export default function MusicAuthScreen() {
@@ -30,13 +30,14 @@ export default function MusicAuthScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <Text style={styles.emoji}>🎵</Text>
+        <View style={{ width: 40, height: 2, backgroundColor: Colors.accent, marginBottom: Spacing.lg }} />
         <Text style={styles.title}>Connect Your Music</Text>
         <Text style={styles.description}>
           Cleo plays music from your Apple Music library. Connect your account so she can access your playlists and start hosting your sessions.
         </Text>
       </View>
       <View style={styles.bottom}>
+        <Text style={styles.cleoVoice}>I need access to your library to start hosting.</Text>
         <Pressable style={[styles.button, loading && styles.buttonDisabled]} onPress={handleConnect} disabled={loading}>
           <Text style={styles.buttonText}>{loading ? 'CONNECTING...' : 'CONNECT APPLE MUSIC'}</Text>
         </Pressable>
@@ -55,10 +56,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: Spacing.xl,
-  },
-  emoji: {
-    fontSize: 64,
-    marginBottom: Spacing.lg,
   },
   title: {
     fontFamily: Typography.display.family,
@@ -85,12 +82,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   buttonDisabled: {
-    opacity: 0.5,
+    opacity: 0.3,
   },
   buttonText: {
     fontFamily: Typography.mono.family,
-    fontSize: 14,
+    fontSize: 12,
     color: Colors.base.white,
     letterSpacing: 3,
+  },
+  cleoVoice: {
+    fontFamily: Typography.cleoVoice.family,
+    fontStyle: 'italic',
+    fontSize: 16,
+    color: Colors.accent,
+    textAlign: 'center',
+    marginBottom: Spacing.lg,
   },
 });
