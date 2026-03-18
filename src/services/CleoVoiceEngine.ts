@@ -17,7 +17,7 @@ const ABBREVIATIONS = /\b(?:feat|vs|Dr|Mr|Mrs|Ms|Jr|Sr|St)\./i;
 const SINGLE_INITIAL = /\b[A-Z]\./;
 
 function isAbbreviationOrInitial(text: string, periodIndex: number): boolean {
-  const before = text.substring(Math.max(0, periodIndex - 5), periodIndex + 1);
+  const before = text.substring(Math.max(0, periodIndex - 8), periodIndex + 1);
   return ABBREVIATIONS.test(before) || SINGLE_INITIAL.test(before);
 }
 
@@ -74,18 +74,20 @@ function formatForSpeech(text: string): string {
     .replace(/["""]/g, '')
     // Remove stage directions like (pause) or [beat]
     .replace(/[\(\[][^\)\]]{0,40}[\)\]]/g, '')
-    // Comma before "and/but/so" at clause boundary → em-dash for stronger pause
-    .replace(/, (and|but|so) /g, ' — $1 ')
     // Clean up any double spaces
     .replace(/  +/g, ' ')
     .trim();
 
-  // Split into sentences, preserving abbreviations and initials
+  // Split into sentences, preserving abbreviations, initials, and ellipses
   const sentences: string[] = [];
   let current = '';
   for (let i = 0; i < processed.length; i++) {
     current += processed[i];
     if (processed[i] === '.' || processed[i] === '!' || processed[i] === '?') {
+      // Skip periods that are part of an ellipsis (...)
+      if (processed[i] === '.' && (processed[i + 1] === '.' || (i > 0 && processed[i - 1] === '.'))) {
+        continue;
+      }
       if (processed[i] === '.' && isAbbreviationOrInitial(processed, i)) {
         continue;
       }
@@ -97,9 +99,13 @@ function formatForSpeech(text: string): string {
   }
   if (current.trim()) sentences.push(current.trim());
 
-  // Split long sentences and add breath marks
+  // Split long sentences at clause boundaries
   const split = sentences.flatMap(s => splitLongSentence(s));
-  return addBreathMarks(split);
+
+  // Apply comma-conjunction em-dash transform after splitting (so Strategy 1 isn't bypassed)
+  const withEmDashes = split.map(s => s.replace(/, (and|but|so) /g, ' — $1 '));
+
+  return addBreathMarks(withEmDashes);
 }
 
 export async function synthesizeAndPlay(text: string): Promise<void> {
