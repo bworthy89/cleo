@@ -1,15 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Image } from 'react-native';
 import Svg, { Path, Defs, LinearGradient as SvgLinearGradient, Stop, Circle } from 'react-native-svg';
-import { Colors, Surface, TextColors, Typography, Glass, Spacing, Radius, Opacity, withAlpha, getVibeAccent } from '../../tokens/design-tokens';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Colors, Surface, TextColors, Typography, Spacing, Radius, Opacity, AppHeaderTokens, withAlpha, getVibeAccent } from '../../tokens/design-tokens';
 import { AppHeader } from '../../components/AppHeader';
-import { GlassCard } from '../../components/GlassCard';
 import { CleoOrb } from '../../components/CleoOrb';
-import { SectionLabel } from '../../components/SectionLabel';
 import { WaveformBars } from '../../components/WaveformBars';
 import { sessionEngine, type Session, type SessionPhase } from '../../engines/SessionEngine';
 import { queueManager } from '../../engines/QueueManager';
-import { segmentController } from '../../engines/SegmentController';
 import { getStations, type Station } from '../../services/Storage';
 
 // ---------- helpers ----------
@@ -50,14 +48,13 @@ function stationForSession(session: Session): Station | undefined {
 function renderSessionTitle(name: string, accentColor: string) {
   const words = name.split(' ');
   if (words.length <= 1) {
-    return <Text style={[styles.sessionName, { color: Colors.accent }]}>{name}</Text>;
+    return <Text style={[styles.sessionName, { color: accentColor }]}>{name}</Text>;
   }
-  // Make the second word gold (feels more natural than first)
   const idx = Math.min(1, words.length - 1);
   return (
     <Text style={styles.sessionName}>
       {words.map((w, i) => (
-        <Text key={i} style={i === idx ? { color: Colors.accent } : undefined}>
+        <Text key={i} style={i === idx ? { color: accentColor } : undefined}>
           {i > 0 ? ' ' : ''}{w}
         </Text>
       ))}
@@ -181,7 +178,8 @@ function CurrentTrackCard({ session, vibeAccent }: { session: Session; vibeAccen
   if (tags.length > 0) chipItems.push(...tags.slice(0, 2));
 
   return (
-    <GlassCard style={styles.trackCard}>
+    <View style={styles.trackCard}>
+      <View style={styles.trackCardGoldEdge} />
       <View style={styles.trackCardInner}>
         {artworkUrl ? (
           <Image source={{ uri: artworkUrl }} style={styles.trackArt} />
@@ -190,7 +188,7 @@ function CurrentTrackCard({ session, vibeAccent }: { session: Session; vibeAccen
         )}
         <View style={styles.trackInfo}>
           <Text style={styles.trackTitle} numberOfLines={1}>{title}</Text>
-          <Text style={styles.trackArtist} numberOfLines={1}>{artist}</Text>
+          <Text style={styles.trackArtist} numberOfLines={1}>{'\u2014 '}{artist}</Text>
           {chipItems.length > 0 && (
             <View style={styles.chipRow}>
               {chipItems.map((chip, i) => (
@@ -206,7 +204,7 @@ function CurrentTrackCard({ session, vibeAccent }: { session: Session; vibeAccen
           <Text style={[styles.nowLabel, { color: vibeAccent }]}>NOW</Text>
         </View>
       </View>
-    </GlassCard>
+    </View>
   );
 }
 
@@ -219,7 +217,7 @@ function SessionPulse({ session, vibeAccent }: { session: Session; vibeAccent: s
 
   return (
     <View style={styles.pulseCard}>
-      <SectionLabel>SESSION PULSE</SectionLabel>
+      <Text style={styles.sectionLabel}>SESSION PULSE</Text>
       <View style={styles.pulseRow}>
         <Text style={styles.pulseLabel}>Energy Level</Text>
         <Text style={styles.pulseValue}>{energy}%</Text>
@@ -239,13 +237,13 @@ function SessionPulse({ session, vibeAccent }: { session: Session; vibeAccent: s
   );
 }
 
-function UpcomingManifest({ session, vibeAccent }: { session: Session; vibeAccent: string }) {
+function UpcomingManifest({ vibeAccent }: { vibeAccent: string }) {
   const upcomingIds = sessionEngine.getNextTrackIds(6);
 
   if (upcomingIds.length === 0) {
     return (
       <View style={styles.manifestSection}>
-        <Text style={styles.manifestTitle}>Upcoming Manifest</Text>
+        <Text style={styles.sectionLabel}>UPCOMING MANIFEST</Text>
         <Text style={styles.manifestEmpty}>Queue building...</Text>
       </View>
     );
@@ -262,7 +260,7 @@ function UpcomingManifest({ session, vibeAccent }: { session: Session; vibeAccen
 
   return (
     <View style={styles.manifestSection}>
-      <Text style={styles.manifestTitle}>Upcoming Manifest</Text>
+      <Text style={styles.sectionLabel}>UPCOMING MANIFEST</Text>
       {items.map((item) => {
         if (item.type === 'cleo') {
           return (
@@ -277,7 +275,7 @@ function UpcomingManifest({ session, vibeAccent }: { session: Session; vibeAccen
           ? profile.artworkUrl.replace('{w}', '96').replace('{h}', '96')
           : undefined;
         return (
-          <GlassCard key={item.id} style={styles.manifestTrack}>
+          <View key={item.id} style={styles.manifestTrack}>
             <View style={styles.manifestTrackInner}>
               {artworkUrl ? (
                 <Image source={{ uri: artworkUrl }} style={styles.manifestArt} />
@@ -293,7 +291,7 @@ function UpcomingManifest({ session, vibeAccent }: { session: Session; vibeAccen
                 </Text>
               </View>
             </View>
-          </GlassCard>
+          </View>
         );
       })}
     </View>
@@ -314,15 +312,13 @@ function EmptyState() {
 // ---------- main screen ----------
 
 export function SessionArcScreen() {
+  const insets = useSafeAreaInsets();
   const [session, setSession] = useState<Session | null>(null);
-  const [tick, setTick] = useState(0);
 
   useEffect(() => {
-    // Poll session state every 3 seconds for live updates
     setSession(sessionEngine.getSession());
     const interval = setInterval(() => {
       setSession(sessionEngine.getSession());
-      setTick((t) => t + 1);
     }, 3000);
     return () => clearInterval(interval);
   }, []);
@@ -339,7 +335,10 @@ export function SessionArcScreen() {
       ) : (
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingTop: AppHeaderTokens.height + insets.top + Spacing.lg },
+          ]}
           showsVerticalScrollIndicator={false}
         >
           {/* Session Title Area */}
@@ -362,7 +361,7 @@ export function SessionArcScreen() {
           <SessionPulse session={session} vibeAccent={vibeAccent} />
 
           {/* Upcoming Manifest */}
-          <UpcomingManifest session={session} vibeAccent={vibeAccent} />
+          <UpcomingManifest vibeAccent={vibeAccent} />
 
           <View style={{ height: 120 }} />
         </ScrollView>
@@ -382,8 +381,16 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingTop: 100, // below AppHeader
     paddingHorizontal: Spacing.lg,
+  },
+
+  // Section label (shared editorial style)
+  sectionLabel: {
+    fontFamily: Typography.mono.family,
+    fontSize: 10,
+    letterSpacing: 2.5,
+    color: Colors.accent,
+    marginBottom: Spacing.md,
   },
 
   // Title area
@@ -393,7 +400,7 @@ const styles = StyleSheet.create({
   liveTag: {
     fontFamily: Typography.mono.family,
     fontSize: 9,
-    letterSpacing: 1.6,
+    letterSpacing: 2,
     textTransform: 'uppercase',
     marginBottom: Spacing.xs,
   },
@@ -412,8 +419,8 @@ const styles = StyleSheet.create({
   // Arc visualization
   arcContainer: {
     height: 200,
-    backgroundColor: Surface.low,
-    borderRadius: Radius.lg,
+    backgroundColor: Surface.container,
+    borderRadius: Radius.sm,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: Spacing.lg,
@@ -444,11 +451,20 @@ const styles = StyleSheet.create({
   // Current track card
   trackCard: {
     marginBottom: Spacing.lg,
-    padding: Spacing.md,
+    flexDirection: 'row',
+    backgroundColor: Surface.container,
+    borderRadius: Radius.sm,
+    overflow: 'hidden',
+  },
+  trackCardGoldEdge: {
+    width: 2,
+    backgroundColor: Colors.accent,
   },
   trackCardInner: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    padding: Spacing.md,
   },
   trackArt: {
     width: 48,
@@ -504,8 +520,8 @@ const styles = StyleSheet.create({
 
   // Session Pulse
   pulseCard: {
-    backgroundColor: Surface.low,
-    borderRadius: Radius.lg,
+    backgroundColor: Surface.container,
+    borderRadius: Radius.sm,
     padding: Spacing.md,
     marginBottom: Spacing.lg,
   },
@@ -526,7 +542,7 @@ const styles = StyleSheet.create({
   },
   progressBarBg: {
     height: 4,
-    backgroundColor: Surface.container,
+    backgroundColor: Surface.low,
     borderRadius: 2,
     marginTop: Spacing.sm,
     overflow: 'hidden',
@@ -540,12 +556,6 @@ const styles = StyleSheet.create({
   manifestSection: {
     marginBottom: Spacing.lg,
   },
-  manifestTitle: {
-    fontFamily: Typography.display.family,
-    fontSize: 16,
-    color: TextColors.primary,
-    marginBottom: Spacing.md,
-  },
   manifestEmpty: {
     fontFamily: Typography.body.family,
     fontSize: 14,
@@ -554,6 +564,8 @@ const styles = StyleSheet.create({
   },
   manifestTrack: {
     marginBottom: Spacing.sm,
+    backgroundColor: Surface.container,
+    borderRadius: Radius.sm,
     padding: Spacing.sm,
   },
   manifestTrackInner: {

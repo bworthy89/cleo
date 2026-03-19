@@ -24,17 +24,13 @@ import {
   Spacing,
   Radius,
   Opacity,
-  Glass,
   Gradient,
   Glow,
   AppHeaderTokens,
-  ZIndex,
 } from '../../tokens/design-tokens';
 import { AppHeader } from '../../components/AppHeader';
-import { GlassCard } from '../../components/GlassCard';
 import { WaveformBars } from '../../components/WaveformBars';
 import { CleoOrb } from '../../components/CleoOrb';
-import { SectionLabel } from '../../components/SectionLabel';
 import { StationCard } from '../../components/StationCard';
 import { musicKitPlayer } from '../../services/MusicKitPlayer';
 import type { Vibe } from '../../cleo/fallbacks';
@@ -217,9 +213,9 @@ export function HomeScreenRedesign() {
 
   const handlePlaylistPress = useCallback(
     (playlist: MusicPlaylist) => {
-      const existing = stations.find((s) => s.playlistId === playlist.id);
-      if (!existing) {
-        const station: Station = {
+      let station = stations.find((s) => s.playlistId === playlist.id);
+      if (!station) {
+        station = {
           id: `station-${Date.now()}`,
           name: playlist.name,
           playlistId: playlist.id,
@@ -230,6 +226,17 @@ export function HomeScreenRedesign() {
         addStation(station);
         setStations(getStations());
       }
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+      setActiveStation(station);
+      router.push({
+        pathname: '/(main)/(broadcast)/player',
+        params: {
+          stationName: station.name,
+          playlistId: station.playlistId,
+          stationId: station.id,
+          vibe: (station.defaultVibe as Vibe) ?? 'chill',
+        },
+      });
     },
     [stations],
   );
@@ -249,19 +256,16 @@ export function HomeScreenRedesign() {
   }, []);
 
   const handleNowPlayingPress = useCallback(() => {
-    if (activeStation) {
-      router.push({
-        pathname: '/(main)/(broadcast)/player',
-        params: {
-          stationName: activeStation.name,
-          playlistId: activeStation.playlistId,
-          stationId: activeStation.id,
-          vibe: (activeStation.defaultVibe as Vibe) ?? 'chill',
-        },
-      });
-    } else {
-      router.push({ pathname: '/(main)/(broadcast)/player' });
-    }
+    if (!activeStation) return;
+    router.push({
+      pathname: '/(main)/(broadcast)/player',
+      params: {
+        stationName: activeStation.name,
+        playlistId: activeStation.playlistId,
+        stationId: activeStation.id,
+        vibe: (activeStation.defaultVibe as Vibe) ?? 'chill',
+      },
+    });
   }, [activeStation]);
 
   // ── Render: Loading ────────────────────────────────────────────────
@@ -299,7 +303,9 @@ export function HomeScreenRedesign() {
       >
         {/* ── Greeting ──────────────────────────────────────────── */}
         <View style={styles.greetingContainer}>
+          <Text style={styles.greetingLabel}>LIVE BROADCAST</Text>
           <Text style={styles.greetingTitle}>{getGreeting()}</Text>
+          <View style={styles.greetingAccent} />
           <Text style={styles.greetingSubtext}>Your radio is ready.</Text>
         </View>
 
@@ -308,8 +314,11 @@ export function HomeScreenRedesign() {
           <Pressable
             onPress={handleNowPlayingPress}
             style={({ pressed }) => [pressed && { opacity: 0.85 }]}
+            accessibilityLabel={`Now playing: ${nowPlaying.title} by ${nowPlaying.artistName}`}
+            accessibilityRole="button"
           >
-            <GlassCard style={styles.nowPlayingCard}>
+            <View style={styles.nowPlayingCard}>
+              <View style={styles.nowPlayingGoldEdge} />
               <View style={styles.nowPlayingInner}>
                 {nowPlaying.artworkUrl ? (
                   <Image source={{ uri: nowPlaying.artworkUrl }} style={styles.nowPlayingArt} />
@@ -317,6 +326,7 @@ export function HomeScreenRedesign() {
                   <View style={[styles.nowPlayingArt, { backgroundColor: Surface.high }]} />
                 )}
                 <View style={styles.nowPlayingInfo}>
+                  <Text style={styles.nowPlayingLabel}>NOW PLAYING</Text>
                   <Text style={styles.nowPlayingTitle} numberOfLines={1}>
                     {nowPlaying.title}
                   </Text>
@@ -326,13 +336,13 @@ export function HomeScreenRedesign() {
                 </View>
                 <WaveformBars />
               </View>
-            </GlassCard>
+            </View>
           </Pressable>
         )}
 
         {/* ── Your Stations ─────────────────────────────────────── */}
         <View style={styles.section}>
-          <SectionLabel style={styles.sectionLabelPadding}>Your Stations</SectionLabel>
+          <Text style={styles.sectionLabelText}>YOUR STATIONS</Text>
           {stations.length > 0 ? (
             <FlatList
               data={stations}
@@ -362,7 +372,7 @@ export function HomeScreenRedesign() {
 
         {/* ── Playlists ─────────────────────────────────────────── */}
         <View style={styles.section}>
-          <SectionLabel style={styles.sectionLabelPadding}>Playlists</SectionLabel>
+          <Text style={styles.sectionLabelText}>PLAYLISTS</Text>
           {playlists.length === 0 && playlistsLoading ? (
             <ActivityIndicator style={{ marginTop: Spacing.lg }} color={Colors.accent} />
           ) : (
@@ -384,14 +394,20 @@ export function HomeScreenRedesign() {
         </View>
 
         {/* ── Cleo Suggestion ───────────────────────────────────── */}
-        <GlassCard style={styles.suggestionCard}>
+        <View style={styles.suggestionCard}>
+          <View style={styles.suggestionGoldEdge} />
           <View style={styles.suggestionInner}>
             <CleoOrb size={40} />
-            <Text style={styles.suggestionText}>
-              "Pick a playlist. I'll do the rest."
-            </Text>
+            <View style={styles.suggestionContent}>
+              <Text style={styles.suggestionLabel}>CLEO SAYS</Text>
+              <Text style={styles.suggestionText}>
+                {stations.length > 0
+                  ? `\u201CReady when you are. Tap a station and let\u2019s go.\u201D`
+                  : `\u201CPick a playlist. I\u2019ll do the rest.\u201D`}
+              </Text>
+            </View>
           </View>
-        </GlassCard>
+        </View>
       </ScrollView>
     </View>
   );
@@ -470,36 +486,65 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     marginBottom: Spacing.lg,
   },
+  greetingLabel: {
+    fontFamily: Typography.mono.family,
+    fontSize: 10,
+    letterSpacing: 2.5,
+    color: Colors.accent,
+    marginBottom: Spacing.sm,
+  },
   greetingTitle: {
     fontFamily: Typography.display.family,
-    fontSize: 28,
+    fontSize: 32,
     color: TextColors.primary,
+  },
+  greetingAccent: {
+    width: 40,
+    height: 2,
+    backgroundColor: Colors.accent,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.sm,
   },
   greetingSubtext: {
     fontFamily: Typography.body.family,
     fontSize: 14,
     color: TextColors.secondary,
-    marginTop: Spacing.xs,
   },
 
   // ── Now Playing Mini ───────────────────────────────────────────────
   nowPlayingCard: {
     marginHorizontal: Spacing.lg,
     marginBottom: Spacing.lg,
+    flexDirection: 'row',
+    backgroundColor: Surface.container,
+    borderRadius: Radius.sm,
+    overflow: 'hidden',
+  },
+  nowPlayingGoldEdge: {
+    width: 2,
+    backgroundColor: Colors.accent,
   },
   nowPlayingInner: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    padding: Spacing.sm,
+    padding: Spacing.sm + 2,
   },
   nowPlayingArt: {
-    width: 44,
-    height: 44,
+    width: 48,
+    height: 48,
     borderRadius: Radius.sm,
   },
   nowPlayingInfo: {
     flex: 1,
     marginHorizontal: Spacing.md,
+  },
+  nowPlayingLabel: {
+    fontFamily: Typography.mono.family,
+    fontSize: 9,
+    letterSpacing: 2,
+    color: Colors.accent,
+    marginBottom: 2,
   },
   nowPlayingTitle: {
     fontFamily: Typography.body.familySemiBold,
@@ -517,7 +562,12 @@ const styles = StyleSheet.create({
   section: {
     marginTop: Spacing.xl,
   },
-  sectionLabelPadding: {
+  sectionLabelText: {
+    fontFamily: Typography.mono.family,
+    fontSize: 10,
+    letterSpacing: 2.5,
+    color: Colors.accent,
+    marginBottom: Spacing.md,
     paddingHorizontal: Spacing.lg,
   },
   listContent: {
@@ -551,18 +601,36 @@ const styles = StyleSheet.create({
   suggestionCard: {
     marginHorizontal: Spacing.lg,
     marginTop: Spacing.xl,
+    flexDirection: 'row',
+    backgroundColor: Surface.container,
+    borderRadius: Radius.sm,
+    overflow: 'hidden',
+  },
+  suggestionGoldEdge: {
+    width: 2,
+    backgroundColor: Colors.accent,
   },
   suggestionInner: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     padding: Spacing.md,
     gap: Spacing.md,
+  },
+  suggestionContent: {
+    flex: 1,
+  },
+  suggestionLabel: {
+    fontFamily: Typography.mono.family,
+    fontSize: 9,
+    letterSpacing: 2,
+    color: Colors.accent,
+    marginBottom: Spacing.xs,
   },
   suggestionText: {
     fontFamily: Typography.cleoVoice.family,
     fontStyle: 'italic',
     fontSize: 16,
     color: TextColors.secondary,
-    flex: 1,
   },
 });

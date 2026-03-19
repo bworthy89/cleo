@@ -25,15 +25,23 @@ export default function WelcomeScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <Text style={styles.title}>CLEO</Text>
-        <Text style={styles.tagline}>Every song has a story. I'm just here to tell it.</Text>
+        <Text style={styles.logo}>CLEO</Text>
+        <View style={styles.accentLine} />
+        <Text style={styles.tagline}>
+          Every song has a story.{'\n'}I'm just here to tell it.
+        </Text>
         <Animated.Text style={[styles.description, { opacity: descOpacity }]}>
-          Your personal AI radio host. I'll play your music, share the stories behind the songs, and make every session feel like it was made just for you.
+          Your personal AI radio host. I curate frequencies that match your soul's current wavelength.
         </Animated.Text>
       </View>
       <Animated.View style={[styles.bottom, { opacity: buttonOpacity }]}>
-        <Pressable style={styles.button} onPress={() => router.push('/(onboarding)/music-auth')}>
-          <Text style={styles.buttonText}>GET STARTED</Text>
+        <Pressable
+          style={({ pressed }) => [styles.button, pressed && styles.pressed]}
+          onPress={() => router.push('/(onboarding)/music-auth')}
+          accessibilityLabel="Continue to setup"
+          accessibilityRole="button"
+        >
+          <Text style={styles.buttonText}>TUNE IN</Text>
         </Pressable>
       </Animated.View>
     </SafeAreaView>
@@ -41,32 +49,59 @@ export default function WelcomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Surface.base },
-  content: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: Spacing.xl },
-  title: {
+  container: {
+    flex: 1,
+    backgroundColor: Surface.base,
+  },
+  content: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.lg,
+  },
+  logo: {
     fontFamily: Typography.display.family,
-    fontSize: 72,
+    fontSize: 56,
     color: TextColors.primary,
-    letterSpacing: 2.7,
-    marginBottom: Spacing.lg,
+    letterSpacing: 6,
+  },
+  accentLine: {
+    width: 40,
+    height: 2,
+    backgroundColor: Colors.accent,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.xl,
   },
   tagline: {
     fontFamily: Typography.cleoVoice.family,
     fontStyle: 'italic',
-    fontSize: 18,
+    fontSize: 22,
     color: Colors.accent,
-    textAlign: 'center',
+    lineHeight: 32,
     marginBottom: Spacing.md,
   },
   description: {
     fontFamily: Typography.body.family,
-    fontSize: 16,
+    fontSize: 15,
     color: TextColors.secondary,
-    textAlign: 'center',
-    lineHeight: 24,
-    marginTop: Spacing.md,
+    lineHeight: 22,
   },
-  bottom: { paddingHorizontal: Spacing.xl, paddingBottom: Spacing.xxl },
-  button: { backgroundColor: Colors.accent, paddingVertical: Spacing.md, alignItems: 'center' },
-  buttonText: { fontFamily: Typography.mono.family, fontSize: 12, color: Colors.base.black, letterSpacing: 1.5 },
+  bottom: {
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.xxl,
+  },
+  button: {
+    borderWidth: 1,
+    borderColor: Colors.accent,
+    paddingVertical: Spacing.md,
+    alignItems: 'center',
+  },
+  buttonText: {
+    fontFamily: Typography.mono.family,
+    fontSize: 12,
+    color: Colors.accent,
+    letterSpacing: 3,
+  },
+  pressed: {
+    opacity: 0.7,
+  },
 });
