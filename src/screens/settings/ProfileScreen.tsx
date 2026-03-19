@@ -1,15 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Switch } from 'react-native';
+import { Alert, View, Text, ScrollView, StyleSheet, Pressable, Switch } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import auth from '@react-native-firebase/auth';
 import { router } from 'expo-router';
 import {
-  Colors, Surface, TextColors, Typography, Glass, Spacing, Radius, Opacity, withAlpha, AppHeaderTokens,
+  Colors, Surface, TextColors, Typography, Spacing, Radius, withAlpha, AppHeaderTokens,
 } from '../../tokens/design-tokens';
 import { AppHeader } from '../../components/AppHeader';
-import { SectionLabel } from '../../components/SectionLabel';
 import { storage } from '../../services/Storage';
 import { signOut } from '../../services/AuthService';
 import { musicKitPlayer } from '../../services/MusicKitPlayer';
@@ -70,13 +69,26 @@ export function ProfileScreen() {
     storage.set('cleoPersonality', personality);
   };
 
-  const handleSignOut = async () => {
-    try {
-      await signOut();
-      router.replace('/(auth)/login');
-    } catch {
-      // sign-out failed — stay on screen
-    }
+  const handleSignOut = () => {
+    Alert.alert(
+      'Sign Out',
+      'Are you sure you want to sign out?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign Out',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await signOut();
+              router.replace('/(auth)/login');
+            } catch {
+              // sign-out failed — stay on screen
+            }
+          },
+        },
+      ],
+    );
   };
 
   const displayName = firebaseUser?.displayName ?? 'Listener';
@@ -103,7 +115,7 @@ export function ProfileScreen() {
             style={styles.avatarRing}
           >
             <View style={styles.avatarInner}>
-              {firebaseUser?.photoURL ? (
+              {displayName !== 'Listener' ? (
                 <Text style={styles.avatarInitial}>{initial}</Text>
               ) : (
                 <Ionicons name="person" size={36} color={TextColors.outline} />
@@ -116,39 +128,45 @@ export function ProfileScreen() {
 
         {/* ── AI Personality ── */}
         <View style={styles.section}>
-          <SectionLabel>AI Personality</SectionLabel>
+          <Text style={styles.sectionLabel}>AI PERSONALITY</Text>
           {PERSONALITIES.map((p) => {
             const isSelected = selectedPersonality === p.key;
             return (
-              <TouchableOpacity
+              <Pressable
                 key={p.key}
-                activeOpacity={0.7}
                 onPress={() => handlePersonalityChange(p.key)}
-                style={[
-                  styles.personalityCard,
-                  { backgroundColor: isSelected ? Glass.panel.bg : Surface.low },
-                ]}
+                style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+                accessibilityLabel={`${p.label}: ${p.description}${isSelected ? ', selected' : ''}`}
+                accessibilityRole="radio"
               >
-                <View style={styles.personalityLeft}>
-                  <View style={[styles.radioOuter, isSelected && styles.radioOuterSelected]}>
-                    {isSelected && <View style={styles.radioDot} />}
-                  </View>
-                  <View style={styles.personalityText}>
-                    <View style={styles.personalityLabelRow}>
-                      <Ionicons name={p.icon} size={16} color={p.iconColor} style={styles.personalityIcon} />
-                      <Text style={styles.personalityLabel}>{p.label}</Text>
+                <View style={[
+                  styles.personalityCard,
+                  isSelected && styles.personalityCardSelected,
+                ]}>
+                  <View style={styles.personalityLeft}>
+                    <View style={[styles.radioOuter, isSelected && styles.radioOuterSelected]}>
+                      {isSelected && <View style={styles.radioDot} />}
                     </View>
-                    <Text style={styles.personalityDesc}>{p.description}</Text>
+                    <View style={styles.personalityText}>
+                      <View style={styles.personalityLabelRow}>
+                        <Ionicons name={p.icon} size={16} color={p.iconColor} style={styles.personalityIcon} />
+                        <Text style={[
+                          styles.personalityLabel,
+                          isSelected && styles.personalityLabelSelected,
+                        ]}>{p.label}</Text>
+                      </View>
+                      <Text style={styles.personalityDesc}>{p.description}</Text>
+                    </View>
                   </View>
                 </View>
-              </TouchableOpacity>
+              </Pressable>
             );
           })}
         </View>
 
         {/* ── Connected Ecosystem ── */}
         <View style={styles.section}>
-          <SectionLabel>Connected Ecosystem</SectionLabel>
+          <Text style={styles.sectionLabel}>CONNECTED ECOSYSTEM</Text>
           <View style={styles.ecosystemCard}>
             <View style={styles.ecosystemRow}>
               <Ionicons name="musical-note" size={20} color={Colors.accent} />
@@ -170,7 +188,7 @@ export function ProfileScreen() {
 
         {/* ── Voice Profile ── */}
         <View style={styles.section}>
-          <SectionLabel>Voice Profile</SectionLabel>
+          <Text style={styles.sectionLabel}>VOICE PROFILE</Text>
 
           {/* Audio Fidelity */}
           <View style={styles.sliderRow}>
@@ -203,17 +221,26 @@ export function ProfileScreen() {
 
         {/* ── Account ── */}
         <View style={styles.section}>
-          <SectionLabel>Account</SectionLabel>
+          <Text style={styles.sectionLabel}>ACCOUNT</Text>
 
-          <TouchableOpacity style={styles.accountRow} activeOpacity={0.7}>
+          <Pressable
+            style={({ pressed }) => [styles.accountRow, pressed && { opacity: 0.7 }]}
+            accessibilityLabel="Manage Subscription"
+            accessibilityRole="button"
+          >
             <Text style={styles.accountRowText}>Manage Subscription</Text>
             <Ionicons name="chevron-forward" size={18} color={TextColors.outline} />
-          </TouchableOpacity>
+          </Pressable>
 
-          <TouchableOpacity style={styles.accountRow} activeOpacity={0.7} onPress={handleSignOut}>
+          <Pressable
+            style={({ pressed }) => [styles.accountRow, pressed && { opacity: 0.7 }]}
+            onPress={handleSignOut}
+            accessibilityLabel="Sign out"
+            accessibilityRole="button"
+          >
             <Text style={[styles.accountRowText, { color: Colors.error }]}>Sign Out</Text>
             <Ionicons name="chevron-forward" size={18} color={Colors.error} />
-          </TouchableOpacity>
+          </Pressable>
         </View>
 
         <View style={{ height: insets.bottom + 100 }} />
@@ -235,6 +262,15 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: Spacing.lg,
+  },
+
+  // Section label
+  sectionLabel: {
+    fontFamily: Typography.mono.family,
+    fontSize: 10,
+    letterSpacing: 2.5,
+    color: Colors.accent,
+    marginBottom: Spacing.md,
   },
 
   // Profile Header
@@ -285,10 +321,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: Spacing.md,
-    borderRadius: Radius.md,
+    borderRadius: Radius.sm,
     marginBottom: Spacing.sm,
+    backgroundColor: Surface.container,
     borderWidth: 1,
-    borderColor: Glass.borderSubtle,
+    borderColor: 'transparent',
+  },
+  personalityCardSelected: {
+    borderColor: Colors.accent,
+    backgroundColor: withAlpha(Colors.accent, 0.08),
   },
   personalityLeft: {
     flexDirection: 'row',
@@ -300,7 +341,7 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 10,
     borderWidth: 2,
-    borderColor: TextColors.outline,
+    borderColor: TextColors.outlineVariant,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: Spacing.md,
@@ -330,20 +371,21 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: TextColors.primary,
   },
+  personalityLabelSelected: {
+    color: Colors.accent,
+  },
   personalityDesc: {
     fontFamily: Typography.body.family,
     fontSize: 12,
-    color: TextColors.secondary,
+    color: TextColors.outline,
     lineHeight: 17,
   },
 
   // Connected Ecosystem
   ecosystemCard: {
-    backgroundColor: Surface.low,
-    borderRadius: Radius.md,
+    backgroundColor: Surface.container,
+    borderRadius: Radius.sm,
     padding: Spacing.md,
-    borderWidth: 1,
-    borderColor: Glass.borderSubtle,
   },
   ecosystemRow: {
     flexDirection: 'row',
@@ -419,12 +461,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: Surface.low,
+    backgroundColor: Surface.container,
     padding: Spacing.md,
-    borderRadius: Radius.md,
+    borderRadius: Radius.sm,
     marginBottom: Spacing.sm,
-    borderWidth: 1,
-    borderColor: Glass.borderSubtle,
   },
   accountRowText: {
     fontFamily: Typography.body.familyMedium,
