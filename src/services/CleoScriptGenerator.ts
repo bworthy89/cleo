@@ -1,6 +1,6 @@
 import { CLEO_STATIC_CORE } from '../cleo/static-core';
 import { getFallbackLine, type SegmentType, type Vibe } from '../cleo/fallbacks';
-import { API_BASE_URL } from './api';
+import { authenticatedFetch } from './api';
 import type { EnrichedFacts } from './TrackEnrichmentService';
 
 export type DeliveryMode = 'pre_song' | 'post_song';
@@ -187,9 +187,8 @@ export async function generateSegment(context: SegmentContext): Promise<string> 
     const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
     console.log('[CleoScript] Calling Gemini for segment:', context.segmentType, `(${context.deliveryMode})`);
-    const response = await fetch(`${API_BASE_URL}/generate-segment`, {
+    const response = await authenticatedFetch('/generate-segment', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         systemPrompt: CLEO_STATIC_CORE,
         userPrompt,
