@@ -32,10 +32,12 @@ import { AppHeader } from '../../components/AppHeader';
 import { WaveformBars } from '../../components/WaveformBars';
 import { CleoOrb } from '../../components/CleoOrb';
 import { StationCard } from '../../components/StationCard';
+import { VibePicker } from '../../components/VibePicker';
 import { musicKitPlayer } from '../../services/MusicKitPlayer';
 import type { Vibe } from '../../cleo/fallbacks';
 import {
   getStations,
+  setStations as persistStations,
   addStation,
   addRecentlyPlayedTrack,
   getCachedPlaylists,
@@ -144,6 +146,7 @@ export function HomeScreenRedesign() {
   const [nowPlaying, setNowPlaying] = useState<NowPlayingInfo | null>(null);
   const [playlistsLoading, setPlaylistsLoading] = useState(true);
   const [activeStation, setActiveStation] = useState<Station | null>(null);
+  const [pickerStation, setPickerStation] = useState<Station | null>(null);
 
   // ── Auth check ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -227,33 +230,37 @@ export function HomeScreenRedesign() {
         setStations(getStations());
       }
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-      setActiveStation(station);
-      router.push({
-        pathname: '/(main)/(broadcast)/player',
-        params: {
-          stationName: station.name,
-          playlistId: station.playlistId,
-          stationId: station.id,
-          vibe: (station.defaultVibe as Vibe) ?? 'chill',
-        },
-      });
+      setPickerStation(station);
     },
     [stations],
   );
 
-  const handleStationPress = useCallback(async (station: Station) => {
+  const handleStationPress = useCallback((station: Station) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-    setActiveStation(station);
+    setPickerStation(station);
+  }, []);
+
+  const handleVibeSelected = useCallback((vibe: Vibe) => {
+    if (!pickerStation) return;
+    // Update station's default vibe in storage
+    const updated = getStations().map((s) =>
+      s.id === pickerStation.id ? { ...s, defaultVibe: vibe } : s,
+    );
+    setStations(updated);
+    persistStations(updated);
+
+    setActiveStation({ ...pickerStation, defaultVibe: vibe });
+    setPickerStation(null);
     router.push({
       pathname: '/(main)/(broadcast)/player',
       params: {
-        stationName: station.name,
-        playlistId: station.playlistId,
-        stationId: station.id,
-        vibe: (station.defaultVibe as Vibe) ?? 'chill',
+        stationName: pickerStation.name,
+        playlistId: pickerStation.playlistId,
+        stationId: pickerStation.id,
+        vibe,
       },
     });
-  }, []);
+  }, [pickerStation]);
 
   const handleNowPlayingPress = useCallback(() => {
     if (!activeStation) return;
@@ -409,6 +416,16 @@ export function HomeScreenRedesign() {
           </View>
         </View>
       </ScrollView>
+
+      {/* Vibe Picker */}
+      <VibePicker
+        visible={pickerStation !== null}
+        stationName={pickerStation?.name ?? ''}
+        artworkUrl={pickerStation?.artworkUrl}
+        currentVibe={(pickerStation?.defaultVibe as Vibe) ?? 'morning'}
+        onSelect={handleVibeSelected}
+        onDismiss={() => setPickerStation(null)}
+      />
     </View>
   );
 }
