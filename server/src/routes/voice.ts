@@ -8,6 +8,7 @@ async function callElevenLabs(
   apiKey: string,
   voiceId: string,
   timeoutMs: number,
+  voiceSettings: { stability: number; style: number; speed: number },
   pronunciationConfig?: object[]
 ): Promise<ArrayBuffer> {
   const controller = new AbortController();
@@ -26,10 +27,11 @@ async function callElevenLabs(
           text,
           model_id: modelId,
           voice_settings: {
-            stability: 0.35,
+            stability: voiceSettings.stability,
             similarity_boost: 0.80,
-            style: 0.55,
+            style: voiceSettings.style,
             use_speaker_boost: true,
+            speed: voiceSettings.speed,
           },
           pronunciation_dictionary_locators: pronunciationConfig,
         }),
@@ -50,7 +52,7 @@ async function callElevenLabs(
 
 voiceRouter.post('/synthesize-voice', async (req: Request, res: Response) => {
   try {
-    const { text } = req.body;
+    const { text, stability, style, speed } = req.body;
     const wordCount = text?.split(/\s+/).length ?? 0;
     console.log(`[TTS] Received ${wordCount} words (${text?.length ?? 0} chars): "${text?.substring(0, 100)}..."`);
 
@@ -74,12 +76,19 @@ voiceRouter.post('/synthesize-voice', async (req: Request, res: Response) => {
       },
     ] : undefined;
 
-    const arrayBuffer = await callElevenLabs(text, 'eleven_turbo_v2_5', apiKey, voiceId, 10000, pronunciationConfig);
-    const modelUsed = 'eleven_turbo_v2_5';
+    const voiceSettings = {
+      stability: typeof stability === 'number' ? stability : 0.35,
+      style: typeof style === 'number' ? style : 0.55,
+      speed: typeof speed === 'number' ? speed : 1.0,
+    };
+
+    console.log(`[TTS] Voice settings: stability=${voiceSettings.stability}, style=${voiceSettings.style}, speed=${voiceSettings.speed}`);
+
+    const arrayBuffer = await callElevenLabs(text, 'eleven_turbo_v2_5', apiKey, voiceId, 20000, voiceSettings, pronunciationConfig);
 
     const audioSizeKB = Math.round(arrayBuffer.byteLength / 1024);
     const estimatedDurationS = Math.round(arrayBuffer.byteLength / 16000);
-    console.log(`[TTS] Model: ${modelUsed} | Audio: ${audioSizeKB}KB (~${estimatedDurationS}s), ${wordCount} words`);
+    console.log(`[TTS] Audio: ${audioSizeKB}KB (~${estimatedDurationS}s), ${wordCount} words`);
     const base64Audio = Buffer.from(arrayBuffer).toString('base64');
 
     res.json({ audioContent: base64Audio });

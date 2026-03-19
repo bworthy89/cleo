@@ -1,5 +1,54 @@
 import { playAudioFromBase64 } from '../../modules/expo-music-kit';
 import { authenticatedFetch } from './api';
+import type { Vibe } from '../cleo/fallbacks';
+
+interface VoiceProfile {
+  stability: number;
+  style: number;
+  speed: number;
+}
+
+const VIBE_VOICE_PROFILES: Record<Vibe, VoiceProfile> = {
+  morning:    { stability: 0.40, style: 0.50, speed: 1.0 },
+  chill:      { stability: 0.30, style: 0.45, speed: 0.95 },
+  workout:    { stability: 0.45, style: 0.65, speed: 1.08 },
+  lateNight:  { stability: 0.25, style: 0.40, speed: 0.92 },
+  party:      { stability: 0.50, style: 0.70, speed: 1.05 },
+  focus:      { stability: 0.50, style: 0.35, speed: 0.98 },
+  feelGood:   { stability: 0.35, style: 0.60, speed: 1.02 },
+  throwback:  { stability: 0.35, style: 0.55, speed: 0.98 },
+  elevated:   { stability: 0.30, style: 0.50, speed: 0.95 },
+  melancholy: { stability: 0.25, style: 0.40, speed: 0.93 },
+  sunday:     { stability: 0.30, style: 0.45, speed: 0.93 },
+  general:    { stability: 0.35, style: 0.55, speed: 1.0 },
+};
+
+type DeliveryCue = 'warm' | 'hype' | 'quiet' | 'playful' | 'reflective' | 'matter-of-fact';
+
+const DELIVERY_CUE_NUDGES: Record<DeliveryCue, Partial<VoiceProfile>> = {
+  'warm':           { stability: -0.05 },
+  'hype':           { style: 0.10 },
+  'quiet':          { speed: -0.03 },
+  'playful':        { style: 0.05, stability: -0.05 },
+  'reflective':     { speed: -0.02, stability: -0.05 },
+  'matter-of-fact': { stability: 0.05 },
+};
+
+function parseDeliveryCue(text: string): { cue: DeliveryCue | null; cleanText: string } {
+  const match = text.match(/^\[(warm|hype|quiet|playful|reflective|matter-of-fact)\]\s*/);
+  if (!match) return { cue: null, cleanText: text };
+  return { cue: match[1] as DeliveryCue, cleanText: text.slice(match[0].length) };
+}
+
+function resolveVoiceParams(vibe: Vibe, cue: DeliveryCue | null): VoiceProfile {
+  const base = { ...VIBE_VOICE_PROFILES[vibe] };
+  if (!cue) return base;
+  const nudge = DELIVERY_CUE_NUDGES[cue];
+  if (nudge.stability) base.stability = Math.max(0, Math.min(1, base.stability + nudge.stability));
+  if (nudge.style) base.style = Math.max(0, Math.min(1, base.style + nudge.style));
+  if (nudge.speed) base.speed = Math.max(0.5, Math.min(2, base.speed + nudge.speed));
+  return base;
+}
 
 /**
  * Post-process Gemini output for natural ElevenLabs delivery.
@@ -108,15 +157,28 @@ function formatForSpeech(text: string): string {
   return addBreathMarks(withEmDashes);
 }
 
-export async function synthesizeAndPlay(text: string): Promise<void> {
+/**
+ * Synthesize text to audio without playing it. Returns base64 audio data.
+ * Used for pre-generation — synthesize while current track is still playing,
+ * then play the cached audio instantly when the track changes.
+ */
+export async function synthesize(text: string, vibe: Vibe = 'general'): Promise<string | null> {
   try {
-    const formatted = formatForSpeech(text);
+    const { cue, cleanText } = parseDeliveryCue(text);
+    const formatted = formatForSpeech(cleanText);
+    const voiceParams = resolveVoiceParams(vibe, cue);
+
     const wordCount = formatted.split(/\s+/).length;
-    console.log(`[CleoVoice] Sending ${wordCount} words (${formatted.length} chars) to TTS: "${formatted.substring(0, 80)}..."`);
+    console.log(`[CleoVoice] Synthesizing ${wordCount} words, vibe: ${vibe}, cue: ${cue ?? 'none'}`);
 
     const response = await authenticatedFetch('/synthesize-voice', {
       method: 'POST',
-      body: JSON.stringify({ text: formatted }),
+      body: JSON.stringify({
+        text: formatted,
+        stability: voiceParams.stability,
+        style: voiceParams.style,
+        speed: voiceParams.speed,
+      }),
     });
 
     if (!response.ok) {
@@ -131,8 +193,29 @@ export async function synthesizeAndPlay(text: string): Promise<void> {
     }
 
     const audioSizeKB = Math.round((base64Audio.length * 3 / 4) / 1024);
-    console.log(`[CleoVoice] Audio received: ${audioSizeKB}KB`);
+    console.log(`[CleoVoice] Audio synthesized: ${audioSizeKB}KB`);
+    return base64Audio;
+  } catch (error) {
+    console.error('Voice synthesis failed:', error);
+    return null;
+  }
+}
 
+/**
+ * Play pre-synthesized base64 audio.
+ */
+export async function playCachedAudio(base64Audio: string): Promise<void> {
+  await playAudioFromBase64(base64Audio);
+  console.log(`[CleoVoice] Cached audio playback finished`);
+}
+
+/**
+ * Synthesize and immediately play. Convenience wrapper for non-pregenerated segments.
+ */
+export async function synthesizeAndPlay(text: string, vibe: Vibe = 'general'): Promise<void> {
+  try {
+    const base64Audio = await synthesize(text, vibe);
+    if (!base64Audio) return;
     await playAudioFromBase64(base64Audio);
     console.log(`[CleoVoice] Playback finished`);
   } catch (error) {

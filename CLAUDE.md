@@ -287,7 +287,7 @@ ELEVENLABS_VOICE_ID
 
 ## Known Issues & Gotchas
 
-- **Gemini token budget**: `maxOutputTokens` covers thinking + response tokens. At 1024, Gemini cuts off mid-sentence. Must be 8192+.
+- **Gemini token budget**: `thinkingBudget` is set to 0 (disabled) for segment generation since creative scripts don't need chain-of-thought. With thinking disabled, `maxOutputTokens` of 2048 is sufficient. For QueuePlanner (which needs reasoning), `maxOutputTokens` should remain 8192+.
 - **Crossfade audio session**: Never call `setActive(false)` while AVAudioPlayer is playing — it kills the audio. Use `setCategory` to remove `duckOthers` instead.
 - **MusicKit entitlement**: `com.apple.developer.musickit` is NOT valid in entitlements plist. Remove it if it appears — MusicKit works via Info.plist usage description.
 - **rsync overwrites**: rsync from source repo can overwrite Xcode project changes (signing, entitlements). Exclude `ios/` directory or verify after sync.
