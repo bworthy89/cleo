@@ -36,6 +36,7 @@ import { WaveformBars } from '../../components/WaveformBars';
 import { CleoSpeakingOverlay } from '../../components/CleoSpeakingOverlay';
 import { CleoOrb } from '../../components/CleoOrb';
 import { SectionLabel } from '../../components/SectionLabel';
+import { router } from 'expo-router';
 import { musicKitPlayer } from '../../services/MusicKitPlayer';
 import { audioCoordinator } from '../../engines/AudioCoordinator';
 import { segmentController } from '../../engines/SegmentController';
@@ -234,7 +235,13 @@ export function BroadcastScreen({
 
   return (
     <View style={styles.container}>
-      <AppHeader />
+      <AppHeader
+        leftContent={
+          <Pressable onPress={() => router.back()} hitSlop={12} style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}>
+            <Ionicons name="chevron-back" size={22} color={TextColors.primary} />
+          </Pressable>
+        }
+      />
 
       <Animated.View style={[{ flex: 1 }, { opacity: contentDim }]}>
       <ScrollView
