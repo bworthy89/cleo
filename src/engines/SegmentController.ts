@@ -4,6 +4,8 @@ import { getColdOpen } from '../cleo/cold-opens';
 import type { EnrichedFacts } from '../services/TrackEnrichmentService';
 import { saveSessionMemory, loadSessionMemory, getTimeSinceLastSession, incrementSessionCount } from '../services/SessionMemory';
 
+export type LengthTier = 'brief' | 'standard' | 'extended';
+
 // DeliveryMode is defined and exported from CleoScriptGenerator — re-export for consumers
 export type { DeliveryMode } from '../services/CleoScriptGenerator';
 
@@ -66,6 +68,9 @@ class SegmentControllerEngine {
   private tracksReferenced: string[] = [];
   private sessionMemory: ReturnType<typeof loadSessionMemory> = null;
   private currentStationId = '';
+  private segmentsSinceExtended = 0;
+  private consecutiveSpokenSegments = 0;
+  private lastWasMidSongDrop = false;
 
   setVibe(vibe: Vibe) {
     this.currentVibe = vibe;
@@ -87,6 +92,9 @@ class SegmentControllerEngine {
     this.lastDeliveryMode = 'pre_song';
     this.consecutivePreSong = 0;
     this.tracksReferenced = [];
+    this.segmentsSinceExtended = 0;
+    this.consecutiveSpokenSegments = 0;
+    this.lastWasMidSongDrop = false;
 
     if (stationId) this.currentStationId = stationId;
     if (vibe) this.currentVibe = vibe;
@@ -141,23 +149,94 @@ class SegmentControllerEngine {
     }
   }
 
+  private determineLengthTier(segmentType: SegmentType, track: TrackInfo, isManualSkip?: boolean): LengthTier {
+    if (isManualSkip) return 'brief';
+    if (segmentType === 'station_id') return 'brief';
+
+    const neverExtendedVibes: Vibe[] = ['focus', 'workout'];
+    if (neverExtendedVibes.includes(this.currentVibe)) return 'standard';
+
+    // Cooldown after extended: next 2 segments are standard
+    if (this.segmentsSinceExtended > 0 && this.segmentsSinceExtended < 3) return 'standard';
+
+    // Extended triggers — only if enough segments since last extended
+    if (this.segmentsSinceExtended >= 4) {
+      if (segmentType === 'track_story' && track.hasRichData) return 'extended';
+      if (segmentType === 'genre_bridge') return 'extended';
+    }
+
+    return 'standard';
+  }
+
+  shouldStaySilent(): boolean {
+    // After mid-song drop, suppress next pre_song
+    if (this.lastWasMidSongDrop) {
+      this.lastWasMidSongDrop = false;
+      return true;
+    }
+
+    const highSilenceVibes: Vibe[] = ['focus', 'workout'];
+    const silenceChance = highSilenceVibes.includes(this.currentVibe) ? 0.4 : 0.3;
+
+    if (this.consecutiveSpokenSegments >= 3 && Math.random() < silenceChance) {
+      this.consecutiveSpokenSegments = 0;
+      return true;
+    }
+
+    return false;
+  }
+
+  markMidSongDropCompleted() {
+    this.lastWasMidSongDrop = true;
+  }
+
+  private applyDataOverride(baseType: SegmentType, track: TrackInfo, previousTrack?: TrackInfo): SegmentType {
+    if (track.hasRichData && baseType !== 'track_story' &&
+        (baseType === 'artist_context' || baseType === 'song_intro')) {
+      const recentHistory = this.history.slice(0, 3).join(' ');
+      if (!recentHistory.includes('track_story')) {
+        return 'track_story';
+      }
+    }
+
+    if (previousTrack && track.enrichedFacts?.tags?.length && baseType === 'song_intro') {
+      const prevTags = new Set(previousTrack.enrichedFacts?.tags ?? []);
+      const currTags = track.enrichedFacts.tags;
+      if (prevTags.size > 0) {
+        const overlap = currTags.filter(t => prevTags.has(t)).length;
+        if (overlap / Math.max(prevTags.size, currTags.length) < 0.3) {
+          return 'genre_bridge';
+        }
+      }
+    }
+
+    return baseType;
+  }
+
   async generateNext(
     currentTrack: TrackInfo,
     nextTrack?: TrackInfo,
-    previousTrack?: TrackInfo
-  ): Promise<SegmentResult> {
+    previousTrack?: TrackInfo,
+    isManualSkip?: boolean
+  ): Promise<SegmentResult | null> {
     // Cold open for first segment — always pre_song
     if (this.segmentCount === 0) {
       const text = getColdOpen(this.currentVibe);
       this.history.unshift(text);
       if (this.history.length > 3) this.history.pop();
       this.segmentCount++;
+      this.consecutiveSpokenSegments++;
       this.addToTracksReferenced(currentTrack.artistName);
       return { text, type: 'song_intro', deliveryMode: 'pre_song' };
     }
 
-    // Discard any buffered segment — prompts now bake in track names,
-    // so preloaded text would reference the wrong track
+    // Skip-some-tracks: let the music breathe
+    if (this.shouldStaySilent()) {
+      console.log('[SegmentController] Staying silent — letting music breathe');
+      return null;
+    }
+
+    // Discard any buffered segment
     this.bufferedSegment = null;
 
     let segmentType = this.getNextSegmentType();
@@ -167,7 +246,11 @@ class SegmentControllerEngine {
       segmentType = 'artist_context';
     }
 
+    // Data-informed override
+    segmentType = this.applyDataOverride(segmentType, currentTrack, previousTrack);
+
     const deliveryMode = this.getDeliveryMode(segmentType);
+    const lengthTier = this.determineLengthTier(segmentType, currentTrack, isManualSkip);
 
     const context: SegmentContext = {
       segmentType,
@@ -183,6 +266,7 @@ class SegmentControllerEngine {
       enrichedFacts: currentTrack.enrichedFacts,
       tracksReferenced: [...this.tracksReferenced],
       previousSession: this.buildPreviousSession(),
+      maxWords: lengthTier === 'brief' ? 30 : lengthTier === 'extended' ? 130 : 75,
     };
 
     const text = await generateSegment(context);
@@ -190,9 +274,11 @@ class SegmentControllerEngine {
     this.history.unshift(text);
     if (this.history.length > 3) this.history.pop();
     this.segmentCount++;
+    this.segmentsSinceExtended = lengthTier === 'extended' ? 0 : this.segmentsSinceExtended + 1;
+    this.consecutiveSpokenSegments++;
+    this.lastWasMidSongDrop = false;
     this.addToTracksReferenced(currentTrack.artistName);
 
-    // Persist session context for cross-session continuity
     saveSessionMemory({
       lastTrackTitle: currentTrack.title,
       lastArtistName: currentTrack.artistName,

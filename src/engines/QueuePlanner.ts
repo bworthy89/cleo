@@ -106,7 +106,7 @@ Include ALL tracks. Every track must appear exactly once. Order them to create t
   try {
     const response = await authenticatedFetch('/generate-segment', {
       method: 'POST',
-      body: JSON.stringify({ systemPrompt, userPrompt, maxTokens: 8192 }),
+      body: JSON.stringify({ systemPrompt, userPrompt, maxTokens: 8192, thinkingBudget: 4096 }),
     });
 
     if (!response.ok) throw new Error(`Queue planning failed: ${response.status}`);
