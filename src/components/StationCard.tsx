@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Animated, Image, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Colors, Typography, Spacing, Tracking, Shadow } from '../tokens/design-tokens';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Colors, Surface, TextColors, Typography, Spacing, Radius, Shadow } from '../tokens/design-tokens';
 
 interface StationCardProps {
   name: string;
@@ -10,12 +11,11 @@ interface StationCardProps {
   onPress: () => void;
 }
 
-const DEFAULT_WIDTH = 160;
+const DEFAULT_WIDTH = 140;
 
 export function StationCard({ name, artworkUrl, accentColor, width, onPress }: StationCardProps) {
   const cardWidth = width ?? DEFAULT_WIDTH;
-  const cardHeight = cardWidth * 1.5;
-  const accent = accentColor ?? Colors.accent;
+  const cardHeight = Math.round(cardWidth * 1.43);
   const shimmerAnim = useRef(new Animated.Value(0.3)).current;
 
   // Shimmer animation when no artwork
@@ -34,7 +34,7 @@ export function StationCard({ name, artworkUrl, accentColor, width, onPress }: S
   return (
     <Pressable
       style={({ pressed }) => [
-        { width: cardWidth, height: cardHeight },
+        { width: cardWidth, height: cardHeight, borderRadius: Radius.lg },
         styles.card,
         pressed && styles.cardPressed,
       ]}
@@ -43,14 +43,22 @@ export function StationCard({ name, artworkUrl, accentColor, width, onPress }: S
       accessibilityRole="button"
     >
       {artworkUrl ? (
-        <Image source={{ uri: artworkUrl }} style={styles.artwork} />
+        <Image source={{ uri: artworkUrl }} style={[styles.artwork, { borderRadius: Radius.lg }]} />
       ) : (
-        <Animated.View style={[styles.artwork, styles.placeholder, { opacity: shimmerAnim }]} />
+        <Animated.View
+          style={[
+            styles.artwork,
+            { borderRadius: Radius.lg, backgroundColor: Surface.high, opacity: shimmerAnim },
+          ]}
+        />
       )}
+      <LinearGradient
+        colors={['transparent', 'rgba(0,0,0,0.7)']}
+        style={[styles.gradient, { borderRadius: Radius.lg }]}
+      />
       <Text style={styles.label} numberOfLines={2}>
         {name}
       </Text>
-      <View style={[styles.accentLine, { backgroundColor: accent }]} />
     </Pressable>
   );
 }
@@ -69,29 +77,24 @@ const styles = StyleSheet.create({
     height: '100%',
     position: 'absolute',
   },
-  placeholder: {
-    backgroundColor: Colors.base.black,
+  gradient: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '60%',
   },
   label: {
     position: 'absolute',
     bottom: Spacing.sm + 2,
     left: Spacing.sm,
     right: Spacing.sm,
-    fontFamily: Typography.mono.family,
-    fontSize: 11,
-    color: Colors.base.white,
-    textTransform: 'uppercase',
-    letterSpacing: Tracking.normal,
-    lineHeight: 15,
+    fontFamily: Typography.display.family,
+    fontSize: 14,
+    color: TextColors.primary,
+    lineHeight: 18,
     textShadowColor: `rgba(0,0,0,${Shadow.text.opacity})`,
     textShadowOffset: Shadow.text.offset,
     textShadowRadius: Shadow.text.radius,
-  },
-  accentLine: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 2,
   },
 });

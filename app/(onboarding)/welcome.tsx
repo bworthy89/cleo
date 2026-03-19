@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { Colors, Typography, Spacing, Tracking } from '../../src/tokens/design-tokens';
-import { WordByWordSubtitle } from '../../src/components/WordByWordSubtitle';
+import { Colors, Surface, TextColors, Typography, Spacing } from '../../src/tokens/design-tokens';
 
 export default function WelcomeScreen() {
   const [taglineDone, setTaglineDone] = useState(false);
@@ -27,11 +26,7 @@ export default function WelcomeScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         <Text style={styles.title}>CLEO</Text>
-        <WordByWordSubtitle
-          text="Every song has a story. I'm just here to tell it."
-          visible={true}
-          accentColor={Colors.accent}
-        />
+        <Text style={styles.tagline}>Every song has a story. I'm just here to tell it.</Text>
         <Animated.Text style={[styles.description, { opacity: descOpacity }]}>
           Your personal AI radio host. I'll play your music, share the stories behind the songs, and make every session feel like it was made just for you.
         </Animated.Text>
@@ -46,25 +41,32 @@ export default function WelcomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.vibe.morning.bg },
+  container: { flex: 1, backgroundColor: Surface.base },
   content: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: Spacing.xl },
   title: {
     fontFamily: Typography.display.family,
     fontSize: 72,
-    color: Colors.vibe.morning.text,
-    letterSpacing: Tracking.ultra,
+    color: TextColors.primary,
+    letterSpacing: 2.7,
     marginBottom: Spacing.lg,
   },
+  tagline: {
+    fontFamily: Typography.cleoVoice.family,
+    fontStyle: 'italic',
+    fontSize: 18,
+    color: Colors.accent,
+    textAlign: 'center',
+    marginBottom: Spacing.md,
+  },
   description: {
-    fontFamily: Typography.label.family,
+    fontFamily: Typography.body.family,
     fontSize: 16,
-    color: Colors.vibe.morning.text,
+    color: TextColors.secondary,
     textAlign: 'center',
     lineHeight: 24,
-    opacity: 0.7,
     marginTop: Spacing.md,
   },
   bottom: { paddingHorizontal: Spacing.xl, paddingBottom: Spacing.xxl },
-  button: { backgroundColor: Colors.base.black, paddingVertical: Spacing.md, alignItems: 'center' },
-  buttonText: { fontFamily: Typography.mono.family, fontSize: 12, color: Colors.base.white, letterSpacing: Tracking.wide },
+  button: { backgroundColor: Colors.accent, paddingVertical: Spacing.md, alignItems: 'center' },
+  buttonText: { fontFamily: Typography.mono.family, fontSize: 12, color: Colors.base.black, letterSpacing: 1.5 },
 });

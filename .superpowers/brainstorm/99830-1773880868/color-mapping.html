@@ -1,0 +1,96 @@
+<h2>Color Mapping: Stitch → PRD</h2>
+<p class="subtitle">The Stitch designs use orange/cyan. Your PRD uses gold/cream/black. How should we map?</p>
+
+<div class="split" style="gap: 32px; margin-bottom: 40px;">
+  <div style="flex:1">
+    <h3 style="margin-bottom: 16px;">Stitch Palette</h3>
+    <div style="display:flex; flex-direction:column; gap:8px;">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <div style="width:48px;height:48px;border-radius:8px;background:#ff906d;"></div>
+        <div><strong>Primary</strong><br><code>#ff906d</code> — Sunset Orange</div>
+      </div>
+      <div style="display:flex; align-items:center; gap:12px;">
+        <div style="width:48px;height:48px;border-radius:8px;background:#00e3fd;"></div>
+        <div><strong>Secondary</strong><br><code>#00e3fd</code> — Electric Cyan</div>
+      </div>
+      <div style="display:flex; align-items:center; gap:12px;">
+        <div style="width:48px;height:48px;border-radius:8px;background:#0e0e10;border:1px solid #333;"></div>
+        <div><strong>Background</strong><br><code>#0e0e10</code> — Charcoal Void</div>
+      </div>
+      <div style="display:flex; align-items:center; gap:12px;">
+        <div style="width:48px;height:48px;border-radius:8px;background:#f6f3f5;"></div>
+        <div><strong>On-Surface</strong><br><code>#f6f3f5</code> — Near White</div>
+      </div>
+    </div>
+  </div>
+  <div style="flex:1">
+    <h3 style="margin-bottom: 16px;">PRD Palette</h3>
+    <div style="display:flex; flex-direction:column; gap:8px;">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <div style="width:48px;height:48px;border-radius:8px;background:#C8832A;"></div>
+        <div><strong>Accent</strong><br><code>#C8832A</code> — Gold</div>
+      </div>
+      <div style="display:flex; align-items:center; gap:12px;">
+        <div style="width:48px;height:48px;border-radius:8px;background:#0D0D0D;border:1px solid #333;"></div>
+        <div><strong>Base Black</strong><br><code>#0D0D0D</code> — True Black</div>
+      </div>
+      <div style="display:flex; align-items:center; gap:12px;">
+        <div style="width:48px;height:48px;border-radius:8px;background:#FAF8F4;"></div>
+        <div><strong>Base White</strong><br><code>#FAF8F4</code> — Warm Cream</div>
+      </div>
+      <div style="display:flex; align-items:center; gap:12px;">
+        <div style="width:48px;height:48px;border-radius:8px;background:#F5F0E8;"></div>
+        <div><strong>Cream</strong><br><code>#F5F0E8</code> — Soft Cream</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h3>How should the Stitch colors map to the PRD palette?</h3>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Single-Accent Gold (Monochromatic)</h3>
+      <p>Replace <strong>both</strong> Stitch primary (orange) and secondary (cyan) with PRD gold <code>#C8832A</code>. All accents, glows, gradients, and interactive elements use gold at varying opacities. The app becomes a refined black-and-gold experience — like a luxury audio device.</p>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <div style="width:32px;height:32px;border-radius:4px;background:#C8832A;"></div>
+        <div style="width:32px;height:32px;border-radius:4px;background:rgba(200,131,42,0.6);"></div>
+        <div style="width:32px;height:32px;border-radius:4px;background:rgba(200,131,42,0.3);"></div>
+        <div style="width:32px;height:32px;border-radius:4px;background:#0D0D0D;border:1px solid #333;"></div>
+        <div style="width:32px;height:32px;border-radius:4px;background:#FAF8F4;"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Gold Primary + Warm Secondary</h3>
+      <p>Primary accent → PRD gold <code>#C8832A</code>. For the secondary (where Stitch uses cyan), derive a warm complementary — like a deep amber <code>#D4A55A</code> or warm cream <code>#E8D5B5</code>. Keeps the two-tone depth of the Stitch designs without the cold cyan.</p>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <div style="width:32px;height:32px;border-radius:4px;background:#C8832A;"></div>
+        <div style="width:32px;height:32px;border-radius:4px;background:#D4A55A;"></div>
+        <div style="width:32px;height:32px;border-radius:4px;background:#E8D5B5;"></div>
+        <div style="width:32px;height:32px;border-radius:4px;background:#0D0D0D;border:1px solid #333;"></div>
+        <div style="width:32px;height:32px;border-radius:4px;background:#FAF8F4;"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Gold Primary + Keep Vibe System</h3>
+      <p>Default state uses gold <code>#C8832A</code> as the primary accent. But preserve your existing 11-vibe system from design-tokens — the secondary accent color dynamically shifts based on the active vibe (purple for Late Night, red for Workout, etc). Best of both worlds: PRD identity + dynamic personality.</p>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <div style="width:32px;height:32px;border-radius:4px;background:#C8832A;"></div>
+        <div style="width:32px;height:32px;border-radius:4px;background:#7B5EA7;" title="Late Night"></div>
+        <div style="width:32px;height:32px;border-radius:4px;background:#FF4D3D;" title="Workout"></div>
+        <div style="width:32px;height:32px;border-radius:4px;background:#5B7FA6;" title="Chill"></div>
+        <div style="width:32px;height:32px;border-radius:4px;background:#FF8C42;" title="Party"></div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { Redirect } from 'expo-router';
-import { Colors } from '../src/tokens/design-tokens';
+import { Colors, Surface } from '../src/tokens/design-tokens';
 import { getUser } from '../src/services/Storage';
 import { onAuthStateChanged, type AuthUser } from '../src/services/AuthService';
 
@@ -17,8 +17,8 @@ export default function Index() {
   // Still loading auth state
   if (authUser === undefined) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.vibe.morning.bg }}>
-        <ActivityIndicator color={Colors.vibe.morning.accent} />
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Surface.base }}>
+        <ActivityIndicator color={Colors.accent} />
       </View>
     );
   }

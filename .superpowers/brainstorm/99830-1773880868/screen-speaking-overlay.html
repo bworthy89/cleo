@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Cleo Speaking States</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@300;400;700&family=Inter:wght@400;500;600&family=EB+Garamond:ital,wght@1,400;1,500&family=DM+Mono:wght@400;500&family=JetBrains+Mono:wght@700;800&display=swap" rel="stylesheet"/>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#111; color:#FAF8F4; font-family:'Inter',sans-serif; display:flex; justify-content:center; padding:40px 20px; gap:40px; flex-wrap:wrap; align-items:flex-start; }
+
+  .column { display:flex; flex-direction:column; align-items:center; gap:16px; }
+  .column-label { font-family:'DM Mono'; font-size:11px; letter-spacing:0.15em; text-transform:uppercase; color:#767577; }
+
+  .phone {
+    width:390px; height:844px; background:#0D0D0D; border-radius:44px; overflow:hidden;
+    position:relative; border:1px solid #222; box-shadow:0 20px 60px rgba(0,0,0,0.5);
+    flex-shrink:0;
+  }
+  .phone-inner { width:100%; height:100%; overflow:hidden; position:relative; }
+
+  /* === BASE BROADCAST (dimmed underneath) === */
+  .broadcast-dimmed {
+    width:100%; height:100%; position:absolute; inset:0;
+    filter:blur(4px) grayscale(30%); opacity:0.3;
+    transition:all 0.5s ease;
+    padding:64px 24px 100px;
+  }
+  .broadcast-dimmed .art-placeholder {
+    width:100%; aspect-ratio:1; border-radius:24px;
+    background:linear-gradient(135deg,#1a0a2e,#2d1b4e,#0a1628);
+    margin-bottom:24px; position:relative; overflow:hidden;
+  }
+  .broadcast-dimmed .art-gradient { position:absolute; inset:0; background:linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 50%); }
+  .broadcast-dimmed .track-title { font-family:'Playfair Display'; font-size:28px; font-weight:300; text-align:center; margin-bottom:4px; }
+  .broadcast-dimmed .track-artist { font-family:'Inter'; font-size:16px; color:#ACAAAD; text-align:center; margin-bottom:24px; }
+  .broadcast-dimmed .controls { display:flex; justify-content:center; align-items:center; gap:32px; }
+  .broadcast-dimmed .play-btn { width:72px; height:72px; border-radius:50%; background:linear-gradient(135deg,#C8832A,#A06820); opacity:0.4; }
+
+  /* === HEADER (stays visible) === */
+  .header { position:absolute; top:0; left:0; right:0; z-index:50; background:rgba(13,13,13,0.0); display:flex; justify-content:space-between; align-items:center; padding:16px 24px; height:64px; }
+  .header-logo { font-family:'DM Mono'; font-size:18px; font-weight:500; color:#C8832A; letter-spacing:0.15em; text-transform:uppercase; }
+  .header-issue { font-family:'DM Mono'; font-size:9px; letter-spacing:0.2em; color:rgba(250,248,244,0.3); text-transform:uppercase; }
+
+  /* === CLEO DISRUPTION OVERLAY === */
+  .disruption {
+    position:absolute; inset:0; z-index:40;
+    display:flex; flex-direction:column;
+    padding:100px 24px 120px;
+    pointer-events:none;
+  }
+
+  /* Scanline */
+  .scanline {
+    position:absolute; left:0; right:0; height:3px;
+    background:rgba(200,131,42,0.25);
+    top:30%;
+    z-index:60;
+  }
+
+  /* Giant header */
+  .disruption-title {
+    font-family:'JetBrains Mono'; font-size:48px; font-weight:800;
+    line-height:0.95; letter-spacing:-0.03em; text-transform:uppercase;
+    color:#C8832A; margin-bottom:8px;
+    text-shadow: 2px 0 #7B5EA7, -2px 0 rgba(200,131,42,0.5);
+  }
+  .disruption-line { height:3px; width:100%; background:#C8832A; box-shadow:0 0 15px rgba(200,131,42,0.8); margin-bottom:24px; }
+
+  /* Quote box */
+  .quote-box {
+    background:rgba(13,13,13,0.4); backdrop-filter:blur(8px);
+    padding:20px; border-right:4px solid #C8832A; border-bottom:4px solid #C8832A;
+    transform:rotate(-1.5deg); box-shadow:0 8px 32px rgba(0,0,0,0.5);
+  }
+  .transmission-badge { display:flex; align-items:center; gap:10px; margin-bottom:16px; }
+  .wave-bars { display:flex; align-items:flex-end; gap:3px; height:16px; }
+  .wave-bar { width:3px; border-radius:2px; background:#C8832A; }
+  .transmission-text { font-family:'JetBrains Mono'; font-size:10px; font-weight:700; letter-spacing:0.15em; text-transform:uppercase; color:#C8832A; background:rgba(200,131,42,0.1); padding:2px 8px; }
+
+  .quote-text {
+    font-family:'JetBrains Mono'; font-size:24px; font-weight:800;
+    line-height:1.3; letter-spacing:-0.02em; color:#FAF8F4;
+  }
+  .quote-highlight { color:#C8832A; font-style:italic; text-decoration:underline; text-decoration-thickness:3px; text-underline-offset:4px; }
+
+  .quote-meta { display:flex; justify-content:space-between; align-items:flex-end; margin-top:20px; }
+  .signal-data { font-family:'JetBrains Mono'; font-size:7px; color:rgba(250,248,244,0.35); line-height:1.8; }
+  .speaking-badge { font-family:'JetBrains Mono'; font-size:9px; font-weight:700; text-transform:uppercase; color:#C8832A; letter-spacing:0.05em; }
+
+  /* Glitch decorations */
+  .glitch-line { height:1px; background:linear-gradient(to right, transparent, rgba(200,131,42,0.4), transparent); margin-top:32px; }
+  .glitch-block { width:80px; height:12px; background:rgba(200,131,42,0.12); margin-top:8px; margin-left:auto; }
+
+  /* === DIMMED CONTROLS AT BOTTOM === */
+  .bottom-controls {
+    position:absolute; bottom:100px; left:24px; right:24px; z-index:10;
+    opacity:0.25; filter:grayscale(100%);
+  }
+  .mini-progress { display:flex; align-items:center; gap:12px; margin-bottom:16px; }
+  .mini-progress-time { font-family:'JetBrains Mono'; font-size:9px; font-weight:700; color:#ACAAAD; }
+  .mini-progress-bar { flex:1; height:2px; background:#262528; position:relative; }
+  .mini-progress-fill { position:absolute; left:0; top:0; bottom:0; width:65%; background:#C8832A; }
+  .mini-controls { display:flex; justify-content:center; align-items:center; gap:32px; }
+  .mini-play { width:56px; height:56px; border-radius:50%; border:2px solid rgba(200,131,42,0.2); display:flex; align-items:center; justify-content:center; }
+
+  /* Tab Bar */
+  .tab-bar {
+    position:absolute; bottom:0; left:0; right:0; height:84px; z-index:50;
+    background:rgba(13,13,13,0.8); backdrop-filter:blur(20px);
+    border-top-left-radius:24px; border-top-right-radius:24px;
+    display:flex; justify-content:space-around; align-items:center; padding:0 16px 16px;
+  }
+  .tab { display:flex; flex-direction:column; align-items:center; gap:4px; }
+  .tab-icon { font-size:20px; }
+  .tab-label { font-family:'DM Mono'; font-size:8px; letter-spacing:0.15em; text-transform:uppercase; }
+  .tab-active { color:#C8832A; }
+  .tab-inactive { color:rgba(172,170,173,0.3); }
+  .tab-pulse { width:5px; height:5px; border-radius:50%; background:#C8832A; position:absolute; top:-2px; right:-4px; box-shadow:0 0 6px #C8832A; }
+
+  /* ANNOTATIONS */
+  .annotations { max-width:320px; padding-top:20px; }
+  .anno-title { font-family:'Playfair Display'; font-size:22px; font-weight:300; color:#C8832A; margin-bottom:8px; }
+  .anno-subtitle { font-family:'Inter'; font-size:13px; color:#ACAAAD; line-height:1.5; margin-bottom:24px; }
+  .anno-item { margin-bottom:20px; padding-left:14px; border-left:2px solid rgba(200,131,42,0.3); }
+  .anno-item h4 { font-family:'DM Mono'; font-size:10px; letter-spacing:0.1em; text-transform:uppercase; color:#C8832A; margin-bottom:4px; }
+  .anno-item p { font-family:'Inter'; font-size:12px; line-height:1.5; color:#ACAAAD; }
+  .anno-num { font-family:'JetBrains Mono'; font-size:9px; color:rgba(200,131,42,0.5); margin-bottom:2px; }
+
+  .flow-diagram { margin-top:32px; padding:20px; background:rgba(19,19,21,0.6); border-radius:12px; border:1px solid rgba(72,71,74,0.1); }
+  .flow-title { font-family:'DM Mono'; font-size:10px; letter-spacing:0.1em; text-transform:uppercase; color:#767577; margin-bottom:16px; }
+  .flow-step { display:flex; align-items:flex-start; gap:12px; margin-bottom:12px; }
+  .flow-dot { width:20px; height:20px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-family:'DM Mono'; font-size:9px; font-weight:700; }
+  .flow-dot-gold { background:rgba(200,131,42,0.2); color:#C8832A; }
+  .flow-dot-dim { background:rgba(172,170,173,0.1); color:#767577; }
+  .flow-text { font-family:'Inter'; font-size:11px; color:#ACAAAD; line-height:1.4; padding-top:2px; }
+  .flow-connector { width:1px; height:8px; background:rgba(200,131,42,0.15); margin-left:10px; }
+</style>
+</head>
+<body>
+
+<!-- Phone: Cleo Speaking State -->
+<div class="column">
+  <span class="column-label">Cleo Speaking — Disruptive State</span>
+  <div class="phone">
+    <div class="phone-inner">
+
+      <!-- Dimmed broadcast underneath -->
+      <div class="broadcast-dimmed">
+        <div class="art-placeholder"><div class="art-gradient"></div></div>
+        <p class="track-title">Midnight Frequency</p>
+        <p class="track-artist">Solaris Echoes</p>
+      </div>
+
+      <!-- Header -->
+      <div class="header">
+        <span class="header-logo">Cleo</span>
+        <span class="header-issue">Issue No. 042</span>
+      </div>
+
+      <!-- DISRUPTION OVERLAY -->
+      <div class="disruption">
+        <div class="scanline"></div>
+
+        <div class="disruption-title">Host<br/>Interjection</div>
+        <div class="disruption-line"></div>
+
+        <div class="quote-box">
+          <div class="transmission-badge">
+            <div class="wave-bars">
+              <div class="wave-bar" style="height:6px;"></div>
+              <div class="wave-bar" style="height:14px;"></div>
+              <div class="wave-bar" style="height:9px;"></div>
+              <div class="wave-bar" style="height:12px;"></div>
+            </div>
+            <span class="transmission-text">Transmission Active</span>
+          </div>
+
+          <p class="quote-text">"CAN YOU FEEL THE <span class="quote-highlight">WEIGHT</span> OF THIS TECTONIC RESONANCE?"</p>
+
+          <div class="quote-meta">
+            <div class="signal-data">
+              SIGNAL: 104.2 MHZ<br/>
+              LATENCY: 0.003MS<br/>
+              ENCODING: AI_VOX_V4
+            </div>
+            <span class="speaking-badge">Cleo is speaking...</span>
+          </div>
+        </div>
+
+        <div class="glitch-line"></div>
+        <div class="glitch-block"></div>
+      </div>
+
+      <!-- Dimmed controls -->
+      <div class="bottom-controls">
+        <div class="mini-progress">
+          <span class="mini-progress-time">02:45</span>
+          <div class="mini-progress-bar"><div class="mini-progress-fill"></div></div>
+          <span class="mini-progress-time">04:12</span>
+        </div>
+        <div class="mini-controls">
+          <span style="color:#767577;font-size:20px;">&#9776;</span>
+          <span style="color:#767577;font-size:28px;">&#9198;</span>
+          <div class="mini-play"><span style="color:rgba(200,131,42,0.3);font-size:24px;">&#9646;&#9646;</span></div>
+          <span style="color:#767577;font-size:28px;">&#9197;</span>
+          <span style="color:#767577;font-size:20px;">&#8942;</span>
+        </div>
+      </div>
+
+      <!-- Tab Bar -->
+      <div class="tab-bar">
+        <div class="tab tab-inactive"><span class="tab-icon">&#9737;</span><span class="tab-label">Broadcast</span></div>
+        <div class="tab tab-inactive"><span class="tab-icon">&#9588;</span><span class="tab-label">Arc</span></div>
+        <div class="tab tab-inactive"><span class="tab-icon">&#9835;</span><span class="tab-label">Archive</span></div>
+        <div class="tab tab-active" style="position:relative;"><span class="tab-icon">&#11044;</span><span class="tab-label">Cleo</span><div class="tab-pulse" style="top:0;right:12px;"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Annotations -->
+<div class="annotations">
+  <h3 class="anno-title">How Cleo Speaking Works</h3>
+  <p class="anno-subtitle">The speaking state is an <strong>overlay on top of the Broadcast screen</strong>, not a separate screen. It activates when Cleo has something to say between tracks.</p>
+
+  <div class="flow-diagram">
+    <div class="flow-title">Activation Sequence</div>
+
+    <div class="flow-step">
+      <div class="flow-dot flow-dot-gold">1</div>
+      <div class="flow-text"><strong>Track ends</strong> — onTrackChanged fires, 1.5s natural pause</div>
+    </div>
+    <div class="flow-connector"></div>
+    <div class="flow-step">
+      <div class="flow-dot flow-dot-gold">2</div>
+      <div class="flow-text"><strong>Broadcast screen dims</strong> — blur(4px), grayscale(30%), opacity 30%. Controls gray out.</div>
+    </div>
+    <div class="flow-connector"></div>
+    <div class="flow-step">
+      <div class="flow-dot flow-dot-gold">3</div>
+      <div class="flow-text"><strong>Disruption overlay slides in</strong> — "HOST INTERJECTION" title with glitch effect, then quote box rotated -1.5deg</div>
+    </div>
+    <div class="flow-connector"></div>
+    <div class="flow-step">
+      <div class="flow-dot flow-dot-gold">4</div>
+      <div class="flow-text"><strong>Words highlight sequentially</strong> — each word in the quote bolds/highlights as Cleo speaks it via TTS (synced to audio)</div>
+    </div>
+    <div class="flow-connector"></div>
+    <div class="flow-step">
+      <div class="flow-dot flow-dot-gold">5</div>
+      <div class="flow-text"><strong>TTS finishes</strong> — overlay dissolves (600ms), broadcast un-dims, music resumes at full volume</div>
+    </div>
+    <div class="flow-connector"></div>
+    <div class="flow-step">
+      <div class="flow-dot flow-dot-dim">6</div>
+      <div class="flow-text"><strong>Commentary card persists</strong> — the glass commentary card on the normal broadcast screen now shows the quote that was just spoken, so you can read it back</div>
+    </div>
+  </div>
+
+  <div style="margin-top:24px;">
+    <div class="anno-item">
+      <div class="anno-num">Replaces</div>
+      <h4>PullQuoteOverlay + WordByWordSubtitle</h4>
+      <p>The current PullQuoteOverlay (full black backdrop + clause animation) and WordByWordSubtitle (staggered word fade) merge into this single disruptive state. More dramatic, more Cleo.</p>
+    </div>
+
+    <div class="anno-item">
+      <div class="anno-num">Design Details</div>
+      <h4>Visual Treatment</h4>
+      <p>JetBrains Mono 800 for the "HOST INTERJECTION" title (glitch text-shadow). Quote box has the tilted -1.5deg rotation from Stitch. Scanline animation sweeps across. Signal metadata in the corner adds broadcast authenticity.</p>
+    </div>
+
+    <div class="anno-item">
+      <div class="anno-num">Segment Types</div>
+      <h4>When It Triggers</h4>
+      <p>This full disruptive state triggers for <strong>track_story</strong> and <strong>post_track_reflection</strong> segments. Lighter segments (transitions, fun facts) use the commentary card on the normal broadcast screen without the full takeover — just the waveform badge + EB Garamond text.</p>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

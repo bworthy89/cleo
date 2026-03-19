@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Typography, Spacing, Tracking, Opacity } from '../tokens/design-tokens';
+import { Typography, Spacing, Opacity } from '../tokens/design-tokens';
 
 interface ErrorStateProps {
   message?: string;
@@ -49,6 +49,6 @@ const styles = StyleSheet.create({
   retryText: {
     fontFamily: Typography.mono.family,
     fontSize: 10,
-    letterSpacing: Tracking.wide,
+    letterSpacing: 1.5,
   },
 });

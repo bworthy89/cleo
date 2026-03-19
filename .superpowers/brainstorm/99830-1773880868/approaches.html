@@ -1,0 +1,77 @@
+<h2>Redesign Approach</h2>
+<p class="subtitle">How aggressively should we restructure? All options adopt the Stitch visual language with PRD colors.</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Reskin — Visual Layer Only</h3>
+      <p>Keep all existing component structure and logic. Update <code>design-tokens.ts</code> with new surface hierarchy, glassmorphism values, and Stitch-inspired spacing. Restyle existing components (StationCard, PlayerScreen, etc.) in-place. Add new screens as minimal implementations.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul>
+          <li>Lowest risk — existing logic untouched</li>
+          <li>Fastest to implement</li>
+          <li>Working app stays working throughout</li>
+        </ul></div>
+        <div class="cons"><h4>Cons</h4><ul>
+          <li>New screens (Queue, Onboarding, Settings) still need full builds</li>
+          <li>Existing component structure may fight Stitch layouts</li>
+          <li>Tab navigation requires navigation architecture changes regardless</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Progressive Rebuild — Screen by Screen <span style="color:#C8832A;">(Recommended)</span></h3>
+      <p>Rebuild the design system tokens first. Then rebuild each screen one at a time, preserving service/engine logic but rewriting the UI layer. Shared components (tab bar, glass panels, headers) built as a foundation first. Each screen is a self-contained milestone.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul>
+          <li>Each screen is a testable milestone</li>
+          <li>Shared components built once, used everywhere</li>
+          <li>Clean break from old layout patterns</li>
+          <li>Can ship incrementally — each screen works independently</li>
+        </ul></div>
+        <div class="cons"><h4>Cons</h4><ul>
+          <li>More work than reskin</li>
+          <li>Temporary inconsistency between rebuilt and unrebuilt screens</li>
+        </ul></div>
+      </div>
+      <div style="margin-top:12px; padding:12px; background:rgba(200,131,42,0.1); border-left:3px solid #C8832A; border-radius:4px;">
+        <strong>Build Order:</strong>
+        <ol style="margin:8px 0 0 16px; padding:0;">
+          <li>Design tokens + shared components (tab bar, glass panels, header)</li>
+          <li>Bottom Tab Navigation (unlocks all screens)</li>
+          <li>Now Playing / Broadcast (core experience)</li>
+          <li>Cleo Speaking overlay (enhances core)</li>
+          <li>HomeScreen redesign (entry point)</li>
+          <li>Onboarding (new flow)</li>
+          <li>Session Arc / Queue (new screen)</li>
+          <li>Profile & Settings (new screen)</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Full Rewrite — New UI from Scratch</h3>
+      <p>Start the UI layer fresh. New navigation structure, new component library, new screen implementations. Keep all service code (MusicKit, Gemini, ElevenLabs, audio coordination) but rebuild every visual component.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul>
+          <li>Cleanest result — no legacy compromises</li>
+          <li>Can optimize component architecture from the start</li>
+        </ul></div>
+        <div class="cons"><h4>Cons</h4><ul>
+          <li>Highest risk — breaks everything temporarily</li>
+          <li>Longest timeline</li>
+          <li>Existing working features go dark during rebuild</li>
+          <li>Over-engineering for what's needed</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</div>

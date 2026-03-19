@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Remaining Screens</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@300;400;700&family=Inter:wght@400;500;600;700&family=EB+Garamond:ital,wght@1,400;1,500&family=DM+Mono:wght@400;500&family=JetBrains+Mono:wght@700;800&display=swap" rel="stylesheet"/>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#0a0a0a; color:#FAF8F4; font-family:'Inter',sans-serif; padding:40px 20px; }
+
+  .screen-row { display:flex; gap:40px; margin-bottom:64px; align-items:flex-start; flex-wrap:wrap; justify-content:center; }
+
+  .phone {
+    width:360px; height:780px; background:#0D0D0D; border-radius:40px; overflow:hidden;
+    position:relative; border:1px solid #1a1a1a; box-shadow:0 20px 60px rgba(0,0,0,0.5);
+    flex-shrink:0;
+  }
+  .phone-inner { width:100%; height:100%; overflow-y:auto; overflow-x:hidden; position:relative; }
+  .phone-inner::-webkit-scrollbar { display:none; }
+
+  .screen-label { font-family:'DM Mono'; font-size:10px; letter-spacing:0.15em; text-transform:uppercase; color:#C8832A; text-align:center; margin-bottom:12px; }
+
+  .annotations { max-width:340px; flex-shrink:0; }
+  .anno-title { font-family:'Playfair Display'; font-size:20px; font-weight:300; color:#C8832A; margin-bottom:16px; }
+  .anno-item { margin-bottom:16px; padding-left:12px; border-left:2px solid rgba(200,131,42,0.25); }
+  .anno-item h4 { font-family:'DM Mono'; font-size:10px; letter-spacing:0.08em; text-transform:uppercase; color:#C8832A; margin-bottom:3px; }
+  .anno-item p { font-family:'Inter'; font-size:12px; line-height:1.5; color:#ACAAAD; }
+
+  .divider { width:100%; max-width:1200px; margin:0 auto 48px; height:1px; background:linear-gradient(to right, transparent, rgba(200,131,42,0.2), transparent); }
+
+  /* Shared phone styles */
+  .p-header { position:sticky; top:0; z-index:50; background:rgba(13,13,13,0.6); backdrop-filter:blur(20px); display:flex; justify-content:space-between; align-items:center; padding:14px 20px; height:56px; }
+  .p-logo { font-family:'DM Mono'; font-size:16px; font-weight:500; color:#C8832A; letter-spacing:0.15em; text-transform:uppercase; }
+  .p-avatar { width:28px; height:28px; border-radius:50%; background:#262528; border:1px solid rgba(72,71,74,0.2); }
+  .p-tab-bar { position:sticky; bottom:0; z-index:50; background:rgba(13,13,13,0.7); backdrop-filter:blur(20px); border-top-left-radius:20px; border-top-right-radius:20px; display:flex; justify-content:space-around; align-items:center; padding:10px 12px 18px; }
+  .p-tab { display:flex; flex-direction:column; align-items:center; gap:3px; font-family:'DM Mono'; font-size:7px; letter-spacing:0.12em; text-transform:uppercase; }
+  .p-tab-active { color:#C8832A; }
+  .p-tab-inactive { color:rgba(172,170,173,0.3); }
+
+  .glass-card { background:rgba(38,37,40,0.4); backdrop-filter:blur(24px); border-radius:14px; border:1px solid rgba(72,71,74,0.08); }
+  .section-label { font-family:'DM Mono'; font-size:9px; letter-spacing:0.18em; text-transform:uppercase; color:#C8832A; font-weight:500; }
+
+  /* Onboarding specific */
+  .orb { width:64px; height:64px; border-radius:50%; background:#262528; border:1px solid rgba(72,71,74,0.2); display:flex; align-items:center; justify-content:center; position:relative; }
+  .orb::before { content:''; position:absolute; inset:-8px; border-radius:50%; background:rgba(200,131,42,0.15); filter:blur(12px); }
+  .orb-icon { color:#C8832A; font-size:28px; }
+  .mood-chip { padding:12px; border-radius:12px; text-align:center; display:flex; flex-direction:column; align-items:center; gap:6px; }
+  .mood-chip-inactive { background:rgba(38,37,40,0.4); border:1px solid rgba(72,71,74,0.08); }
+  .mood-chip-active { background:rgba(200,131,42,0.08); border:1px solid rgba(200,131,42,0.35); }
+  .goal-row { padding:16px; border-radius:14px; display:flex; align-items:center; gap:12px; }
+  .goal-inactive { background:rgba(38,37,40,0.4); border:1px solid rgba(72,71,74,0.08); }
+  .goal-active { background:rgba(200,131,42,0.06); border:1px solid rgba(200,131,42,0.25); }
+  .genre-chip { padding:8px 16px; border-radius:999px; font-size:12px; font-weight:500; }
+  .genre-inactive { background:#1F1F22; border:1px solid rgba(72,71,74,0.15); color:#ACAAAD; }
+  .genre-active { background:rgba(200,131,42,0.15); border:1px solid rgba(200,131,42,0.35); color:#C8832A; }
+  .cta-btn { width:100%; padding:18px; border-radius:999px; background:linear-gradient(135deg,#C8832A,#A06820); color:#0D0D0D; font-family:'Inter'; font-size:16px; font-weight:700; text-align:center; border:none; box-shadow:0 12px 40px rgba(200,131,42,0.3); }
+
+  /* Radio dot */
+  .radio { width:18px; height:18px; border-radius:50%; border:2px solid; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
+  .radio-on { border-color:#C8832A; }
+  .radio-off { border-color:#48474A; }
+  .radio-dot { width:9px; height:9px; border-radius:50%; background:#C8832A; }
+
+  /* Settings specific */
+  .profile-ring { width:100px; height:100px; border-radius:50%; padding:3px; background:linear-gradient(135deg,#C8832A,rgba(200,131,42,0.3)); }
+  .profile-inner { width:100%; height:100%; border-radius:50%; background:#0D0D0D; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .personality-card { padding:16px; border-radius:14px; }
+  .personality-selected { background:rgba(38,37,40,0.5); border:1px solid rgba(72,71,74,0.08); }
+  .personality-unselected { background:rgba(19,19,21,0.6); border:1px solid rgba(72,71,74,0.04); }
+  .slider-track { height:4px; width:100%; background:#262528; border-radius:2px; position:relative; }
+  .slider-fill { position:absolute; left:0; top:0; bottom:0; border-radius:2px; }
+  .slider-thumb { position:absolute; top:50%; transform:translate(-50%,-50%); width:14px; height:14px; border-radius:50%; background:#FAF8F4; border:2px solid #0D0D0D; box-shadow:0 2px 8px rgba(0,0,0,0.3); }
+
+  /* Queue specific */
+  .arc-container { position:relative; height:200px; width:100%; overflow:hidden; border-radius:20px; }
+  .arc-node { position:absolute; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:10px; }
+  .arc-node-gold { background:rgba(13,13,13,0.6); backdrop-filter:blur(12px); border:1px solid rgba(200,131,42,0.3); color:#C8832A; box-shadow:0 0 16px rgba(200,131,42,0.25); }
+  .arc-node-peak { background:#7B5EA7; color:#0D0D0D; box-shadow:0 0 24px rgba(123,94,167,0.4); width:38px; height:38px; }
+  .queue-card { padding:12px; border-radius:14px; display:flex; gap:12px; align-items:center; }
+  .queue-art { width:48px; height:48px; border-radius:10px; flex-shrink:0; }
+  .tag-chip { padding:3px 10px; border-radius:999px; font-family:'DM Mono'; font-size:8px; letter-spacing:0.1em; text-transform:uppercase; background:rgba(19,19,21,0.8); border:1px solid rgba(72,71,74,0.15); color:rgba(250,248,244,0.5); }
+
+  /* Home specific */
+  .station-card { width:140px; height:200px; border-radius:16px; overflow:hidden; position:relative; flex-shrink:0; }
+  .station-gradient { position:absolute; inset:0; background:linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 50%); }
+  .station-name { position:absolute; bottom:12px; left:12px; right:12px; font-family:'Playfair Display'; font-size:13px; font-weight:400; }
+  .now-playing-mini { padding:14px 16px; border-radius:16px; display:flex; align-items:center; gap:12px; }
+</style>
+</head>
+<body>
+
+<!-- ============ ONBOARDING ============ -->
+<div class="screen-row">
+  <div>
+    <div class="screen-label">Screen 3 — Onboarding</div>
+    <div class="phone">
+      <div class="phone-inner" style="padding:0 0 32px;">
+        <!-- No header on onboarding -->
+        <div style="padding:60px 24px 0; display:flex; flex-direction:column; align-items:center; text-align:center;">
+          <!-- Orb -->
+          <div class="orb" style="margin-bottom:24px;">
+            <span class="orb-icon">&#9835;</span>
+          </div>
+          <h1 style="font-family:'Playfair Display'; font-size:32px; font-weight:300; margin-bottom:12px;">
+            "Hello, I'm <span style="color:#C8832A;">Cleo</span>."
+          </h1>
+          <p style="color:#ACAAAD; font-size:14px; line-height:1.6; max-width:280px;">
+            Your personal AI radio host. I curate frequencies that match your soul's current wavelength.
+          </p>
+        </div>
+
+        <!-- Mood -->
+        <div style="padding:32px 24px 0;">
+          <p class="section-label" style="margin-bottom:14px;">Current Mood</p>
+          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px;">
+            <div class="mood-chip mood-chip-inactive">
+              <span style="font-size:20px; color:#ACAAAD;">&#9673;</span>
+              <span style="font-size:12px; font-weight:500;">Focused</span>
+            </div>
+            <div class="mood-chip mood-chip-active">
+              <span style="font-size:20px; color:#C8832A;">&#9889;</span>
+              <span style="font-size:12px; font-weight:500; color:#C8832A;">Energetic</span>
+            </div>
+            <div class="mood-chip mood-chip-inactive">
+              <span style="font-size:20px; color:#ACAAAD;">&#9790;</span>
+              <span style="font-size:12px; font-weight:500;">Mellow</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Session Goal -->
+        <div style="padding:28px 24px 0;">
+          <p class="section-label" style="margin-bottom:14px;">Session Goal</p>
+          <div style="display:flex; flex-direction:column; gap:10px;">
+            <div class="goal-row goal-inactive">
+              <span style="color:#7B5EA7; font-size:18px;">&#9733;</span>
+              <div style="flex:1;">
+                <p style="font-size:13px; font-weight:600;">Discovery</p>
+                <p style="font-size:11px; color:#ACAAAD;">Find hidden gems and new artists</p>
+              </div>
+              <div class="radio radio-off"></div>
+            </div>
+            <div class="goal-row goal-active">
+              <span style="color:#C8832A; font-size:18px;">&#10047;</span>
+              <div style="flex:1;">
+                <p style="font-size:13px; font-weight:600;">Relaxation</p>
+                <p style="font-size:11px; color:#ACAAAD;">Ambient textures and calm soundscapes</p>
+              </div>
+              <div class="radio radio-on"><div class="radio-dot"></div></div>
+            </div>
+            <div class="goal-row goal-inactive">
+              <span style="color:#7B5EA7; font-size:18px;">&#9000;</span>
+              <div style="flex:1;">
+                <p style="font-size:13px; font-weight:600;">Work</p>
+                <p style="font-size:11px; color:#ACAAAD;">Deep beats for high productivity</p>
+              </div>
+              <div class="radio radio-off"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Genre -->
+        <div style="padding:28px 24px 0;">
+          <p class="section-label" style="margin-bottom:14px;">Genre Palette</p>
+          <div style="display:flex; flex-wrap:wrap; gap:8px;">
+            <span class="genre-chip genre-inactive">Electronic</span>
+            <span class="genre-chip genre-active">Neo-Jazz</span>
+            <span class="genre-chip genre-inactive">Lo-Fi</span>
+            <span class="genre-chip genre-inactive">Ambient</span>
+            <span class="genre-chip genre-active">Cinematic</span>
+            <span class="genre-chip genre-inactive">Trip-Hop</span>
+          </div>
+        </div>
+
+        <!-- CTA -->
+        <div style="padding:40px 24px 0; text-align:center;">
+          <button class="cta-btn">Start My Broadcast &#9654;</button>
+          <p style="color:#767577; font-size:12px; margin-top:16px;">Skip setup, surprise me</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="annotations">
+    <h3 class="anno-title">Cleo Onboarding</h3>
+    <div class="anno-item">
+      <h4>First-Run Only</h4>
+      <p>Shown once on first launch (after Apple Music auth). Selections stored in MMKV. User can always change in Settings later.</p>
+    </div>
+    <div class="anno-item">
+      <h4>Cleo Orb</h4>
+      <p>Gold-glowing icon with blur aura. Same orb motif used in tab bar and commentary cards — Cleo's visual signature.</p>
+    </div>
+    <div class="anno-item">
+      <h4>Mood Picker</h4>
+      <p>3 moods from Stitch. Maps to existing vibe system — Focused→focus, Energetic→workout/party, Mellow→chill/melancholy. Gold border on selected.</p>
+    </div>
+    <div class="anno-item">
+      <h4>Session Goal</h4>
+      <p>Radio-button selection. Feeds into SegmentController to bias Cleo's commentary style and song scoring.</p>
+    </div>
+    <div class="anno-item">
+      <h4>Genre Palette</h4>
+      <p>Multi-select chips. These tag the user's preferences for the Gemini prompt context. Gold for selected, surface-high for unselected.</p>
+    </div>
+    <div class="anno-item">
+      <h4>CTA</h4>
+      <p>Gold gradient button with shadow glow. "Skip setup, surprise me" bypasses with defaults — Cleo picks everything.</p>
+    </div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- ============ SESSION ARC / QUEUE ============ -->
+<div class="screen-row">
+  <div>
+    <div class="screen-label">Screen 4 — Session Arc (Queue)</div>
+    <div class="phone">
+      <div class="phone-inner">
+        <div class="p-header">
+          <span class="p-logo">Cleo</span>
+          <div class="p-avatar"></div>
+        </div>
+
+        <div style="padding:8px 20px 0;">
+          <p style="font-family:'DM Mono'; font-size:9px; letter-spacing:0.18em; text-transform:uppercase; color:#7B5EA7; margin-bottom:6px;">Live Session</p>
+          <h2 style="font-family:'Playfair Display'; font-size:30px; font-weight:300; letter-spacing:-0.02em; margin-bottom:6px;">
+            Midnight <span style="color:#C8832A;">Oscillations</span>
+          </h2>
+          <p style="color:#ACAAAD; font-size:13px; line-height:1.5; margin-bottom:20px;">A curated journey through ambient textures and deep melodic techno.</p>
+        </div>
+
+        <!-- Arc Visualization -->
+        <div style="padding:0 20px; margin-bottom:20px;">
+          <div class="arc-container" style="background:rgba(19,19,21,0.4);">
+            <!-- SVG Arc -->
+            <svg style="position:absolute;inset:0;width:100%;height:100%;padding:16px;" viewBox="0 0 300 160" fill="none">
+              <path d="M10 140 C60 140, 80 100, 130 100 S200 30, 240 30 S290 80, 290 80" stroke="url(#g)" stroke-width="2.5" stroke-linecap="round" opacity="0.8"/>
+              <path d="M10 140 C60 140, 80 100, 130 100 S200 30, 240 30 S290 80, 290 80" stroke="white" stroke-width="30" stroke-linecap="round" opacity="0.02"/>
+              <defs><linearGradient id="g" x1="0%" x2="100%"><stop offset="0%" stop-color="#C8832A"/><stop offset="70%" stop-color="#7B5EA7"/></linearGradient></defs>
+            </svg>
+            <!-- Nodes -->
+            <div class="arc-node arc-node-gold" style="left:8%; bottom:12%;">&#9679;</div>
+            <div class="arc-node arc-node-gold" style="left:40%; bottom:38%;">&#9679;</div>
+            <div class="arc-node arc-node-peak" style="left:72%; top:10%;">&#10024;</div>
+            <!-- You Are Here -->
+            <div style="position:absolute; left:22%; bottom:25%; display:flex; flex-direction:column; align-items:center;">
+              <div style="width:6px; height:6px; border-radius:50%; background:#FAF8F4; box-shadow:0 0 8px white;"></div>
+              <div style="width:1px; height:24px; background:rgba(255,255,255,0.15); margin-top:2px;"></div>
+              <span style="font-family:'DM Mono'; font-size:7px; color:rgba(255,255,255,0.3); text-transform:uppercase; letter-spacing:0.1em;">You are here</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Current Track Card -->
+        <div style="padding:0 20px; margin-bottom:16px;">
+          <div class="glass-card" style="padding:16px; display:flex; gap:14px; align-items:center;">
+            <div class="queue-art" style="background:linear-gradient(135deg,#1a2a3a,#2a1a3a);"></div>
+            <div style="flex:1;">
+              <p style="font-family:'Playfair Display'; font-size:16px; font-weight:400; margin-bottom:2px;">Ether Drift</p>
+              <p style="font-size:12px; color:#ACAAAD;">Solaris System</p>
+              <div style="display:flex; gap:6px; margin-top:6px;">
+                <span class="tag-chip">Deep Melodic</span>
+                <span class="tag-chip">124 BPM</span>
+              </div>
+            </div>
+            <div style="display:flex; flex-direction:column; align-items:center; gap:2px;">
+              <div style="display:flex; gap:2px;">
+                <div style="width:2px; height:8px; background:#7B5EA7; border-radius:1px;"></div>
+                <div style="width:2px; height:14px; background:#7B5EA7; border-radius:1px;"></div>
+                <div style="width:2px; height:6px; background:#7B5EA7; border-radius:1px;"></div>
+              </div>
+              <span style="font-family:'DM Mono'; font-size:7px; color:#7B5EA7; text-transform:uppercase; letter-spacing:0.1em;">Now</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Session Pulse -->
+        <div style="padding:0 20px; margin-bottom:16px;">
+          <div style="background:rgba(19,19,21,0.6); border-radius:14px; padding:16px; border:1px solid rgba(72,71,74,0.05);">
+            <p style="font-family:'DM Mono'; font-size:9px; letter-spacing:0.15em; text-transform:uppercase; color:#ACAAAD; margin-bottom:12px;">Session Pulse</p>
+            <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:8px;">
+              <span style="font-size:12px; color:rgba(250,248,244,0.5);">Energy Level</span>
+              <span style="font-family:'Playfair Display'; font-size:18px; color:#C8832A;">68%</span>
+            </div>
+            <div class="slider-track" style="margin-bottom:14px;">
+              <div class="slider-fill" style="width:68%; background:#C8832A;"></div>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:flex-end;">
+              <span style="font-size:12px; color:rgba(250,248,244,0.5);">Time Remaining</span>
+              <span style="font-family:'Playfair Display'; font-size:18px; color:#7B5EA7;">42:15</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Upcoming -->
+        <div style="padding:0 20px 24px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+            <p style="font-family:'Playfair Display'; font-size:16px; font-weight:400;">Upcoming Manifest</p>
+            <span style="font-family:'DM Mono'; font-size:8px; color:#ACAAAD; letter-spacing:0.1em; text-transform:uppercase;">4 tracks</span>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            <div class="queue-card" style="background:rgba(19,19,21,0.4); border:1px solid rgba(72,71,74,0.05);">
+              <div class="queue-art" style="background:linear-gradient(135deg,#2a1a1a,#3a2a1a);"></div>
+              <div><p style="font-size:13px; font-weight:600;">Neon Horizon</p><p style="font-size:11px; color:#ACAAAD;">Luvia</p></div>
+            </div>
+            <!-- Cleo Moment -->
+            <div style="padding:14px; border-radius:14px; background:rgba(123,94,167,0.06); border:1px solid rgba(123,94,167,0.15); text-align:center;">
+              <span style="font-size:16px; color:#7B5EA7;">&#10024;</span>
+              <p style="font-family:'DM Mono'; font-size:8px; color:#7B5EA7; letter-spacing:0.12em; text-transform:uppercase; margin-top:4px;">Cleo Commentary</p>
+              <p style="font-family:'EB Garamond'; font-style:italic; font-size:13px; color:#ACAAAD; margin-top:4px;">The Evolution of Synth</p>
+            </div>
+            <div class="queue-card" style="background:rgba(19,19,21,0.4); border:1px solid rgba(72,71,74,0.05);">
+              <div class="queue-art" style="background:linear-gradient(135deg,#1a1a2a,#2a2a3a);"></div>
+              <div><p style="font-size:13px; font-weight:600;">Midnight Peak</p><p style="font-size:11px; color:#ACAAAD;">The Alchemist</p></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-tab-bar">
+          <div class="p-tab p-tab-inactive"><span style="font-size:18px;">&#9737;</span><span>Broadcast</span></div>
+          <div class="p-tab p-tab-active"><span style="font-size:18px;">&#9588;</span><span>Arc</span></div>
+          <div class="p-tab p-tab-inactive"><span style="font-size:18px;">&#9835;</span><span>Archive</span></div>
+          <div class="p-tab p-tab-inactive"><span style="font-size:18px;">&#11044;</span><span>Cleo</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="annotations">
+    <h3 class="anno-title">Session Arc (Queue)</h3>
+    <div class="anno-item">
+      <h4>Arc Visualization</h4>
+      <p>SVG curved path with gold→vibe gradient. Cleo moment nodes along the arc. "You are here" indicator. Built with react-native-svg. Animates as session progresses.</p>
+    </div>
+    <div class="anno-item">
+      <h4>Current Track Card</h4>
+      <p>Glass card with art, metadata, genre/BPM tags, and live waveform indicator. Tappable — navigates to Broadcast tab.</p>
+    </div>
+    <div class="anno-item">
+      <h4>Session Pulse</h4>
+      <p>Energy level (from SessionEngine scoring) and time remaining. Gold for energy, vibe accent for time. Feeds from existing QueueManager data.</p>
+    </div>
+    <div class="anno-item">
+      <h4>Upcoming Manifest</h4>
+      <p>Track list with Cleo commentary nodes interspersed. Commentary nodes use vibe accent color + EB Garamond title. Matches SegmentController's pre-load buffer.</p>
+    </div>
+    <div class="anno-item">
+      <h4>Data Sources</h4>
+      <p>All data from existing services: QueueManager (tracks), SessionEngine (energy/timing), SegmentController (Cleo moments). No new backend work.</p>
+    </div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- ============ HOME SCREEN ============ -->
+<div class="screen-row">
+  <div>
+    <div class="screen-label">Screen 5 — Home (Redesigned)</div>
+    <div class="phone">
+      <div class="phone-inner">
+        <div class="p-header">
+          <span class="p-logo">Cleo</span>
+          <div style="display:flex; gap:10px; align-items:center;">
+            <span style="color:#ACAAAD; font-size:18px;">&#9906;</span>
+            <div class="p-avatar"></div>
+          </div>
+        </div>
+
+        <div style="padding:8px 20px 0;">
+          <h2 style="font-family:'Playfair Display'; font-size:28px; font-weight:300; margin-bottom:4px;">Good Evening</h2>
+          <p style="color:#ACAAAD; font-size:13px; margin-bottom:20px;">What frequency are we on tonight?</p>
+        </div>
+
+        <!-- Now Playing Mini (if active) -->
+        <div style="padding:0 20px; margin-bottom:20px;">
+          <div class="now-playing-mini glass-card">
+            <div style="width:44px; height:44px; border-radius:10px; background:linear-gradient(135deg,#1a0a2e,#2d1b4e); flex-shrink:0;"></div>
+            <div style="flex:1;">
+              <p style="font-size:13px; font-weight:600;">Midnight Frequency</p>
+              <p style="font-size:11px; color:#ACAAAD;">Solaris Echoes</p>
+            </div>
+            <div style="display:flex; gap:2px; align-items:flex-end; height:14px;">
+              <div style="width:2px; height:5px; background:#C8832A; border-radius:1px;"></div>
+              <div style="width:2px; height:10px; background:#C8832A; border-radius:1px;"></div>
+              <div style="width:2px; height:7px; background:#C8832A; border-radius:1px;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Your Stations -->
+        <div style="padding:0 0 0 20px; margin-bottom:24px;">
+          <p class="section-label" style="margin-bottom:12px;">Your Stations</p>
+          <div style="display:flex; gap:12px; overflow-x:auto; padding-right:20px;">
+            <div class="station-card" style="background:linear-gradient(135deg,#2a1a3a,#1a0a2e);">
+              <div class="station-gradient"></div>
+              <p class="station-name">Late Night Vibes</p>
+            </div>
+            <div class="station-card" style="background:linear-gradient(135deg,#3a2a1a,#2a1a0a);">
+              <div class="station-gradient"></div>
+              <p class="station-name">Morning Drive</p>
+            </div>
+            <div class="station-card" style="background:linear-gradient(135deg,#1a2a2a,#0a1a2a);">
+              <div class="station-gradient"></div>
+              <p class="station-name">Deep Focus</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Playlists -->
+        <div style="padding:0 0 0 20px; margin-bottom:24px;">
+          <p class="section-label" style="margin-bottom:12px;">Playlists</p>
+          <div style="display:flex; gap:12px; overflow-x:auto; padding-right:20px;">
+            <div class="station-card" style="background:linear-gradient(135deg,#1a1a3a,#2a1a2a);">
+              <div class="station-gradient"></div>
+              <p class="station-name">Chill Beats</p>
+            </div>
+            <div class="station-card" style="background:linear-gradient(135deg,#2a2a1a,#1a2a0a);">
+              <div class="station-gradient"></div>
+              <p class="station-name">Workout Mix</p>
+            </div>
+            <div class="station-card" style="background:linear-gradient(135deg,#3a1a2a,#2a0a1a);">
+              <div class="station-gradient"></div>
+              <p class="station-name">Party Starter</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Cleo Suggestion -->
+        <div style="padding:0 20px 24px;">
+          <div class="glass-card" style="padding:16px; display:flex; align-items:center; gap:14px;">
+            <div style="width:40px; height:40px; border-radius:50%; background:linear-gradient(135deg,#C8832A,rgba(200,131,42,0.3)); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+              <span style="color:#0D0D0D; font-size:16px;">&#9679;</span>
+            </div>
+            <div>
+              <p style="font-family:'EB Garamond'; font-style:italic; font-size:14px; color:rgba(250,248,244,0.9);">"You've been in a mellow mood all week. Want me to shake things up?"</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-tab-bar">
+          <div class="p-tab p-tab-active"><span style="font-size:18px;">&#9737;</span><span>Broadcast</span></div>
+          <div class="p-tab p-tab-inactive"><span style="font-size:18px;">&#9588;</span><span>Arc</span></div>
+          <div class="p-tab p-tab-inactive"><span style="font-size:18px;">&#9835;</span><span>Archive</span></div>
+          <div class="p-tab p-tab-inactive"><span style="font-size:18px;">&#11044;</span><span>Cleo</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="annotations">
+    <h3 class="anno-title">Home (Redesigned)</h3>
+    <div class="anno-item">
+      <h4>Greeting</h4>
+      <p>Time-of-day greeting in Playfair Display. "Good Morning/Afternoon/Evening." Contextual subhead from Cleo.</p>
+    </div>
+    <div class="anno-item">
+      <h4>Now Playing Mini</h4>
+      <p>Glass card with album art, track info, waveform bars. Tappable → navigates to Broadcast tab. Only visible when music is playing. Replaces the current colored bar.</p>
+    </div>
+    <div class="anno-item">
+      <h4>Station Cards</h4>
+      <p>Same 2:3 ratio portrait cards from current app, but with rounded corners (16px) and gradient overlays. Playfair Display for station names. Horizontal scroll.</p>
+    </div>
+    <div class="anno-item">
+      <h4>Cleo Suggestion</h4>
+      <p>New — glass card with Cleo orb + EB Garamond suggestion. Contextual based on listening history. Tappable to accept.</p>
+    </div>
+    <div class="anno-item">
+      <h4>Preserved Logic</h4>
+      <p>All existing: Apple Music auth flow, playlist fetching, MMKV station storage, vibe-based theming. Just new visual layer.</p>
+    </div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- ============ SETTINGS ============ -->
+<div class="screen-row">
+  <div>
+    <div class="screen-label">Screen 6 — Profile & Settings</div>
+    <div class="phone">
+      <div class="phone-inner">
+        <div class="p-header">
+          <span class="p-logo">Cleo</span>
+          <div class="p-avatar"></div>
+        </div>
+
+        <!-- Profile -->
+        <div style="padding:16px 20px 0; display:flex; flex-direction:column; align-items:center; text-align:center;">
+          <div class="profile-ring" style="margin-bottom:12px;">
+            <div class="profile-inner">
+              <span style="color:#767577; font-size:36px;">&#9786;</span>
+            </div>
+          </div>
+          <h2 style="font-family:'Playfair Display'; font-size:24px; font-weight:300;">Your Name</h2>
+          <p style="color:#ACAAAD; font-size:12px; margin-top:4px;">listener@frequency.io</p>
+        </div>
+
+        <!-- AI Personality -->
+        <div style="padding:28px 20px 0;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+            <p style="font-family:'DM Mono'; font-size:12px; letter-spacing:0.1em; text-transform:uppercase; color:rgba(200,131,42,0.7);">AI Personality</p>
+            <span style="color:#ACAAAD; font-size:16px;">&#9881;</span>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:10px;">
+            <div class="personality-card personality-selected" style="padding:14px;">
+              <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
+                <div style="padding:6px; background:rgba(200,131,42,0.1); border-radius:8px;">
+                  <span style="color:#C8832A; font-size:16px;">&#9878;</span>
+                </div>
+                <div class="radio radio-on"><div class="radio-dot"></div></div>
+              </div>
+              <p style="font-size:15px; font-weight:700;">Curator</p>
+              <p style="font-size:11px; color:#ACAAAD; line-height:1.4; margin-top:4px;">Analytical & Knowledgeable. Deep dives into musicology and technical specs.</p>
+            </div>
+            <div class="personality-card personality-unselected" style="padding:14px;">
+              <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
+                <div style="padding:6px; background:rgba(123,94,167,0.1); border-radius:8px;">
+                  <span style="color:#7B5EA7; font-size:16px;">&#9829;</span>
+                </div>
+                <div class="radio radio-off"></div>
+              </div>
+              <p style="font-size:15px; font-weight:700;">Companion</p>
+              <p style="font-size:11px; color:#ACAAAD; line-height:1.4; margin-top:4px;">Warm & Empathetic. Focuses on emotional resonance.</p>
+            </div>
+            <div class="personality-card personality-unselected" style="padding:14px;">
+              <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
+                <div style="padding:6px; background:rgba(255,151,184,0.1); border-radius:8px;">
+                  <span style="color:#ff97b8; font-size:16px;">&#10024;</span>
+                </div>
+                <div class="radio radio-off"></div>
+              </div>
+              <p style="font-size:15px; font-weight:700;">Oracle</p>
+              <p style="font-size:11px; color:#ACAAAD; line-height:1.4; margin-top:4px;">Enigmatic & Avant-garde. Experimental discoveries.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Connected -->
+        <div style="padding:24px 20px 0;">
+          <div style="background:rgba(19,19,21,0.6); border-radius:16px; padding:16px; border:1px solid rgba(72,71,74,0.05);">
+            <p style="font-family:'DM Mono'; font-size:8px; letter-spacing:0.18em; text-transform:uppercase; color:#ACAAAD; margin-bottom:12px;">Connected Ecosystem</p>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <div style="display:flex; align-items:center; gap:12px;">
+                <div style="width:36px; height:36px; background:rgba(255,255,255,0.05); border-radius:10px; display:flex; align-items:center; justify-content:center;">
+                  <span style="font-size:16px;">&#9835;</span>
+                </div>
+                <div>
+                  <p style="font-size:13px; font-weight:600;">Apple Music</p>
+                  <p style="font-family:'DM Mono'; font-size:8px; color:#C8832A; text-transform:uppercase; letter-spacing:0.1em;">Connected</p>
+                </div>
+              </div>
+              <div style="width:40px; height:22px; background:#C8832A; border-radius:11px; position:relative;">
+                <div style="position:absolute; right:3px; top:3px; width:16px; height:16px; border-radius:50%; background:#0D0D0D;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Voice Profile -->
+        <div style="padding:24px 20px 0;">
+          <p style="font-family:'DM Mono'; font-size:8px; letter-spacing:0.18em; text-transform:uppercase; color:#ACAAAD; margin-bottom:16px;">Voice Profile</p>
+          <div style="margin-bottom:20px;">
+            <div style="display:flex; justify-content:space-between; font-size:11px; margin-bottom:8px;">
+              <span>Audio Fidelity</span>
+              <span style="color:#C8832A; font-family:'DM Mono'; font-size:10px;">LOSSLESS</span>
+            </div>
+            <div class="slider-track">
+              <div class="slider-fill" style="width:85%; background:linear-gradient(to right,#C8832A,#7B5EA7);"></div>
+            </div>
+          </div>
+          <div>
+            <div style="display:flex; justify-content:space-between; font-size:11px; margin-bottom:8px;">
+              <span>Host Volume Mix</span>
+              <span style="color:#ACAAAD; font-family:'DM Mono'; font-size:10px;">-4dB</span>
+            </div>
+            <div class="slider-track">
+              <div class="slider-fill" style="width:40%; background:#ACAAAD;"></div>
+              <div class="slider-thumb" style="left:40%;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Account -->
+        <div style="padding:24px 20px 32px;">
+          <p style="font-family:'DM Mono'; font-size:8px; letter-spacing:0.18em; text-transform:uppercase; color:#ACAAAD; margin-bottom:12px;">Account</p>
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <div style="padding:14px; background:rgba(19,19,21,0.6); border-radius:12px; display:flex; justify-content:space-between; align-items:center;">
+              <span style="font-size:13px;">Manage Subscription</span>
+              <span style="color:#767577;">&#8250;</span>
+            </div>
+            <div style="padding:14px; background:rgba(19,19,21,0.6); border-radius:12px; display:flex; align-items:center; gap:10px;">
+              <span style="color:#ff6e84; font-size:13px;">Sign Out</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-tab-bar">
+          <div class="p-tab p-tab-inactive"><span style="font-size:18px;">&#9737;</span><span>Broadcast</span></div>
+          <div class="p-tab p-tab-inactive"><span style="font-size:18px;">&#9588;</span><span>Arc</span></div>
+          <div class="p-tab p-tab-inactive"><span style="font-size:18px;">&#9835;</span><span>Archive</span></div>
+          <div class="p-tab p-tab-active"><span style="font-size:18px;">&#11044;</span><span>Cleo</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="annotations">
+    <h3 class="anno-title">Profile & Settings</h3>
+    <div class="anno-item">
+      <h4>Profile Header</h4>
+      <p>Gold gradient ring around avatar (same ring used in Stitch). Name in Playfair. PRO badge if subscribed (future). Pulls from Firebase Auth profile.</p>
+    </div>
+    <div class="anno-item">
+      <h4>AI Personality</h4>
+      <p>3 personality modes that modify Cleo's system prompt (static-core.ts). Curator = analytical, Companion = emotional, Oracle = experimental. Stored in MMKV. Radio-button selection.</p>
+    </div>
+    <div class="anno-item">
+      <h4>Connected Ecosystem</h4>
+      <p>Apple Music toggle. Shows connection status from MusicKitPlayer. Future: Spotify, Last.fm.</p>
+    </div>
+    <div class="anno-item">
+      <h4>Voice Profile</h4>
+      <p>Audio Fidelity = placeholder for future quality toggle. Host Volume Mix = actual CleoVoiceEngine ducking level. The -4dB maps to AudioCoordinator.duck.targetVolume.</p>
+    </div>
+    <div class="anno-item">
+      <h4>Account</h4>
+      <p>Subscription management (StoreKit, future). Sign out calls AuthService.signOut(). Error color for destructive action.</p>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

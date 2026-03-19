@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>CLEO - Broadcast | Velvet Frequency</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#C8832A", // Gold accent
+                        "background": "#0D0D0D", // Black base
+                        "on-background": "#FAF8F4", // White
+                        "surface": "#161616",
+                        "surface-variant": "#262528",
+                        "outline": "#48474a",
+                        "cream": "#F5F0E8",
+                        "on-surface": "#FAF8F4",
+                        "on-surface-variant": "#acaaad"
+                    },
+                    fontFamily: {
+                        "headline": ["Plus Jakarta Sans"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    },
+                    borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+        .editorial-glow {
+            box-shadow: 0 0 60px 0px rgba(200, 131, 42, 0.1);
+        }
+        .glass-panel {
+            backdrop-filter: blur(40px);
+            -webkit-backdrop-filter: blur(40px);
+            background: rgba(22, 22, 22, 0.7);
+        }
+        .asymmetric-border {
+            border-left: 1px solid #C8832A;
+        }
+        .text-kern-wide {
+            letter-spacing: 0.25em;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body selection:bg-primary/30 min-h-screen overflow-x-hidden">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-background/80 backdrop-blur-md flex justify-between items-center px-8 h-20 border-b border-white/5">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-primary text-3xl" data-icon="graphic_eq">graphic_eq</span>
+<h1 class="font-headline text-xl font-extrabold tracking-[0.3em] text-on-background uppercase">CLEO</h1>
+</div>
+<div class="flex items-center gap-6">
+<button class="text-on-background/60 hover:text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="search">search</span>
+</button>
+<div class="w-10 h-10 rounded-full border border-primary/30 p-0.5">
+<img class="w-full h-full object-cover rounded-full filter grayscale" data-alt="User profile avatar portrait" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCiftRzFsLtObt2ud6I31UvDB3QnblfYu-xYXCBy76jEndRtIQZoboiG261mpvezyP2_Sn90KlvPDvAbNgeyzEiMauEuKEllaiVDatRNPmM7mL7pEFsj8r5i-_05GpK3HoMTQCPKUsP4J-ItZ4Q2sh-AiDDGD5IeEX_G0al-GS57C7HGhs9uIpFMPNvs_sg4izS_M7Zos_ljyxxdjdkjk55jIUCc3ZLUr1u7gTvD-H9IkzY2jmReujXUf66Pj7I5jjnJQNiJsjIm4sJ"/>
+</div>
+</div>
+</header>
+<main class="pt-28 pb-32 px-8 max-w-lg mx-auto min-h-screen relative">
+<!-- Editorial Background -->
+<div class="fixed inset-0 -z-10 bg-[#0D0D0D]"></div>
+<div class="fixed top-0 right-0 w-full h-1/2 bg-gradient-to-b from-primary/5 to-transparent -z-10"></div>
+<!-- Album Art Section (The Heart) -->
+<section class="relative w-full mb-12">
+<div class="relative w-full aspect-[4/5] overflow-hidden shadow-[20px_20px_60px_rgba(0,0,0,0.8)] border border-white/5">
+<img class="w-full h-full object-cover filter brightness-90 contrast-110" data-alt="Abstract vibrant sonic energy visualization artwork" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDhAwdU-G-UAlvC0isMpo4s8nyyyLiFAgG3PAb33PhrUkUUBZkCzZwAzz4vTCTVvVxJcPYD6W6eD_VlG7VkbA71ebqcSpV2cv_eHjQLvBMq-GlA5C-8hoPfT2n0R6EbZ-T8cMoSqTxaKp_kZ4PTD2ITvNynBKgnI5e2xW2IOFtseREsrmZ8Ot8E8RJJVaGOULdMI-Ta_n-HdFs_LNThWy_V4QXgWBQVblXvDYsQ1eGH-yVsozlppsuZc16Y2Uxor9UCY8amkFs4Y5NC"/>
+<!-- Cleo Overlay / Waveform -->
+<div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex flex-col justify-end p-8">
+<div class="flex items-center gap-4 mb-2">
+<div class="flex items-end gap-1.5 h-6">
+<div class="w-0.5 bg-primary/40 rounded-full h-3 animate-pulse"></div>
+<div class="w-0.5 bg-primary rounded-full h-6 animate-pulse" style="animation-delay: 0.1s"></div>
+<div class="w-0.5 bg-primary/60 rounded-full h-4 animate-pulse" style="animation-delay: 0.2s"></div>
+<div class="w-0.5 bg-primary rounded-full h-5 animate-pulse" style="animation-delay: 0.3s"></div>
+<div class="w-0.5 bg-primary/40 rounded-full h-2 animate-pulse" style="animation-delay: 0.4s"></div>
+</div>
+<span class="text-primary font-headline font-bold text-[10px] uppercase tracking-[0.4em]">Cleo is talking</span>
+</div>
+</div>
+</div>
+<!-- Decorative Gold Accent Line -->
+<div class="absolute -bottom-4 -right-4 w-24 h-[1px] bg-primary"></div>
+</section>
+<!-- Track Info -->
+<section class="mb-12">
+<h2 class="font-headline text-4xl font-black tracking-tighter mb-1 text-on-surface uppercase italic">Midnight Frequency</h2>
+<div class="flex items-center gap-3">
+<div class="h-[1px] w-8 bg-primary"></div>
+<p class="font-body text-cream text-lg font-light tracking-wide italic">Solaris Echoes</p>
+</div>
+</section>
+<!-- Host Commentary (Editorial Bento Card) -->
+<section class="mb-12">
+<div class="bg-surface glass-panel p-8 border-l-2 border-primary shadow-2xl relative">
+<div class="absolute top-0 right-0 p-4 opacity-10">
+<span class="material-symbols-outlined text-4xl" data-icon="format_quote">format_quote</span>
+</div>
+<div class="flex items-center gap-3 mb-6">
+<span class="font-headline font-bold text-[10px] tracking-[0.3em] text-primary uppercase">Editorial Insight</span>
+</div>
+<p class="font-body text-cream leading-[1.8] text-base opacity-90 font-light">
+                    "This bassline was actually sampled from a deep-sea recording of a tectonic shift. Solaris Echoes spent three months in a sub-aquatic studio to get this exact resonance. Can you feel the weight?"
+                </p>
+</div>
+</section>
+<!-- Minimal Controls -->
+<section class="space-y-10">
+<!-- Progress Bar -->
+<div class="space-y-3">
+<div class="w-full h-[2px] bg-white/10 overflow-hidden">
+<div class="h-full bg-primary w-[65%]"></div>
+</div>
+<div class="flex justify-between text-[9px] font-headline font-bold tracking-[0.2em] text-on-surface-variant uppercase">
+<span>2:45</span>
+<span class="text-primary">Live Connection</span>
+<span>4:12</span>
+</div>
+</div>
+<!-- Playback Controls -->
+<div class="flex items-center justify-between">
+<button class="text-on-surface/40 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-2xl" data-icon="shuffle">shuffle</span>
+</button>
+<div class="flex items-center gap-10">
+<button class="text-on-surface hover:text-primary transition-colors active:scale-95 duration-200">
+<span class="material-symbols-outlined text-3xl" data-icon="skip_previous">skip_previous</span>
+</button>
+<!-- Play Button - Velvet Frequency Style -->
+<button class="w-20 h-20 bg-primary text-background flex items-center justify-center shadow-[0_10px_40px_rgba(200,131,42,0.3)] active:scale-95 transition-all">
+<span class="material-symbols-outlined text-4xl" data-icon="pause" style="font-variation-settings: 'FILL' 1;">pause</span>
+</button>
+<button class="text-on-surface hover:text-primary transition-colors active:scale-95 duration-200">
+<span class="material-symbols-outlined text-3xl" data-icon="skip_next">skip_next</span>
+</button>
+</div>
+<button class="text-on-surface/40 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-2xl" data-icon="repeat">repeat</span>
+</button>
+</div>
+</section>
+<!-- Up Next Peek -->
+<section class="mt-16 border-t border-white/5 pt-8">
+<div class="flex items-center justify-between mb-6">
+<h3 class="font-headline font-bold text-[10px] uppercase tracking-[0.4em] text-on-surface-variant">Synchronized Next</h3>
+<span class="material-symbols-outlined text-primary text-sm" data-icon="keyboard_arrow_up">keyboard_arrow_up</span>
+</div>
+<div class="flex items-center gap-6 group cursor-pointer">
+<div class="w-16 h-16 bg-surface border border-white/5 overflow-hidden">
+<img class="w-full h-full object-cover filter grayscale hover:grayscale-0 transition-all duration-500" data-alt="Album cover for upcoming track" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBMelzI2CXKg5Ln9D0Dy3o_KSEdhtzUbFZ0fmvcsZfgUJ2CPacb0ecfdr0c-hkwPHWvmlS-P8W3rpdHGKasgGZlx0OK8wAnU_3CR_xXkfVpKFeST8sfZnAzOUzk5t0-hgpJoj9lEFOt-1AAn4EBS0A-ix98xc8AGzZRrsVOlzSbNMjHQ3anymf4ZBmADHTUUwDz62Dj9n6DNvSo5__1hPWG5yaesbLOz17KMh-XAj_eok8GZsBF-ndfvA4zXnVO98eO3XSTClJ2DRqD"/>
+</div>
+<div class="flex-1">
+<p class="font-headline text-base font-bold text-on-surface uppercase tracking-tight group-hover:text-primary transition-colors">Neural Pathway</p>
+<p class="font-body text-xs text-on-surface-variant italic">Ghost in the Machine</p>
+</div>
+<button class="text-on-surface/30">
+<span class="material-symbols-outlined" data-icon="more_horiz">more_horiz</span>
+</button>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-full z-50 bg-background/90 backdrop-blur-xl flex justify-around items-center h-24 pb-safe px-6 border-t border-white/5">
+<a class="flex flex-col items-center justify-center text-primary" href="#">
+<span class="material-symbols-outlined text-2xl" data-icon="sensors" style="font-variation-settings: 'FILL' 1;">sensors</span>
+<span class="font-headline text-[9px] font-bold uppercase tracking-[0.2em] mt-2">Broadcast</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface/40 hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined text-2xl" data-icon="timeline">timeline</span>
+<span class="font-headline text-[9px] font-bold uppercase tracking-[0.2em] mt-2">Arc</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface/40 hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined text-2xl" data-icon="library_music">library_music</span>
+<span class="font-headline text-[9px] font-bold uppercase tracking-[0.2em] mt-2">Archive</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface/40 hover:text-primary transition-colors" href="#">
+<div class="relative">
+<span class="material-symbols-outlined text-2xl" data-icon="blur_on">blur_on</span>
+<div class="absolute -top-1 -right-1 w-1.5 h-1.5 bg-primary rounded-full shadow-[0_0_8px_#C8832A]"></div>
+</div>
+<span class="font-headline text-[9px] font-bold uppercase tracking-[0.2em] mt-2">Cleo</span>
+</a>
+</nav>
+</body></html>

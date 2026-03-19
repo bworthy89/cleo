@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Alert, Pressable, SafeAreaView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Typography, Spacing } from '../../src/tokens/design-tokens';
+import { Colors, Typography, Spacing, TextColors, Surface } from '../../src/tokens/design-tokens';
 import {
   signInWithEmail,
   signUpWithEmail,
@@ -153,7 +153,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.vibe.morning.bg,
+    backgroundColor: Surface.base,
   },
   content: {
     flex: 1,
@@ -163,7 +163,7 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: Typography.display.family,
     fontSize: 48,
-    color: Colors.vibe.morning.text,
+    color: TextColors.primary,
     textAlign: 'center',
   },
   subtitle: {
@@ -193,7 +193,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(0,0,0,0.15)',
   },
   providerText: {
-    fontFamily: Typography.label.familyMedium,
+    fontFamily: Typography.body.familyMedium,
     fontSize: 16,
   },
   pressed: {
@@ -217,9 +217,9 @@ const styles = StyleSheet.create({
     marginHorizontal: Spacing.md,
   },
   input: {
-    fontFamily: Typography.label.family,
+    fontFamily: Typography.body.family,
     fontSize: 18,
-    color: Colors.vibe.morning.text,
+    color: TextColors.primary,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(0,0,0,0.15)',
     paddingVertical: Spacing.md,
@@ -242,7 +242,7 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xl,
   },
   footerLink: {
-    fontFamily: Typography.label.family,
+    fontFamily: Typography.body.family,
     fontSize: 14,
     color: Colors.vibe.morning.accent,
   },

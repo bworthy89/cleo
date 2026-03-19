@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Cleo Speaking Animations</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@300;400;700&family=Inter:wght@400;500;600&family=EB+Garamond:ital,wght@1,400;1,500&family=DM+Mono:wght@400;500&family=JetBrains+Mono:wght@700;800&display=swap" rel="stylesheet"/>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#111; color:#FAF8F4; font-family:'Inter',sans-serif; display:flex; justify-content:center; padding:40px 20px; gap:40px; flex-wrap:wrap; align-items:flex-start; }
+
+  .phone {
+    width:390px; height:844px; background:#0D0D0D; border-radius:44px; overflow:hidden;
+    position:relative; border:1px solid #222; box-shadow:0 20px 60px rgba(0,0,0,0.5);
+    flex-shrink:0;
+  }
+  .phone-inner { width:100%; height:100%; overflow:hidden; position:relative; }
+
+  /* Dimmed broadcast */
+  .broadcast-dimmed {
+    width:100%; height:100%; position:absolute; inset:0;
+    filter:blur(4px) grayscale(30%); opacity:0.3;
+    padding:64px 24px 100px;
+  }
+  .art-placeholder {
+    width:100%; aspect-ratio:1; border-radius:24px;
+    background:linear-gradient(135deg,#1a0a2e,#2d1b4e,#0a1628);
+    margin-bottom:24px; position:relative; overflow:hidden;
+  }
+
+  /* Header */
+  .header { position:absolute; top:0; left:0; right:0; z-index:50; display:flex; justify-content:space-between; align-items:center; padding:16px 24px; height:64px; }
+  .header-logo { font-family:'DM Mono'; font-size:18px; font-weight:500; color:#C8832A; letter-spacing:0.15em; text-transform:uppercase; }
+
+  /* === ANIMATIONS === */
+
+  /* 1. Scanline sweep */
+  @keyframes scanline-sweep {
+    0% { top:-5%; }
+    100% { top:105%; }
+  }
+  .scanline {
+    position:absolute; left:0; right:0; height:3px; z-index:60;
+    background:linear-gradient(to right, transparent, rgba(200,131,42,0.35), transparent);
+    animation:scanline-sweep 3.5s linear infinite;
+    pointer-events:none;
+  }
+
+  /* 2. Title glitch */
+  @keyframes glitch-jitter {
+    0% { transform:translate(0,0); }
+    20% { transform:translate(-2px,1px); }
+    40% { transform:translate(1px,-2px); }
+    60% { transform:translate(-1px,2px); }
+    80% { transform:translate(2px,-1px); }
+    100% { transform:translate(0,0); }
+  }
+  @keyframes glitch-in {
+    0% { opacity:0; transform:translateX(-30px) skewX(-5deg); }
+    60% { opacity:1; transform:translateX(4px) skewX(1deg); }
+    80% { transform:translateX(-2px) skewX(-0.5deg); }
+    100% { transform:translateX(0) skewX(0); }
+  }
+  .disruption-title {
+    font-family:'JetBrains Mono'; font-size:48px; font-weight:800;
+    line-height:0.95; letter-spacing:-0.03em; text-transform:uppercase;
+    color:#C8832A; margin-bottom:8px;
+    text-shadow: 2px 0 #7B5EA7, -2px 0 rgba(200,131,42,0.5);
+    animation: glitch-in 0.4s cubic-bezier(0.22,1,0.36,1) forwards, glitch-jitter 0.3s cubic-bezier(.25,.46,.45,.94) 0.4s infinite;
+  }
+
+  /* 3. Gold bar flash */
+  @keyframes bar-flash {
+    0% { width:0; opacity:1; box-shadow:0 0 0px rgba(200,131,42,0); }
+    50% { width:100%; opacity:1; box-shadow:0 0 25px rgba(200,131,42,1); }
+    100% { width:100%; opacity:1; box-shadow:0 0 15px rgba(200,131,42,0.6); }
+  }
+  .disruption-line {
+    height:3px; background:#C8832A;
+    box-shadow:0 0 15px rgba(200,131,42,0.8);
+    margin-bottom:24px;
+    animation:bar-flash 0.6s ease-out 0.3s both;
+  }
+
+  /* 4. Quote box entrance */
+  @keyframes quote-slam {
+    0% { opacity:0; transform:rotate(0deg) scale(0.9) translateY(20px); }
+    70% { opacity:1; transform:rotate(-2deg) scale(1.02) translateY(-4px); }
+    100% { opacity:1; transform:rotate(-1.5deg) scale(1) translateY(0); }
+  }
+  .quote-box {
+    background:rgba(13,13,13,0.5); backdrop-filter:blur(8px);
+    padding:20px; border-right:4px solid #C8832A; border-bottom:4px solid #C8832A;
+    box-shadow:0 8px 32px rgba(0,0,0,0.5);
+    animation:quote-slam 0.5s cubic-bezier(0.22,1,0.36,1) 0.5s both;
+  }
+
+  /* 5. Waveform bars */
+  @keyframes wave-bounce {
+    0%,100% { transform:scaleY(0.4); }
+    50% { transform:scaleY(1); }
+  }
+  .wave-bars { display:flex; align-items:flex-end; gap:3px; height:16px; }
+  .wave-bar {
+    width:3px; border-radius:2px; background:#C8832A;
+    transform-origin:bottom;
+    animation:wave-bounce 0.6s ease-in-out infinite;
+  }
+  .wave-bar:nth-child(1) { height:14px; animation-delay:0s; }
+  .wave-bar:nth-child(2) { height:8px; animation-delay:0.15s; }
+  .wave-bar:nth-child(3) { height:16px; animation-delay:0.3s; }
+  .wave-bar:nth-child(4) { height:10px; animation-delay:0.1s; }
+  .wave-bar:nth-child(5) { height:12px; animation-delay:0.25s; }
+
+  /* 6. Word-by-word highlight */
+  @keyframes word-glow {
+    0% { color:#FAF8F4; text-shadow:none; }
+    20% { color:#C8832A; text-shadow:0 0 8px rgba(200,131,42,0.4); }
+    100% { color:rgba(250,248,244,0.6); text-shadow:none; }
+  }
+  .quote-text {
+    font-family:'JetBrains Mono'; font-size:22px; font-weight:800;
+    line-height:1.35; letter-spacing:-0.02em;
+  }
+  .word { display:inline; color:rgba(250,248,244,0.35); }
+  .word.spoken { animation:word-glow 2s ease-out forwards; }
+  .word:nth-child(1).spoken { animation-delay:0.9s; }
+  .word:nth-child(2).spoken { animation-delay:1.1s; }
+  .word:nth-child(3).spoken { animation-delay:1.3s; }
+  .word:nth-child(4).spoken { animation-delay:1.5s; }
+  .word:nth-child(5).spoken { animation-delay:1.7s; }
+  .word:nth-child(6).spoken { animation-delay:1.9s; }
+  .word:nth-child(7).spoken { animation-delay:2.1s; }
+  .word:nth-child(8).spoken { animation-delay:2.3s; }
+  .word:nth-child(9).spoken { animation-delay:2.5s; }
+  .word:nth-child(10).spoken { animation-delay:2.7s; }
+  .word:nth-child(11).spoken { animation-delay:2.9s; }
+
+  /* Special highlight for emphasis word */
+  .word-emphasis {
+    display:inline;
+    color:rgba(200,131,42,0.3);
+    font-style:italic;
+    text-decoration:underline;
+    text-decoration-thickness:3px;
+    text-underline-offset:4px;
+    text-decoration-color:rgba(200,131,42,0.3);
+  }
+  .word-emphasis.spoken {
+    animation:emphasis-glow 2s ease-out forwards;
+  }
+  @keyframes emphasis-glow {
+    0% { color:rgba(200,131,42,0.3); text-decoration-color:rgba(200,131,42,0.3); text-shadow:none; }
+    20% { color:#C8832A; text-decoration-color:#C8832A; text-shadow:0 0 16px rgba(200,131,42,0.6); }
+    100% { color:#C8832A; text-decoration-color:#C8832A; text-shadow:0 0 4px rgba(200,131,42,0.2); }
+  }
+  .word-emphasis.spoken { animation-delay:1.9s; }
+
+  /* 7. Speaking badge pulse */
+  @keyframes badge-pulse {
+    0%,100% { opacity:1; }
+    50% { opacity:0.4; }
+  }
+  .speaking-badge {
+    font-family:'JetBrains Mono'; font-size:9px; font-weight:700;
+    text-transform:uppercase; color:#C8832A; letter-spacing:0.05em;
+    animation:badge-pulse 1.5s ease-in-out infinite;
+  }
+
+  /* 8. Exit dissolve */
+  @keyframes dissolve-up {
+    0% { opacity:1; transform:translateY(0); filter:blur(0); }
+    100% { opacity:0; transform:translateY(-20px); filter:blur(4px); }
+  }
+
+  .transmission-badge { display:flex; align-items:center; gap:10px; margin-bottom:16px; }
+  .transmission-text { font-family:'JetBrains Mono'; font-size:10px; font-weight:700; letter-spacing:0.15em; text-transform:uppercase; color:#C8832A; background:rgba(200,131,42,0.1); padding:2px 8px; }
+
+  .quote-meta { display:flex; justify-content:space-between; align-items:flex-end; margin-top:20px; }
+  .signal-data { font-family:'JetBrains Mono'; font-size:7px; color:rgba(250,248,244,0.35); line-height:1.8; }
+
+  .glitch-line { height:1px; background:linear-gradient(to right, transparent, rgba(200,131,42,0.4), transparent); margin-top:32px; }
+  .glitch-block { width:80px; height:12px; background:rgba(200,131,42,0.12); margin-top:8px; margin-left:auto; }
+
+  /* Tab Bar */
+  .tab-bar {
+    position:absolute; bottom:0; left:0; right:0; height:84px; z-index:50;
+    background:rgba(13,13,13,0.8); backdrop-filter:blur(20px);
+    border-top-left-radius:24px; border-top-right-radius:24px;
+    display:flex; justify-content:space-around; align-items:center; padding:0 16px 16px;
+  }
+  .tab { display:flex; flex-direction:column; align-items:center; gap:4px; }
+  .tab-label { font-family:'DM Mono'; font-size:8px; letter-spacing:0.15em; text-transform:uppercase; }
+  .tab-active { color:#C8832A; }
+  .tab-inactive { color:rgba(172,170,173,0.3); }
+
+  /* Annotations */
+  .annotations { max-width:360px; padding-top:20px; }
+  .anno-title { font-family:'Playfair Display'; font-size:22px; font-weight:300; color:#C8832A; margin-bottom:20px; }
+  .anim-item { margin-bottom:24px; padding:16px; background:rgba(19,19,21,0.6); border-radius:12px; border:1px solid rgba(72,71,74,0.1); }
+  .anim-num { font-family:'JetBrains Mono'; font-size:9px; color:rgba(200,131,42,0.5); margin-bottom:4px; }
+  .anim-name { font-family:'DM Mono'; font-size:12px; font-weight:500; color:#FAF8F4; letter-spacing:0.05em; margin-bottom:6px; }
+  .anim-desc { font-family:'Inter'; font-size:12px; line-height:1.5; color:#ACAAAD; }
+  .anim-code { font-family:'DM Mono'; font-size:10px; color:#767577; margin-top:6px; background:rgba(0,0,0,0.3); padding:6px 10px; border-radius:6px; }
+
+  .rn-note { margin-top:32px; padding:16px; background:rgba(200,131,42,0.06); border-radius:12px; border-left:3px solid rgba(200,131,42,0.3); }
+  .rn-note h4 { font-family:'DM Mono'; font-size:10px; letter-spacing:0.1em; text-transform:uppercase; color:#C8832A; margin-bottom:8px; }
+  .rn-note p { font-family:'Inter'; font-size:12px; line-height:1.5; color:#ACAAAD; }
+</style>
+</head>
+<body>
+
+<!-- Phone with live animations -->
+<div class="phone">
+  <div class="phone-inner">
+    <div class="broadcast-dimmed">
+      <div class="art-placeholder"></div>
+    </div>
+
+    <div class="header">
+      <span class="header-logo">Cleo</span>
+    </div>
+
+    <!-- Overlay with LIVE animations -->
+    <div style="position:absolute;inset:0;z-index:40;display:flex;flex-direction:column;padding:100px 24px 120px;pointer-events:none;">
+      <div class="scanline"></div>
+
+      <div class="disruption-title">Host<br/>Interjection</div>
+      <div class="disruption-line"></div>
+
+      <div class="quote-box">
+        <div class="transmission-badge">
+          <div class="wave-bars">
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+          </div>
+          <span class="transmission-text">Transmission Active</span>
+        </div>
+
+        <p class="quote-text">
+          <span class="word spoken">"CAN </span>
+          <span class="word spoken">YOU </span>
+          <span class="word spoken">FEEL </span>
+          <span class="word spoken">THE </span>
+          <span class="word-emphasis spoken">WEIGHT </span>
+          <span class="word spoken">OF </span>
+          <span class="word spoken">THIS </span>
+          <span class="word spoken">TECTONIC </span>
+          <span class="word spoken">RESONANCE?" </span>
+        </p>
+
+        <div class="quote-meta">
+          <div class="signal-data">
+            SIGNAL: 104.2 MHZ<br/>
+            LATENCY: 0.003MS<br/>
+            ENCODING: AI_VOX_V4
+          </div>
+          <span class="speaking-badge">Cleo is speaking...</span>
+        </div>
+      </div>
+
+      <div class="glitch-line"></div>
+      <div class="glitch-block"></div>
+    </div>
+
+    <div class="tab-bar">
+      <div class="tab tab-inactive"><span style="font-size:20px;">&#9737;</span><span class="tab-label">Broadcast</span></div>
+      <div class="tab tab-inactive"><span style="font-size:20px;">&#9588;</span><span class="tab-label">Arc</span></div>
+      <div class="tab tab-inactive"><span style="font-size:20px;">&#9835;</span><span class="tab-label">Archive</span></div>
+      <div class="tab tab-active"><span style="font-size:20px;">&#11044;</span><span class="tab-label">Cleo</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- Annotations -->
+<div class="annotations">
+  <h3 class="anno-title">Animation Breakdown</h3>
+
+  <div class="anim-item">
+    <div class="anim-num">Animation 1</div>
+    <div class="anim-name">Scanline Sweep</div>
+    <div class="anim-desc">Semi-transparent gold line sweeps top→bottom on a 3.5s loop. Broadcast aesthetic. Pure CSS translateY.</div>
+    <div class="anim-code">translateY(-5% → 105%) / 3.5s linear infinite</div>
+  </div>
+
+  <div class="anim-item">
+    <div class="anim-num">Animation 2</div>
+    <div class="anim-name">Title Glitch-In</div>
+    <div class="anim-desc">"HOST INTERJECTION" slides from left with skew distortion (0.4s), then settles into a subtle jitter loop. Text-shadow creates chromatic aberration with vibe accent color.</div>
+    <div class="anim-code">skewX + translateX slam (0.4s) → jitter loop (0.3s infinite)</div>
+  </div>
+
+  <div class="anim-item">
+    <div class="anim-num">Animation 3</div>
+    <div class="anim-name">Gold Bar Flash</div>
+    <div class="anim-desc">Horizontal gold line expands from 0→100% width with a bright glow burst, then settles to a steady glow.</div>
+    <div class="anim-code">width 0→100% + boxShadow flash (0.6s ease-out)</div>
+  </div>
+
+  <div class="anim-item">
+    <div class="anim-num">Animation 4</div>
+    <div class="anim-name">Quote Box Slam</div>
+    <div class="anim-desc">Card scales up from 90% + rotates to -1.5deg with overshoot. Feels like a newspaper headline slapped down.</div>
+    <div class="anim-code">scale(0.9→1.02→1) + rotate(0→-2→-1.5deg) / 0.5s spring</div>
+  </div>
+
+  <div class="anim-item">
+    <div class="anim-num">Animation 5</div>
+    <div class="anim-name">Waveform Bars</div>
+    <div class="anim-desc">5 vertical bars scale Y with staggered delays. Simulates live audio visualization while Cleo TTS plays.</div>
+    <div class="anim-code">scaleY(0.4→1→0.4) / 0.6s staggered 0.1-0.3s</div>
+  </div>
+
+  <div class="anim-item">
+    <div class="anim-num">Animation 6</div>
+    <div class="anim-name">Word-by-Word Highlight</div>
+    <div class="anim-desc">Each word starts dim (35% opacity), then glows gold as Cleo speaks it, then fades to 60% warm white. The emphasis word ("WEIGHT") stays gold with a persistent glow. Stagger synced to TTS playback timing.</div>
+    <div class="anim-code">opacity 0.35→gold glow→0.6 / ~200ms per word, synced to TTS</div>
+  </div>
+
+  <div class="anim-item">
+    <div class="anim-num">Animation 7</div>
+    <div class="anim-name">Speaking Badge Pulse</div>
+    <div class="anim-desc">"Cleo is speaking..." pulses opacity 1→0.4 on loop.</div>
+    <div class="anim-code">opacity 1→0.4→1 / 1.5s infinite</div>
+  </div>
+
+  <div class="anim-item">
+    <div class="anim-num">Animation 8</div>
+    <div class="anim-name">Exit Dissolve</div>
+    <div class="anim-desc">When TTS finishes: entire overlay fades out + translates up 20px + blurs to 4px. Broadcast screen un-dims simultaneously. 600ms duration.</div>
+    <div class="anim-code">opacity 1→0 + translateY(0→-20) + blur(0→4px) / 600ms</div>
+  </div>
+
+  <div class="rn-note">
+    <h4>React Native Implementation</h4>
+    <p>All animations use <strong>Reanimated 3</strong> for 60fps native thread performance. The scanline and waveform bars use <code>withRepeat + withTiming</code>. The entrance sequence uses <code>withSequence</code> for orchestrated stagger. Word highlighting is driven by the TTS playback position from CleoVoiceEngine — each word maps to a timestamp range. <strong>Respects reduce-motion</strong> — falls back to simple fade in/out.</p>
+  </div>
+</div>
+
+</body>
+</html>

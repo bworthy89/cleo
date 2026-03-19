@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>CLEO - Living Magazine</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "background": "#0D0D0D",
+                        "on-background": "#FAF8F4",
+                        "primary": "#C8832A",
+                        "on-primary": "#0D0D0D",
+                        "secondary": "#C8832A",
+                        "surface": "#131313",
+                        "on-surface": "#FAF8F4",
+                        "on-surface-variant": "#A09E9B",
+                        "outline": "#524437",
+                        "outline-variant": "#2C2C2C",
+                        "primary-fixed": "#C8832A",
+                    },
+                    fontFamily: {
+                        "headline": ["Plus Jakarta Sans"],
+                        "body": ["Inter"],
+                        "label": ["Inter"],
+                        "mono": ["JetBrains Mono"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .editorial-shadow {
+            text-shadow: 2px 2px 0px rgba(0,0,0,0.5);
+        }
+        .vertical-text {
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+        }
+        @keyframes glitch {
+            0% { transform: translate(0); }
+            20% { transform: translate(-2px, 2px); }
+            40% { transform: translate(-2px, -2px); }
+            60% { transform: translate(2px, 2px); }
+            80% { transform: translate(2px, -2px); }
+            100% { transform: translate(0); }
+        }
+        .animate-glitch {
+            animation: glitch 0.3s cubic-bezier(.25,.46,.45,.94) infinite;
+        }
+        @keyframes scanline {
+            0% { top: -100%; }
+            100% { top: 100%; }
+        }
+        .scanline {
+            width: 100%;
+            height: 4px;
+            background: rgba(200, 131, 42, 0.3);
+            position: absolute;
+            animation: scanline 4s linear infinite;
+            z-index: 60;
+            pointer-events: none;
+        }
+        .magazine-grid {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            grid-template-rows: repeat(12, 1fr);
+            height: 70vh;
+        }
+        .text-glitch-primary {
+            text-shadow: 2px 0 #FAF8F4, -2px 0 #C8832A;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body selection:bg-primary/30 min-h-screen overflow-x-hidden">
+<!-- TopAppBar -->
+<header class="fixed top-0 left-0 w-full z-50 bg-[#131313] flex justify-between items-center px-8 py-6">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-[#C8832A] text-3xl font-bold" data-icon="graphic_eq">graphic_eq</span>
+<h1 class="font-['Plus_Jakarta_Sans'] text-3xl font-black tracking-tighter text-[#FAF8F4] uppercase">Cleo</h1>
+</div>
+<div class="flex items-center gap-4">
+<div class="font-['Plus_Jakarta_Sans'] text-[10px] font-bold tracking-[0.3em] uppercase opacity-40 text-[#FAF8F4]">Issue No. 042</div>
+</div>
+</header>
+<main class="pt-24 pb-32 px-4 max-w-lg mx-auto min-h-screen relative">
+<!-- Dimmed/Blurred Background content -->
+<div class="blur-sm grayscale transition-all duration-500 opacity-30">
+<!-- Asymmetric Magazine Layout -->
+<div class="magazine-grid relative w-full mb-12">
+<!-- Background Image -->
+<div class="col-start-1 col-end-11 row-start-2 row-end-12 relative overflow-hidden rounded-xl group">
+<img alt="Abstract vibrant sonic energy visualization artwork" class="w-full h-full object-cover grayscale mix-blend-luminosity" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDhAwdU-G-UAlvC0isMpo4s8nyyyLiFAgG3PAb33PhrUkUUBZkCzZwAzz4vTCTVvVxJcPYD6W6eD_VlG7VkbA71ebqcSpV2cv_eHjQLvBMq-GlA5C-8hoPfT2n0R6EbZ-T8cMoSqTxaKp_kZ4PTD2ITvNynBKgnI5e2xW2IOFtseREsrmZ8Ot8E8RJJVaGOULdMI-Ta_n-HdFs_LNThWy_V4QXgWBQVblXvDYsQ1eGH-yVsozlppsuZc16Y2Uxor9UCY8amkFs4Y5NC"/>
+</div>
+<!-- Overlapping Editorial Type -->
+<div class="col-start-2 col-end-13 row-start-8 row-end-11 z-10 pointer-events-none">
+<h2 class="font-headline text-6xl font-black italic tracking-tighter leading-none text-[#FAF8F4] editorial-shadow mix-blend-difference">
+                        Midnight<br/>Frequency
+                    </h2>
+</div>
+<!-- Side Label -->
+<div class="col-start-12 col-end-13 row-start-2 row-end-8 flex items-center justify-center">
+<span class="vertical-text font-bold text-[10px] tracking-[0.5em] uppercase text-primary/60">Now Recording Live</span>
+</div>
+<!-- Artist Name -->
+<div class="col-start-1 col-end-13 row-start-1 row-end-2 flex items-end">
+<p class="font-headline text-2xl font-extrabold uppercase tracking-widest text-primary">Solaris Echoes</p>
+</div>
+</div>
+<!-- Editorial Commentary -->
+<section class="relative mb-12 px-2">
+<div class="relative z-10 border-l-2 border-primary pl-6 py-2">
+<p class="font-body text-xl leading-snug font-light italic text-on-surface/90">
+                        Solaris spent three months in a sub-aquatic studio to get this exact resonance. 
+                        <span class="bg-primary text-background font-bold px-1 not-italic ml-1">The deep-sea recordings</span> 
+                        of tectonic shifts provide the backbone for the entire arrangement.
+                    </p>
+</div>
+</section>
+</div>
+<!-- CLEO DISRUPTION OVERLAY -->
+<div class="absolute inset-0 z-40 flex flex-col pointer-events-none px-4 pt-32">
+<div class="scanline"></div>
+<!-- Massive Header -->
+<div class="relative overflow-hidden mb-6">
+<h2 class="font-mono text-[52px] font-black leading-none tracking-tighter text-primary uppercase animate-glitch text-glitch-primary mix-blend-screen opacity-90">
+                    HOST<br/>INTERJECTION
+                </h2>
+<div class="h-1 w-full bg-primary mt-2 shadow-[0_0_15px_rgba(200,131,42,0.8)]"></div>
+</div>
+<!-- Big EXPRESSIVE Commentary -->
+<div class="relative bg-background/40 backdrop-blur-sm p-4 border-r-4 border-b-4 border-primary -rotate-2 transform translate-x-2 shadow-2xl">
+<div class="flex items-center gap-3 mb-4">
+<div class="flex items-end gap-1 h-5">
+<div class="w-1 bg-primary h-2 animate-bounce"></div>
+<div class="w-1 bg-primary h-5 animate-bounce [animation-delay:0.2s]"></div>
+<div class="w-1 bg-primary h-3 animate-bounce [animation-delay:0.4s]"></div>
+<div class="w-1 bg-primary h-4 animate-bounce [animation-delay:0.1s]"></div>
+</div>
+<span class="font-mono text-xs font-black tracking-widest text-primary bg-primary/10 px-2 py-1 uppercase">Transmission Active</span>
+</div>
+<p class="font-mono text-3xl font-extrabold leading-tight text-on-background tracking-tighter">
+                    "CAN YOU FEEL THE <span class="text-primary italic underline decoration-4">WEIGHT</span> OF THIS TECTONIC RESONANCE?"
+                </p>
+<div class="mt-6 flex justify-between items-end">
+<div class="text-[8px] font-mono opacity-50 space-y-0.5 text-on-background">
+<div>SIGNAL: 104.2 MHZ</div>
+<div>LATENCY: 0.003MS</div>
+<div>ENCODING: AI_VOX_V4</div>
+</div>
+<div class="text-[10px] font-black uppercase text-primary animate-pulse">CLEO IS SPEAKING...</div>
+</div>
+</div>
+<!-- Random Glitch Lines -->
+<div class="mt-12 w-full h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent"></div>
+<div class="mt-2 ml-auto w-24 h-4 bg-primary/20 mix-blend-overlay"></div>
+</div>
+<!-- Controls (Visible but dimmed) -->
+<section class="space-y-10 relative z-10 opacity-40 grayscale pointer-events-none mt-12">
+<!-- Progress -->
+<div class="flex items-center gap-4">
+<span class="text-[10px] font-black font-label text-on-surface-variant">02:45</span>
+<div class="flex-1 h-[2px] bg-outline-variant relative">
+<div class="absolute inset-y-0 left-0 bg-primary w-[65%]"></div>
+</div>
+<span class="text-[10px] font-black font-label text-on-surface-variant">04:12</span>
+</div>
+<!-- Control Bar -->
+<div class="flex items-center justify-between text-on-surface">
+<div class="flex gap-6">
+<button class="material-symbols-outlined text-2xl" data-icon="shuffle">shuffle</button>
+<button class="material-symbols-outlined text-2xl" data-icon="repeat">repeat</button>
+</div>
+<div class="flex items-center gap-10">
+<button class="material-symbols-outlined text-3xl" data-icon="skip_previous">skip_previous</button>
+<button class="w-16 h-16 rounded-full border-2 border-primary/20 flex items-center justify-center">
+<span class="material-symbols-outlined text-4xl text-primary/40" data-icon="pause" style="font-variation-settings: 'FILL' 1;">pause</span>
+</button>
+<button class="material-symbols-outlined text-3xl" data-icon="skip_next">skip_next</button>
+</div>
+<button class="material-symbols-outlined text-2xl" data-icon="more_horiz">more_horiz</button>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-6 pb-8 pt-2 bg-[#131313]/90 backdrop-blur-xl border-t border-[#524437]/15 shadow-[0_-4px_48px_0_rgba(200,131,42,0.06)]">
+<a class="flex flex-col items-center justify-center text-[#FAF8F4]/60 pt-2 hover:text-[#FAF8F4] transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="radio">radio</span>
+<span class="font-['Plus_Jakarta_Sans'] font-medium uppercase tracking-widest text-[10px] mt-1">Broadcast</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#FAF8F4]/60 pt-2 hover:text-[#FAF8F4] transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="Waves">waves</span>
+<span class="font-['Plus_Jakarta_Sans'] font-medium uppercase tracking-widest text-[10px] mt-1">Arc</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#FAF8F4]/60 pt-2 hover:text-[#FAF8F4] transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="library_music">library_music</span>
+<span class="font-['Plus_Jakarta_Sans'] font-medium uppercase tracking-widest text-[10px] mt-1">Archive</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#C8832A] border-t-2 border-[#C8832A] pt-2 transition-transform active:translate-y-[-2px]" href="#">
+<div class="relative">
+<span class="material-symbols-outlined" data-icon="fingerprint" style="font-variation-settings: 'FILL' 1;">fingerprint</span>
+<div class="absolute -top-1 -right-1 w-1.5 h-1.5 bg-[#C8832A] rounded-full animate-ping"></div>
+</div>
+<span class="font-['Plus_Jakarta_Sans'] font-medium uppercase tracking-widest text-[10px] mt-1">Cleo</span>
+</a>
+</nav>
+</body></html>
