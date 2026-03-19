@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Cleo - Session Arc</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "on-tertiary-container": "#59002b",
+              "tertiary-dim": "#ef77a0",
+              "on-background": "#f6f3f5",
+              "background": "#0e0e10",
+              "on-surface-variant": "#acaaad",
+              "surface-bright": "#2c2c2f",
+              "primary-dim": "#ff7348",
+              "primary-fixed-dim": "#f3683b",
+              "tertiary-fixed": "#ff8db2",
+              "surface": "#0e0e10",
+              "surface-tint": "#ff906d",
+              "surface-container-lowest": "#000000",
+              "outline": "#767577",
+              "on-error": "#490013",
+              "on-primary": "#5b1500",
+              "on-secondary-fixed": "#003a42",
+              "on-error-container": "#ffb2b9",
+              "surface-container-highest": "#262528",
+              "on-surface": "#f6f3f5",
+              "on-tertiary-fixed-variant": "#70103b",
+              "on-secondary-fixed-variant": "#005964",
+              "error-container": "#a70138",
+              "inverse-surface": "#fcf8fb",
+              "on-secondary-container": "#e8fbff",
+              "outline-variant": "#48474a",
+              "primary-container": "#ff784e",
+              "primary": "#ff906d",
+              "secondary-fixed": "#26e6ff",
+              "on-primary-fixed-variant": "#571400",
+              "tertiary-container": "#fc81ab",
+              "inverse-primary": "#ac350a",
+              "surface-container-high": "#1f1f22",
+              "surface-variant": "#262528",
+              "inverse-on-surface": "#555557",
+              "error-dim": "#d73357",
+              "on-secondary": "#004d57",
+              "tertiary-fixed-dim": "#f57ca5",
+              "primary-fixed": "#ff784e",
+              "on-primary-fixed": "#000000",
+              "secondary": "#00e3fd",
+              "secondary-fixed-dim": "#00d7f0",
+              "surface-container": "#19191c",
+              "surface-dim": "#0e0e10",
+              "on-tertiary": "#6a0936",
+              "tertiary": "#ff97b8",
+              "surface-container-low": "#131315",
+              "error": "#ff6e84",
+              "secondary-dim": "#00d4ec",
+              "on-tertiary-fixed": "#380019",
+              "secondary-container": "#006875",
+              "on-primary-container": "#470e00"
+            },
+            fontFamily: {
+              "headline": ["Plus Jakarta Sans"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .arc-path {
+            stroke-dasharray: 1000;
+            stroke-dashoffset: 0;
+        }
+        .glass-panel {
+            background: rgba(14, 14, 16, 0.6);
+            backdrop-filter: blur(24px);
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background font-body min-h-screen selection:bg-primary/30">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-[#0e0e10]/60 backdrop-blur-xl flex justify-between items-center px-6 h-16 w-full shadow-[0_4px_40px_rgba(255,144,109,0.06)]">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-[#ff906d] active:scale-95 transition-transform cursor-pointer" data-icon="graphic_eq">graphic_eq</span>
+<h1 class="font-['Plus_Jakarta_Sans'] text-white tracking-tight text-2xl font-bold tracking-tighter text-[#ff906d] uppercase">CLEO</h1>
+</div>
+<div class="flex items-center gap-4">
+<div class="h-8 w-8 rounded-full bg-surface-container-highest flex items-center justify-center overflow-hidden border border-outline-variant/20">
+<img class="w-full h-full object-cover" data-alt="User profile avatar image" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCJZ9POW-UbSnstxxYHxygFkC8YNTGXUstlcbU4qh-vF-GBhPBI-rdyuyY7I4Jj5rL8EE1ko84EnBXrTL7_jW-B2oVKAAffHUVoHL7tsMSpu7hjmMXxa11UtlIWk0OA6W-oNSMKC4dqQg6-AwpdQlr2auUoGev7lO7y6dZjA55iywILume6xuaRNIATSpXU_slcn5adrpOQlLMMiFe8k3dgcS5skuAIoIqjtzTPYTJZ-F7kZ3B2dFUEHnPUw2rVGXq82J-aT_sbzhxl"/>
+</div>
+</div>
+</header>
+<main class="pt-24 pb-32 px-6 max-w-5xl mx-auto">
+<!-- Header Section -->
+<section class="mb-12">
+<span class="text-secondary font-label text-xs tracking-[0.2em] uppercase mb-2 block">Live Session</span>
+<h2 class="font-headline text-4xl md:text-5xl font-extrabold tracking-tight mb-4 leading-tight">Midnight <span class="text-primary">Oscillations</span></h2>
+<p class="text-on-surface-variant max-w-xl text-lg leading-relaxed">
+                A curated journey through ambient textures and deep melodic techno, building towards a peak of high-energy synthesis.
+            </p>
+</section>
+<!-- The Arc Visualization -->
+<section class="relative mb-16 h-80 w-full surface-container-low rounded-3xl p-8 overflow-hidden group">
+<!-- Background Glows -->
+<div class="absolute -top-24 -left-24 w-96 h-96 bg-primary/10 blur-[100px] rounded-full"></div>
+<div class="absolute -bottom-24 -right-24 w-96 h-96 bg-secondary/10 blur-[100px] rounded-full"></div>
+<!-- SVG Arc Path -->
+<svg class="absolute inset-0 w-full h-full px-8 overflow-visible" fill="none" viewbox="0 0 1000 300" xmlns="http://www.w3.org/2000/svg">
+<!-- Shadow Path -->
+<path d="M0 250 C 150 250, 250 180, 400 180 S 600 50, 750 50 S 1000 150, 1000 150" stroke="white" stroke-linecap="round" stroke-opacity="0.03" stroke-width="60"></path>
+<!-- Main Arc -->
+<path class="arc-path" d="M0 250 C 150 250, 250 180, 400 180 S 600 50, 750 50 S 1000 150, 1000 150" stroke="url(#arcGradient)" stroke-linecap="round" stroke-width="4"></path>
+<defs>
+<lineargradient id="arcGradient" x1="0%" x2="100%" y1="0%" y2="0%">
+<stop offset="0%" stop-color="#ff906d"></stop>
+<stop offset="50%" stop-color="#ff906d"></stop>
+<stop offset="75%" stop-color="#00e3fd"></stop>
+<stop offset="100%" stop-color="#00e3fd"></stop>
+</lineargradient>
+</defs>
+</svg>
+<!-- Interaction Nodes (Cleo Moments) -->
+<div class="absolute inset-0 px-8">
+<!-- Moment 1: Intro -->
+<div class="absolute left-[5%] bottom-[15%] group/node">
+<div class="relative flex flex-col items-center">
+<div class="w-10 h-10 rounded-full glass-panel border border-primary/30 flex items-center justify-center text-primary shadow-[0_0_20px_rgba(255,144,109,0.3)] cursor-pointer hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-sm" data-icon="blur_on" style="font-variation-settings: 'FILL' 1;">blur_on</span>
+</div>
+<div class="mt-4 text-center">
+<p class="text-[10px] font-label text-primary uppercase tracking-widest">Host Intro</p>
+</div>
+</div>
+</div>
+<!-- Moment 2: Artist Story -->
+<div class="absolute left-[38%] bottom-[38%] group/node">
+<div class="relative flex flex-col items-center">
+<div class="w-10 h-10 rounded-full glass-panel border border-primary/30 flex items-center justify-center text-primary shadow-[0_0_20px_rgba(255,144,109,0.3)] cursor-pointer hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-sm" data-icon="blur_on" style="font-variation-settings: 'FILL' 1;">blur_on</span>
+</div>
+<div class="mt-4 text-center">
+<p class="text-[10px] font-label text-primary uppercase tracking-widest">Artist Insight</p>
+</div>
+</div>
+</div>
+<!-- Moment 3: The Peak Curation -->
+<div class="absolute left-[73%] top-[12%] group/node">
+<div class="relative flex flex-col items-center">
+<div class="w-12 h-12 rounded-full bg-secondary flex items-center justify-center text-background shadow-[0_0_30px_rgba(0,227,253,0.5)] cursor-pointer hover:scale-110 transition-transform">
+<span class="material-symbols-outlined" data-icon="blur_on" style="font-variation-settings: 'FILL' 1;">blur_on</span>
+</div>
+<div class="mt-4 text-center">
+<p class="text-[10px] font-label text-secondary uppercase tracking-widest font-bold">The Peak</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Current Progress Indicator -->
+<div class="absolute left-[20%] bottom-[22%] h-16 w-[2px] bg-white/20">
+<div class="absolute -top-2 -left-[3px] w-2 h-2 rounded-full bg-white shadow-[0_0_10px_white]"></div>
+<div class="absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap">
+<span class="text-[10px] font-label text-white/40 uppercase">You are here</span>
+</div>
+</div>
+</section>
+<!-- Program Bento Grid -->
+<div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+<!-- Current Track - Large Glass Card -->
+<div class="md:col-span-8 group relative overflow-hidden rounded-3xl bg-surface-container-highest/40 border border-outline-variant/10 p-8">
+<div class="flex flex-col md:flex-row gap-8 items-center">
+<div class="relative w-48 h-48 flex-shrink-0 rounded-2xl overflow-hidden shadow-2xl">
+<img class="w-full h-full object-cover" data-alt="Atmospheric electronic album art with neon lights" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCHvk7pShqitIbwXf9f2LJsPWwWadbYsCKiLF84Mhcfl1PkO4LZYVVzA58wEzd68Hbez_ik13SCDaXqaHYv_yrdnG6CTUD73Hzb0mddb4WazakcAtRP0Lp8jKImP6lhm2PBBh1T0QtcRWWOiiCI8xwNU49y_pHF3ON0k2qXSsjHLLM1_QxvSr8WHoIQ62RNK91E0bErIi3j3mgJRR1hgSqOPadWE3VgofrUjTK4T62211-HebS273NTdVZ8lWFVggix_3smF9sAPXMM"/>
+<div class="absolute inset-0 bg-gradient-to-t from-background/60 to-transparent"></div>
+<div class="absolute bottom-4 left-4 flex items-center gap-2">
+<div class="flex space-x-0.5">
+<div class="w-1 h-3 bg-secondary rounded-full animate-pulse"></div>
+<div class="w-1 h-5 bg-secondary rounded-full animate-bounce"></div>
+<div class="w-1 h-2 bg-secondary rounded-full animate-pulse"></div>
+</div>
+<span class="text-[10px] font-label text-secondary uppercase font-bold tracking-widest">Now Playing</span>
+</div>
+</div>
+<div class="flex-1 text-center md:text-left">
+<h3 class="font-headline text-3xl font-bold mb-1">Ether Drift</h3>
+<p class="text-on-surface-variant text-xl mb-6">Solaris System</p>
+<div class="flex flex-wrap justify-center md:justify-start gap-3">
+<span class="px-4 py-1 rounded-full bg-surface-container-low text-[10px] font-label uppercase tracking-widest text-on-surface/60 border border-outline-variant/20">Deep Melodic</span>
+<span class="px-4 py-1 rounded-full bg-surface-container-low text-[10px] font-label uppercase tracking-widest text-on-surface/60 border border-outline-variant/20">124 BPM</span>
+</div>
+</div>
+</div>
+<!-- Cleo Voice Commentary Integration -->
+<div class="mt-8 pt-8 border-t border-outline-variant/10">
+<div class="flex items-start gap-4 p-4 rounded-2xl bg-primary/5 border border-primary/10">
+<span class="material-symbols-outlined text-primary" data-icon="blur_on">blur_on</span>
+<div>
+<p class="text-xs font-label text-primary uppercase tracking-widest mb-1">Cleo Insight</p>
+<p class="text-sm text-on-surface italic">"This track was composed during a total solar eclipse. Can you feel the tension in the sub-bass?"</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Stats/Up Next Sidebar -->
+<div class="md:col-span-4 space-y-6">
+<!-- Session Stats -->
+<div class="bg-surface-container-low rounded-3xl p-6 border border-outline-variant/10">
+<h4 class="font-headline text-sm font-bold uppercase tracking-widest mb-4 text-on-surface-variant">Session Pulse</h4>
+<div class="space-y-4">
+<div class="flex justify-between items-end">
+<span class="text-sm text-on-surface/60">Energy Level</span>
+<span class="text-xl font-headline font-bold text-primary">68%</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-primary rounded-full w-[68%]"></div>
+</div>
+<div class="flex justify-between items-end">
+<span class="text-sm text-on-surface/60">Time Remaining</span>
+<span class="text-xl font-headline font-bold text-secondary">42:15</span>
+</div>
+</div>
+</div>
+<!-- Quick Action -->
+<button class="w-full py-4 px-6 rounded-full bg-gradient-to-r from-primary to-primary-container text-white font-label font-bold uppercase tracking-widest flex items-center justify-center gap-3 shadow-[0_8px_30px_rgba(255,144,109,0.3)] active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-lg" data-icon="share">share</span>
+                    Share the Arc
+                </button>
+</div>
+<!-- Upcoming Grid -->
+<div class="md:col-span-12">
+<div class="flex justify-between items-center mb-6">
+<h4 class="font-headline text-lg font-bold">Upcoming Manifest</h4>
+<span class="text-xs font-label text-on-surface-variant uppercase tracking-widest">4 tracks remaining</span>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+<!-- Item 1 -->
+<div class="p-4 rounded-2xl bg-surface-container-low border border-outline-variant/5 hover:border-primary/20 transition-colors group cursor-pointer">
+<div class="relative aspect-square rounded-xl overflow-hidden mb-4">
+<img class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" data-alt="Abstract vibrant audio visuals" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCUru9g3j2kcDjmU5nBXLoKA-sQGo4B7RRE23_UXET2wjeazEL2zmm3uli0oCQO6Cr-VJqrCoHEszz2-N8-EP03Y17V4Ir4J1rMm7vVHrxgrKZVREONlx0dt0ZEyRdP_BlmU7rRV7zZ1F7dqun_ZWlarhU_HVd3dagq93tcaZV3OCNXV_wGH7ptxjZKAr42W6Bve5LDVpwpq5zchhb_gZ--_8_1Cqi94t2SXeW6UgfiN8Cwgqxou3qUmxTRBYNDPhcvy1HfJhB-TL7P"/>
+<div class="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-white" data-icon="play_arrow" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
+</div>
+</div>
+<p class="font-headline font-bold truncate">Neon Horizon</p>
+<p class="text-xs text-on-surface-variant">Luvia</p>
+</div>
+<!-- Item 2 -->
+<div class="p-4 rounded-2xl bg-surface-container-low border border-outline-variant/5 hover:border-primary/20 transition-colors group cursor-pointer">
+<div class="relative aspect-square rounded-xl overflow-hidden mb-4">
+<img class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" data-alt="Music festival lights abstract" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBko9FDIrhhJwrbclUoXe2XGgK3UGFphRCwIw-sV-OpNXOqCfbu7JlgFeWoPDNIAvA33rzZECmePKYs85TWhqMRfrwF3OAv3qow2EBoL_TF0PB98P4Meomo4IGosf_BKjRP-Qe1iPuX9HhpsUfCyWLX573AJy_ArQXloi1_InyCdhQ7jc46IzAVzUyKBpv-vdny6mKh-knBmV-3CjYrubzio_LwNRQEeRCwEiIQFT1Kwpi-C1CnE4sKA8DBC-ueNORlKkL1lJSg5noK"/>
+<div class="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-white" data-icon="play_arrow" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
+</div>
+</div>
+<p class="font-headline font-bold truncate">Static Pulse</p>
+<p class="text-xs text-on-surface-variant">Digital Ghost</p>
+</div>
+<!-- Cleo Moment Item -->
+<div class="p-4 rounded-2xl bg-secondary/5 border border-secondary/20 flex flex-col items-center justify-center text-center">
+<div class="w-12 h-12 rounded-full bg-secondary/10 flex items-center justify-center text-secondary mb-4">
+<span class="material-symbols-outlined" data-icon="auto_awesome" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+</div>
+<p class="text-[10px] font-label text-secondary uppercase tracking-widest font-bold mb-1">Curation Node</p>
+<p class="text-sm font-headline font-bold">The Evolution of Synth</p>
+<p class="text-[10px] text-on-surface-variant mt-2 italic">Cleo Commentary • 2m</p>
+</div>
+<!-- Item 3 -->
+<div class="p-4 rounded-2xl bg-surface-container-low border border-outline-variant/5 hover:border-primary/20 transition-colors group cursor-pointer">
+<div class="relative aspect-square rounded-xl overflow-hidden mb-4">
+<img class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" data-alt="Dark aesthetic concert photo" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA-KUdKhumXR7lMTNXvQi2njnX8v2iepsjD-Bxz7dXvbaCtC-QNbDAbI6BHP02zgbSxnB-B2VBEuOzqVs8ogJDjC4LW01ssgU9g4T4ynXD2Wd4zGwSopv5wascQJQdpU1rPEx2ozZ7MqglG0oGNUhUojt0BdXTRtC3Vx494mFa4ATbK-l8qV3MGSdg19nrpen2G3VSDH2XRoM6yk9HkIddRgzBp-3RJg2OeCeRTY45HwJ69eeKiHHGennIwQbUCEJ-29J4eJVmoFMbw"/>
+<div class="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-white" data-icon="play_arrow" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
+</div>
+</div>
+<p class="font-headline font-bold truncate">Midnight Peak</p>
+<p class="text-xs text-on-surface-variant">The Alchemist</p>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-full z-50 rounded-t-[24px] bg-[#0e0e10]/60 backdrop-blur-xl flex justify-around items-center h-20 pb-safe px-4 shadow-2xl">
+<a class="flex flex-col items-center justify-center text-gray-500 hover:text-[#00e3fd] transition-colors active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="sensors">sensors</span>
+<span class="font-['Plus_Jakarta_Sans'] text-[10px] font-medium uppercase tracking-widest mt-1">Broadcast</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#ff906d] scale-110 transition-all active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="timeline">timeline</span>
+<span class="font-['Plus_Jakarta_Sans'] text-[10px] font-medium uppercase tracking-widest mt-1">Arc</span>
+</a>
+<a class="flex flex-col items-center justify-center text-gray-500 hover:text-[#00e3fd] transition-colors active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="library_music">library_music</span>
+<span class="font-['Plus_Jakarta_Sans'] text-[10px] font-medium uppercase tracking-widest mt-1">Archive</span>
+</a>
+<a class="flex flex-col items-center justify-center text-gray-500 hover:text-[#00e3fd] transition-colors active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="blur_on">blur_on</span>
+<span class="font-['Plus_Jakarta_Sans'] text-[10px] font-medium uppercase tracking-widest mt-1">Cleo</span>
+</a>
+</nav>
+<!-- Signature Cleo Orb FAB (Hidden on specific screens based on JSON logic but useful for task) -->
+<div class="fixed bottom-24 right-6 z-40 group pointer-events-none sm:pointer-events-auto">
+<div class="relative">
+<!-- Aura -->
+<div class="absolute inset-0 bg-primary/20 blur-2xl rounded-full scale-[2] group-hover:bg-secondary/20 transition-colors"></div>
+<!-- The Orb -->
+<button class="relative w-16 h-16 rounded-full bg-gradient-to-tr from-primary via-primary-container to-secondary flex items-center justify-center text-white shadow-2xl active:scale-95 transition-all pointer-events-auto">
+<span class="material-symbols-outlined text-3xl" data-icon="blur_on" style="font-variation-settings: 'FILL' 1;">blur_on</span>
+</button>
+</div>
+</div>
+</body></html>

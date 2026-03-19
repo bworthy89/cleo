@@ -1,0 +1,51 @@
+<h2>Typography: Which font system?</h2>
+<p class="subtitle">The Stitch designs and your PRD use different font families. Which direction?</p>
+
+<div style="margin-bottom: 32px;">
+  <div class="split" style="gap: 24px;">
+    <div class="mockup" style="flex:1;">
+      <div class="mockup-header">Current PRD Fonts</div>
+      <div class="mockup-body" style="background:#0D0D0D; padding:24px;">
+        <p style="font-family:Georgia,serif; font-size:32px; font-weight:300; color:#FAF8F4; margin-bottom:8px;">Midnight Frequency</p>
+        <p style="font-family:sans-serif; font-size:14px; color:#A09E9B; margin-bottom:16px;">Solaris Echoes</p>
+        <p style="font-family:Georgia,serif; font-size:16px; font-style:italic; color:#C8832A; margin-bottom:16px;">"Can you feel the weight of this tectonic resonance?"</p>
+        <p style="font-family:monospace; font-size:10px; letter-spacing:0.2em; text-transform:uppercase; color:#666;">ON AIR &bull; 2:45 / 4:12</p>
+      </div>
+    </div>
+    <div class="mockup" style="flex:1;">
+      <div class="mockup-header">Stitch Fonts</div>
+      <div class="mockup-body" style="background:#0D0D0D; padding:24px;">
+        <p style="font-family:'Plus Jakarta Sans',system-ui,sans-serif; font-size:32px; font-weight:800; color:#FAF8F4; margin-bottom:8px; letter-spacing:-0.02em;">Midnight Frequency</p>
+        <p style="font-family:'Inter',sans-serif; font-size:14px; color:#A09E9B; margin-bottom:16px;">Solaris Echoes</p>
+        <p style="font-family:'Inter',sans-serif; font-size:16px; font-style:italic; color:#C8832A; margin-bottom:16px;">"Can you feel the weight of this tectonic resonance?"</p>
+        <p style="font-family:'Inter',sans-serif; font-size:10px; letter-spacing:0.2em; text-transform:uppercase; color:#666;">ON AIR &bull; 2:45 / 4:12</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Keep PRD Typography</h3>
+      <p>Playfair Display (headers), Work Sans (body), EB Garamond (Cleo voice), DM Mono (labels). Preserve the editorial, magazine-like feel. The serif headlines are distinctive and different from typical music apps.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Adopt Stitch Typography</h3>
+      <p>Plus Jakarta Sans (headlines), Inter (body/labels). Modern, tech-forward, tight tracking. Matches the glassmorphism aesthetic better. Loses the editorial personality but gains a more premium audio-tech feel.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Hybrid — Best of Both</h3>
+      <p>Playfair Display for large display text (track titles, screen headers). Inter for body/UI text (cleaner than Work Sans for small sizes). EB Garamond stays for Cleo's voice (it's her signature). DM Mono stays for technical labels. Stitch layout + PRD personality.</p>
+    </div>
+  </div>
+</div>

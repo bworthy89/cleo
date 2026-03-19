@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "on-tertiary-container": "#59002b",
+              "tertiary-dim": "#ef77a0",
+              "on-background": "#f6f3f5",
+              "background": "#0e0e10",
+              "on-surface-variant": "#acaaad",
+              "surface-bright": "#2c2c2f",
+              "primary-dim": "#ff7348",
+              "primary-fixed-dim": "#f3683b",
+              "tertiary-fixed": "#ff8db2",
+              "surface": "#0e0e10",
+              "surface-tint": "#ff906d",
+              "surface-container-lowest": "#000000",
+              "outline": "#767577",
+              "on-error": "#490013",
+              "on-primary": "#5b1500",
+              "on-secondary-fixed": "#003a42",
+              "on-error-container": "#ffb2b9",
+              "surface-container-highest": "#262528",
+              "on-surface": "#f6f3f5",
+              "on-tertiary-fixed-variant": "#70103b",
+              "on-secondary-fixed-variant": "#005964",
+              "error-container": "#a70138",
+              "inverse-surface": "#fcf8fb",
+              "on-secondary-container": "#e8fbff",
+              "outline-variant": "#48474a",
+              "primary-container": "#ff784e",
+              "primary": "#ff906d",
+              "secondary-fixed": "#26e6ff",
+              "on-primary-fixed-variant": "#571400",
+              "tertiary-container": "#fc81ab",
+              "inverse-primary": "#ac350a",
+              "surface-container-high": "#1f1f22",
+              "surface-variant": "#262528",
+              "inverse-on-surface": "#555557",
+              "error-dim": "#d73357",
+              "on-secondary": "#004d57",
+              "tertiary-fixed-dim": "#f57ca5",
+              "primary-fixed": "#ff784e",
+              "on-primary-fixed": "#000000",
+              "secondary": "#00e3fd",
+              "secondary-fixed-dim": "#00d7f0",
+              "surface-container": "#19191c",
+              "surface-dim": "#0e0e10",
+              "on-tertiary": "#6a0936",
+              "tertiary": "#ff97b8",
+              "surface-container-low": "#131315",
+              "error": "#ff6e84",
+              "secondary-dim": "#00d4ec",
+              "on-tertiary-fixed": "#380019",
+              "secondary-container": "#006875",
+              "on-primary-container": "#470e00"
+            },
+            fontFamily: {
+              "headline": ["Plus Jakarta Sans"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-panel {
+            background: rgba(14, 14, 16, 0.6);
+            backdrop-filter: blur(24px);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background font-body selection:bg-primary selection:text-on-primary">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-[#0e0e10]/60 backdrop-blur-xl shadow-[0_4px_40px_rgba(255,144,109,0.06)]">
+<div class="flex justify-between items-center px-6 h-16 w-full">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-[#ff906d]" style="font-variation-settings: 'FILL' 1;">graphic_eq</span>
+<h1 class="text-2xl font-bold tracking-tighter text-[#ff906d] uppercase font-headline">CLEO</h1>
+</div>
+<div class="flex items-center gap-4">
+<button class="material-symbols-outlined text-on-surface-variant hover:opacity-80 transition-opacity active:scale-95 transition-transform">search</button>
+<div class="w-8 h-8 rounded-full overflow-hidden border border-outline-variant/20">
+<img alt="User profile avatar" class="w-full h-full object-cover" data-alt="Close up portrait of a young woman with neon lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAhxjh9JY2Dz3LGZcficv6yurpDhCc-UEG4QOPsPf2N01xVWBvi_rk4rxwUhX7jJrgd5sGLK_9ZrxdB6RIvgmFO5b4HApuNR05wA3_7bGW7Ta_bakINKgPF5YpSCr6BKxtO3yM9gUFTT07tuJNB_lRqHiMbdHIFgqjoX3mATjkdgOr7BrUryc_Cf3yqmSvSAJJTDU5oUb1H3kkA1YTS_RQYfFeZQJL16GbHXlA4yU-fFEnPa1BVBDGoTULg47TdJynLQ7a7UvtL_l9A"/>
+</div>
+</div>
+</div>
+</header>
+<main class="pt-24 pb-32 px-6 max-w-7xl mx-auto">
+<!-- Page Header & Search -->
+<section class="mb-12">
+<h2 class="font-headline text-5xl font-extrabold tracking-tight mb-4 text-white">Broadcast Archives</h2>
+<p class="text-on-surface-variant text-lg mb-8 max-w-2xl">Your personal sonic journey, preserved in the ether. Revisit the frequencies that defined your moments.</p>
+<div class="flex flex-col md:flex-row gap-4 items-center">
+<div class="relative w-full md:w-2/3">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
+<input class="w-full bg-surface-container-low border-none rounded-xl py-4 pl-12 pr-6 focus:ring-2 focus:ring-primary/20 focus:bg-surface-bright transition-all text-on-surface placeholder:text-outline" placeholder="Search sessions, moods, or genres..." type="text"/>
+</div>
+<div class="flex gap-2 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
+<button class="px-6 py-4 bg-surface-container-highest rounded-full text-sm font-semibold whitespace-nowrap border border-outline-variant/10 hover:bg-surface-bright transition-colors">Latest</button>
+<button class="px-6 py-4 bg-surface-container-highest rounded-full text-sm font-semibold whitespace-nowrap border border-outline-variant/10 hover:bg-surface-bright transition-colors">By Mood</button>
+<button class="px-6 py-4 bg-surface-container-highest rounded-full text-sm font-semibold whitespace-nowrap border border-outline-variant/10 hover:bg-surface-bright transition-colors">By Date</button>
+<button class="w-12 h-12 flex items-center justify-center bg-primary rounded-full text-on-primary">
+<span class="material-symbols-outlined">tune</span>
+</button>
+</div>
+</div>
+</section>
+<!-- Archives Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+<!-- Card 1: Late Night Vibes -->
+<div class="group relative flex flex-col bg-surface-container-low rounded-[2rem] overflow-hidden hover:bg-surface-container-high transition-all duration-500 border border-outline-variant/5">
+<div class="relative h-48 w-full overflow-hidden">
+<img alt="Session mood" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" data-alt="Abstract deep purple and blue gradient texture" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCqxVf4kF9V_EnJQmx4AIfA2RF_Jp3wTEvgVWH4qJujgrcksJPpEfSs0Blw4KOdZ9yJYbKE9kXHH1iPt-F8g-BawAqZDPGMc2PCckethNZupuHBubJmAqY3FCWnega5XZvgvcOyJEO_oWSC4d7bDDI1lutmVON621dg-FMSa1EvQKigUt1-CcyvOSDISamtbe35-bKJt4th98gjCmA_EfnA7UBfcFZegDJPn1ESMt6jp_JZYKY5akdUj1xDRGpmRdQVOr-QZIfRtziG"/>
+<div class="absolute inset-0 bg-gradient-to-t from-surface-container-low to-transparent"></div>
+<div class="absolute top-4 right-4 bg-surface-container-lowest/40 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-bold tracking-widest uppercase text-secondary">
+                        REPLAYED 12X
+                    </div>
+</div>
+<div class="p-8 -mt-12 relative z-10 flex flex-col h-full">
+<span class="text-on-surface-variant text-xs font-semibold uppercase tracking-widest mb-2">October 24, 2023</span>
+<h3 class="font-headline text-2xl font-bold text-white mb-4 leading-tight group-hover:text-primary transition-colors">Late Night Vibes with Cleo</h3>
+<div class="flex flex-wrap gap-2 mb-6">
+<span class="px-3 py-1 bg-surface-container-highest text-[10px] font-bold uppercase tracking-wider rounded-full text-on-surface-variant">Lo-Fi</span>
+<span class="px-3 py-1 bg-surface-container-highest text-[10px] font-bold uppercase tracking-wider rounded-full text-on-surface-variant">Ambient</span>
+<span class="px-3 py-1 bg-surface-container-highest text-[10px] font-bold uppercase tracking-wider rounded-full text-on-surface-variant">Neo-Jazz</span>
+</div>
+<!-- Session Arc Visualization -->
+<div class="mt-auto">
+<p class="text-[10px] font-bold text-outline uppercase tracking-widest mb-3">Session Arc</p>
+<div class="flex items-end gap-1 h-12 w-full">
+<div class="flex-1 bg-primary/20 rounded-t-sm h-[30%]"></div>
+<div class="flex-1 bg-primary/30 rounded-t-sm h-[45%]"></div>
+<div class="flex-1 bg-primary/40 rounded-t-sm h-[60%]"></div>
+<div class="flex-1 bg-primary/60 rounded-t-sm h-[80%]"></div>
+<div class="flex-1 bg-primary rounded-t-sm h-[100%]"></div>
+<div class="flex-1 bg-secondary/80 rounded-t-sm h-[70%]"></div>
+<div class="flex-1 bg-secondary/60 rounded-t-sm h-[50%]"></div>
+<div class="flex-1 bg-secondary/40 rounded-t-sm h-[35%]"></div>
+<div class="flex-1 bg-secondary/20 rounded-t-sm h-[20%]"></div>
+</div>
+</div>
+<button class="mt-8 w-full py-4 bg-surface-container-highest rounded-full font-bold text-sm tracking-wide group-hover:bg-primary group-hover:text-on-primary transition-all flex items-center justify-center gap-2 active:scale-95">
+<span class="material-symbols-outlined text-lg" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
+                        RESUME SESSION
+                    </button>
+</div>
+</div>
+<!-- Card 2: Morning Energy -->
+<div class="group relative flex flex-col bg-surface-container-low rounded-[2rem] overflow-hidden hover:bg-surface-container-high transition-all duration-500 border border-outline-variant/5">
+<div class="relative h-48 w-full overflow-hidden">
+<img alt="Session mood" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" data-alt="Bright sunrise orange and yellow abstract background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA3Y7sMyWM_SJVsq_YihkGmpbZgWel9_5kNt8AUAAd59EE216bWaEA0MkoeIT1dyzuJX5T8ByGKKlt0kQM3QPhI3AGvkx5CcefULlw6PHLTH8WTa_XDlryu5098nfx69YXCRD_5BB5AyyZJapPDswLUWa6dHdyx3XiNksBynVgHxQWXYKbIkPHAv6BPCFIKypPfJrNeH8d32gfBe7OGwL8g9j_rY7Lv9oQhmBWByAppUfcPoKNyqouQziAFvwPagzjDjzLaF3tVcRSd"/>
+<div class="absolute inset-0 bg-gradient-to-t from-surface-container-low to-transparent"></div>
+</div>
+<div class="p-8 -mt-12 relative z-10 flex flex-col h-full">
+<span class="text-on-surface-variant text-xs font-semibold uppercase tracking-widest mb-2">October 23, 2023</span>
+<h3 class="font-headline text-2xl font-bold text-white mb-4 leading-tight group-hover:text-primary transition-colors">Morning Energy Boost</h3>
+<div class="flex flex-wrap gap-2 mb-6">
+<span class="px-3 py-1 bg-surface-container-highest text-[10px] font-bold uppercase tracking-wider rounded-full text-on-surface-variant">Nu-Disco</span>
+<span class="px-3 py-1 bg-surface-container-highest text-[10px] font-bold uppercase tracking-wider rounded-full text-on-surface-variant">House</span>
+</div>
+<!-- Session Arc Visualization -->
+<div class="mt-auto">
+<p class="text-[10px] font-bold text-outline uppercase tracking-widest mb-3">Session Arc</p>
+<div class="flex items-end gap-1 h-12 w-full">
+<div class="flex-1 bg-primary/80 rounded-t-sm h-[90%]"></div>
+<div class="flex-1 bg-primary rounded-t-sm h-[100%]"></div>
+<div class="flex-1 bg-primary/70 rounded-t-sm h-[80%]"></div>
+<div class="flex-1 bg-primary/60 rounded-t-sm h-[75%]"></div>
+<div class="flex-1 bg-primary/90 rounded-t-sm h-[95%]"></div>
+<div class="flex-1 bg-primary rounded-t-sm h-[100%]"></div>
+<div class="flex-1 bg-secondary rounded-t-sm h-[90%]"></div>
+<div class="flex-1 bg-secondary/80 rounded-t-sm h-[80%]"></div>
+<div class="flex-1 bg-secondary/60 rounded-t-sm h-[70%]"></div>
+</div>
+</div>
+<button class="mt-8 w-full py-4 bg-surface-container-highest rounded-full font-bold text-sm tracking-wide group-hover:bg-primary group-hover:text-on-primary transition-all flex items-center justify-center gap-2 active:scale-95">
+<span class="material-symbols-outlined text-lg" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
+                        RESUME SESSION
+                    </button>
+</div>
+</div>
+<!-- Card 3: Deep Focus -->
+<div class="group relative flex flex-col bg-surface-container-low rounded-[2rem] overflow-hidden hover:bg-surface-container-high transition-all duration-500 border border-outline-variant/5">
+<div class="relative h-48 w-full overflow-hidden">
+<img alt="Session mood" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" data-alt="Minimalist dark grey and black organic shapes" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCnXbASM3vqH5FnevcFbrDgf-6ippIB8XWlfXqh6hGYgAM0N5ao6UX-l1TCx9eW-U7bh6ySueHi9y0AJBd9K7vPktnLVdZDSvGtV6-COHAsDVC2ceWYPowO29ZMgz0u9VqqM9MP0MlKCCpZFGD20CddiKHS_o1-_d6pdDqFI_HBGlRI3daR2nlfRZ3gRYdw7j-LulqehXcY5IbqO-vpyt60f7R0smcqVPMJ2t8Y7HSJoWtsx4Usjd4fz5xKfZ1w9FdAvswbYFagEij8"/>
+<div class="absolute inset-0 bg-gradient-to-t from-surface-container-low to-transparent"></div>
+</div>
+<div class="p-8 -mt-12 relative z-10 flex flex-col h-full">
+<span class="text-on-surface-variant text-xs font-semibold uppercase tracking-widest mb-2">October 22, 2023</span>
+<h3 class="font-headline text-2xl font-bold text-white mb-4 leading-tight group-hover:text-primary transition-colors">Deep Focus Ritual</h3>
+<div class="flex flex-wrap gap-2 mb-6">
+<span class="px-3 py-1 bg-surface-container-highest text-[10px] font-bold uppercase tracking-wider rounded-full text-on-surface-variant">Ambient</span>
+<span class="px-3 py-1 bg-surface-container-highest text-[10px] font-bold uppercase tracking-wider rounded-full text-on-surface-variant">Techno</span>
+</div>
+<!-- Session Arc Visualization -->
+<div class="mt-auto">
+<p class="text-[10px] font-bold text-outline uppercase tracking-widest mb-3">Session Arc</p>
+<div class="flex items-end gap-1 h-12 w-full">
+<div class="flex-1 bg-secondary/20 rounded-t-sm h-[20%]"></div>
+<div class="flex-1 bg-secondary/20 rounded-t-sm h-[20%]"></div>
+<div class="flex-1 bg-secondary/20 rounded-t-sm h-[25%]"></div>
+<div class="flex-1 bg-secondary/30 rounded-t-sm h-[30%]"></div>
+<div class="flex-1 bg-secondary/40 rounded-t-sm h-[40%]"></div>
+<div class="flex-1 bg-secondary/40 rounded-t-sm h-[40%]"></div>
+<div class="flex-1 bg-secondary/50 rounded-t-sm h-[50%]"></div>
+<div class="flex-1 bg-secondary/50 rounded-t-sm h-[50%]"></div>
+<div class="flex-1 bg-secondary/60 rounded-t-sm h-[60%]"></div>
+</div>
+</div>
+<button class="mt-8 w-full py-4 bg-surface-container-highest rounded-full font-bold text-sm tracking-wide group-hover:bg-primary group-hover:text-on-primary transition-all flex items-center justify-center gap-2 active:scale-95">
+<span class="material-symbols-outlined text-lg" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
+                        RESUME SESSION
+                    </button>
+</div>
+</div>
+<!-- Card 4: Sunset Grooves -->
+<div class="group relative flex flex-col bg-surface-container-low rounded-[2rem] overflow-hidden hover:bg-surface-container-high transition-all duration-500 border border-outline-variant/5 lg:col-span-2">
+<div class="flex flex-col md:flex-row h-full">
+<div class="relative w-full md:w-1/2 overflow-hidden">
+<img alt="Session mood" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000" data-alt="Vibrant pink and orange sunset sky over ocean" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAqoFTUIQ8R2nmCDEJJUAJ7qiqA8XlqFJ3z8unYm0Iw18Grln5hNqaIDUxlhcnIbqXn5cuSclwwPMQU3Yr6AMz58lDGR4kiRVn8EJpW8xAqV6WZWhiEhI4dcf9ug2apwSFlSuFBY1NPO2Fk2asrv5tPzQOACwszVPqju6nNoskx6PFJBrv0a53mvj9GlvmO5etHhVrbg88uZNwvVVpRxaNqeHrIB4U8FalBQ-qqr5dWm-pKyvN8sfD-tX10K5_MxwdsmWmg2zhOK_Ww"/>
+<div class="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-surface-container-low hidden md:block"></div>
+<div class="absolute inset-0 bg-gradient-to-t from-surface-container-low via-transparent to-transparent md:hidden"></div>
+</div>
+<div class="p-8 md:w-1/2 flex flex-col justify-center">
+<span class="text-on-surface-variant text-xs font-semibold uppercase tracking-widest mb-2">October 21, 2023</span>
+<h3 class="font-headline text-3xl font-extrabold text-white mb-4 leading-tight group-hover:text-primary transition-colors">Golden Hour Cleo Special</h3>
+<p class="text-on-surface-variant text-sm mb-6 leading-relaxed">A seamless transition from high-energy funk to soul-warming deep house, curated during your coastal drive.</p>
+<div class="flex flex-wrap gap-2 mb-8">
+<span class="px-4 py-1.5 bg-surface-container-highest text-[10px] font-bold uppercase tracking-wider rounded-full text-secondary">Editor's Pick</span>
+<span class="px-4 py-1.5 bg-surface-container-highest text-[10px] font-bold uppercase tracking-wider rounded-full text-on-surface-variant">Funk</span>
+<span class="px-4 py-1.5 bg-surface-container-highest text-[10px] font-bold uppercase tracking-wider rounded-full text-on-surface-variant">Deep House</span>
+</div>
+<div class="flex items-center justify-between">
+<div class="flex items-end gap-1 h-10 w-32">
+<div class="w-2 bg-primary/40 rounded-t-sm h-[40%]"></div>
+<div class="w-2 bg-primary/60 rounded-t-sm h-[70%]"></div>
+<div class="w-2 bg-primary rounded-t-sm h-[100%]"></div>
+<div class="w-2 bg-secondary rounded-t-sm h-[80%]"></div>
+<div class="w-2 bg-secondary/40 rounded-t-sm h-[30%]"></div>
+</div>
+<button class="w-14 h-14 bg-primary rounded-full flex items-center justify-center text-on-primary shadow-lg shadow-primary/20 hover:scale-110 transition-transform active:scale-95">
+<span class="material-symbols-outlined text-2xl" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Card 5: Rainy Day -->
+<div class="group relative flex flex-col bg-surface-container-low rounded-[2rem] overflow-hidden hover:bg-surface-container-high transition-all duration-500 border border-outline-variant/5">
+<div class="relative h-48 w-full overflow-hidden">
+<img alt="Session mood" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" data-alt="Raindrops on a window overlooking city lights" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC5I_6hxtFiZvtHPPuiBYAce2PABAcNXywz12L1TYRdIAXKVlEYaTvUD9bkQf_uw7XgGHFyJOgY8TiXTISGx6xlupGUGY2INCzs3rgTy-ciksj8pdQ-qCLkdLgnwov-POh_dCWYIlFyUMP0CXkM-iAEsPmoBcbc2dYsMJuUmXfs4vP8RuI01gGS1CXvoCjD8_Pv4nAZrPOdJwBg8EpZiq82F15o_eJv7H6_fxw8r-Qg0VuAwWyUkBAkfXYHOBYepidP4J61ga4P6sbQ"/>
+<div class="absolute inset-0 bg-gradient-to-t from-surface-container-low to-transparent"></div>
+</div>
+<div class="p-8 -mt-12 relative z-10 flex flex-col h-full">
+<span class="text-on-surface-variant text-xs font-semibold uppercase tracking-widest mb-2">October 20, 2023</span>
+<h3 class="font-headline text-2xl font-bold text-white mb-4 leading-tight group-hover:text-primary transition-colors">The Rainy Day Curation</h3>
+<div class="flex flex-wrap gap-2 mb-6">
+<span class="px-3 py-1 bg-surface-container-highest text-[10px] font-bold uppercase tracking-wider rounded-full text-on-surface-variant">Soul</span>
+<span class="px-3 py-1 bg-surface-container-highest text-[10px] font-bold uppercase tracking-wider rounded-full text-on-surface-variant">Blues</span>
+</div>
+<div class="mt-auto">
+<p class="text-[10px] font-bold text-outline uppercase tracking-widest mb-3">Session Arc</p>
+<div class="flex items-end gap-1 h-12 w-full">
+<div class="flex-1 bg-primary/40 rounded-t-sm h-[40%]"></div>
+<div class="flex-1 bg-primary/40 rounded-t-sm h-[40%]"></div>
+<div class="flex-1 bg-primary/50 rounded-t-sm h-[50%]"></div>
+<div class="flex-1 bg-primary/50 rounded-t-sm h-[50%]"></div>
+<div class="flex-1 bg-primary/40 rounded-t-sm h-[40%]"></div>
+<div class="flex-1 bg-primary/30 rounded-t-sm h-[30%]"></div>
+<div class="flex-1 bg-secondary/30 rounded-t-sm h-[30%]"></div>
+</div>
+</div>
+<button class="mt-8 w-full py-4 bg-surface-container-highest rounded-full font-bold text-sm tracking-wide group-hover:bg-primary group-hover:text-on-primary transition-all flex items-center justify-center gap-2 active:scale-95">
+<span class="material-symbols-outlined text-lg" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
+                        RESUME SESSION
+                    </button>
+</div>
+</div>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-full z-50 rounded-t-[24px] bg-[#0e0e10]/60 backdrop-blur-xl shadow-2xl md:hidden">
+<div class="flex justify-around items-center h-20 pb-safe w-full px-4">
+<a class="flex flex-col items-center justify-center text-gray-500 hover:text-[#00e3fd] transition-colors active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined text-2xl">sensors</span>
+<span class="font-['Plus_Jakarta_Sans'] text-[10px] font-medium uppercase tracking-widest mt-1">Broadcast</span>
+</a>
+<a class="flex flex-col items-center justify-center text-gray-500 hover:text-[#00e3fd] transition-colors active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined text-2xl">timeline</span>
+<span class="font-['Plus_Jakarta_Sans'] text-[10px] font-medium uppercase tracking-widest mt-1">Arc</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#ff906d] scale-110 transition-all active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined text-2xl" style="font-variation-settings: 'FILL' 1;">library_music</span>
+<span class="font-['Plus_Jakarta_Sans'] text-[10px] font-medium uppercase tracking-widest mt-1">Archive</span>
+</a>
+<a class="flex flex-col items-center justify-center text-gray-500 hover:text-[#00e3fd] transition-colors active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined text-2xl">blur_on</span>
+<span class="font-['Plus_Jakarta_Sans'] text-[10px] font-medium uppercase tracking-widest mt-1">Cleo</span>
+</a>
+</div>
+</nav>
+<!-- Desktop Sidebar Suggestion (Hidden on mobile) -->
+<div class="hidden md:flex fixed left-0 top-16 bottom-0 w-20 flex-col items-center py-8 gap-8 bg-surface-container-low border-r border-outline-variant/5">
+<a class="w-12 h-12 flex items-center justify-center rounded-xl text-on-surface-variant hover:bg-surface-bright transition-colors" href="#">
+<span class="material-symbols-outlined">sensors</span>
+</a>
+<a class="w-12 h-12 flex items-center justify-center rounded-xl text-on-surface-variant hover:bg-surface-bright transition-colors" href="#">
+<span class="material-symbols-outlined">timeline</span>
+</a>
+<a class="w-12 h-12 flex items-center justify-center rounded-xl bg-primary text-on-primary" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">library_music</span>
+</a>
+<a class="w-12 h-12 flex items-center justify-center rounded-xl text-on-surface-variant hover:bg-surface-bright transition-colors" href="#">
+<span class="material-symbols-outlined">blur_on</span>
+</a>
+</div>
+</body></html>

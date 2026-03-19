@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Tab Bar — Stitch Icons</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Playfair+Display:wght@300&family=Inter:wght@400;500&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#0a0a0a; color:#FAF8F4; font-family:'Inter',sans-serif; padding:40px 20px; display:flex; flex-direction:column; align-items:center; gap:48px; }
+
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  }
+  .material-symbols-outlined.filled {
+    font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  }
+
+  h2 { font-family:'Playfair Display'; font-size:24px; font-weight:300; color:#C8832A; text-align:center; }
+  .subtitle { color:#ACAAAD; font-size:13px; text-align:center; margin-top:6px; }
+
+  /* Phone frame */
+  .phone {
+    width:390px; height:200px; background:#0D0D0D; border-radius:0 0 44px 44px; overflow:hidden;
+    position:relative; border:1px solid #1a1a1a; border-top:none;
+    box-shadow:0 20px 60px rgba(0,0,0,0.5);
+  }
+
+  /* Fake content behind */
+  .fake-content {
+    position:absolute; top:0; left:0; right:0; padding:16px 24px;
+  }
+  .fake-line { height:10px; border-radius:4px; margin-bottom:8px; }
+
+  /* Tab bar */
+  .tab-bar {
+    position:absolute; bottom:0; left:0; right:0; height:84px;
+    background:rgba(13,13,13,0.6);
+    backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px);
+    border-top-left-radius:24px; border-top-right-radius:24px;
+    display:flex; justify-content:space-around; align-items:center;
+    padding:0 16px 20px;
+  }
+
+  .tab {
+    display:flex; flex-direction:column; align-items:center; gap:5px;
+    cursor:pointer; transition:all 0.2s ease;
+    position:relative; min-width:56px;
+  }
+  .tab:active { transform:scale(0.92); }
+  .tab-label { font-family:'DM Mono'; font-size:8px; letter-spacing:0.14em; text-transform:uppercase; }
+
+  .tab-active { color:#C8832A; }
+  .tab-inactive { color:rgba(172,170,173,0.35); }
+
+  .cleo-pulse {
+    position:absolute; top:0px; right:4px;
+    width:6px; height:6px; border-radius:50%;
+    background:#C8832A;
+    box-shadow:0 0 8px rgba(200,131,42,0.6);
+    animation:pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%,100% { opacity:1; transform:scale(1); }
+    50% { opacity:0.5; transform:scale(1.3); }
+  }
+
+  /* States row */
+  .states-row { display:flex; gap:20px; flex-wrap:wrap; justify-content:center; }
+  .state-item { text-align:center; }
+  .state-label { font-family:'DM Mono'; font-size:8px; letter-spacing:0.12em; text-transform:uppercase; color:#767577; margin-bottom:10px; }
+
+  /* Icon detail cards */
+  .icon-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; max-width:700px; width:100%; }
+  .icon-card {
+    background:rgba(19,19,21,0.6); border-radius:16px; padding:20px; text-align:center;
+    border:1px solid rgba(72,71,74,0.08);
+  }
+  .icon-card-active { border-color:rgba(200,131,42,0.2); }
+  .icon-pair { display:flex; justify-content:center; gap:24px; margin:12px 0 16px; }
+  .icon-state { display:flex; flex-direction:column; align-items:center; gap:4px; }
+  .icon-state-label { font-family:'DM Mono'; font-size:7px; letter-spacing:0.1em; text-transform:uppercase; color:#767577; }
+  .icon-name { font-family:'DM Mono'; font-size:10px; color:#ACAAAD; margin-top:8px; }
+  .icon-screen { font-family:'Inter'; font-size:10px; color:#767577; margin-top:2px; }
+
+  .section-divider { width:100%; max-width:700px; height:1px; background:linear-gradient(to right, transparent, rgba(200,131,42,0.15), transparent); }
+
+  .note-box { max-width:700px; width:100%; padding:16px 20px; background:rgba(200,131,42,0.05); border-left:3px solid rgba(200,131,42,0.3); border-radius:8px; }
+  .note-box h4 { font-family:'DM Mono'; font-size:10px; letter-spacing:0.1em; text-transform:uppercase; color:#C8832A; margin-bottom:6px; }
+  .note-box p { font-size:12px; line-height:1.6; color:#ACAAAD; }
+</style>
+</head>
+<body>
+
+<div>
+  <h2>Tab Bar — Matching Stitch Icons</h2>
+  <p class="subtitle">Using the exact Material Symbols icons from the Stitch designs. Filled variant when active, outlined when inactive.</p>
+</div>
+
+<!-- Full showcase: all 4 active states -->
+<div class="states-row">
+
+  <!-- Broadcast active -->
+  <div class="state-item">
+    <p class="state-label">Broadcast Active</p>
+    <div class="phone">
+      <div class="fake-content">
+        <div class="fake-line" style="width:80%; background:linear-gradient(to right,#1a0a2e,#2d1b4e);"></div>
+        <div class="fake-line" style="width:60%; background:#19191C;"></div>
+        <div class="fake-line" style="width:40%; background:#131315;"></div>
+      </div>
+      <div class="tab-bar">
+        <div class="tab tab-active">
+          <span class="material-symbols-outlined filled" style="font-size:24px;">sensors</span>
+          <span class="tab-label">Broadcast</span>
+        </div>
+        <div class="tab tab-inactive">
+          <span class="material-symbols-outlined" style="font-size:24px;">timeline</span>
+          <span class="tab-label">Arc</span>
+        </div>
+        <div class="tab tab-inactive">
+          <span class="material-symbols-outlined" style="font-size:24px;">library_music</span>
+          <span class="tab-label">Archive</span>
+        </div>
+        <div class="tab tab-inactive" style="position:relative;">
+          <span class="material-symbols-outlined" style="font-size:24px;">blur_on</span>
+          <span class="tab-label">Cleo</span>
+          <div class="cleo-pulse"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Arc active -->
+  <div class="state-item">
+    <p class="state-label">Arc Active</p>
+    <div class="phone">
+      <div class="fake-content">
+        <div class="fake-line" style="width:70%; background:#1F1F22;"></div>
+        <div class="fake-line" style="width:90%; background:linear-gradient(to right,#19191C,#1F1F22);"></div>
+        <div class="fake-line" style="width:50%; background:#131315;"></div>
+      </div>
+      <div class="tab-bar">
+        <div class="tab tab-inactive">
+          <span class="material-symbols-outlined" style="font-size:24px;">sensors</span>
+          <span class="tab-label">Broadcast</span>
+        </div>
+        <div class="tab tab-active">
+          <span class="material-symbols-outlined filled" style="font-size:24px;">timeline</span>
+          <span class="tab-label">Arc</span>
+        </div>
+        <div class="tab tab-inactive">
+          <span class="material-symbols-outlined" style="font-size:24px;">library_music</span>
+          <span class="tab-label">Archive</span>
+        </div>
+        <div class="tab tab-inactive" style="position:relative;">
+          <span class="material-symbols-outlined" style="font-size:24px;">blur_on</span>
+          <span class="tab-label">Cleo</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="section-divider"></div>
+
+<!-- Icon detail breakdown -->
+<div class="icon-grid">
+  <div class="icon-card icon-card-active">
+    <p class="state-label" style="color:#C8832A;">Broadcast</p>
+    <div class="icon-pair">
+      <div class="icon-state">
+        <span class="material-symbols-outlined" style="font-size:28px; color:rgba(172,170,173,0.35);">sensors</span>
+        <span class="icon-state-label">Inactive</span>
+      </div>
+      <div class="icon-state">
+        <span class="material-symbols-outlined filled" style="font-size:28px; color:#C8832A;">sensors</span>
+        <span class="icon-state-label">Active</span>
+      </div>
+    </div>
+    <p class="icon-name">sensors</p>
+    <p class="icon-screen">Home → Player stack</p>
+  </div>
+
+  <div class="icon-card">
+    <p class="state-label">Arc</p>
+    <div class="icon-pair">
+      <div class="icon-state">
+        <span class="material-symbols-outlined" style="font-size:28px; color:rgba(172,170,173,0.35);">timeline</span>
+        <span class="icon-state-label">Inactive</span>
+      </div>
+      <div class="icon-state">
+        <span class="material-symbols-outlined filled" style="font-size:28px; color:#C8832A;">timeline</span>
+        <span class="icon-state-label">Active</span>
+      </div>
+    </div>
+    <p class="icon-name">timeline</p>
+    <p class="icon-screen">Session Arc / Queue</p>
+  </div>
+
+  <div class="icon-card">
+    <p class="state-label">Archive</p>
+    <div class="icon-pair">
+      <div class="icon-state">
+        <span class="material-symbols-outlined" style="font-size:28px; color:rgba(172,170,173,0.35);">library_music</span>
+        <span class="icon-state-label">Inactive</span>
+      </div>
+      <div class="icon-state">
+        <span class="material-symbols-outlined filled" style="font-size:28px; color:#C8832A;">library_music</span>
+        <span class="icon-state-label">Active</span>
+      </div>
+    </div>
+    <p class="icon-name">library_music</p>
+    <p class="icon-screen">Broadcast Archives</p>
+  </div>
+
+  <div class="icon-card">
+    <p class="state-label">Cleo</p>
+    <div class="icon-pair">
+      <div class="icon-state">
+        <span class="material-symbols-outlined" style="font-size:28px; color:rgba(172,170,173,0.35);">blur_on</span>
+        <span class="icon-state-label">Inactive</span>
+      </div>
+      <div class="icon-state">
+        <span class="material-symbols-outlined filled" style="font-size:28px; color:#C8832A; position:relative;">blur_on
+        </span>
+        <span class="icon-state-label">Active</span>
+      </div>
+    </div>
+    <p class="icon-name">blur_on + pulse dot</p>
+    <p class="icon-screen">Profile & Settings</p>
+  </div>
+</div>
+
+<div class="section-divider"></div>
+
+<div class="note-box">
+  <h4>Icon Rendering in React Native</h4>
+  <p>Use <strong>@expo/vector-icons</strong> with MaterialCommunityIcons or install <strong>react-native-vector-icons</strong> with MaterialSymbols. The filled/outlined toggle is controlled by the <code>fill</code> prop — active tabs use filled variant, inactive use outlined. This matches the Stitch pattern exactly where the active tab icon gets <code>font-variation-settings: 'FILL' 1</code>.</p>
+</div>
+
+<div class="note-box" style="margin-top:12px;">
+  <h4>Why These Icons Work</h4>
+  <p><strong>sensors</strong> — radio/broadcast waves, matches the "live radio" metaphor. <strong>timeline</strong> — the session arc is literally a timeline. <strong>library_music</strong> — collection/archive of past sessions. <strong>blur_on</strong> — the Cleo orb motif, used throughout the app as her signature visual element (commentary cards, FAB, onboarding).</p>
+</div>
+
+</body>
+</html>

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Pressable, SafeAreaView, StyleSheet, Text, View, Alert } from 'react-native';
 import { router } from 'expo-router';
-import { Colors, Typography, Spacing, Tracking } from '../../src/tokens/design-tokens';
+import { Colors, Typography, Spacing, TextColors, Surface } from '../../src/tokens/design-tokens';
 import { musicKitPlayer } from '../../src/services/MusicKitPlayer';
 
 export default function MusicAuthScreen() {
@@ -13,7 +13,7 @@ export default function MusicAuthScreen() {
     try {
       const result = await musicKitPlayer.authorize();
       if (result.status === 'authorized') {
-        router.push('/(onboarding)/vibe-setup');
+        router.push('/(onboarding)/cleo-setup');
       } else {
         Alert.alert(
           'Apple Music Required',
@@ -49,7 +49,7 @@ export default function MusicAuthScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.vibe.morning.bg,
+    backgroundColor: Surface.base,
   },
   content: {
     flex: 1,
@@ -60,14 +60,14 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: Typography.display.family,
     fontSize: 28,
-    color: Colors.vibe.morning.text,
+    color: TextColors.primary,
     marginBottom: Spacing.md,
     textAlign: 'center',
   },
   description: {
-    fontFamily: Typography.label.family,
+    fontFamily: Typography.body.family,
     fontSize: 16,
-    color: Colors.vibe.morning.text,
+    color: TextColors.primary,
     textAlign: 'center',
     lineHeight: 24,
     opacity: 0.7,
