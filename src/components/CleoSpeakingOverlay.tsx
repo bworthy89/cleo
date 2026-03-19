@@ -272,25 +272,36 @@ export function CleoSpeakingOverlay({
       }]} />
 
       <View style={styles.content}>
-        {/* 2  Title */}
+        {/* 2  Title with chromatic aberration */}
         <Animated.View style={{
           transform: [
             { translateX: titleX },
             { skewX: titleSkewInterpolated },
           ],
         }}>
-          <Text
-            style={[
-              styles.title,
-              {
-                textShadowColor: vibeAccent,
-                textShadowOffset: { width: 2, height: -1 },
-                textShadowRadius: 0,
-              },
-            ]}
-          >
-            HOST INTERJECTION
-          </Text>
+          <View style={styles.titleContainer}>
+            {/* Chromatic aberration layers */}
+            <Text
+              style={[
+                styles.title,
+                styles.titleShadowWhite,
+              ]}
+            >
+              HOST{'\n'}INTERJECTION
+            </Text>
+            <Text
+              style={[
+                styles.title,
+                styles.titleShadowGold,
+                { color: vibeAccent },
+              ]}
+            >
+              HOST{'\n'}INTERJECTION
+            </Text>
+            <Text style={styles.title}>
+              HOST{'\n'}INTERJECTION
+            </Text>
+          </View>
         </Animated.View>
 
         {/* 3  Gold bar */}
@@ -392,7 +403,7 @@ const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
     zIndex: ZIndex.modal,
-    backgroundColor: withAlpha(Surface.base, 0.4),
+    backgroundColor: withAlpha(Surface.base, 0.85),
     justifyContent: 'center',
   },
   scanline: {
@@ -407,14 +418,31 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
 
-  // Title
+  // Title with chromatic aberration
+  titleContainer: {
+    position: 'relative',
+  },
   title: {
     fontFamily: Typography.mono.family,
-    fontSize: 48,
+    fontSize: 42,
     fontWeight: 'bold',
     letterSpacing: 2,
     color: Colors.accent,
     textTransform: 'uppercase',
+    lineHeight: 48,
+  },
+  titleShadowWhite: {
+    position: 'absolute',
+    left: 2,
+    top: 0,
+    color: TextColors.primary,
+    opacity: 0.3,
+  },
+  titleShadowGold: {
+    position: 'absolute',
+    left: -2,
+    top: 0,
+    opacity: 0.4,
   },
 
   // Gold bar
@@ -473,7 +501,8 @@ const styles = StyleSheet.create({
     lineHeight: 32,
   },
   wordEmphasis: {
-    textDecorationLine: 'underline',
+    backgroundColor: withAlpha(Colors.accent, 0.25),
+    color: Colors.accent,
   },
 
   // Signal metadata

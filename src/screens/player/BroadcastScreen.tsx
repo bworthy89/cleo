@@ -12,30 +12,24 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Colors,
   Surface,
   TextColors,
   Typography,
-  Glass,
   Glow,
-  Gradient,
   Spacing,
   Radius,
-  Animation,
-  Opacity,
-  ZIndex,
   AppHeaderTokens,
   TabBar,
   withAlpha,
   getVibeAccent,
 } from '../../tokens/design-tokens';
-import { GlassCard } from '../../components/GlassCard';
 import { AppHeader } from '../../components/AppHeader';
 import { WaveformBars } from '../../components/WaveformBars';
 import { CleoSpeakingOverlay } from '../../components/CleoSpeakingOverlay';
 import { CleoOrb } from '../../components/CleoOrb';
-import { SectionLabel } from '../../components/SectionLabel';
 import { router } from 'expo-router';
 import { musicKitPlayer } from '../../services/MusicKitPlayer';
 import { audioCoordinator } from '../../engines/AudioCoordinator';
@@ -59,13 +53,12 @@ export function BroadcastScreen({
   stationId,
   vibe,
 }: BroadcastScreenProps) {
+  const insets = useSafeAreaInsets();
   const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
   const [cleoText, setCleoText] = useState('');
   const [cleoSpeaking, setCleoSpeaking] = useState(false);
-  const [isPullQuote, setIsPullQuote] = useState(false);
   const [segmentType, setSegmentType] = useState<SegmentType | 'cold_open' | 'session_close' | null>(null);
   const [overlayMounted, setOverlayMounted] = useState(false);
-  const [sessionStarted, setSessionStarted] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const durationRef = useRef(0);
@@ -121,14 +114,12 @@ export function BroadcastScreen({
     (async () => {
       const existing = sessionEngine.getSession();
       if (existing && existing.stationId === stationId && existing.tracksPlayed.length > 0) {
-        setSessionStarted(true);
         refreshNowPlaying();
         return;
       }
 
       segmentController.startSession(stationId, vibe);
       await queueManager.initializeSession(playlistId, vibe, stationId);
-      setSessionStarted(true);
       refreshNowPlaying();
     })();
   }, []);
@@ -193,7 +184,6 @@ export function BroadcastScreen({
             (segment) => {
               setCleoText(segment.text);
               setSegmentType(segment.type);
-              setIsPullQuote(segment.type === 'track_story' || segment.type === 'post_track_reflection');
               setCleoSpeaking(true);
             }
           );
@@ -256,7 +246,13 @@ export function BroadcastScreen({
     <View style={styles.container}>
       <AppHeader
         leftContent={
-          <Pressable onPress={() => router.back()} hitSlop={12} style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}>
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={12}
+            style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}
+            accessibilityLabel="Go back"
+            accessibilityRole="button"
+          >
             <Ionicons name="chevron-back" size={22} color={TextColors.primary} />
           </Pressable>
         }
@@ -265,7 +261,10 @@ export function BroadcastScreen({
       <Animated.View style={[{ flex: 1 }, { opacity: contentDim }]}>
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingTop: AppHeaderTokens.height + insets.top },
+        ]}
         showsVerticalScrollIndicator={false}
       >
         {/* Album Art Hero */}
@@ -294,29 +293,34 @@ export function BroadcastScreen({
 
         {/* Track Info */}
         <View style={styles.trackInfo}>
+          <Text style={styles.stationNameLabel}>{stationName}</Text>
           <Text style={styles.trackTitle} numberOfLines={2}>
             {nowPlaying?.title ?? 'Loading...'}
           </Text>
           <Text style={styles.trackArtist} numberOfLines={1}>
-            {nowPlaying?.artistName ?? ''}
+            {nowPlaying?.artistName ? `\u2014 ${nowPlaying.artistName}` : ''}
           </Text>
         </View>
 
-        {/* Host Commentary Card */}
+        {/* Editorial Insight Card */}
         {cleoText.length > 0 && (
-          <GlassCard style={styles.commentaryCard}>
+          <View style={styles.commentaryCard}>
+            <View style={styles.commentaryGoldEdge} />
             <View style={styles.commentaryInner}>
               <View style={styles.commentaryHeader}>
                 <CleoOrb size={28} />
-                <Text style={styles.commentaryLabel}>HOST COMMENTARY</Text>
+                <Text style={styles.commentaryLabel}>EDITORIAL INSIGHT</Text>
               </View>
-              <Text style={styles.commentaryText}>{cleoText}</Text>
+              <Text style={styles.commentaryText}>
+                {'\u201C'}{cleoText}{'\u201D'}
+              </Text>
             </View>
-          </GlassCard>
+          </View>
         )}
 
         {/* Progress Bar */}
         <View style={styles.progressSection}>
+          <Text style={styles.progressLabel}>LIVE CONNECTION</Text>
           <View style={styles.progressTrack}>
             <Animated.View style={[styles.progressFill, { width: progressWidthPercent }]}>
               <LinearGradient
@@ -335,21 +339,13 @@ export function BroadcastScreen({
 
         {/* Playback Controls */}
         <View style={styles.controls}>
-          <Pressable
-            hitSlop={12}
-            style={({ pressed }) => [styles.secondaryControl, pressed && styles.pressed]}
-            accessibilityLabel="Shuffle"
-          >
+          <View style={[styles.secondaryControl, styles.controlDisabled]}>
             <Ionicons name="shuffle" size={22} color={TextColors.outline} />
-          </Pressable>
+          </View>
 
-          <Pressable
-            hitSlop={12}
-            style={({ pressed }) => [styles.secondaryControl, pressed && styles.pressed]}
-            accessibilityLabel="Previous track"
-          >
-            <Ionicons name="play-skip-back" size={24} color={TextColors.primary} />
-          </Pressable>
+          <View style={[styles.secondaryControl, styles.controlDisabled]}>
+            <Ionicons name="play-skip-back" size={24} color={TextColors.outline} />
+          </View>
 
           <Pressable
             onPress={handlePlayPause}
@@ -382,20 +378,17 @@ export function BroadcastScreen({
             <Ionicons name="play-skip-forward" size={24} color={TextColors.primary} />
           </Pressable>
 
-          <Pressable
-            hitSlop={12}
-            style={({ pressed }) => [styles.secondaryControl, pressed && styles.pressed]}
-            accessibilityLabel="Repeat"
-          >
+          <View style={[styles.secondaryControl, styles.controlDisabled]}>
             <Ionicons name="repeat" size={22} color={TextColors.outline} />
-          </Pressable>
+          </View>
         </View>
 
-        {/* Synchronized Next (Up Next) */}
+        {/* Synchronized Next */}
         {nextTrack && (
-          <GlassCard style={styles.upNextCard}>
+          <View style={styles.upNextCard}>
+            <View style={styles.upNextGoldEdge} />
             <View style={styles.upNextInner}>
-              <SectionLabel style={styles.upNextLabel}>UP NEXT</SectionLabel>
+              <Text style={styles.upNextLabel}>SYNCHRONIZED NEXT</Text>
               <View style={styles.upNextRow}>
                 {nextTrack.artworkUrl ? (
                   <Image
@@ -416,7 +409,7 @@ export function BroadcastScreen({
                 </View>
               </View>
             </View>
-          </GlassCard>
+          </View>
         )}
       </ScrollView>
       </Animated.View>
@@ -447,7 +440,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingTop: AppHeaderTokens.height + 44, // header + safe area approx
     paddingBottom: TabBar.height + Spacing.lg,
   },
   pressed: {
@@ -493,15 +485,20 @@ const styles = StyleSheet.create({
 
   // Track Info
   trackInfo: {
-    alignItems: 'center',
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.lg,
+  },
+  stationNameLabel: {
+    fontFamily: Typography.mono.family,
+    fontSize: 9,
+    letterSpacing: 2,
+    color: Colors.accent,
+    marginBottom: Spacing.xs,
   },
   trackTitle: {
     fontFamily: Typography.display.family,
     fontSize: 28,
     color: TextColors.primary,
-    textAlign: 'center',
     lineHeight: 34,
   },
   trackArtist: {
@@ -509,15 +506,23 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: TextColors.secondary,
     marginTop: Spacing.xs,
-    textAlign: 'center',
   },
 
-  // Host Commentary
+  // Editorial Insight
   commentaryCard: {
     marginHorizontal: Spacing.lg,
     marginTop: Spacing.lg,
+    flexDirection: 'row',
+    backgroundColor: Surface.container,
+    borderRadius: Radius.sm,
+    overflow: 'hidden',
+  },
+  commentaryGoldEdge: {
+    width: 2,
+    backgroundColor: Colors.accent,
   },
   commentaryInner: {
+    flex: 1,
     padding: Spacing.md,
   },
   commentaryHeader: {
@@ -531,7 +536,6 @@ const styles = StyleSheet.create({
     fontSize: 9,
     letterSpacing: 1.6,
     color: Colors.accent,
-    textTransform: 'uppercase',
   },
   commentaryText: {
     fontFamily: Typography.cleoVoice.family,
@@ -545,6 +549,13 @@ const styles = StyleSheet.create({
   progressSection: {
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.xl,
+  },
+  progressLabel: {
+    fontFamily: Typography.mono.family,
+    fontSize: 9,
+    letterSpacing: 2,
+    color: Colors.accent,
+    marginBottom: Spacing.sm,
   },
   progressTrack: {
     height: 5,
@@ -583,6 +594,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  controlDisabled: {
+    opacity: 0.35,
+  },
   playButton: {
     width: 72,
     height: 72,
@@ -591,15 +605,28 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  // Up Next
+  // Synchronized Next
   upNextCard: {
     marginHorizontal: Spacing.lg,
     marginTop: Spacing.xl,
+    flexDirection: 'row',
+    backgroundColor: Surface.container,
+    borderRadius: Radius.sm,
+    overflow: 'hidden',
+  },
+  upNextGoldEdge: {
+    width: 2,
+    backgroundColor: Colors.accent,
   },
   upNextInner: {
+    flex: 1,
     padding: Spacing.md,
   },
   upNextLabel: {
+    fontFamily: Typography.mono.family,
+    fontSize: 9,
+    letterSpacing: 2,
+    color: Colors.accent,
     marginBottom: Spacing.sm,
   },
   upNextRow: {

@@ -7,7 +7,6 @@ import {
   Surface,
   TextColors,
   Typography,
-  Glass,
   Glow,
   Gradient,
   Spacing,
@@ -15,8 +14,6 @@ import {
   withAlpha,
 } from '../../tokens/design-tokens';
 import { CleoOrb } from '../../components/CleoOrb';
-import { SectionLabel } from '../../components/SectionLabel';
-import { GlassCard } from '../../components/GlassCard';
 import { getUser, setUser } from '../../services/Storage';
 
 const MOODS = [
@@ -26,9 +23,9 @@ const MOODS = [
 ] as const;
 
 const GOALS = [
-  { key: 'discovery', label: 'Discovery', description: 'Find hidden gems and new artists', icon: '🔍' },
-  { key: 'relaxation', label: 'Relaxation', description: 'Ambient textures and calm soundscapes', icon: '🌊' },
-  { key: 'work', label: 'Work', description: 'Deep beats for high productivity', icon: '💻' },
+  { key: 'discovery', label: 'Discovery', description: 'Find hidden gems and new artists' },
+  { key: 'relaxation', label: 'Relaxation', description: 'Ambient textures and calm soundscapes' },
+  { key: 'work', label: 'Work', description: 'Deep beats for high productivity' },
 ] as const;
 
 const GENRES = [
@@ -38,9 +35,6 @@ const GENRES = [
   'Ambient',
   'Cinematic',
   'Trip-Hop',
-  'R&B',
-  'Indie',
-  'Classical',
 ] as const;
 
 export function CleoOnboarding() {
@@ -90,15 +84,15 @@ export function CleoOnboarding() {
 
       {/* Greeting */}
       <Text style={styles.greeting}>
-        Hello, I'm <Text style={styles.cleoName}>Cleo.</Text>
+        {'\u201C'}Hello, I'm <Text style={styles.cleoName}>Cleo.</Text>{'\u201D'}
       </Text>
       <Text style={styles.subtext}>
-        Let me learn a little about your taste so I can host a better broadcast for you.
+        Your personal AI radio host. I curate frequencies that match your soul's current wavelength. How are we feeling today?
       </Text>
 
       {/* Current Mood */}
       <View style={styles.section}>
-        <SectionLabel>Current Mood</SectionLabel>
+        <Text style={styles.sectionLabel}>CURRENT MOOD</Text>
         <View style={styles.moodRow}>
           {MOODS.map((mood) => {
             const isSelected = selectedMood === mood.key;
@@ -107,18 +101,17 @@ export function CleoOnboarding() {
                 key={mood.key}
                 style={styles.moodCardWrapper}
                 onPress={() => setSelectedMood(isSelected ? null : mood.key)}
+                accessibilityLabel={`${mood.label} mood${isSelected ? ', selected' : ''}`}
+                accessibilityRole="button"
               >
-                <GlassCard
-                  style={[
-                    styles.moodCard,
-                    isSelected && styles.moodCardSelected,
-                  ]}
-                >
-                  <Text style={styles.moodIcon}>{mood.icon}</Text>
+                <View style={[styles.moodCard, isSelected && styles.moodCardSelected]}>
+                  <View style={[styles.moodIconCircle, isSelected && styles.moodIconCircleSelected]}>
+                    <Text style={styles.moodIcon}>{mood.icon}</Text>
+                  </View>
                   <Text style={[styles.moodLabel, isSelected && styles.moodLabelSelected]}>
                     {mood.label}
                   </Text>
-                </GlassCard>
+                </View>
               </Pressable>
             );
           })}
@@ -127,26 +120,27 @@ export function CleoOnboarding() {
 
       {/* Session Goal */}
       <View style={styles.section}>
-        <SectionLabel>Session Goal</SectionLabel>
+        <Text style={styles.sectionLabel}>SESSION GOAL</Text>
         {GOALS.map((goal) => {
           const isSelected = selectedGoal === goal.key;
           return (
             <Pressable
               key={goal.key}
               onPress={() => setSelectedGoal(isSelected ? null : goal.key)}
+              accessibilityLabel={`${goal.label}: ${goal.description}${isSelected ? ', selected' : ''}`}
+              accessibilityRole="radio"
             >
-              <GlassCard
-                style={[styles.goalCard, isSelected && styles.goalCardSelected]}
-              >
-                <Text style={styles.goalIcon}>{goal.icon}</Text>
+              <View style={[styles.goalCard, isSelected && styles.goalCardSelected]}>
                 <View style={styles.goalTextContainer}>
-                  <Text style={styles.goalLabel}>{goal.label}</Text>
+                  <Text style={[styles.goalLabel, isSelected && styles.goalLabelSelected]}>
+                    {goal.label}
+                  </Text>
                   <Text style={styles.goalDescription}>{goal.description}</Text>
                 </View>
                 <View style={[styles.radio, isSelected && styles.radioSelected]}>
                   {isSelected && <View style={styles.radioDot} />}
                 </View>
-              </GlassCard>
+              </View>
             </Pressable>
           );
         })}
@@ -154,12 +148,17 @@ export function CleoOnboarding() {
 
       {/* Genre Palette */}
       <View style={styles.section}>
-        <SectionLabel>Genre Palette</SectionLabel>
+        <Text style={styles.sectionLabel}>GENRE PALETTE</Text>
         <View style={styles.genreWrap}>
           {GENRES.map((genre) => {
             const isSelected = selectedGenres.includes(genre);
             return (
-              <Pressable key={genre} onPress={() => toggleGenre(genre)}>
+              <Pressable
+                key={genre}
+                onPress={() => toggleGenre(genre)}
+                accessibilityLabel={`${genre}${selectedGenres.includes(genre) ? ', selected' : ''}`}
+                accessibilityRole="button"
+              >
                 <View style={[styles.genrePill, isSelected && styles.genrePillSelected]}>
                   <Text style={[styles.genreText, isSelected && styles.genreTextSelected]}>
                     {genre}
@@ -172,7 +171,12 @@ export function CleoOnboarding() {
       </View>
 
       {/* CTA Button */}
-      <Pressable onPress={saveAndNavigate} style={styles.ctaWrapper}>
+      <Pressable
+        onPress={saveAndNavigate}
+        style={({ pressed }) => [styles.ctaWrapper, pressed && { opacity: 0.7 }]}
+        accessibilityLabel="Start my broadcast"
+        accessibilityRole="button"
+      >
         <LinearGradient
           colors={Gradient.cta.colors as unknown as [string, string]}
           start={Gradient.cta.start}
@@ -180,12 +184,12 @@ export function CleoOnboarding() {
           style={styles.ctaButton}
         >
           <Text style={styles.ctaText}>Start My Broadcast</Text>
-          <Text style={styles.ctaArrow}>{'  \u25B6'}</Text>
+          <Text style={styles.ctaArrow}>{' \u25B6'}</Text>
         </LinearGradient>
       </Pressable>
 
       {/* Skip link */}
-      <Pressable onPress={skipAndNavigate} style={styles.skipWrapper}>
+      <Pressable onPress={skipAndNavigate} style={styles.skipWrapper} accessibilityLabel="Skip setup" accessibilityRole="button">
         <Text style={styles.skipText}>Skip setup, surprise me</Text>
       </Pressable>
     </ScrollView>
@@ -198,7 +202,7 @@ const styles = StyleSheet.create({
     backgroundColor: Surface.base,
   },
   content: {
-    paddingHorizontal: Spacing.xl,
+    paddingHorizontal: Spacing.lg,
     paddingTop: 80,
     paddingBottom: Spacing.xxl,
     alignItems: 'center',
@@ -208,8 +212,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   greeting: {
-    fontFamily: Typography.display.family,
-    fontSize: 32,
+    fontFamily: Typography.cleoVoice.family,
+    fontStyle: 'italic',
+    fontSize: 28,
     color: TextColors.primary,
     textAlign: 'center',
     marginBottom: Spacing.sm,
@@ -224,33 +229,57 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
     marginBottom: Spacing.xl,
+    paddingHorizontal: Spacing.md,
   },
   section: {
     width: '100%',
     marginBottom: Spacing.lg,
   },
+  sectionLabel: {
+    fontFamily: Typography.mono.family,
+    fontSize: 10,
+    letterSpacing: 2.5,
+    color: TextColors.outline,
+    marginBottom: Spacing.md,
+  },
 
-  // Mood cards
+  // Mood cards - circular icon style matching Stitch
   moodRow: {
     flexDirection: 'row',
-    gap: Spacing.sm,
+    gap: Spacing.md,
   },
   moodCardWrapper: {
     flex: 1,
   },
   moodCard: {
     alignItems: 'center',
-    justifyContent: 'center',
     paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.sm,
+    borderRadius: Radius.md,
+    backgroundColor: Surface.container,
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
   moodCardSelected: {
     borderColor: Colors.accent,
     backgroundColor: withAlpha(Colors.accent, 0.08),
   },
+  moodIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: Surface.high,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.sm,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  moodIconCircleSelected: {
+    borderColor: Colors.accent,
+    backgroundColor: withAlpha(Colors.accent, 0.12),
+  },
   moodIcon: {
-    fontSize: 24,
-    marginBottom: Spacing.xs,
+    fontSize: 22,
   },
   moodLabel: {
     fontFamily: Typography.body.familyMedium,
@@ -268,28 +297,31 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.md,
     marginBottom: Spacing.sm,
+    borderRadius: Radius.md,
+    backgroundColor: Surface.container,
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
   goalCardSelected: {
     borderColor: Colors.accent,
     backgroundColor: withAlpha(Colors.accent, 0.08),
   },
-  goalIcon: {
-    fontSize: 22,
-    marginRight: Spacing.md,
-  },
   goalTextContainer: {
     flex: 1,
   },
   goalLabel: {
-    fontFamily: Typography.body.familyMedium,
+    fontFamily: Typography.body.familySemiBold,
     fontSize: 15,
     color: TextColors.primary,
     marginBottom: 2,
   },
+  goalLabelSelected: {
+    color: Colors.accent,
+  },
   goalDescription: {
     fontFamily: Typography.body.family,
     fontSize: 13,
-    color: TextColors.secondary,
+    color: TextColors.outline,
     lineHeight: 18,
   },
   radio: {
@@ -297,7 +329,7 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: 11,
     borderWidth: 2,
-    borderColor: TextColors.outline,
+    borderColor: TextColors.outlineVariant,
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: Spacing.sm,
@@ -321,7 +353,7 @@ const styles = StyleSheet.create({
   genrePill: {
     backgroundColor: Surface.high,
     borderWidth: 1,
-    borderColor: Glass.border,
+    borderColor: TextColors.outlineVariant,
     borderRadius: Radius.full,
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.md,
