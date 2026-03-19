@@ -4,17 +4,21 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeaderTokens, Colors, Typography, ZIndex } from '../tokens/design-tokens';
 
 interface AppHeaderProps {
+  leftContent?: React.ReactNode;
   rightContent?: React.ReactNode;
 }
 
-export function AppHeader({ rightContent }: AppHeaderProps) {
+export function AppHeader({ leftContent, rightContent }: AppHeaderProps) {
   const insets = useSafeAreaInsets();
 
   return (
     <View style={[styles.container, { paddingTop: insets.top, height: AppHeaderTokens.height + insets.top }]}>
       <BlurView intensity={AppHeaderTokens.blur} tint="dark" style={StyleSheet.absoluteFill} />
       <View style={styles.inner}>
-        <Text style={styles.logo}>CLEO</Text>
+        <View style={styles.left}>
+          {leftContent}
+          <Text style={styles.logo}>CLEO</Text>
+        </View>
         {rightContent && <View style={styles.right}>{rightContent}</View>}
       </View>
     </View>
@@ -39,5 +43,6 @@ const styles = StyleSheet.create({
     letterSpacing: AppHeaderTokens.logoTracking,
     textTransform: 'uppercase',
   },
+  left: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   right: { flexDirection: 'row', alignItems: 'center', gap: 12 },
 });
