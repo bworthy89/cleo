@@ -137,12 +137,23 @@ export function BroadcastScreen({
     return unsub;
   }, []);
 
-  // --- Progress polling (1s interval while playing) ---
+  // --- Progress polling (always active, 1s interval) ---
   useEffect(() => {
-    if (!isPlaying) return;
-
     const poll = async () => {
       try {
+        const status = await musicKitPlayer.getPlaybackStatus();
+        const playing = status === 'playing';
+        if (playing !== isPlaying) setIsPlaying(playing);
+        if (!playing) return;
+
+        // If we don't have a duration yet, try to fetch it
+        if (durationRef.current <= 0) {
+          const np = await musicKitPlayer.getNowPlaying();
+          if (np?.duration && np.duration > 0) {
+            durationRef.current = np.duration;
+            setNowPlaying((prev) => prev ? { ...prev, duration: np.duration } : np);
+          }
+        }
         const time = await musicKitPlayer.getPlaybackTime();
         const dur = durationRef.current;
         if (dur > 0) {
@@ -151,10 +162,10 @@ export function BroadcastScreen({
       } catch {}
     };
 
-    poll(); // immediate first poll
+    poll();
     const interval = setInterval(poll, 1000);
     return () => clearInterval(interval);
-  }, [isPlaying]);
+  }, []);
 
   // --- Track change listener ---
   useEffect(() => {

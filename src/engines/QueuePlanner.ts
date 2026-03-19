@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../services/api';
+import { authenticatedFetch } from '../services/api';
 import type { TrackProfile } from '../services/TrackEnrichmentService';
 import type { Vibe } from '../cleo/fallbacks';
 import { getRecentlyPlayed } from '../services/Storage';
@@ -104,9 +104,8 @@ Return JSON in this exact format:
 Include ALL tracks. Every track must appear exactly once. Order them to create the best possible listening arc.`;
 
   try {
-    const response = await fetch(`${API_BASE_URL}/generate-segment`, {
+    const response = await authenticatedFetch('/generate-segment', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ systemPrompt, userPrompt, maxTokens: 8192 }),
     });
 
