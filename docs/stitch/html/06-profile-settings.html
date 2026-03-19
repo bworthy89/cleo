@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Cleo - Profile Settings</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "on-tertiary": "#6a0936",
+              "surface-dim": "#0e0e10",
+              "on-surface": "#f6f3f5",
+              "on-error": "#490013",
+              "surface-container": "#19191c",
+              "surface-container-lowest": "#000000",
+              "on-background": "#f6f3f5",
+              "background": "#0e0e10",
+              "inverse-on-surface": "#555557",
+              "surface-container-highest": "#262528",
+              "on-secondary-fixed": "#003a42",
+              "surface-variant": "#262528",
+              "error-dim": "#d73357",
+              "secondary-container": "#006875",
+              "tertiary-container": "#fc81ab",
+              "primary-fixed": "#ff784e",
+              "on-primary": "#5b1500",
+              "inverse-surface": "#fcf8fb",
+              "on-surface-variant": "#acaaad",
+              "on-primary-fixed": "#000000",
+              "outline-variant": "#48474a",
+              "on-primary-container": "#470e00",
+              "tertiary": "#ff97b8",
+              "on-primary-fixed-variant": "#571400",
+              "on-error-container": "#ffb2b9",
+              "on-secondary-container": "#e8fbff",
+              "surface-tint": "#ff906d",
+              "secondary": "#00e3fd",
+              "on-secondary-fixed-variant": "#005964",
+              "surface-container-high": "#1f1f22",
+              "secondary-fixed-dim": "#00d7f0",
+              "on-secondary": "#004d57",
+              "on-tertiary-fixed": "#380019",
+              "surface-container-low": "#131315",
+              "secondary-dim": "#00d4ec",
+              "inverse-primary": "#ac350a",
+              "secondary-fixed": "#26e6ff",
+              "on-tertiary-container": "#59002b",
+              "surface": "#0e0e10",
+              "surface-bright": "#2c2c2f",
+              "error": "#ff6e84",
+              "on-tertiary-fixed-variant": "#70103b",
+              "primary-container": "#ff784e",
+              "primary": "#ff906d",
+              "primary-fixed-dim": "#f3683b",
+              "tertiary-fixed": "#ff8db2",
+              "tertiary-fixed-dim": "#f57ca5",
+              "outline": "#767577",
+              "primary-dim": "#ff7348",
+              "tertiary-dim": "#ef77a0",
+              "error-container": "#a70138"
+            },
+            fontFamily: {
+              "headline": ["Plus Jakarta Sans"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body { font-family: 'Inter', sans-serif; }
+        h1, h2, h3, .font-headline { font-family: 'Plus Jakarta Sans', sans-serif; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background min-h-screen pb-32">
+<!-- Top Navigation Shell -->
+<header class="fixed top-0 w-full z-50 bg-[#0e0e10]/60 backdrop-blur-xl shadow-[0_4px_40px_rgba(255,144,109,0.06)] flex justify-between items-center px-6 h-16">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-[#ff906d]" data-icon="graphic_eq">graphic_eq</span>
+<span class="text-2xl font-bold tracking-tighter text-[#ff906d] uppercase">CLEO</span>
+</div>
+<div class="flex items-center gap-4">
+<div class="w-8 h-8 rounded-full bg-surface-container-highest flex items-center justify-center overflow-hidden">
+<img alt="Profile" data-alt="User profile avatar of Elara Vance" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD0TgjUXXwJNfqcvVEB6PmxyGRMQg7nvjGkjEo-yVgU3A0L3q3qGOYwss5h_wDNhgOtEV4ABXDMwp4DA-HtotGgHKrxNM4l_fyUD_zQsY0ff3EyV607ogJWEnn3YdBXyd1-ZY3adjib-VLIPk3w9ErqBY_j3EI9x1dliGpQTPps-Og3KLOyE6Bx2TF3nGtKCku8oM64s7Fs7gkDoAwq_qKDjXYCfSFTYfyCqQ2sGEPvnF6wzv34FCEdKrOEzcyM_RNllO_YbVqeupZy"/>
+</div>
+</div>
+</header>
+<main class="pt-24 px-6 max-w-md mx-auto space-y-10">
+<!-- Section 1: User Header -->
+<section class="flex flex-col items-center text-center space-y-4">
+<div class="relative">
+<div class="w-32 h-32 rounded-full p-1 bg-gradient-to-tr from-primary to-secondary">
+<div class="w-full h-full rounded-full overflow-hidden bg-background">
+<img alt="Elara Vance" class="w-full h-full object-cover grayscale-[20%]" data-alt="Large soft-focus portrait of Elara Vance" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAKEPR9j9UxVElrW8P2q7oW-uInd5RevQkMB2_nO2utE7kT2e09DCRJZEdCr_yiYBUNIF9OnIEgnRu2-UXdzkmN1Oz6QHjBhQnsOPVeJVExEVannxBgzKpdXTljXtEpU_7rk8T4D8CrDOEoMgGFOHl1A2EZdxv9HNo2D2V1BR90p9nbk-T97MZtDMykcVJymmjPfs7REPnCazTRLiCdqB8Np3vj0rWF6AYJCIiNfLDzNiRNm-uagV1qjCHAurEvwWZb9zqkJtjaacu8"/>
+</div>
+</div>
+<div class="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-primary text-on-primary px-3 py-0.5 rounded-full text-[10px] font-bold tracking-widest uppercase shadow-lg">
+                    PRO
+                </div>
+</div>
+<div>
+<h1 class="text-3xl font-extrabold tracking-tight text-on-background">Elara Vance</h1>
+<p class="text-on-surface-variant text-sm mt-1">elara.v@frequency.io</p>
+</div>
+</section>
+<!-- Section 2: AI Personality -->
+<section class="space-y-6">
+<div class="flex items-center justify-between">
+<h2 class="text-lg font-bold tracking-tight uppercase text-primary/80">AI Personality</h2>
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="settings_suggest">settings_suggest</span>
+</div>
+<div class="grid grid-cols-1 gap-3">
+<!-- Curator Card -->
+<div class="bg-surface-container-highest/40 backdrop-blur-md p-5 rounded-xl border border-outline-variant/10 hover:bg-surface-container-highest/60 transition-all cursor-pointer group">
+<div class="flex justify-between items-start mb-2">
+<div class="p-2 bg-primary/10 rounded-lg group-hover:bg-primary/20 transition-colors">
+<span class="material-symbols-outlined text-primary" data-icon="analytics">analytics</span>
+</div>
+<div class="w-5 h-5 rounded-full border-2 border-primary flex items-center justify-center">
+<div class="w-2.5 h-2.5 rounded-full bg-primary"></div>
+</div>
+</div>
+<h3 class="font-bold text-lg text-on-surface">Curator</h3>
+<p class="text-on-surface-variant text-xs leading-relaxed mt-1">Analytical &amp; Knowledgeable. Deep dives into musicology and technical specs.</p>
+</div>
+<!-- Companion Card -->
+<div class="bg-surface-container-low p-5 rounded-xl border border-outline-variant/5 hover:bg-surface-container-highest/40 transition-all cursor-pointer">
+<div class="flex justify-between items-start mb-2">
+<div class="p-2 bg-secondary/10 rounded-lg">
+<span class="material-symbols-outlined text-secondary" data-icon="favorite">favorite</span>
+</div>
+<div class="w-5 h-5 rounded-full border-2 border-outline-variant"></div>
+</div>
+<h3 class="font-bold text-lg text-on-surface">Companion</h3>
+<p class="text-on-surface-variant text-xs leading-relaxed mt-1">Warm &amp; Empathetic. Focuses on emotional resonance and mood matching.</p>
+</div>
+<!-- Oracle Card -->
+<div class="bg-surface-container-low p-5 rounded-xl border border-outline-variant/5 hover:bg-surface-container-highest/40 transition-all cursor-pointer">
+<div class="flex justify-between items-start mb-2">
+<div class="p-2 bg-tertiary/10 rounded-lg">
+<span class="material-symbols-outlined text-tertiary" data-icon="auto_awesome">auto_awesome</span>
+</div>
+<div class="w-5 h-5 rounded-full border-2 border-outline-variant"></div>
+</div>
+<h3 class="font-bold text-lg text-on-surface">Oracle</h3>
+<p class="text-on-surface-variant text-xs leading-relaxed mt-1">Enigmatic &amp; Avant-garde. Experimental discoveries and cryptic curation.</p>
+</div>
+</div>
+</section>
+<!-- Section 3: Linked Services -->
+<section class="bg-surface-container-low rounded-2xl p-6 space-y-4">
+<h2 class="text-xs font-bold tracking-[0.2em] uppercase text-on-surface-variant">Connected Ecosystem</h2>
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center">
+<span class="material-symbols-outlined text-on-surface" data-icon="music_note">music_note</span>
+</div>
+<div>
+<p class="font-semibold text-on-surface">Apple Music</p>
+<p class="text-secondary text-[10px] font-bold uppercase">Connected</p>
+</div>
+</div>
+<div class="w-12 h-6 bg-primary rounded-full relative shadow-inner">
+<div class="absolute right-1 top-1 w-4 h-4 bg-on-primary rounded-full shadow-md"></div>
+</div>
+</div>
+</section>
+<!-- Section 4: Voice Profile -->
+<section class="space-y-6">
+<h2 class="text-xs font-bold tracking-[0.2em] uppercase text-on-surface-variant">Voice Profile</h2>
+<div class="space-y-8">
+<!-- Audio Fidelity Slider -->
+<div class="space-y-3">
+<div class="flex justify-between text-xs">
+<span class="text-on-surface font-medium">Audio Fidelity</span>
+<span class="text-primary font-bold">LOSSLESS</span>
+</div>
+<div class="relative h-1 w-full bg-surface-container-highest rounded-full overflow-hidden">
+<div class="absolute top-0 left-0 h-full w-[85%] bg-gradient-to-r from-primary to-secondary"></div>
+</div>
+</div>
+<!-- Host Volume Mix -->
+<div class="space-y-3">
+<div class="flex justify-between text-xs">
+<span class="text-on-surface font-medium">Host Volume Mix</span>
+<span class="text-on-surface-variant">-4dB</span>
+</div>
+<div class="relative h-1 w-full bg-surface-container-highest rounded-full">
+<div class="absolute top-0 left-0 h-full w-[40%] bg-on-surface-variant"></div>
+<div class="absolute top-1/2 left-[40%] -translate-y-1/2 w-4 h-4 bg-on-surface rounded-full shadow-lg border-2 border-surface-dim"></div>
+</div>
+</div>
+</div>
+</section>
+<!-- Section 5: Account -->
+<section class="space-y-3 pb-12">
+<h2 class="text-xs font-bold tracking-[0.2em] uppercase text-on-surface-variant mb-4">Account</h2>
+<button class="w-full flex items-center justify-between p-4 bg-surface-container-low rounded-xl hover:bg-surface-container transition-colors group">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors" data-icon="workspace_premium">workspace_premium</span>
+<span class="text-on-surface font-medium">Manage Subscription</span>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant text-sm" data-icon="chevron_right">chevron_right</span>
+</button>
+<button class="w-full flex items-center justify-between p-4 bg-surface-container-low rounded-xl hover:bg-surface-container transition-colors group">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-error transition-colors" data-icon="logout">logout</span>
+<span class="text-error font-medium">Sign Out</span>
+</div>
+</button>
+</section>
+</main>
+<!-- Bottom Navigation Shell -->
+<nav class="fixed bottom-0 w-full z-50 bg-[#0e0e10]/60 backdrop-blur-xl rounded-t-[24px] shadow-2xl flex justify-around items-center h-20 pb-safe px-4">
+<div class="flex flex-col items-center justify-center text-gray-500 dark:text-gray-400 font-['Plus_Jakarta_Sans'] text-[10px] font-medium uppercase tracking-widest hover:text-[#00e3fd] transition-colors active:scale-90 duration-200">
+<span class="material-symbols-outlined mb-1" data-icon="sensors">sensors</span>
+<span>Broadcast</span>
+</div>
+<div class="flex flex-col items-center justify-center text-gray-500 dark:text-gray-400 font-['Plus_Jakarta_Sans'] text-[10px] font-medium uppercase tracking-widest hover:text-[#00e3fd] transition-colors active:scale-90 duration-200">
+<span class="material-symbols-outlined mb-1" data-icon="timeline">timeline</span>
+<span>Arc</span>
+</div>
+<div class="flex flex-col items-center justify-center text-gray-500 dark:text-gray-400 font-['Plus_Jakarta_Sans'] text-[10px] font-medium uppercase tracking-widest hover:text-[#00e3fd] transition-colors active:scale-90 duration-200">
+<span class="material-symbols-outlined mb-1" data-icon="library_music">library_music</span>
+<span>Archive</span>
+</div>
+<!-- Active Tab: Profile/Cleo -->
+<div class="flex flex-col items-center justify-center text-[#ff906d] dark:text-[#ff906d] scale-110 transition-all font-['Plus_Jakarta_Sans'] text-[10px] font-medium uppercase tracking-widest active:scale-90 duration-200">
+<span class="material-symbols-outlined mb-1" data-icon="blur_on" style="font-variation-settings: 'FILL' 1;">blur_on</span>
+<span>Cleo</span>
+</div>
+</nav>
+</body></html>

@@ -1,0 +1,127 @@
+<h2>Design Section 1: New Design Tokens</h2>
+<p class="subtitle">The foundation everything else builds on. Review and approve before we move to screens.</p>
+
+<div class="section">
+  <h3>Color System</h3>
+  <p>PRD base colors + Stitch surface hierarchy + dynamic vibe accents</p>
+
+  <div class="mockup">
+    <div class="mockup-header">Base Colors (Permanent)</div>
+    <div class="mockup-body" style="background:#0D0D0D; padding:20px; display:flex; gap:16px; flex-wrap:wrap;">
+      <div style="text-align:center;">
+        <div style="width:64px;height:64px;border-radius:8px;background:#0D0D0D;border:1px solid #333;margin-bottom:4px;"></div>
+        <code style="font-size:10px;color:#888;">black<br/>#0D0D0D</code>
+      </div>
+      <div style="text-align:center;">
+        <div style="width:64px;height:64px;border-radius:8px;background:#FAF8F4;margin-bottom:4px;"></div>
+        <code style="font-size:10px;color:#888;">white<br/>#FAF8F4</code>
+      </div>
+      <div style="text-align:center;">
+        <div style="width:64px;height:64px;border-radius:8px;background:#F5F0E8;margin-bottom:4px;"></div>
+        <code style="font-size:10px;color:#888;">cream<br/>#F5F0E8</code>
+      </div>
+      <div style="text-align:center;">
+        <div style="width:64px;height:64px;border-radius:8px;background:#C8832A;margin-bottom:4px;"></div>
+        <code style="font-size:10px;color:#888;">accent<br/>#C8832A</code>
+      </div>
+    </div>
+  </div>
+
+  <div class="mockup" style="margin-top:16px;">
+    <div class="mockup-header">Surface Hierarchy (from Stitch — adapted to PRD)</div>
+    <div class="mockup-body" style="padding:0; overflow:hidden;">
+      <div style="display:flex; flex-direction:column;">
+        <div style="background:#000000; padding:16px; display:flex; justify-content:space-between; align-items:center;">
+          <span style="color:#888; font-size:12px;">surface.lowest</span>
+          <code style="color:#555; font-size:11px;">#000000</code>
+        </div>
+        <div style="background:#0D0D0D; padding:16px; display:flex; justify-content:space-between; align-items:center;">
+          <span style="color:#888; font-size:12px;">surface.base (background)</span>
+          <code style="color:#555; font-size:11px;">#0D0D0D</code>
+        </div>
+        <div style="background:#131315; padding:16px; display:flex; justify-content:space-between; align-items:center;">
+          <span style="color:#888; font-size:12px;">surface.low (secondary sections)</span>
+          <code style="color:#555; font-size:11px;">#131315</code>
+        </div>
+        <div style="background:#19191C; padding:16px; display:flex; justify-content:space-between; align-items:center;">
+          <span style="color:#888; font-size:12px;">surface.container</span>
+          <code style="color:#555; font-size:11px;">#19191C</code>
+        </div>
+        <div style="background:#1F1F22; padding:16px; display:flex; justify-content:space-between; align-items:center;">
+          <span style="color:#888; font-size:12px;">surface.high (elevated cards)</span>
+          <code style="color:#555; font-size:11px;">#1F1F22</code>
+        </div>
+        <div style="background:#262528; padding:16px; display:flex; justify-content:space-between; align-items:center;">
+          <span style="color:#888; font-size:12px;">surface.highest (interactive)</span>
+          <code style="color:#555; font-size:11px;">#262528</code>
+        </div>
+        <div style="background:#2C2C2F; padding:16px; display:flex; justify-content:space-between; align-items:center;">
+          <span style="color:#888; font-size:12px;">surface.bright (hover/active)</span>
+          <code style="color:#555; font-size:11px;">#2C2C2F</code>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mockup" style="margin-top:16px;">
+    <div class="mockup-header">Text Colors</div>
+    <div class="mockup-body" style="background:#0D0D0D; padding:20px;">
+      <p style="color:#F6F3F5; font-size:16px; margin-bottom:8px;"><strong>on-surface</strong> <code style="color:#555;">#F6F3F5</code> — Primary text</p>
+      <p style="color:#ACAAAD; font-size:14px; margin-bottom:8px;"><strong>on-surface-variant</strong> <code style="color:#555;">#ACAAAD</code> — Secondary text</p>
+      <p style="color:#767577; font-size:12px; margin-bottom:8px;"><strong>outline</strong> <code style="color:#555;">#767577</code> — Subtle borders</p>
+      <p style="color:#48474A; font-size:12px;"><strong>outline-variant</strong> <code style="color:#555;">#48474A</code> — Ghost borders (15% opacity)</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Typography</h3>
+  <div class="mockup">
+    <div class="mockup-header">Font Roles</div>
+    <div class="mockup-body" style="background:#0D0D0D; padding:24px;">
+      <p style="font-family:Georgia,serif; font-size:36px; font-weight:300; color:#FAF8F4; margin-bottom:4px; letter-spacing:-0.02em;">Midnight Frequency</p>
+      <p style="font-size:10px; color:#555; margin-bottom:20px;">display — Playfair Display 300/400 — Track titles, screen headers, hero text</p>
+
+      <p style="font-family:system-ui,sans-serif; font-size:14px; color:#FAF8F4; margin-bottom:4px;">Solaris Echoes &bull; Deep Melodic &bull; 124 BPM</p>
+      <p style="font-size:10px; color:#555; margin-bottom:20px;">body — Inter 400/500 — UI text, descriptions, buttons (replaces Work Sans)</p>
+
+      <p style="font-family:Georgia,serif; font-size:18px; font-style:italic; color:#C8832A; margin-bottom:4px;">"Can you feel the weight of this tectonic resonance?"</p>
+      <p style="font-size:10px; color:#555; margin-bottom:20px;">cleoVoice — EB Garamond italic — Cleo commentary, pull quotes</p>
+
+      <p style="font-family:monospace; font-size:10px; letter-spacing:0.2em; text-transform:uppercase; color:#767577; margin-bottom:4px;">HOST COMMENTARY &bull; ON AIR &bull; 2:45</p>
+      <p style="font-size:10px; color:#555;">mono — DM Mono — Labels, metadata, technical indicators</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>New Token Categories (from Stitch)</h3>
+  <div class="mockup">
+    <div class="mockup-header">Glassmorphism, Glows & Elevation</div>
+    <div class="mockup-body" style="background:#0D0D0D; padding:24px;">
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+        <div style="background:rgba(38,37,40,0.4); backdrop-filter:blur(24px); padding:16px; border-radius:12px; border:1px solid rgba(72,71,74,0.1);">
+          <p style="color:#FAF8F4; font-size:12px; font-weight:600;">Glass Panel</p>
+          <p style="color:#888; font-size:10px;">surface-variant @ 40% + 24px blur</p>
+        </div>
+        <div style="background:rgba(19,19,21,0.6); backdrop-filter:blur(24px); padding:16px; border-radius:12px; border:1px solid rgba(72,71,74,0.05);">
+          <p style="color:#FAF8F4; font-size:12px; font-weight:600;">Glass Panel (Dark)</p>
+          <p style="color:#888; font-size:10px;">surface-low @ 60% + 24px blur</p>
+        </div>
+        <div style="padding:16px; border-radius:12px; box-shadow:0 0 40px 10px rgba(200,131,42,0.15); border:1px solid rgba(200,131,42,0.2);">
+          <p style="color:#C8832A; font-size:12px; font-weight:600;">Cleo Orb Glow</p>
+          <p style="color:#888; font-size:10px;">accent @ 15% spread 40px</p>
+        </div>
+        <div style="padding:16px; border-radius:12px; background:linear-gradient(135deg, #C8832A, #A06820); box-shadow:0 12px 40px rgba(200,131,42,0.3);">
+          <p style="color:#0D0D0D; font-size:12px; font-weight:600;">CTA Gradient</p>
+          <p style="color:rgba(0,0,0,0.6); font-size:10px;">accent → accent-dark @ 135°</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="margin-top:24px; padding:16px; background:rgba(200,131,42,0.08); border-radius:8px; border-left:3px solid #C8832A;">
+  <p style="color:#C8832A; font-weight:600; margin-bottom:4px;">Vibe System</p>
+  <p style="color:#aaa; font-size:13px;">The existing 11 vibes remain. Each vibe overrides: background, text, and <strong>secondary accent</strong>. The primary accent (#C8832A gold) stays constant across all vibes — it's Cleo's identity. The vibe accent colors shift the secondary elements (progress bars, active states, mood indicators).</p>
+</div>

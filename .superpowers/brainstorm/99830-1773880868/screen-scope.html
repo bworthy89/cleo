@@ -1,0 +1,68 @@
+<h2>Which screens should this redesign cover?</h2>
+<p class="subtitle">The Stitch project has 8 screens. Your app currently has HomeScreen + PlayerScreen built. Select all that should be in scope.</p>
+
+<div class="options" data-multiselect>
+  <div class="option" data-choice="now-playing" onclick="toggleSelect(this)">
+    <div class="letter">1</div>
+    <div class="content">
+      <h3>The Broadcast (Now Playing)</h3>
+      <p><strong>Redesigns existing PlayerScreen.</strong> Album art hero, host commentary card, progress bar, playback controls, "Synchronized Next" up-next peek. This is the core experience.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="speaking" onclick="toggleSelect(this)">
+    <div class="letter">2</div>
+    <div class="content">
+      <h3>Cleo Speaking (Disruptive State)</h3>
+      <p><strong>Redesigns existing PullQuoteOverlay + WordByWordSubtitle.</strong> Full-screen "HOST INTERJECTION" takeover with glitch typography, word-by-word highlights, waveform, and dimmed player underneath.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="onboarding" onclick="toggleSelect(this)">
+    <div class="letter">3</div>
+    <div class="content">
+      <h3>Cleo Onboarding</h3>
+      <p><strong>New screen (Phase 9).</strong> Mood picker, session goal selector, genre palette chips, "Start My Broadcast" CTA. First-run experience.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="queue" onclick="toggleSelect(this)">
+    <div class="letter">4</div>
+    <div class="content">
+      <h3>The Session Arc (Queue)</h3>
+      <p><strong>New screen (Phase 6).</strong> Session arc visualization with SVG path, Cleo moment nodes, current track bento card, upcoming manifest grid, session pulse stats.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="archives" onclick="toggleSelect(this)">
+    <div class="letter">5</div>
+    <div class="content">
+      <h3>Broadcast Archives</h3>
+      <p><strong>New screen.</strong> Past session cards with mood art, genre tags, session arc mini-visualizations, search/filter. History of broadcasts.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="settings" onclick="toggleSelect(this)">
+    <div class="letter">6</div>
+    <div class="content">
+      <h3>Cleo Profile & Settings</h3>
+      <p><strong>New screen (Phase 9).</strong> User profile, AI personality selector (Curator/Companion/Oracle), Apple Music connection, voice profile sliders, account management.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="home" onclick="toggleSelect(this)">
+    <div class="letter">7</div>
+    <div class="content">
+      <h3>HomeScreen Redesign</h3>
+      <p><strong>Redesigns existing HomeScreen.</strong> Adapt the current station picker + playlist grid to use the new Stitch visual language (glassmorphism, surface layering, new typography).</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="tab-nav" onclick="toggleSelect(this)">
+    <div class="letter">8</div>
+    <div class="content">
+      <h3>Bottom Tab Navigation</h3>
+      <p><strong>New shared component.</strong> Glass-blur tab bar with Broadcast / Arc / Archive / Cleo tabs. Appears on all main screens. Currently no tab nav exists.</p>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,64 @@
+{
+  "expo": {
+    "name": "Cleo",
+    "slug": "cleo",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "cleo",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FAF6EF"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.worthymedia.cleo",
+      "infoPlist": {
+        "NSAppleMusicUsageDescription": "Cleo uses Apple Music to play your playlists with AI-powered radio hosting.",
+        "UIBackgroundModes": [
+          "audio"
+        ]
+      },
+      "entitlements": {
+        "com.apple.developer.applesignin": [
+          "Default"
+        ]
+      },
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "deploymentTarget": "16.0"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#FAF6EF",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "package": "com.worthymedia.cleo"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-font",
+      "react-native-video",
+      "expo-router",
+      "@react-native-firebase/app",
+      "@react-native-firebase/auth",
+      "@react-native-google-signin/google-signin",
+      "./plugins/firebase-modular-headers",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static",
+            "deploymentTarget": "16.0"
+          }
+        }
+      ]
+    ]
+  }
+}

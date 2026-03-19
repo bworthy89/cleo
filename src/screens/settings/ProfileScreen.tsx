@@ -1,0 +1,434 @@
+import React, { useEffect, useState } from 'react';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Switch } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import auth from '@react-native-firebase/auth';
+import { router } from 'expo-router';
+import {
+  Colors, Surface, TextColors, Typography, Glass, Spacing, Radius, Opacity, withAlpha, AppHeaderTokens,
+} from '../../tokens/design-tokens';
+import { AppHeader } from '../../components/AppHeader';
+import { SectionLabel } from '../../components/SectionLabel';
+import { storage } from '../../services/Storage';
+import { signOut } from '../../services/AuthService';
+import { musicKitPlayer } from '../../services/MusicKitPlayer';
+
+// ─── Types ───────────────────────────────────────────────────────────
+
+type Personality = 'curator' | 'companion' | 'oracle';
+
+interface PersonalityOption {
+  key: Personality;
+  label: string;
+  description: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  iconColor: string;
+}
+
+const PERSONALITIES: PersonalityOption[] = [
+  {
+    key: 'curator',
+    label: 'Curator',
+    description: 'Analytical & Knowledgeable. Deep dives into musicology and technical specs.',
+    icon: 'library-outline',
+    iconColor: Colors.accent,
+  },
+  {
+    key: 'companion',
+    label: 'Companion',
+    description: 'Warm & Empathetic. Focuses on emotional resonance and mood matching.',
+    icon: 'heart-outline',
+    iconColor: Colors.vibe.chill.accent,
+  },
+  {
+    key: 'oracle',
+    label: 'Oracle',
+    description: 'Enigmatic & Avant-garde. Experimental discoveries and cryptic curation.',
+    icon: 'eye-outline',
+    iconColor: '#ff97b8',
+  },
+];
+
+// ─── Component ───────────────────────────────────────────────────────
+
+export function ProfileScreen() {
+  const insets = useSafeAreaInsets();
+  const firebaseUser = auth().currentUser;
+
+  const [selectedPersonality, setSelectedPersonality] = useState<Personality>(
+    () => (storage.getString('cleoPersonality') as Personality) ?? 'curator',
+  );
+  const [appleMusicConnected, setAppleMusicConnected] = useState(false);
+
+  useEffect(() => {
+    musicKitPlayer.isAuthorized().then(setAppleMusicConnected).catch(() => {});
+  }, []);
+
+  const handlePersonalityChange = (personality: Personality) => {
+    setSelectedPersonality(personality);
+    storage.set('cleoPersonality', personality);
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      router.replace('/(auth)/login');
+    } catch {
+      // sign-out failed — stay on screen
+    }
+  };
+
+  const displayName = firebaseUser?.displayName ?? 'Listener';
+  const email = firebaseUser?.email ?? '';
+  const initial = displayName.charAt(0).toUpperCase();
+
+  return (
+    <View style={styles.root}>
+      <AppHeader />
+
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingTop: AppHeaderTokens.height + insets.top + Spacing.lg },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ── Profile Header ── */}
+        <View style={styles.profileHeader}>
+          <LinearGradient
+            colors={[Colors.accent, withAlpha(Colors.accent, 0.3)]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.avatarRing}
+          >
+            <View style={styles.avatarInner}>
+              {firebaseUser?.photoURL ? (
+                <Text style={styles.avatarInitial}>{initial}</Text>
+              ) : (
+                <Ionicons name="person" size={36} color={TextColors.outline} />
+              )}
+            </View>
+          </LinearGradient>
+          <Text style={styles.userName}>{displayName}</Text>
+          {email ? <Text style={styles.userEmail}>{email}</Text> : null}
+        </View>
+
+        {/* ── AI Personality ── */}
+        <View style={styles.section}>
+          <SectionLabel>AI Personality</SectionLabel>
+          {PERSONALITIES.map((p) => {
+            const isSelected = selectedPersonality === p.key;
+            return (
+              <TouchableOpacity
+                key={p.key}
+                activeOpacity={0.7}
+                onPress={() => handlePersonalityChange(p.key)}
+                style={[
+                  styles.personalityCard,
+                  { backgroundColor: isSelected ? Glass.panel.bg : Surface.low },
+                ]}
+              >
+                <View style={styles.personalityLeft}>
+                  <View style={[styles.radioOuter, isSelected && styles.radioOuterSelected]}>
+                    {isSelected && <View style={styles.radioDot} />}
+                  </View>
+                  <View style={styles.personalityText}>
+                    <View style={styles.personalityLabelRow}>
+                      <Ionicons name={p.icon} size={16} color={p.iconColor} style={styles.personalityIcon} />
+                      <Text style={styles.personalityLabel}>{p.label}</Text>
+                    </View>
+                    <Text style={styles.personalityDesc}>{p.description}</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* ── Connected Ecosystem ── */}
+        <View style={styles.section}>
+          <SectionLabel>Connected Ecosystem</SectionLabel>
+          <View style={styles.ecosystemCard}>
+            <View style={styles.ecosystemRow}>
+              <Ionicons name="musical-note" size={20} color={Colors.accent} />
+              <Text style={styles.ecosystemLabel}>Apple Music</Text>
+              <Text style={styles.ecosystemStatus}>
+                {appleMusicConnected ? 'Connected' : 'Not Connected'}
+              </Text>
+              <Switch
+                value={appleMusicConnected}
+                onValueChange={() => {}}
+                disabled
+                trackColor={{ false: Surface.bright, true: withAlpha(Colors.accent, 0.4) }}
+                thumbColor={appleMusicConnected ? Colors.accent : TextColors.outline}
+                style={styles.ecosystemSwitch}
+              />
+            </View>
+          </View>
+        </View>
+
+        {/* ── Voice Profile ── */}
+        <View style={styles.section}>
+          <SectionLabel>Voice Profile</SectionLabel>
+
+          {/* Audio Fidelity */}
+          <View style={styles.sliderRow}>
+            <View style={styles.sliderHeader}>
+              <Text style={styles.sliderLabel}>Audio Fidelity</Text>
+              <Text style={styles.sliderValue}>LOSSLESS</Text>
+            </View>
+            <View style={styles.sliderTrack}>
+              <LinearGradient
+                colors={[Colors.accent, Colors.vibe.chill.accent]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={[styles.sliderFill, { width: '85%' }]}
+              />
+            </View>
+          </View>
+
+          {/* Host Volume Mix */}
+          <View style={styles.sliderRow}>
+            <View style={styles.sliderHeader}>
+              <Text style={styles.sliderLabel}>Host Volume Mix</Text>
+              <Text style={styles.sliderValue}>-4dB</Text>
+            </View>
+            <View style={styles.sliderTrack}>
+              <View style={[styles.sliderFillGray, { width: '40%' }]} />
+              <View style={[styles.sliderThumb, { left: '40%' }]} />
+            </View>
+          </View>
+        </View>
+
+        {/* ── Account ── */}
+        <View style={styles.section}>
+          <SectionLabel>Account</SectionLabel>
+
+          <TouchableOpacity style={styles.accountRow} activeOpacity={0.7}>
+            <Text style={styles.accountRowText}>Manage Subscription</Text>
+            <Ionicons name="chevron-forward" size={18} color={TextColors.outline} />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.accountRow} activeOpacity={0.7} onPress={handleSignOut}>
+            <Text style={[styles.accountRowText, { color: Colors.error }]}>Sign Out</Text>
+            <Ionicons name="chevron-forward" size={18} color={Colors.error} />
+          </TouchableOpacity>
+        </View>
+
+        <View style={{ height: insets.bottom + 100 }} />
+      </ScrollView>
+    </View>
+  );
+}
+
+// ─── Styles ──────────────────────────────────────────────────────────
+
+const RING_SIZE = 100;
+const RING_BORDER = 3;
+const INNER_SIZE = RING_SIZE - RING_BORDER * 2;
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: Surface.base,
+  },
+  scrollContent: {
+    paddingHorizontal: Spacing.lg,
+  },
+
+  // Profile Header
+  profileHeader: {
+    alignItems: 'center',
+    marginBottom: Spacing.xl,
+  },
+  avatarRing: {
+    width: RING_SIZE,
+    height: RING_SIZE,
+    borderRadius: RING_SIZE / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarInner: {
+    width: INNER_SIZE,
+    height: INNER_SIZE,
+    borderRadius: INNER_SIZE / 2,
+    backgroundColor: Surface.base,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarInitial: {
+    fontFamily: Typography.display.family,
+    fontSize: 36,
+    color: TextColors.primary,
+  },
+  userName: {
+    fontFamily: Typography.display.family,
+    fontSize: 24,
+    color: TextColors.primary,
+    marginTop: Spacing.md,
+  },
+  userEmail: {
+    fontFamily: Typography.body.family,
+    fontSize: 12,
+    color: TextColors.secondary,
+    marginTop: Spacing.xs,
+  },
+
+  // Section
+  section: {
+    marginBottom: Spacing.xl,
+  },
+
+  // Personality Cards
+  personalityCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Spacing.md,
+    borderRadius: Radius.md,
+    marginBottom: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Glass.borderSubtle,
+  },
+  personalityLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  radioOuter: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: TextColors.outline,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Spacing.md,
+  },
+  radioOuterSelected: {
+    borderColor: Colors.accent,
+  },
+  radioDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: Colors.accent,
+  },
+  personalityText: {
+    flex: 1,
+  },
+  personalityLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  personalityIcon: {
+    marginRight: Spacing.xs,
+  },
+  personalityLabel: {
+    fontFamily: Typography.body.familySemiBold,
+    fontSize: 15,
+    color: TextColors.primary,
+  },
+  personalityDesc: {
+    fontFamily: Typography.body.family,
+    fontSize: 12,
+    color: TextColors.secondary,
+    lineHeight: 17,
+  },
+
+  // Connected Ecosystem
+  ecosystemCard: {
+    backgroundColor: Surface.low,
+    borderRadius: Radius.md,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: Glass.borderSubtle,
+  },
+  ecosystemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  ecosystemLabel: {
+    fontFamily: Typography.body.familyMedium,
+    fontSize: 14,
+    color: TextColors.primary,
+    marginLeft: Spacing.sm,
+    flex: 1,
+  },
+  ecosystemStatus: {
+    fontFamily: Typography.mono.family,
+    fontSize: 10,
+    color: Colors.accent,
+    letterSpacing: 0.8,
+    marginRight: Spacing.sm,
+  },
+  ecosystemSwitch: {
+    transform: [{ scale: 0.8 }],
+  },
+
+  // Voice Profile Sliders
+  sliderRow: {
+    marginBottom: Spacing.lg,
+  },
+  sliderHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
+  },
+  sliderLabel: {
+    fontFamily: Typography.body.familyMedium,
+    fontSize: 14,
+    color: TextColors.primary,
+  },
+  sliderValue: {
+    fontFamily: Typography.mono.family,
+    fontSize: 11,
+    color: Colors.accent,
+    letterSpacing: 0.8,
+  },
+  sliderTrack: {
+    height: 4,
+    backgroundColor: Surface.bright,
+    borderRadius: 2,
+    overflow: 'visible',
+    position: 'relative',
+  },
+  sliderFill: {
+    height: 4,
+    borderRadius: 2,
+  },
+  sliderFillGray: {
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: TextColors.outline,
+  },
+  sliderThumb: {
+    position: 'absolute',
+    top: -5,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: Colors.base.white,
+    marginLeft: -7,
+  },
+
+  // Account Rows
+  accountRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: Surface.low,
+    padding: Spacing.md,
+    borderRadius: Radius.md,
+    marginBottom: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Glass.borderSubtle,
+  },
+  accountRowText: {
+    fontFamily: Typography.body.familyMedium,
+    fontSize: 14,
+    color: TextColors.primary,
+  },
+});

@@ -1,13 +1,13 @@
-import { Stack } from 'expo-router';
+import { Tabs } from 'expo-router';
+import { CustomTabBar } from '../../src/components/TabBar';
 
 export default function MainLayout() {
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="index" />
-      <Stack.Screen
-        name="player"
-        options={{ animation: 'slide_from_bottom', gestureEnabled: false }}
-      />
-    </Stack>
+    <Tabs tabBar={(props) => <CustomTabBar {...props} />} screenOptions={{ headerShown: false }}>
+      <Tabs.Screen name="(broadcast)" />
+      <Tabs.Screen name="(arc)" />
+      <Tabs.Screen name="(archive)" />
+      <Tabs.Screen name="(cleo)" />
+    </Tabs>
   );
 }

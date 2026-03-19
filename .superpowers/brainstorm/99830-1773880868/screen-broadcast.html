@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Broadcast Screen Design</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@300;400;700&family=Inter:wght@400;500;600&family=EB+Garamond:ital,wght@1,400;1,500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#111; color:#FAF8F4; font-family:'Inter',sans-serif; display:flex; justify-content:center; padding:40px 20px; gap:40px; flex-wrap:wrap; }
+
+  .phone {
+    width:390px; height:844px; background:#0D0D0D; border-radius:44px; overflow:hidden;
+    position:relative; border:1px solid #222; box-shadow:0 20px 60px rgba(0,0,0,0.5);
+    flex-shrink:0;
+  }
+  .phone-inner { width:100%; height:100%; overflow-y:auto; overflow-x:hidden; position:relative; }
+  .phone-inner::-webkit-scrollbar { display:none; }
+
+  /* Ambient glows */
+  .glow-primary { position:fixed; top:20%; right:-80px; width:300px; height:300px; background:rgba(200,131,42,0.08); border-radius:50%; filter:blur(100px); pointer-events:none; }
+  .glow-secondary { position:fixed; bottom:20%; left:-80px; width:250px; height:250px; background:rgba(123,94,167,0.06); border-radius:50%; filter:blur(100px); pointer-events:none; }
+
+  /* Header */
+  .header { position:sticky; top:0; z-index:50; background:rgba(13,13,13,0.6); backdrop-filter:blur(20px); display:flex; justify-content:space-between; align-items:center; padding:16px 24px; height:64px; }
+  .header-logo { font-family:'DM Mono'; font-size:18px; font-weight:500; color:#C8832A; letter-spacing:0.15em; text-transform:uppercase; }
+  .header-right { display:flex; align-items:center; gap:12px; }
+  .avatar { width:32px; height:32px; border-radius:50%; background:#262528; border:1px solid rgba(72,71,74,0.2); overflow:hidden; }
+  .avatar img { width:100%; height:100%; object-fit:cover; }
+
+  /* Album Art */
+  .art-section { position:relative; margin:16px 24px 0; aspect-ratio:1; border-radius:24px; overflow:hidden; }
+  .art-section img { width:100%; height:100%; object-fit:cover; }
+  .art-gradient { position:absolute; inset:0; background:linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 50%); }
+  .art-cleo-badge { position:absolute; bottom:24px; left:24px; display:flex; align-items:center; gap:12px; }
+  .waveform { display:flex; align-items:flex-end; gap:3px; height:20px; }
+  .waveform-bar { width:3px; border-radius:2px; }
+  .cleo-talking { font-family:'DM Mono'; font-size:10px; font-weight:500; color:#C8832A; letter-spacing:0.2em; text-transform:uppercase; }
+
+  /* Track Info */
+  .track-info { padding:24px 24px 0; text-align:center; }
+  .track-title { font-family:'Playfair Display'; font-size:28px; font-weight:300; letter-spacing:-0.02em; margin-bottom:4px; color:#FAF8F4; }
+  .track-artist { font-family:'Inter'; font-size:16px; color:#ACAAAD; font-weight:400; }
+
+  /* Host Commentary Card */
+  .commentary { margin:24px; padding:20px; background:rgba(19,19,21,0.6); backdrop-filter:blur(24px); border-radius:16px; border:1px solid rgba(72,71,74,0.05); }
+  .commentary-header { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+  .commentary-dot { width:28px; height:28px; border-radius:50%; background:linear-gradient(135deg, #C8832A, rgba(200,131,42,0.4)); display:flex; align-items:center; justify-content:center; }
+  .commentary-dot-inner { width:22px; height:22px; border-radius:50%; background:#0D0D0D; display:flex; align-items:center; justify-content:center; }
+  .commentary-label { font-family:'DM Mono'; font-size:10px; font-weight:500; color:#C8832A; letter-spacing:0.15em; text-transform:uppercase; }
+  .commentary-text { font-family:'EB Garamond'; font-style:italic; font-size:16px; line-height:1.6; color:rgba(250,248,244,0.9); }
+
+  /* Progress */
+  .progress-section { padding:0 24px; margin-top:8px; }
+  .progress-bar { width:100%; height:5px; background:#262528; border-radius:3px; overflow:hidden; }
+  .progress-fill { height:100%; width:65%; background:linear-gradient(to right, #C8832A, #7B5EA7); border-radius:3px; }
+  .progress-times { display:flex; justify-content:space-between; margin-top:6px; font-family:'DM Mono'; font-size:9px; letter-spacing:0.15em; color:rgba(172,170,173,0.6); text-transform:uppercase; }
+
+  /* Controls */
+  .controls { display:flex; align-items:center; justify-content:space-between; padding:16px 28px; }
+  .ctrl-icon { color:#ACAAAD; font-size:24px; opacity:0.6; }
+  .ctrl-main { display:flex; align-items:center; gap:32px; }
+  .ctrl-skip { color:#FAF8F4; font-size:32px; }
+  .play-btn {
+    width:72px; height:72px; border-radius:50%;
+    background:linear-gradient(135deg, #C8832A, #A06820);
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:0 0 40px 10px rgba(200,131,42,0.15), 0 12px 40px rgba(200,131,42,0.3);
+    color:#0D0D0D; font-size:32px;
+  }
+
+  /* Up Next */
+  .up-next { margin:28px 24px 0; }
+  .up-next-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+  .up-next-label { font-family:'DM Mono'; font-size:9px; font-weight:500; letter-spacing:0.2em; text-transform:uppercase; color:#ACAAAD; }
+  .up-next-card { display:flex; align-items:center; gap:14px; padding:10px; background:rgba(19,19,21,0.4); border-radius:12px; border:1px solid rgba(72,71,74,0.05); }
+  .up-next-art { width:48px; height:48px; border-radius:8px; background:#262528; overflow:hidden; flex-shrink:0; }
+  .up-next-art img { width:100%; height:100%; object-fit:cover; }
+  .up-next-title { font-family:'Inter'; font-size:14px; font-weight:600; color:#FAF8F4; }
+  .up-next-artist { font-family:'Inter'; font-size:12px; color:#ACAAAD; }
+
+  /* Tab Bar */
+  .tab-bar {
+    position:absolute; bottom:0; left:0; right:0; height:84px;
+    background:rgba(13,13,13,0.6); backdrop-filter:blur(20px);
+    border-top-left-radius:24px; border-top-right-radius:24px;
+    display:flex; justify-content:space-around; align-items:center; padding:0 16px 16px;
+  }
+  .tab { display:flex; flex-direction:column; align-items:center; gap:4px; }
+  .tab-icon { font-size:22px; }
+  .tab-label { font-family:'DM Mono'; font-size:8px; letter-spacing:0.15em; text-transform:uppercase; }
+  .tab-active { color:#C8832A; }
+  .tab-inactive { color:rgba(172,170,173,0.4); }
+
+  /* Annotations */
+  .annotations { max-width:360px; padding:20px; }
+  .anno-title { font-family:'Playfair Display'; font-size:24px; font-weight:300; margin-bottom:24px; color:#C8832A; }
+  .anno-item { margin-bottom:20px; padding-left:16px; border-left:2px solid rgba(200,131,42,0.3); }
+  .anno-item h4 { font-family:'DM Mono'; font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:#C8832A; margin-bottom:4px; }
+  .anno-item p { font-family:'Inter'; font-size:13px; line-height:1.5; color:#ACAAAD; }
+  .change-tag { display:inline-block; font-family:'DM Mono'; font-size:9px; padding:2px 8px; border-radius:4px; margin-bottom:4px; letter-spacing:0.05em; }
+  .tag-new { background:rgba(200,131,42,0.15); color:#C8832A; }
+  .tag-changed { background:rgba(123,94,167,0.15); color:#9B8ABF; }
+  .tag-kept { background:rgba(172,170,173,0.1); color:#767577; }
+</style>
+</head>
+<body>
+
+<!-- Phone Mockup -->
+<div class="phone">
+  <div class="phone-inner">
+    <!-- Header -->
+    <div class="header">
+      <span class="header-logo">Cleo</span>
+      <div class="header-right">
+        <svg width="20" height="20" fill="none" stroke="#ACAAAD" stroke-width="1.5"><circle cx="10" cy="10" r="7"/><path d="M10 7v3l2 1"/></svg>
+        <div class="avatar" style="background:#262528;display:flex;align-items:center;justify-content:center;">
+          <svg width="16" height="16" fill="#767577"><circle cx="8" cy="6" r="3"/><path d="M2 15c0-3.3 2.7-6 6-6s6 2.7 6 6"/></svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- Album Art -->
+    <div class="art-section">
+      <div style="width:100%;height:100%;background:linear-gradient(135deg,#1a0a2e,#2d1b4e,#0a1628);"></div>
+      <div class="art-gradient"></div>
+      <div class="art-cleo-badge">
+        <div class="waveform">
+          <div class="waveform-bar" style="height:8px;background:#C8832A;"></div>
+          <div class="waveform-bar" style="height:16px;background:rgba(200,131,42,0.7);"></div>
+          <div class="waveform-bar" style="height:12px;background:#C8832A;"></div>
+          <div class="waveform-bar" style="height:14px;background:rgba(200,131,42,0.7);"></div>
+          <div class="waveform-bar" style="height:6px;background:#C8832A;"></div>
+        </div>
+        <span class="cleo-talking">Cleo is talking</span>
+      </div>
+    </div>
+
+    <!-- Track Info -->
+    <div class="track-info">
+      <h2 class="track-title">Midnight Frequency</h2>
+      <p class="track-artist">Solaris Echoes</p>
+    </div>
+
+    <!-- Host Commentary -->
+    <div class="commentary">
+      <div class="commentary-header">
+        <div class="commentary-dot"><div class="commentary-dot-inner"><span style="color:#C8832A;font-size:12px;">&#9679;</span></div></div>
+        <span class="commentary-label">Host Commentary</span>
+      </div>
+      <p class="commentary-text">"This bassline was actually sampled from a deep-sea recording of a tectonic shift. Solaris Echoes spent three months in a sub-aquatic studio to get this exact resonance. Can you feel the weight?"</p>
+    </div>
+
+    <!-- Progress -->
+    <div class="progress-section">
+      <div class="progress-bar"><div class="progress-fill"></div></div>
+      <div class="progress-times"><span>2:45</span><span>4:12</span></div>
+    </div>
+
+    <!-- Controls -->
+    <div class="controls">
+      <span class="ctrl-icon">&#9776;</span>
+      <div class="ctrl-main">
+        <span class="ctrl-skip">&#9198;</span>
+        <div class="play-btn">&#9646;&#9646;</div>
+        <span class="ctrl-skip">&#9197;</span>
+      </div>
+      <span class="ctrl-icon">&#8635;</span>
+    </div>
+
+    <!-- Up Next -->
+    <div class="up-next">
+      <div class="up-next-header">
+        <span class="up-next-label">Synchronized Next</span>
+        <span style="color:#ACAAAD;font-size:14px;">&#9650;</span>
+      </div>
+      <div class="up-next-card">
+        <div class="up-next-art" style="background:linear-gradient(135deg,#1a2a1a,#2a3a2a);"></div>
+        <div style="flex:1;">
+          <p class="up-next-title">Neural Pathway</p>
+          <p class="up-next-artist">Ghost in the Machine</p>
+        </div>
+        <span style="color:#767577;">&#8942;</span>
+      </div>
+    </div>
+
+    <div style="height:100px;"></div>
+
+    <!-- Tab Bar -->
+    <div class="tab-bar">
+      <div class="tab tab-active">
+        <span class="tab-icon">&#9737;</span>
+        <span class="tab-label">Broadcast</span>
+      </div>
+      <div class="tab tab-inactive">
+        <span class="tab-icon">&#9588;</span>
+        <span class="tab-label">Arc</span>
+      </div>
+      <div class="tab tab-inactive">
+        <span class="tab-icon">&#9835;</span>
+        <span class="tab-label">Archive</span>
+      </div>
+      <div class="tab tab-inactive">
+        <span class="tab-icon">&#11044;</span>
+        <span class="tab-label">Cleo</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Annotations -->
+<div class="annotations">
+  <h3 class="anno-title">The Broadcast (Now Playing)</h3>
+
+  <div class="anno-item">
+    <span class="change-tag tag-changed">Layout from Stitch</span>
+    <h4>Album Art Hero</h4>
+    <p>Square aspect ratio with 24px corner radius. Gradient overlay at bottom for the Cleo waveform badge. Art dims to 85% when Cleo speaks (preserved from current).</p>
+  </div>
+
+  <div class="anno-item">
+    <span class="change-tag tag-changed">Redesigned</span>
+    <h4>Track Info</h4>
+    <p>Playfair Display 300 weight for track title (was bold). Centered layout. Artist in Inter below. Clean, editorial feel.</p>
+  </div>
+
+  <div class="anno-item">
+    <span class="change-tag tag-new">New Component</span>
+    <h4>Host Commentary Card</h4>
+    <p>Glass panel with Cleo orb icon + "HOST COMMENTARY" label in DM Mono. Body text in EB Garamond italic. Replaces simple text overlay.</p>
+  </div>
+
+  <div class="anno-item">
+    <span class="change-tag tag-changed">Redesigned</span>
+    <h4>Progress Bar</h4>
+    <p>Gradient fill from gold → vibe accent. Thin (5px). Times in DM Mono uppercase. Matches Stitch layout.</p>
+  </div>
+
+  <div class="anno-item">
+    <span class="change-tag tag-changed">Redesigned</span>
+    <h4>Play Button</h4>
+    <p>Gold gradient orb with Cleo-style glow shadow. 72px diameter. Replaces outlined circle from current player.</p>
+  </div>
+
+  <div class="anno-item">
+    <span class="change-tag tag-new">New Component</span>
+    <h4>Synchronized Next</h4>
+    <p>Up-next peek card from Stitch. Glass card with art thumbnail, track name, artist. Expandable.</p>
+  </div>
+
+  <div class="anno-item">
+    <span class="change-tag tag-new">New Component</span>
+    <h4>Glass Tab Bar</h4>
+    <p>Frosted glass bottom nav. 4 tabs: Broadcast, Arc, Archive, Cleo. DM Mono labels. Gold for active, muted for inactive. 24px top radius.</p>
+  </div>
+
+  <div class="anno-item">
+    <span class="change-tag tag-kept">Preserved</span>
+    <h4>Existing Logic</h4>
+    <p>All audio coordination, MusicKit playback, Cleo script generation, TTS, ducking — unchanged. Only the UI layer is rebuilt.</p>
+  </div>
+</div>
+
+</body>
+</html>
