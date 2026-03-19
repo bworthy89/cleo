@@ -1,5 +1,5 @@
 import { playAudioFromBase64 } from '../../modules/expo-music-kit';
-import { API_BASE_URL } from './api';
+import { authenticatedFetch } from './api';
 
 /**
  * Post-process Gemini output for natural ElevenLabs delivery.
@@ -114,9 +114,8 @@ export async function synthesizeAndPlay(text: string): Promise<void> {
     const wordCount = formatted.split(/\s+/).length;
     console.log(`[CleoVoice] Sending ${wordCount} words (${formatted.length} chars) to TTS: "${formatted.substring(0, 80)}..."`);
 
-    const response = await fetch(`${API_BASE_URL}/synthesize-voice`, {
+    const response = await authenticatedFetch('/synthesize-voice', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: formatted }),
     });
 

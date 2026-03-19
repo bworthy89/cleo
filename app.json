@@ -17,13 +17,16 @@
       "bundleIdentifier": "com.worthymedia.cleo",
       "infoPlist": {
         "NSAppleMusicUsageDescription": "Cleo uses Apple Music to play your playlists with AI-powered radio hosting.",
-        "UIBackgroundModes": ["audio"]
-      },
-      "entitlements": {
-        "com.apple.developer.musickit": [
-          "music-items"
+        "UIBackgroundModes": [
+          "audio"
         ]
       },
+      "entitlements": {
+        "com.apple.developer.applesignin": [
+          "Default"
+        ]
+      },
+      "googleServicesFile": "./GoogleService-Info.plist",
       "deploymentTarget": "16.0"
     },
     "android": {
@@ -42,7 +45,20 @@
     "plugins": [
       "expo-font",
       "react-native-video",
-      "expo-router"
+      "expo-router",
+      "@react-native-firebase/app",
+      "@react-native-firebase/auth",
+      "@react-native-google-signin/google-signin",
+      "./plugins/firebase-modular-headers",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static",
+            "deploymentTarget": "16.0"
+          }
+        }
+      ]
     ]
   }
 }

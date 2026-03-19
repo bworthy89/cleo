@@ -1,4 +1,4 @@
-import { API_BASE_URL } from './api';
+import { authenticatedFetch } from './api';
 import { storage } from './Storage';
 import type { MusicTrack } from '../../modules/expo-music-kit';
 
@@ -43,9 +43,8 @@ export async function enrichTrack(track: MusicTrack): Promise<TrackProfile> {
 
   // MusicBrainz enrichment
   try {
-    const mbResponse = await fetch(`${API_BASE_URL}/enrich-musicbrainz`, {
+    const mbResponse = await authenticatedFetch('/enrich-musicbrainz', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title: track.title, artist: track.artistName }),
     });
 
@@ -63,9 +62,8 @@ export async function enrichTrack(track: MusicTrack): Promise<TrackProfile> {
 
   // Genius enrichment
   try {
-    const geniusResponse = await fetch(`${API_BASE_URL}/enrich-track`, {
+    const geniusResponse = await authenticatedFetch('/enrich-track', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title: track.title, artist: track.artistName }),
     });
 
