@@ -3,8 +3,10 @@ import { Router, Request, Response } from 'express';
 export const segmentRouter = Router();
 
 segmentRouter.post('/generate-segment', async (req: Request, res: Response) => {
+  console.log('[Segment] Request received');
   try {
     const { systemPrompt, userPrompt, maxTokens } = req.body;
+    console.log(`[Segment] systemPrompt: ${systemPrompt?.length ?? 0} chars, userPrompt: ${userPrompt?.length ?? 0} chars, apiKey: ${process.env.GEMINI_API_KEY ? 'SET' : 'MISSING'}`);
 
     if (!systemPrompt || !userPrompt) {
       res.status(400).json({ error: 'systemPrompt and userPrompt are required' });
@@ -17,6 +19,7 @@ segmentRouter.post('/generate-segment', async (req: Request, res: Response) => {
       return;
     }
 
+    console.log('[Segment] Calling Gemini API...');
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
       {
@@ -26,16 +29,21 @@ segmentRouter.post('/generate-segment', async (req: Request, res: Response) => {
           systemInstruction: { parts: [{ text: systemPrompt }] },
           contents: [{ parts: [{ text: userPrompt }] }],
           generationConfig: {
-            temperature: 0.9,
-            maxOutputTokens: maxTokens ?? 8192,
+            temperature: 1.0,
+            maxOutputTokens: maxTokens ?? 2048,
             topP: 0.95,
+            thinkingConfig: {
+              thinkingBudget: 0,
+            },
           },
         }),
       }
     );
 
+    console.log(`[Segment] Gemini responded: ${response.status}`);
     if (!response.ok) {
       const error = await response.text();
+      console.error(`[Segment] Gemini error: ${error.substring(0, 200)}`);
       res.status(response.status).json({ error });
       return;
     }

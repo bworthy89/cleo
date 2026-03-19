@@ -3,6 +3,34 @@ import { segmentController } from './SegmentController';
 import type { SegmentResult } from './SegmentController';
 import { queueManager } from './QueueManager';
 import type { EnrichedFacts } from '../services/TrackEnrichmentService';
+import type { Vibe } from '../cleo/fallbacks';
+import { getPlaybackStatus, activateDuckingSession, deactivateDuckingSession } from '../../modules/expo-music-kit';
+
+const GENERATION_TIMEOUT_MS = 8000;
+
+function calculatePostSongDelay(durationSeconds: number | undefined): number {
+  if (!durationSeconds) return 10000;
+
+  if (durationSeconds < 180) {
+    const min = durationSeconds * 0.08;
+    const max = durationSeconds * 0.15;
+    return (min + Math.random() * (max - min)) * 1000;
+  }
+  if (durationSeconds <= 300) {
+    const min = durationSeconds * 0.05;
+    const max = durationSeconds * 0.10;
+    return (min + Math.random() * (max - min)) * 1000;
+  }
+  const min = durationSeconds * 0.04;
+  const max = durationSeconds * 0.08;
+  return (min + Math.random() * (max - min)) * 1000;
+}
+
+function calculateMidSongDelay(durationSeconds: number): number {
+  const min = durationSeconds * 0.35;
+  const max = durationSeconds * 0.50;
+  return (min + Math.random() * (max - min)) * 1000;
+}
 
 interface TrackInfo {
   id?: string;
@@ -22,6 +50,7 @@ class AudioCoordinatorEngine {
   private generationId = 0;
   private pendingMidSongTimer: ReturnType<typeof setTimeout> | null = null;
   private lastSegmentEndTime = 0;
+  private currentVibe: Vibe = 'general';
 
   private cancelPendingTimer() {
     if (this.pendingPostSongTimer) {
@@ -32,7 +61,6 @@ class AudioCoordinatorEngine {
       clearTimeout(this.pendingMidSongTimer);
       this.pendingMidSongTimer = null;
     }
-    // Invalidate any in-progress generation so stale results are discarded
     this.generationId++;
     this.isSpeaking = false;
   }
@@ -48,11 +76,21 @@ class AudioCoordinatorEngine {
     };
   }
 
+  private async isMusicPlaying(): Promise<boolean> {
+    try {
+      const status = await getPlaybackStatus();
+      return status === 'playing';
+    } catch {
+      return false;
+    }
+  }
+
   async handleTrackChange(
     currentTrack: TrackInfo,
-    nextTrack?: TrackInfo
+    nextTrack?: TrackInfo,
+    isManualSkip?: boolean
   ): Promise<void> {
-    this.cancelPendingTimer(); // increments generationId, resets isSpeaking
+    this.cancelPendingTimer();
     const myId = this.generationId;
     this.isSpeaking = true;
 
@@ -62,25 +100,41 @@ class AudioCoordinatorEngine {
     try {
       const trackInfo = this.enrichTrack(currentTrack);
       const generationStart = Date.now();
-      const segment = await this._runSegment(trackInfo, nextTrack, previous ?? undefined, myId);
-      if (!segment || myId !== this.generationId) return;
+      const segment = await this._runSegment(trackInfo, nextTrack, previous ?? undefined, myId, isManualSkip);
+
+      if (!segment) {
+        if (myId === this.generationId) {
+          this.isSpeaking = false;
+          this.scheduleMidSongDrop(trackInfo);
+        }
+        return;
+      }
+      if (myId !== this.generationId) return;
 
       if (segment.deliveryMode === 'pre_song') {
-        await synthesizeAndPlay(segment.text);
-        // preloadNext disabled — prompts now bake in track names, buffer would have stale context
+        await activateDuckingSession().catch(() => {});
+        try {
+          await synthesizeAndPlay(segment.text, this.currentVibe);
+        } catch {
+          await deactivateDuckingSession().catch(() => {});
+        }
         if (myId === this.generationId) this.scheduleMidSongDrop(trackInfo);
       } else {
         this.isSpeaking = false;
         const elapsed = Date.now() - generationStart;
-        const targetDelay = 8000 + Math.floor(Math.random() * 4000);
+        const targetDelay = calculatePostSongDelay(currentTrack.duration);
         const remainingMs = Math.max(0, targetDelay - elapsed);
         this.pendingPostSongTimer = setTimeout(async () => {
           this.pendingPostSongTimer = null;
           if (myId !== this.generationId || this.isSpeaking) return;
+          const playing = await this.isMusicPlaying();
+          if (!playing) {
+            this.isSpeaking = false;
+            return;
+          }
           this.isSpeaking = true;
           try {
-            await synthesizeAndPlay(segment.text);
-            // preloadNext disabled — prompts now bake in track names, buffer would have stale context
+            await synthesizeAndPlay(segment.text, this.currentVibe);
             if (myId === this.generationId) this.scheduleMidSongDrop(trackInfo);
           } finally {
             if (myId === this.generationId) {
@@ -94,7 +148,7 @@ class AudioCoordinatorEngine {
     } catch (error) {
       console.error('[AudioCoordinator] Handoff failed:', error);
     } finally {
-      if (myId === this.generationId) {
+      if (myId === this.generationId && this.isSpeaking) {
         this.lastSegmentEndTime = Date.now();
         this.isSpeaking = false;
       }
@@ -104,9 +158,10 @@ class AudioCoordinatorEngine {
   async handleTrackChangeWithResult(
     currentTrack: TrackInfo,
     nextTrack?: TrackInfo,
-    onSegmentReady?: (segment: SegmentResult) => void
+    onSegmentReady?: (segment: SegmentResult) => void,
+    isManualSkip?: boolean
   ): Promise<SegmentResult | null> {
-    this.cancelPendingTimer(); // increments generationId, resets isSpeaking
+    this.cancelPendingTimer();
     const myId = this.generationId;
     this.isSpeaking = true;
 
@@ -116,21 +171,29 @@ class AudioCoordinatorEngine {
     const trackInfo = this.enrichTrack(currentTrack);
 
     const generationStart = Date.now();
-    const segment = await this._runSegment(trackInfo, nextTrack, previous ?? undefined, myId);
+    const segment = await this._runSegment(trackInfo, nextTrack, previous ?? undefined, myId, isManualSkip);
 
-    if (!segment || myId !== this.generationId) {
-      if (myId === this.generationId) this.isSpeaking = false;
+    if (!segment) {
+      if (myId === this.generationId) {
+        this.isSpeaking = false;
+        this.scheduleMidSongDrop(trackInfo);
+      }
+      return null;
+    }
+    if (myId !== this.generationId) {
+      this.isSpeaking = false;
       return null;
     }
 
     if (segment.deliveryMode === 'pre_song') {
       onSegmentReady?.(segment);
+      await activateDuckingSession().catch(() => {});
       try {
-        await synthesizeAndPlay(segment.text);
-        // preloadNext disabled — prompts now bake in track names, buffer would have stale context
+        await synthesizeAndPlay(segment.text, this.currentVibe);
         if (myId === this.generationId) this.scheduleMidSongDrop(trackInfo);
       } catch (error) {
         console.error('[AudioCoordinator] pre_song playback failed:', error);
+        await deactivateDuckingSession().catch(() => {});
       } finally {
         if (myId === this.generationId) {
           this.lastSegmentEndTime = Date.now();
@@ -141,7 +204,7 @@ class AudioCoordinatorEngine {
     } else {
       this.isSpeaking = false;
       const elapsed = Date.now() - generationStart;
-      const targetDelay = 8000 + Math.floor(Math.random() * 4000);
+      const targetDelay = calculatePostSongDelay(currentTrack.duration);
       const remainingMs = Math.max(0, targetDelay - elapsed);
 
       return new Promise((resolve) => {
@@ -152,12 +215,16 @@ class AudioCoordinatorEngine {
             resolve(null);
             return;
           }
+          const playing = await this.isMusicPlaying();
+          if (!playing) {
+            resolve(null);
+            return;
+          }
           this.isSpeaking = true;
 
           try {
             onSegmentReady?.(segment);
-            await synthesizeAndPlay(segment.text);
-            // preloadNext disabled — prompts now bake in track names, buffer would have stale context
+            await synthesizeAndPlay(segment.text, this.currentVibe);
             if (myId === this.generationId) this.scheduleMidSongDrop(trackInfo);
           } catch (error) {
             console.error('[AudioCoordinator] post_song playback failed:', error);
@@ -178,16 +245,37 @@ class AudioCoordinatorEngine {
     trackInfo: TrackInfo,
     nextTrack?: TrackInfo,
     previousTrack?: TrackInfo,
-    genId?: number
+    genId?: number,
+    isManualSkip?: boolean
   ): Promise<SegmentResult | null> {
     try {
-      // 3.5s natural pause before generating — breathing room between songs
-      await new Promise((resolve) => setTimeout(resolve, 3500));
-      // Bail if a skip happened during the delay
+      const delay = isManualSkip ? 1500 : 3500;
+      await new Promise((resolve) => setTimeout(resolve, delay));
       if (genId !== undefined && genId !== this.generationId) return null;
-      const segment = await segmentController.generateNext(trackInfo, nextTrack, previousTrack);
-      // Bail if a skip happened during generation
+
+      const generationPromise = segmentController.generateNext(
+        trackInfo, nextTrack, previousTrack, isManualSkip
+      );
+      const timeoutPromise = new Promise<'timeout'>((resolve) =>
+        setTimeout(() => resolve('timeout'), GENERATION_TIMEOUT_MS)
+      );
+
+      const result = await Promise.race([generationPromise, timeoutPromise]);
+
+      if (result === 'timeout') {
+        console.warn('[AudioCoordinator] Generation timed out at 8s — skipping segment');
+        await deactivateDuckingSession().catch(() => {});
+        return null;
+      }
+
       if (genId !== undefined && genId !== this.generationId) return null;
+      const segment = result;
+
+      if (!segment) {
+        console.log('[AudioCoordinator] Segment controller returned null — staying silent');
+        return null;
+      }
+
       console.log(`[Cleo] ${segment.type} (${segment.deliveryMode}): ${segment.text}`);
       return segment;
     } catch (error) {
@@ -197,21 +285,29 @@ class AudioCoordinatorEngine {
   }
 
   private scheduleMidSongDrop(trackInfo: TrackInfo) {
-    // Only for tracks > 3 minutes
-    if (!trackInfo.duration || trackInfo.duration <= 180) return;
-    // 40% chance
-    if (Math.random() >= 0.4) return;
+    if (!trackInfo.duration || trackInfo.duration <= 210) return;
 
-    // Random delay between 45-90 seconds
-    const delay = 45000 + Math.floor(Math.random() * 45000);
+    const quietVibes: Vibe[] = ['focus', 'chill', 'lateNight', 'melancholy'];
+    const highEnergyVibes: Vibe[] = ['workout', 'party'];
+    let chance = 0.4;
+    if (quietVibes.includes(this.currentVibe)) chance = 0.2;
+    if (highEnergyVibes.includes(this.currentVibe)) chance = 0.15;
+    if (Math.random() >= chance) return;
+
+    const delay = calculateMidSongDelay(trackInfo.duration);
 
     this.pendingMidSongTimer = setTimeout(async () => {
       this.pendingMidSongTimer = null;
 
-      // Guards: not speaking, cooldown passed, no pending post-song segment
       if (this.isSpeaking) return;
       if (this.pendingPostSongTimer !== null) return;
       if (Date.now() - this.lastSegmentEndTime < 30000) return;
+
+      const playing = await this.isMusicPlaying();
+      if (!playing) {
+        console.log('[AudioCoordinator] Mid-song drop skipped — music not playing');
+        return;
+      }
 
       this.isSpeaking = true;
       const myId = this.generationId;
@@ -220,7 +316,8 @@ class AudioCoordinatorEngine {
         const segment = await segmentController.generateMidSongDrop(trackInfo);
         if (myId !== this.generationId) return;
         console.log(`[Cleo] mid-song ${segment.type}: ${segment.text}`);
-        await synthesizeAndPlay(segment.text);
+        await synthesizeAndPlay(segment.text, this.currentVibe);
+        segmentController.markMidSongDropCompleted();
       } catch (error) {
         console.error('[AudioCoordinator] Mid-song drop failed:', error);
       } finally {
@@ -230,6 +327,10 @@ class AudioCoordinatorEngine {
         }
       }
     }, delay);
+  }
+
+  setVibe(vibe: Vibe) {
+    this.currentVibe = vibe;
   }
 
   getIsSpeaking(): boolean {

@@ -1,7 +1,7 @@
 import { planQueue, type QueuePlan } from './QueuePlanner';
 import { planQueueLocally } from './LocalQueuePlanner';
 import { enforceRules } from './RulesEngine';
-import { enrichTracks, type TrackProfile } from '../services/TrackEnrichmentService';
+import { enrichTracks, enrichTracksMusicBrainzOnly, type TrackProfile } from '../services/TrackEnrichmentService';
 import { sessionEngine } from './SessionEngine';
 import { musicKitPlayer } from '../services/MusicKitPlayer';
 import type { Vibe } from '../cleo/fallbacks';
@@ -17,6 +17,7 @@ class QueueManagerService {
     stationId: string
   ): Promise<void> {
     sessionEngine.startSession(stationId, vibe);
+    this.enrichmentInProgress = false; // Reset for new session
 
     const tracks = await musicKitPlayer.fetchPlaylistTracks(playlistId);
     if (tracks.length === 0) {
@@ -57,9 +58,21 @@ class QueueManagerService {
       await musicKitPlayer.play(undefined, playlistId);
     }
 
-    // Slow path: AI plan in background → upgrade remaining queue
-    this.upgradeQueueInBackground(vibe);
-    this.enrichInBackground(tracks);
+    // Phase 1: MusicBrainz enrichment (fast) — awaited so tags/year are available for queue planning
+    // Runs while first track is already playing
+    this.enrichMusicBrainzFirst(tracks).then(async () => {
+      // Longer delay to avoid Gemini 429 rate limit collision with segment generation
+      await new Promise((r) => setTimeout(r, 10000));
+      // Phase 2: AI queue planning uses enriched tags/year
+      this.upgradeQueueInBackground(vibe);
+      // Phase 3: Genius metadata (slow) — background, non-blocking
+      this.enrichGeniusInBackground(tracks);
+    }).catch((err) => {
+      console.warn('[QueueManager] Enrichment chain failed:', err);
+      // Fallback: still run queue planning and Genius enrichment
+      this.upgradeQueueInBackground(vibe);
+      this.enrichGeniusInBackground(tracks);
+    });
   }
 
   private async upgradeQueueInBackground(vibe: Vibe): Promise<void> {
@@ -144,12 +157,25 @@ class QueueManagerService {
     console.log('[QueueManager] Re-planned queue after skips');
   }
 
-  private async enrichInBackground(tracks: MusicTrack[]): Promise<void> {
+  private async enrichMusicBrainzFirst(tracks: MusicTrack[]): Promise<void> {
     if (this.enrichmentInProgress) return;
     this.enrichmentInProgress = true;
 
     try {
+      // Fast pass: MusicBrainz only (tags, year)
+      this.trackProfiles = await enrichTracksMusicBrainzOnly(tracks);
+      console.log('[QueueManager] MusicBrainz enrichment complete');
+    } catch {
+      // Non-fatal
+    }
+    // enrichmentInProgress stays true until enrichGeniusInBackground resets it in finally
+  }
+
+  private async enrichGeniusInBackground(tracks: MusicTrack[]): Promise<void> {
+    try {
+      // Full enrichment pass (MusicBrainz cache hit + Genius details)
       this.trackProfiles = await enrichTracks(tracks);
+      console.log('[QueueManager] Full Genius enrichment complete');
     } catch {
       // Non-fatal
     } finally {

@@ -120,13 +120,26 @@ The listener is currently hearing "${context.currentTrack.title}" by ${context.c
     }
   }
 
+  if (!context.enrichedFacts) {
+    console.log(`[CleoScript] No enrichedFacts for "${context.currentTrack.title}"`);
+  }
   if (context.enrichedFacts) {
     const facts = context.enrichedFacts;
-    prompt += '\n\nVERIFIED TRACK FACTS (use only what is provided — never invent)';
-    if (facts.sample) prompt += `\n- Sample: ${facts.sample}`;
-    if (facts.context) prompt += `\n- Context: ${facts.context}`;
-    if (facts.producer) prompt += `\n- Producer: ${facts.producer}`;
-    if (facts.songwriter) prompt += `\n- Written by: ${facts.songwriter}`;
+    console.log(`[CleoScript] enrichedFacts for "${context.currentTrack.title}":`, JSON.stringify(facts).substring(0, 200));
+    const hasAnyFact = facts.sample || facts.context || facts.producer ||
+      facts.songwriter || facts.recordingLocation || facts.tags?.length || facts.year;
+    if (hasAnyFact) {
+      console.log(`[CleoScript] VERIFIED TRACK FACTS will be injected into prompt`);
+      prompt += '\n\nVERIFIED TRACK FACTS (use only what is provided — never invent)';
+      if (facts.producer) prompt += `\n- Producer: ${facts.producer}`;
+      if (facts.songwriter) prompt += `\n- Written by: ${facts.songwriter}`;
+      if (facts.sample) prompt += `\n- Sample: ${facts.sample}`;
+      if (facts.context) prompt += `\n- Context: ${facts.context}`;
+      if (facts.recordingLocation) prompt += `\n- Recorded at: ${facts.recordingLocation}`;
+      if (facts.tags && facts.tags.length > 0) prompt += `\n- Genre tags: ${facts.tags.join(', ')}`;
+      if (facts.year) prompt += `\n- First released: ${facts.year}`;
+      if (facts.releaseYear && !facts.year) prompt += `\n- Release date: ${facts.releaseYear}`;
+    }
   }
 
   if (context.tracksReferenced && context.tracksReferenced.length > 0) {
@@ -160,13 +173,25 @@ The listener is currently hearing "${context.currentTrack.title}" by ${context.c
   }
 
   const brief = SEGMENT_BRIEFS[context.segmentType];
+  const maxWords = context.maxWords ?? 75;
+  let wordCountInstruction: string;
+  if (maxWords <= 30) {
+    wordCountInstruction = `15 to ${maxWords} words. One thought. In and out.`;
+  } else if (maxWords >= 100) {
+    wordCountInstruction = `90 to ${maxWords} words. Tell the story. Take your time — you have room to breathe.`;
+  } else {
+    wordCountInstruction = `40 to ${maxWords} words. Natural and flowing.`;
+  }
+
   prompt += `\n\nSEGMENT TYPE: ${context.segmentType}
 CREATIVE BRIEF: ${brief}
 
 OUTPUT RULES
-- ${context.maxWords ? `15 to ${context.maxWords}` : '40 to 75'} words maximum.
+- ${wordCountInstruction}
 - Plain text only. No quotes, no stage directions, no labels.
-- Do not include the segment type name in your response.`;
+- Do not include the segment type name in your response.
+- Begin with a delivery cue tag: [warm], [hype], [quiet], [playful], [reflective], or [matter-of-fact]. Choose the one that fits the moment.
+- Capitalize ONE key word per segment for vocal emphasis.`;
 
   return prompt;
 }

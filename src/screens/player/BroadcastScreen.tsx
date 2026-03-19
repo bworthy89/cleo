@@ -119,6 +119,7 @@ export function BroadcastScreen({
       }
 
       segmentController.startSession(stationId, vibe);
+      audioCoordinator.setVibe(vibe);
       await queueManager.initializeSession(playlistId, vibe, stationId);
       refreshNowPlaying();
     })();
