@@ -132,13 +132,13 @@ export function CleoSpeakingOverlay({
         toValue: 0,
         duration: 400,
         easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
+        useNativeDriver: false,
       }),
       Animated.loop(
         Animated.sequence([
-          Animated.timing(titleX, { toValue: 1.5, duration: 120, useNativeDriver: true }),
-          Animated.timing(titleX, { toValue: -1, duration: 100, useNativeDriver: true }),
-          Animated.timing(titleX, { toValue: 0, duration: 80, useNativeDriver: true }),
+          Animated.timing(titleX, { toValue: 1.5, duration: 120, useNativeDriver: false }),
+          Animated.timing(titleX, { toValue: -1, duration: 100, useNativeDriver: false }),
+          Animated.timing(titleX, { toValue: 0, duration: 80, useNativeDriver: false }),
         ]),
       ),
     ]).start();

@@ -73,7 +73,7 @@ export function BroadcastScreen({
   const vibeAccent = getVibeAccent(vibe);
 
   const FULL_OVERLAY_TYPES: Array<SegmentType | 'cold_open' | 'session_close'> = [
-    'track_story', 'post_track_reflection', 'cold_open', 'session_close',
+    'song_intro', 'track_story', 'post_track_reflection', 'cold_open', 'session_close',
   ];
   const isFullOverlay = cleoSpeaking && segmentType != null && FULL_OVERLAY_TYPES.includes(segmentType);
 
