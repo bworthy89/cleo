@@ -96,3 +96,13 @@ export function getCachedPlaylists(): MusicPlaylist[] | undefined {
 export function setCachedPlaylists(playlists: MusicPlaylist[]): void {
   storage.set(StorageKeys.PLAYLISTS_CACHE, JSON.stringify(playlists));
 }
+
+// Clear user-facing data on logout (preserves enrichment cache)
+export function clearUserData(): void {
+  storage.remove(StorageKeys.USER);
+  storage.remove(StorageKeys.STATIONS);
+  storage.remove(StorageKeys.RECENTLY_PLAYED);
+  storage.remove(StorageKeys.SESSIONS);
+  storage.remove(StorageKeys.COLD_OPEN_HISTORY);
+  storage.remove(StorageKeys.PLAYLISTS_CACHE);
+}

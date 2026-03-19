@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { router } from 'expo-router';
 import { Colors, Typography, Spacing, Opacity, Tracking, withAlpha } from '../../src/tokens/design-tokens';
 import { getUser, setUser } from '../../src/services/Storage';
+import { signOut } from '../../src/services/AuthService';
 import { VibeSelector } from '../../src/components/VibeSelector';
 import type { Vibe } from '../../src/cleo/fallbacks';
 
@@ -24,6 +26,24 @@ export default function ProfileScreen() {
     });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Sign Out',
+      'Your stations and settings will be kept for when you sign back in.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign Out',
+          style: 'destructive',
+          onPress: async () => {
+            await signOut();
+            router.replace('/');
+          },
+        },
+      ]
+    );
   };
 
   return (
@@ -53,6 +73,13 @@ export default function ProfileScreen() {
             <Text style={[styles.buttonText, saved && { color: vibeTheme.accent, backgroundColor: 'transparent' }]}>
               {saved ? 'SAVED' : 'SAVE'}
             </Text>
+          </Pressable>
+
+          <Pressable
+            style={[styles.button, { backgroundColor: 'transparent', marginTop: Spacing.lg }]}
+            onPress={handleLogout}
+          >
+            <Text style={[styles.buttonText, { color: vibeTheme.accent }]}>SIGN OUT</Text>
           </Pressable>
         </View>
       </View>
