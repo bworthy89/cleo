@@ -133,18 +133,37 @@ export function BroadcastScreen({
     })();
   }, []);
 
-  // --- Playback state + progress listener ---
+  // --- Playback state listener (for play/pause visual state) ---
   useEffect(() => {
+    // Set initial state
+    musicKitPlayer.getPlaybackStatus().then((status) => {
+      setIsPlaying(status === 'playing');
+    }).catch(() => {});
+
     const unsub = musicKitPlayer.onPlaybackStateChanged((event) => {
       setIsPlaying(event.status === 'playing');
-      const dur = durationRef.current;
-      if (dur > 0) {
-        const pct = Math.min(event.playbackTime / dur, 1);
-        setProgress(pct);
-      }
     });
     return unsub;
   }, []);
+
+  // --- Progress polling (1s interval while playing) ---
+  useEffect(() => {
+    if (!isPlaying) return;
+
+    const poll = async () => {
+      try {
+        const time = await musicKitPlayer.getPlaybackTime();
+        const dur = durationRef.current;
+        if (dur > 0) {
+          setProgress(Math.min(time / dur, 1));
+        }
+      } catch {}
+    };
+
+    poll(); // immediate first poll
+    const interval = setInterval(poll, 1000);
+    return () => clearInterval(interval);
+  }, [isPlaying]);
 
   // --- Track change listener ---
   useEffect(() => {
