@@ -265,11 +265,7 @@ All screens follow the Stitch Gold Edition editorial design language:
 
 ## Build Environment
 
-- **Path constraint**: React Native pod scripts fail with spaces in paths.
-  Native builds use `/Users/kari/Documents/cleo-app/` (rsync copy), then sync back.
-- **rsync command**: `rsync -av --delete --exclude='ios/' --exclude='node_modules/' --exclude='.expo/' --exclude='.git/' /Users/kari/Documents/DJApp/ /Users/kari/Documents/cleo-app/`
-- **rsync native module caveat**: The `--exclude='ios/'` also excludes `modules/expo-music-kit/ios/`. After rsync, always sync the native module separately: `rsync -av /Users/kari/Documents/DJApp/modules/expo-music-kit/ios/ /Users/kari/Documents/cleo-app/modules/expo-music-kit/ios/`
-- **Git repo lives at cleo-app** — DJApp is the working directory, cleo-app has the git history. Always rsync before committing.
+- **Working directory**: `/Users/kari/Documents/cleo-app/` — all editing, building, and git operations happen here. No rsync workflow needed.
 - **Entitlements**: `Cleo.entitlements` must have empty `<dict/>` — `com.apple.developer.musickit` is NOT a valid entitlement (MusicKit uses Info.plist instead)
 - **Ruby**: rbenv + Ruby 3.2.4 at ~/.rbenv/ (system Ruby 2.6 too old for CocoaPods)
 - **CocoaPods**: Installed via gem under rbenv Ruby 3.2.4 (`~/.rbenv/shims/pod`)
