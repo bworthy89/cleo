@@ -115,6 +115,8 @@ export function BroadcastScreen({
       const existing = sessionEngine.getSession();
       if (existing && existing.stationId === stationId && existing.tracksPlayed.length > 0) {
         refreshNowPlaying();
+        // Enrich tracks if not already done (enrichment only runs on new sessions otherwise)
+        queueManager.enrichExistingSession(playlistId);
         return;
       }
 
