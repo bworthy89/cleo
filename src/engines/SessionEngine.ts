@@ -1,4 +1,4 @@
-import { storage } from '../services/Storage';
+import { storage, StorageKeys, getObject } from '../services/Storage';
 import type { Vibe } from '../cleo/fallbacks';
 import type { QueuePlan, QueuedTrack } from './QueuePlanner';
 
@@ -18,8 +18,10 @@ export interface Session {
 
 class SessionEngineService {
   private session: Session | null = null;
+  private consecutiveSkipCount = 0;
 
   startSession(stationId: string, vibe: Vibe): Session {
+    this.consecutiveSkipCount = 0;
     this.session = {
       id: `session-${Date.now()}`,
       stationId,
@@ -87,45 +89,34 @@ class SessionEngineService {
     this.session.tracksPlayed.push(trackId);
     this.session.currentQueueIndex++;
     this.session.currentPhase = this.getCurrentPhase();
+    this.consecutiveSkipCount = 0;
     this.persist();
   }
 
   recordSkip(trackId: string): void {
     if (!this.session) return;
     this.session.skippedTracks.push(trackId);
+    this.consecutiveSkipCount++;
     this.persist();
   }
 
   getConsecutiveSkips(): number {
-    if (!this.session) return 0;
-    const { skippedTracks, tracksPlayed } = this.session;
-    let count = 0;
-    for (let i = skippedTracks.length - 1; i >= 0; i--) {
-      const lastPlayed = tracksPlayed[tracksPlayed.length - 1 - count];
-      if (skippedTracks[i] === lastPlayed) {
-        count++;
-      } else {
-        break;
-      }
-    }
-    return count;
+    return this.consecutiveSkipCount;
   }
 
   endSession(): void {
     if (!this.session) return;
     // Save to session history
-    const historyKey = 'sessionHistory';
-    const raw = storage.getString(historyKey);
-    const history: Session[] = raw ? JSON.parse(raw) : [];
+    const history = getObject<Session[]>(StorageKeys.SESSION_HISTORY) ?? [];
     history.unshift(this.session);
     if (history.length > 20) history.pop();
-    storage.set(historyKey, JSON.stringify(history));
+    storage.set(StorageKeys.SESSION_HISTORY, JSON.stringify(history));
     this.session = null;
   }
 
   private persist(): void {
     if (!this.session) return;
-    storage.set('currentSession', JSON.stringify(this.session));
+    storage.set(StorageKeys.CURRENT_SESSION, JSON.stringify(this.session));
   }
 }
 

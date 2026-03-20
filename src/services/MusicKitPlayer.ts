@@ -14,6 +14,7 @@ import {
   addTrackChangedListener,
   addPlaybackStateListener,
   addEjectTrackChangedListener,
+  getNextInQueue,
   type AuthResult,
   type MusicPlaylist,
   type MusicTrack,
@@ -86,6 +87,10 @@ class MusicKitPlayerService {
     return getPlaybackStatusNative();
   }
 
+  async getNextInQueue(): Promise<{ id?: string; title: string; artistName: string } | null> {
+    return getNextInQueue();
+  }
+
   onTrackChanged(callback: TrackChangeCallback): () => void {
     this.trackListeners.push(callback);
     this.ensureSubscriptions();
@@ -116,17 +121,23 @@ class MusicKitPlayerService {
   private ensureSubscriptions() {
     if (!this.trackSub && this.trackListeners.length > 0) {
       this.trackSub = addTrackChangedListener((event) => {
-        this.trackListeners.forEach(cb => cb(event));
+        this.trackListeners.forEach(cb => {
+          try { cb(event); } catch (e) { console.error('[MusicKitPlayer] trackListener error:', e); }
+        });
       });
     }
     if (!this.stateSub && this.stateListeners.length > 0) {
       this.stateSub = addPlaybackStateListener((event) => {
-        this.stateListeners.forEach(cb => cb(event));
+        this.stateListeners.forEach(cb => {
+          try { cb(event); } catch (e) { console.error('[MusicKitPlayer] stateListener error:', e); }
+        });
       });
     }
     if (!this.ejectSub && this.ejectListeners.length > 0) {
       this.ejectSub = addEjectTrackChangedListener((event) => {
-        this.ejectListeners.forEach(cb => cb(event));
+        this.ejectListeners.forEach(cb => {
+          try { cb(event); } catch (e) { console.error('[MusicKitPlayer] ejectListener error:', e); }
+        });
       });
     }
   }

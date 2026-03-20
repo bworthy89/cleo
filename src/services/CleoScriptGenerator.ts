@@ -2,6 +2,7 @@ import { CLEO_STATIC_CORE } from '../cleo/static-core';
 import { getFallbackLine, type SegmentType, type Vibe } from '../cleo/fallbacks';
 import { authenticatedFetch } from './api';
 import type { EnrichedFacts } from './TrackEnrichmentService';
+import { getTimeOfDay } from '../utils/time';
 
 export type DeliveryMode = 'pre_song' | 'post_song' | 'eject_transition';
 export type SessionPhase = 'opening' | 'mid' | 'late';
@@ -60,6 +61,11 @@ const SEGMENT_BRIEFS: Record<SegmentType, string> = {
   sign_off: 'Warm send-off. Brief. Leave them wanting to come back.',
 };
 
+/** Sanitize external-origin strings before injecting into Gemini prompt */
+function sanitize(value: string, maxLen = 200): string {
+  return value.replace(/[\n\r]/g, ' ').substring(0, maxLen).trim();
+}
+
 function buildDynamicPrompt(context: SegmentContext): string {
   const timeOfDay = getTimeOfDay();
   const vibeLabel: Record<Vibe, string> = {
@@ -84,7 +90,7 @@ function buildDynamicPrompt(context: SegmentContext): string {
 - Session duration: ${context.sessionDurationMinutes ?? 0} minutes in`;
 
   if (context.listenerName) {
-    prompt += `\n- Listener name: ${context.listenerName}`;
+    prompt += `\n- Listener name: ${sanitize(context.listenerName, 50)}`;
   }
 
   // Delivery mode framing
@@ -130,9 +136,6 @@ The listener is currently hearing "${context.currentTrack.title}" by ${context.c
     }
   }
 
-  if (!context.enrichedFacts) {
-    console.log(`[CleoScript] No enrichedFacts for "${context.currentTrack.title}"`);
-  }
   if (context.enrichedFacts) {
     const facts = context.enrichedFacts;
     console.log(`[CleoScript] enrichedFacts for "${context.currentTrack.title}":`, JSON.stringify(facts).substring(0, 200));
@@ -141,11 +144,11 @@ The listener is currently hearing "${context.currentTrack.title}" by ${context.c
     if (hasAnyFact) {
       console.log(`[CleoScript] VERIFIED TRACK FACTS will be injected into prompt`);
       prompt += '\n\nVERIFIED TRACK FACTS (use only what is provided — never invent)';
-      if (facts.producer) prompt += `\n- Producer: ${facts.producer}`;
-      if (facts.songwriter) prompt += `\n- Written by: ${facts.songwriter}`;
-      if (facts.sample) prompt += `\n- Sample: ${facts.sample}`;
-      if (facts.context) prompt += `\n- Context: ${facts.context}`;
-      if (facts.recordingLocation) prompt += `\n- Recorded at: ${facts.recordingLocation}`;
+      if (facts.producer) prompt += `\n- Producer: ${sanitize(facts.producer)}`;
+      if (facts.songwriter) prompt += `\n- Written by: ${sanitize(facts.songwriter)}`;
+      if (facts.sample) prompt += `\n- Sample: ${sanitize(facts.sample)}`;
+      if (facts.context) prompt += `\n- Context: ${sanitize(facts.context, 300)}`;
+      if (facts.recordingLocation) prompt += `\n- Recorded at: ${sanitize(facts.recordingLocation)}`;
       if (facts.tags && facts.tags.length > 0) prompt += `\n- Genre tags: ${facts.tags.join(', ')}`;
       if (facts.year) prompt += `\n- First released: ${facts.year}`;
       if (facts.releaseYear && !facts.year) prompt += `\n- Release date: ${facts.releaseYear}`;
@@ -204,14 +207,6 @@ OUTPUT RULES
 - Capitalize ONE key word per segment for vocal emphasis.`;
 
   return prompt;
-}
-
-function getTimeOfDay(): string {
-  const hour = new Date().getHours();
-  if (hour >= 5 && hour < 12) return 'Morning';
-  if (hour >= 12 && hour < 17) return 'Afternoon';
-  if (hour >= 17 && hour < 21) return 'Evening';
-  return 'Late Night';
 }
 
 export async function generateSegment(context: SegmentContext): Promise<string> {

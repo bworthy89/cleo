@@ -1,14 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
-  Dimensions,
   Image,
   Modal,
   Pressable,
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Colors,
   Surface,
@@ -19,9 +20,6 @@ import {
   withAlpha,
 } from '../tokens/design-tokens';
 import type { Vibe } from '../cleo/fallbacks';
-
-const SCREEN_HEIGHT = Dimensions.get('window').height;
-const SHEET_HEIGHT = SCREEN_HEIGHT * 0.52;
 
 const VIBES: { key: Vibe; label: string }[] = [
   { key: 'morning', label: 'Morning' },
@@ -55,8 +53,11 @@ export function VibePicker({
   onSelect,
   onDismiss,
 }: VibePickerProps) {
+  const { height: windowHeight } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const sheetHeight = windowHeight * 0.52;
   const [selectedVibe, setSelectedVibe] = useState<Vibe>(currentVibe);
-  const slideAnim = useRef(new Animated.Value(SHEET_HEIGHT)).current;
+  const slideAnim = useRef(new Animated.Value(sheetHeight)).current;
 
   useEffect(() => {
     if (visible) {
@@ -69,7 +70,7 @@ export function VibePicker({
       }).start();
     } else {
       Animated.timing(slideAnim, {
-        toValue: SHEET_HEIGHT,
+        toValue: sheetHeight,
         duration: 250,
         useNativeDriver: true,
       }).start();
@@ -94,7 +95,11 @@ export function VibePicker({
       <Animated.View
         style={[
           styles.sheet,
-          { transform: [{ translateY: slideAnim }] },
+          {
+            height: sheetHeight,
+            paddingBottom: Math.max(Spacing.xl, insets.bottom + Spacing.md),
+            transform: [{ translateY: slideAnim }],
+          },
         ]}
       >
         {/* Drag handle */}
@@ -160,12 +165,10 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: SHEET_HEIGHT,
     backgroundColor: Surface.container,
     borderTopLeftRadius: Radius.xl,
     borderTopRightRadius: Radius.xl,
     paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.xl,
   },
   handleContainer: {
     alignItems: 'center',

@@ -74,6 +74,10 @@ public class ExpoMusicKitModule: Module {
     }
 
     AsyncFunction("fetchPlaylistTracks") { (playlistId: String) -> [[String: Any]] in
+      // Clear stale caches from previous playlists to prevent unbounded memory growth
+      self.cachedTracks.removeAll()
+      self.cachedSongs.removeAll()
+
       var request = MusicLibraryRequest<Playlist>()
       request.filter(matching: \.id, equalTo: MusicItemID(playlistId))
       let response = try await request.response()
@@ -316,6 +320,23 @@ public class ExpoMusicKitModule: Module {
       return result
     }
 
+    AsyncFunction("getNextInQueue") { () -> [String: Any]? in
+      let entries = Array(self.player.queue.entries)
+      guard let currentEntry = self.player.queue.currentEntry else { return nil }
+      guard let currentIndex = entries.firstIndex(where: { $0.id == currentEntry.id }) else { return nil }
+      let nextIndex = entries.index(after: currentIndex)
+      guard nextIndex < entries.endIndex else { return nil }
+      let nextEntry = entries[nextIndex]
+      var result: [String: Any] = [
+        "title": nextEntry.title,
+        "artistName": nextEntry.subtitle ?? ""
+      ]
+      if case .song(let song) = nextEntry.item {
+        result["id"] = song.id.rawValue
+      }
+      return result
+    }
+
     AsyncFunction("getPlaybackTime") { () -> Double in
       return player.playbackTime
     }
@@ -462,6 +483,8 @@ public class ExpoMusicKitModule: Module {
 
         let ttsDuration = newPlayer.duration
 
+        // Resolve any dangling promise from a previous eject before overwriting
+        self.ejectPromiseResolve?()
         self.ejectPromiseResolve = { promise.resolve(nil) }
 
         self.audioDelegate = AudioPlayerDelegate(player: newPlayer) { [weak self] in
@@ -634,7 +657,7 @@ public class ExpoMusicKitModule: Module {
       return urlString
     }
 
-    // For musickit:// or other local URLs, cache the image data to a temp file
+    // For musickit:// or other local URLs, check if we have a cached copy
     let cacheDir = FileManager.default.temporaryDirectory.appendingPathComponent("artwork")
     try? FileManager.default.createDirectory(at: cacheDir, withIntermediateDirectories: true)
     let sanitizedId = id.replacingOccurrences(of: "/", with: "_")
@@ -645,13 +668,16 @@ public class ExpoMusicKitModule: Module {
       return filePath.absoluteString
     }
 
-    // Try to load the image data from the musickit:// URL
-    guard let data = try? Data(contentsOf: url),
-          let image = UIImage(data: data),
-          let jpegData = image.jpegData(compressionQuality: 0.85) else { return nil }
+    // Cache asynchronously — don't block the module queue with synchronous network I/O.
+    // The next fetchPlaylists call will pick up the cached file.
+    Task.detached(priority: .utility) {
+      guard let data = try? Data(contentsOf: url),
+            let image = UIImage(data: data),
+            let jpegData = image.jpegData(compressionQuality: 0.85) else { return }
+      try? jpegData.write(to: filePath)
+    }
 
-    try? jpegData.write(to: filePath)
-    return filePath.absoluteString
+    return nil
   }
 
   private func trackToDictionary(_ track: Track) -> [String: Any] {
@@ -743,7 +769,18 @@ public class ExpoMusicKitModule: Module {
           self.crossfadeTimer = nil
           self.crossfadeActive = false
           ttsPlayer.stop()
-          // audioPlayerDidFinishPlaying will fire and resolve the promise
+          // AVAudioPlayer.stop() does NOT call audioPlayerDidFinishPlaying,
+          // so we must manually clean up and resolve any pending promise.
+          self.audioPlayer = nil
+          self.audioDelegate = nil
+          try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
+          if self.ejectTransitionInProgress {
+            self.ejectTransitionInProgress = false
+            self.ejectSuppressedTrackInfo = nil
+            self.ejectTrackIdBeforeSkip = nil
+          }
+          self.ejectPromiseResolve?()
+          self.ejectPromiseResolve = nil
         }
       }
       self.lastPlaybackStatus = currentStatus

@@ -2,22 +2,24 @@ import { Router, Request, Response } from 'express';
 
 export const enrichmentRouter = Router();
 
-let lastGeniusRequestTime = 0;
 const GENIUS_MIN_INTERVAL = 1100;
 
-async function geniusRateLimitedFetch(url: string, token: string): Promise<any> {
-  const now = Date.now();
-  const elapsed = now - lastGeniusRequestTime;
-  if (elapsed < GENIUS_MIN_INTERVAL) {
-    await new Promise((r) => setTimeout(r, GENIUS_MIN_INTERVAL - elapsed));
-  }
-  lastGeniusRequestTime = Date.now();
+// Promise-chain queue ensures requests are serialized with minimum interval,
+// even when multiple concurrent requests arrive simultaneously.
+let geniusQueue = Promise.resolve() as Promise<unknown>;
 
-  const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}` },
+async function geniusRateLimitedFetch(url: string, token: string): Promise<any> {
+  const result = geniusQueue.then(async () => {
+    await new Promise((r) => setTimeout(r, GENIUS_MIN_INTERVAL));
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) throw new Error(`Genius ${response.status}`);
+    return response.json();
   });
-  if (!response.ok) throw new Error(`Genius ${response.status}`);
-  return response.json();
+  // Chain regardless of success/failure so subsequent requests still wait
+  geniusQueue = result.catch(() => {});
+  return result;
 }
 
 interface GeniusEnrichedFacts {

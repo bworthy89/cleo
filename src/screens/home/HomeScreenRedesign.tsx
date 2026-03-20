@@ -177,7 +177,15 @@ export function HomeScreenRedesign() {
   }, []);
 
   // ── Data loading ───────────────────────────────────────────────────
-  async function loadData() {
+  const refreshNowPlaying = useCallback(async () => {
+    const np = await musicKitPlayer.getNowPlaying();
+    if (np) {
+      setNowPlaying({ title: np.title, artistName: np.artistName, artworkUrl: np.artworkUrl });
+      setAuthState('playing');
+    }
+  }, []);
+
+  const loadData = useCallback(async () => {
     setStations(getStations());
 
     const cached = getCachedPlaylists();
@@ -195,15 +203,7 @@ export function HomeScreenRedesign() {
       setPlaylistsLoading(false);
     }
     await refreshNowPlaying();
-  }
-
-  async function refreshNowPlaying() {
-    const np = await musicKitPlayer.getNowPlaying();
-    if (np) {
-      setNowPlaying({ title: np.title, artistName: np.artistName, artworkUrl: np.artworkUrl });
-      setAuthState('playing');
-    }
-  }
+  }, [refreshNowPlaying]);
 
   // ── Handlers ───────────────────────────────────────────────────────
   const handleAuthorize = useCallback(async () => {

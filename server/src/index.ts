@@ -24,10 +24,15 @@ app.use((req, _res, next) => {
   next();
 });
 
+// Rate limit by user UID (set by requireAuth) rather than IP,
+// so users behind shared NAT/VPN aren't blocked by one heavy user.
+const keyByUser = (req: any) => req.uid ?? req.ip;
+
 // Tighter limit for AI generation routes (Gemini + ElevenLabs)
 const generationLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 30,
+  keyGenerator: keyByUser,
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -37,6 +42,7 @@ const generationLimiter = rateLimit({
 const enrichmentLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 120,
+  keyGenerator: keyByUser,
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -49,7 +55,7 @@ app.get('/health', (_req, res) => {
 // Auth-protected API routes — enrichment gets a higher rate limit
 app.use(requireAuth, generationLimiter, segmentRouter);
 app.use(requireAuth, generationLimiter, voiceRouter);
-app.use(requireAuth, videoRouter);
+app.use(requireAuth, generationLimiter, videoRouter);
 app.use(requireAuth, enrichmentLimiter, enrichmentRouter);
 app.use(requireAuth, enrichmentLimiter, musicbrainzRouter);
 

@@ -224,14 +224,15 @@ export function CleoSpeakingOverlay({
     };
 
     if (reduceMotion) {
-      Animated.timing(overlayOpacity, { toValue: 0, duration: 300, useNativeDriver: true }).start(({ finished }) => {
-        if (finished) finish();
+      Animated.timing(overlayOpacity, { toValue: 0, duration: 300, useNativeDriver: true }).start(() => {
+        finish();
       });
       return;
     }
 
-    Animated.timing(overlayOpacity, { toValue: 0, duration: 600, useNativeDriver: true }).start(({ finished }) => {
-      if (finished) finish();
+    Animated.timing(overlayOpacity, { toValue: 0, duration: 600, useNativeDriver: true }).start(() => {
+      // Always call finish regardless of whether animation completed or was interrupted
+      finish();
     });
     Animated.timing(overlayTranslateY, { toValue: -20, duration: 600, useNativeDriver: true }).start();
   }, [visible]);

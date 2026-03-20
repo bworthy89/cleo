@@ -30,6 +30,9 @@ export function CustomTabBar({ state, navigation }: any) {
               onPress={() => navigation.navigate(tab.key)}
               style={styles.tab}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityLabel={tab.label}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: isActive }}
             >
               <View style={{ position: 'relative' }}>
                 <TabIcon name={tab.icon} size={TabBarTokens.iconSize} color={color} filled={isActive} />

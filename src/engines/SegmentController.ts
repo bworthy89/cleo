@@ -1,24 +1,13 @@
 import { generateSegment, type SegmentContext, type SessionPhase, type DeliveryMode } from '../services/CleoScriptGenerator';
 import type { SegmentType, Vibe } from '../cleo/fallbacks';
 import { getColdOpen } from '../cleo/cold-opens';
-import type { EnrichedFacts } from '../services/TrackEnrichmentService';
+import type { TrackInfo } from '../types/TrackInfo';
 import { saveSessionMemory, loadSessionMemory, getTimeSinceLastSession, incrementSessionCount } from '../services/SessionMemory';
 
 export type LengthTier = 'brief' | 'standard' | 'extended';
 
 // DeliveryMode is defined and exported from CleoScriptGenerator — re-export for consumers
 export type { DeliveryMode } from '../services/CleoScriptGenerator';
-
-interface TrackInfo {
-  id?: string;
-  title: string;
-  artistName: string;
-  albumTitle?: string;
-  genre?: string;
-  enrichedFacts?: EnrichedFacts;
-  hasRichData?: boolean;
-  duration?: number;
-}
 
 export interface SegmentResult {
   text: string;
@@ -101,8 +90,10 @@ class SegmentControllerEngine {
 
     // Persist new session start
     incrementSessionCount();
-    if (stationId) saveSessionMemory({ lastStationId: stationId });
-    if (vibe) saveSessionMemory({ lastVibe: vibe });
+    const memUpdate: Record<string, string> = {};
+    if (stationId) memUpdate.lastStationId = stationId;
+    if (vibe) memUpdate.lastVibe = vibe;
+    if (Object.keys(memUpdate).length > 0) saveSessionMemory(memUpdate);
   }
 
   private getNextSegmentType(): SegmentType {
@@ -147,6 +138,19 @@ class SegmentControllerEngine {
     if (!this.tracksReferenced.includes(artistName)) {
       this.tracksReferenced.push(artistName);
     }
+  }
+
+  private recordSegment(text: string, track: TrackInfo): void {
+    this.history.unshift(text);
+    if (this.history.length > 3) this.history.pop();
+    this.segmentCount++;
+    this.addToTracksReferenced(track.artistName);
+    saveSessionMemory({
+      lastTrackTitle: track.title,
+      lastArtistName: track.artistName,
+      lastArtists: [...this.tracksReferenced].slice(0, 10),
+      lastTimestamp: Date.now(),
+    });
   }
 
   private determineLengthTier(segmentType: SegmentType, track: TrackInfo, isManualSkip?: boolean): LengthTier {
@@ -271,20 +275,10 @@ class SegmentControllerEngine {
 
     const text = await generateSegment(context);
 
-    this.history.unshift(text);
-    if (this.history.length > 3) this.history.pop();
-    this.segmentCount++;
+    this.recordSegment(text, currentTrack);
     this.segmentsSinceExtended = lengthTier === 'extended' ? 0 : this.segmentsSinceExtended + 1;
     this.consecutiveSpokenSegments++;
     this.lastWasMidSongDrop = false;
-    this.addToTracksReferenced(currentTrack.artistName);
-
-    saveSessionMemory({
-      lastTrackTitle: currentTrack.title,
-      lastArtistName: currentTrack.artistName,
-      lastArtists: [...this.tracksReferenced].slice(0, 10),
-      lastTimestamp: Date.now(),
-    });
 
     return { text, type: segmentType, deliveryMode };
   }
@@ -294,20 +288,21 @@ class SegmentControllerEngine {
     nextTrack?: TrackInfo,
     previousTrack?: TrackInfo
   ): Promise<SegmentResult | null> {
-    if (this.shouldStaySilent()) return null;
+    // Don't consume lastWasMidSongDrop flag — if eject returns null or fallback
+    // fires, the flag should still suppress the next pre_song in generateNext.
+    if (this.lastWasMidSongDrop) return null;
 
     this.bufferedSegment = null;
 
-    let segmentType = this.getNextSegmentType();
+    // Peek at next segment type without advancing rotation — if the eject
+    // doesn't fire and fallback runs generateNext, it will advance properly.
+    let segmentType = ROTATION[this.rotationIndex % ROTATION.length];
 
     if (segmentType === 'track_story' && !currentTrack.hasRichData) {
       segmentType = 'artist_context';
     }
 
     segmentType = this.applyDataOverride(segmentType, currentTrack, previousTrack);
-
-    this.consecutivePreSong++;
-    this.lastDeliveryMode = 'pre_song';
 
     const context: SegmentContext = {
       segmentType,
@@ -328,20 +323,14 @@ class SegmentControllerEngine {
 
     const text = await generateSegment(context);
 
-    this.history.unshift(text);
-    if (this.history.length > 3) this.history.pop();
-    this.segmentCount++;
+    // Eject succeeded — now advance rotation so generateNext won't repeat this slot
+    this.rotationIndex++;
+    this.recordSegment(text, currentTrack);
     this.segmentsSinceExtended = this.segmentsSinceExtended + 1;
     this.consecutiveSpokenSegments++;
+    this.consecutivePreSong++;
+    this.lastDeliveryMode = 'pre_song';
     this.lastWasMidSongDrop = false;
-    this.addToTracksReferenced(currentTrack.artistName);
-
-    saveSessionMemory({
-      lastTrackTitle: currentTrack.title,
-      lastArtistName: currentTrack.artistName,
-      lastArtists: [...this.tracksReferenced].slice(0, 10),
-      lastTimestamp: Date.now(),
-    });
 
     return { text, type: segmentType, deliveryMode: 'eject_transition' };
   }
@@ -420,17 +409,7 @@ class SegmentControllerEngine {
 
     const text = await generateSegment(context);
 
-    this.history.unshift(text);
-    if (this.history.length > 3) this.history.pop();
-    this.segmentCount++;
-    this.addToTracksReferenced(currentTrack.artistName);
-
-    saveSessionMemory({
-      lastTrackTitle: currentTrack.title,
-      lastArtistName: currentTrack.artistName,
-      lastArtists: [...this.tracksReferenced].slice(0, 10),
-      lastTimestamp: Date.now(),
-    });
+    this.recordSegment(text, currentTrack);
 
     return { text, type: segmentType, deliveryMode: 'post_song' };
   }

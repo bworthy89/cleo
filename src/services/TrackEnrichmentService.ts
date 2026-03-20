@@ -32,9 +32,14 @@ const CACHE_VERSION = 3;
 function getCached(trackId: string): TrackProfile | null {
   const raw = storage.getString(`${CACHE_KEY_PREFIX}${trackId}`);
   if (!raw) return null;
-  const cached = JSON.parse(raw) as TrackProfile;
-  if (!cached.cacheVersion || cached.cacheVersion < CACHE_VERSION) return null;
-  return cached;
+  try {
+    const cached = JSON.parse(raw) as TrackProfile;
+    if (!cached.cacheVersion || cached.cacheVersion < CACHE_VERSION) return null;
+    return cached;
+  } catch {
+    storage.remove(`${CACHE_KEY_PREFIX}${trackId}`);
+    return null;
+  }
 }
 
 function setCache(trackId: string, profile: TrackProfile): void {
@@ -121,8 +126,12 @@ export async function enrichTrack(track: MusicTrack): Promise<TrackProfile> {
 
 export async function enrichTracks(tracks: MusicTrack[]): Promise<TrackProfile[]> {
   const results: TrackProfile[] = [];
-  for (const track of tracks) {
-    results.push(await enrichTrack(track));
+  for (let i = 0; i < tracks.length; i++) {
+    results.push(await enrichTrack(tracks[i]));
+    // Rate limit: MusicBrainz requires max 1 req/sec (1100ms minimum interval)
+    if (i < tracks.length - 1) {
+      await new Promise((r) => setTimeout(r, 1100));
+    }
   }
   return results;
 }
