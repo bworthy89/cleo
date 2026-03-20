@@ -12,7 +12,7 @@ like a personalized radio broadcast — not a playlist shuffler.
 ### Mobile
 - React Native 0.83 + Expo SDK 55
 - TypeScript throughout
-- Custom `expo-music-kit` native module — wraps Apple MusicKit (auth, playlists, playback, track detection, audio ducking, TTS playback, crossfade)
+- Custom `expo-music-kit` native module — wraps Apple MusicKit (auth, playlists, playback, track detection, audio ducking, TTS playback, crossfade, eject transitions, queue inspection)
 - react-native-video — video playback (installed, not yet used)
 - react-native-mmkv — local storage
 - @expo-google-fonts — Playfair Display, Inter, EB Garamond, DM Mono
@@ -31,7 +31,7 @@ like a personalized radio broadcast — not a playlist shuffler.
 - Node.js + Express — proxy server (keeps API keys server-side)
 - All routes protected by Firebase JWT auth middleware (`requireAuth`)
 - Runs locally on port 3001 during development
-- Railway — deployment (free tier, not yet deployed)
+- Railway — deployed at `feisty-exploration-production-064e.up.railway.app` (auto-deploys from GitHub main)
 
 ---
 
@@ -76,10 +76,10 @@ cleo/
 ├── modules/
 │   └── expo-music-kit/           ← custom native module
 │       ├── expo-module.config.json
-│       ├── index.ts              ← TypeScript API (auth, playlists, playback, ducking, TTS audio, stopAudio)
+│       ├── index.ts              ← TypeScript API (auth, playlists, playback, ducking, TTS audio, eject transitions, getNextInQueue)
 │       ├── src/ExpoMusicKitModule.ts
 │       └── ios/
-│           ├── ExpoMusicKitModule.swift  ← MusicKit + AVAudioSession + AVAudioPlayer + crossfade
+│           ├── ExpoMusicKitModule.swift  ← MusicKit + AVAudioSession + AVAudioPlayer + crossfade + eject transitions
 │           └── ExpoMusicKit.podspec
 ├── server/
 │   ├── .env                      ← API keys (gitignored)
@@ -99,8 +99,9 @@ cleo/
 │   ├── tokens/
 │   │   └── design-tokens.ts      ← single source of truth for all UI values
 │   ├── engines/
-│   │   ├── SegmentController.ts  ← segment type rotation, delivery modes, mid-song drops, session memory
-│   │   ├── AudioCoordinator.ts   ← duck→speak→resume, pre/post timing, mid-song scheduling, generationId
+│   │   ├── SegmentController.ts  ← segment type rotation, delivery modes, mid-song drops, eject transitions, session memory
+│   │   ├── AudioCoordinator.ts   ← duck→speak→resume, pre/post timing, mid-song scheduling, generationId, eject preloader wiring
+│   │   ├── TransitionPreloader.ts← eject window pre-gen engine (state machine, genre-based timing, TTS caching, retry logic)
 │   │   ├── QueuePlanner.ts       ← AI-powered track sequencing via Gemini (uses authenticatedFetch)
 │   │   ├── QueueManager.ts       ← queue state, track profiles, session initialization
 │   │   └── SessionEngine.ts      ← session lifecycle, phase progression, track history
@@ -184,7 +185,7 @@ All screens follow the Stitch Gold Edition editorial design language:
 ### Cleo Polish — Voice, Timing & Storytelling
 - ElevenLabs voice tuning: `eleven_turbo_v2_5` model, stability 0.35, style 0.55
 - `formatForSpeech()` post-process (em-dashes, strip stage directions)
-- Delivery modes: `pre_song` (bridges between tracks) and `post_song` (drops in 8-12s into track)
+- Delivery modes: `pre_song` (bridges between tracks), `post_song` (drops in 8-12s into track), and `eject_transition` (speaks over outgoing track fade-out)
 - `previousTrack` buffering in AudioCoordinator for temporal context
 - Session phase: opening (1-3) → mid (4-8) → late (9+) with tone shifts
 - `tracksReferenced` for cross-track artist callbacks
@@ -211,25 +212,49 @@ All screens follow the Stitch Gold Edition editorial design language:
 - Profile: AI personality cards, sign-out confirmation, surface containers
 - Accessibility labels on all interactive elements across all screens
 
+### Eject Window Transitions — Radio-Style Crossfade
+- `TransitionPreloader` pre-generates Cleo's transition script + TTS mid-track
+- Genre-based eject windows: electronic/ambient/jazz 22s, pop/hip-hop/r&b 13s, rock/indie 16s, default 15s
+- State machine: `idle → generating → ready → fired → done` with fallback on missed eject
+- Native `playEjectTransition()` handles three-layer crossfade (old track fading out, Cleo voice, new track fading in)
+- `getNextInQueue()` native function reads MusicKit's actual queue for accurate next-track naming
+- TTS retry with backoff (3s/6s/9s) handles ElevenLabs 429 rate limits during pre-gen
+- `onEjectTrackChanged` event suppresses `onTrackChanged` during eject; fallback path uses old timing if eject misses
+- `cancelEjectTransition()` properly resolves dangling `playEjectTransition` promise
+
 ---
 
 ## The Audio Handoff Sequence
 
+### Primary Path — Eject Window (radio-style crossfade)
 ```
-1. onTrackChanged fires
-2. cancelPendingTimer() — clears post-song, mid-song timers, increments generationId
-3. 3.5s natural delay (bail if generationId changed = skip happened)
+1. Track starts → TransitionPreloader.startForTrack() begins 2s polling
+2. At 25s: pre-gen triggers (if Cleo not speaking) → Gemini generates eject_transition script
+3. getNextInQueue() reads MusicKit's actual next track for accurate naming
+4. TTS synthesized and cached in memory (retry up to 3x on 429)
+5. State: ready — waiting for eject point
+6. At (duration - genre window): playEjectTransition() fires with cached TTS base64
+7. Native: old track fades out, Cleo speaks over it, new track fades in
+8. onEjectTrackChanged fires (onTrackChanged suppressed) → UI updates → new preloader starts
+```
+
+### Fallback Path — Post-Track-Change (original timing)
+```
+1. onTrackChanged fires (eject missed or manual skip)
+2. Old preloader cancelled, cancelPendingTimer() clears timers + increments generationId
+3. 3.5s natural delay (1.5s on manual skip; bail if generationId changed)
 4. SegmentController generates via Gemini (delivery mode determines framing)
 5. AVAudioSession activates with .mixWithOthers + .duckOthers
 6. AVAudioPlayer plays ElevenLabs TTS (music ducks automatically)
 7. Crossfade: 2s before audio ends, setCategory removes duckOthers — music rises
-8. Audio finishes → if crossfade active, skip deactivation (music already resumed)
-9. Schedule mid-song drop if track > 3 min (40% chance, 45-90s delay)
+8. Audio finishes → new preloader starts for eject window at end of track
+9. Schedule mid-song drop if track > 3.5 min (20-40% chance by vibe)
 ```
 
 **Delivery modes:**
 - `pre_song` (~60%): Cleo speaks right after track change, bridges from previous to current
 - `post_song` (~40%): Cleo drops in 8-12s into track, comments mid-listen
+- `eject_transition`: Cleo speaks over outgoing track's fade-out, bridges into next track
 
 ---
 
@@ -238,6 +263,7 @@ All screens follow the Stitch Gold Edition editorial design language:
 - **Path constraint**: React Native pod scripts fail with spaces in paths.
   Native builds use `/Users/kari/Documents/cleo-app/` (rsync copy), then sync back.
 - **rsync command**: `rsync -av --delete --exclude='ios/' --exclude='node_modules/' --exclude='.expo/' --exclude='.git/' /Users/kari/Documents/DJApp/ /Users/kari/Documents/cleo-app/`
+- **rsync native module caveat**: The `--exclude='ios/'` also excludes `modules/expo-music-kit/ios/`. After rsync, always sync the native module separately: `rsync -av /Users/kari/Documents/DJApp/modules/expo-music-kit/ios/ /Users/kari/Documents/cleo-app/modules/expo-music-kit/ios/`
 - **Git repo lives at cleo-app** — DJApp is the working directory, cleo-app has the git history. Always rsync before committing.
 - **Entitlements**: `Cleo.entitlements` must have empty `<dict/>` — `com.apple.developer.musickit` is NOT a valid entitlement (MusicKit uses Info.plist instead)
 - **Ruby**: rbenv + Ruby 3.2.4 at ~/.rbenv/ (system Ruby 2.6 too old for CocoaPods)
@@ -282,6 +308,13 @@ ELEVENLABS_VOICE_ID
 - All Expo Router tab groups must have a `_layout.tsx` file — without it, `navigation.navigate()` fails to find the route
 - Use `Pressable` (not `TouchableOpacity`) for all interactive elements
 - Add `accessibilityLabel` and `accessibilityRole` to all buttons and interactive elements
+- All `JSON.parse` calls on MMKV storage must be wrapped in try/catch — corrupt data from interrupted writes can crash the app
+- All `setTimeout` in React components must be stored in `useRef` and cleared in effect cleanup
+- Server routes must validate and clamp all client-supplied numeric parameters before forwarding to upstream APIs
+- TTS synthesis calls must have an `AbortController` timeout (15s) — hung calls block the eject preloader
+- External-origin strings (Genius annotations, user display names) must be sanitized before Gemini prompt injection
+- Enrichment loops must include 1100ms delay between iterations to respect MusicBrainz rate limits
+- Rate limiters on the server use `req.uid` (Firebase UID) not IP — prevents shared NAT/VPN blocking
 
 ---
 
@@ -297,6 +330,24 @@ ELEVENLABS_VOICE_ID
 - **Tab group layouts required**: Every Expo Router tab group directory (e.g., `(arc)/`, `(archive)/`, `(cleo)/`) must contain a `_layout.tsx` exporting a Stack. Without it, `navigation.navigate("(groupName)")` throws "not handled by any navigator."
 - **Music-auth must persist authorization**: After successful Apple Music authorization, persist `appleMusicAuthorized: true` to Storage. Otherwise downstream screens read `false`.
 - **Avatar logic**: When showing user initials vs fallback icon, check `displayName !== 'Listener'` (the fallback), not `photoURL` which may be null even for named users.
+- **ElevenLabs 429 during pre-gen**: The eject preloader's TTS call can hit a 429 if Cleo's intro speech just finished. TransitionPreloader retries up to 3 times with backoff (3s/6s/9s). Don't remove the retry — it's essential for the eject system.
+- **Next track accuracy**: Never use `sessionEngine.getNextTrackId()` for content Cleo speaks aloud — the queue plan index drifts from MusicKit's actual queue. Use `getNextInQueue()` which reads MusicKit's `ApplicationMusicPlayer.Queue` directly.
+- **Eject preloader lifecycle**: On `onTrackChanged`, always cancel the old preloader and start fresh. `onTrackChanged` only fires when the eject DIDN'T happen, so the preloader is always stale. Never guard `handleTrackStart` behind `isActive()`.
+- **handleTrackStart must not overwrite previousTrack**: `handleTrackChangeWithResult` already sets it correctly. Double-writing loses the real previous track context.
+- **handleTrackStart must not schedule mid-song drops**: `handleTrackChangeWithResult` already schedules them. Duplicate scheduling causes two Cleo drops on one track.
+- **Xcode team ID mismatch**: The project file may have `DEVELOPMENT_TEAM = 5MQ5ZR66YN` instead of `8F2VWCN5KF`. Building from CLI may fail on provisioning — use `-allowProvisioningUpdates` or build from Xcode.
+- **AVAudioPlayer.stop() does not fire delegate**: Calling `ttsPlayer.stop()` does NOT trigger `audioPlayerDidFinishPlaying`. Any pending promise must be manually resolved and audio state cleaned up after programmatic `stop()`. This applies to the external-pause handler in the playback polling timer and `cancelEjectTransition`.
+- **Post_song Promise must be resolvable on cancel**: `handleTrackChangeWithResult` returns a Promise for post_song delivery. `cancelPendingTimer()` must resolve the stored `pendingPostSongResolve` callback — otherwise callers (BroadcastScreen) hang forever on skip.
+- **TransitionPreloader needs generationId**: The preloader's state machine (`idle/generating/ready/fired/done`) is not sufficient to distinguish stale vs current generations. A `generationId` counter must be checked after every async gap (sleep, network call) to detect if `reset()` + `startForTrack()` happened during the gap.
+- **Don't advance rotation in generateEjectTransition**: The eject path peeks at the rotation without advancing `rotationIndex`. It only advances after successful generation. This prevents double-advancing when the eject misses and the fallback path's `generateNext()` also runs.
+- **Don't consume shouldStaySilent flag in eject path**: `generateEjectTransition` checks `lastWasMidSongDrop` but must NOT consume it (no side effect). If the eject returns null and fallback fires, the flag should still suppress the next `pre_song` in `generateNext`.
+- **clearUserData must preserve USER key**: `clearUserData()` on sign-out must NOT remove `StorageKeys.USER`. Removing it causes returning users to be re-routed through onboarding on every sign-in.
+- **authenticatedFetch must throw on null token**: Never silently send unauthenticated requests. `authenticatedFetch` throws if no Firebase token is available, forcing callers to handle the auth-not-ready state.
+- **Server must validate and clamp client inputs**: `maxTokens` clamped to 256–8192, voice `stability`/`style`/`speed` clamped to valid ranges, `text` capped at 5000 chars, `audioUrl` must be HTTPS, video IDs validated with regex. Never forward raw upstream error bodies to the client.
+- **MusicKitPlayer listeners need try/catch**: Each listener callback in `forEach` must be wrapped in try/catch. One throwing listener (e.g., unmounted component state setter) must not abort iteration and silently kill subsequent listeners like AudioCoordinator.
+- **BroadcastScreen timers must be ref-tracked**: All `setTimeout` calls for `setCleoSpeaking(false)` must be stored in a `useRef` and cleared on unmount and before each new track. Bare `setTimeout` causes state updates on unmounted components and race conditions on fast skips.
+- **fetchPlaylistTracks clears caches**: The native module clears `cachedTracks` and `cachedSongs` at the start of `fetchPlaylistTracks` to prevent unbounded memory growth from browsing multiple playlists.
+- **initializeSession must not call advanceTrack eagerly**: The `onTrackChanged` native event is the sole source of truth for queue advancement. Calling `advanceTrack(allTrackIds[0])` in `initializeSession` double-counts the first track if `onTrackChanged` also fires.
 
 ---
 

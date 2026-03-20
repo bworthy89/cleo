@@ -1,5 +1,5 @@
 import type { Vibe } from './fallbacks';
-import { storage } from '../services/Storage';
+import { getObject, setObject, StorageKeys } from '../services/Storage';
 
 interface ColdOpenHistory {
   lastUsedByVibe: Record<string, number>;
@@ -136,15 +136,14 @@ const SPECIAL_OPENS: Record<string, string[]> = {
   ],
 };
 
+const DEFAULT_HISTORY: ColdOpenHistory = { lastUsedByVibe: {}, consecutiveDays: 0, lastSessionDate: '', totalSessions: 0 };
+
 function getHistory(): ColdOpenHistory {
-  const raw = storage.getString('coldOpenHistory');
-  return raw
-    ? JSON.parse(raw)
-    : { lastUsedByVibe: {}, consecutiveDays: 0, lastSessionDate: '', totalSessions: 0 };
+  return getObject<ColdOpenHistory>(StorageKeys.COLD_OPEN_HISTORY) ?? DEFAULT_HISTORY;
 }
 
 function saveHistory(history: ColdOpenHistory): void {
-  storage.set('coldOpenHistory', JSON.stringify(history));
+  setObject(StorageKeys.COLD_OPEN_HISTORY, history);
 }
 
 function pickFrom(lines: string[], lastUsedIdx: number): { line: string; idx: number } {

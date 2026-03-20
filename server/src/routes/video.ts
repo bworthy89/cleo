@@ -15,6 +15,12 @@ videoRouter.post('/generate-cleo-video', async (req: Request, res: Response) => 
       return;
     }
 
+    // Validate audioUrl to prevent SSRF
+    if (audioUrl && (typeof audioUrl !== 'string' || !audioUrl.startsWith('https://'))) {
+      res.status(400).json({ error: 'audioUrl must be a valid HTTPS URL' });
+      return;
+    }
+
     const response = await fetch(`${HEYGEN_BASE}/v2/video/generate`, {
       method: 'POST',
       headers: {
@@ -53,7 +59,13 @@ videoRouter.get('/cleo-video-status/:id', async (req: Request, res: Response) =>
       return;
     }
 
-    const response = await fetch(`${HEYGEN_BASE}/v1/video_status.get?video_id=${req.params.id}`, {
+    const videoId = req.params.id;
+    if (!/^[a-zA-Z0-9_-]{8,64}$/.test(videoId)) {
+      res.status(400).json({ error: 'Invalid video ID format' });
+      return;
+    }
+
+    const response = await fetch(`${HEYGEN_BASE}/v1/video_status.get?video_id=${videoId}`, {
       headers: { 'X-Api-Key': apiKey },
     });
 

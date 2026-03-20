@@ -3,10 +3,10 @@ import { segmentController } from './SegmentController';
 import type { SegmentResult } from './SegmentController';
 import { transitionPreloader } from './TransitionPreloader';
 import { queueManager } from './QueueManager';
-import type { EnrichedFacts } from '../services/TrackEnrichmentService';
+import type { TrackInfo } from '../types/TrackInfo';
 import type { Vibe } from '../cleo/fallbacks';
 import { getPlaybackStatus, activateDuckingSession, deactivateDuckingSession, setTTSVolume } from '../../modules/expo-music-kit';
-import { storage } from '../services/Storage';
+import { storage, StorageKeys } from '../services/Storage';
 
 const GENERATION_TIMEOUT_MS = 8000;
 
@@ -34,21 +34,10 @@ function calculateMidSongDelay(durationSeconds: number): number {
   return (min + Math.random() * (max - min)) * 1000;
 }
 
-interface TrackInfo {
-  id?: string;
-  title: string;
-  artistName: string;
-  albumTitle?: string;
-  genre?: string;
-  genreNames?: string[];
-  enrichedFacts?: EnrichedFacts;
-  hasRichData?: boolean;
-  duration?: number;
-}
-
 class AudioCoordinatorEngine {
   private isSpeaking = false;
   private pendingPostSongTimer: ReturnType<typeof setTimeout> | null = null;
+  private pendingPostSongResolve: ((v: SegmentResult | null) => void) | null = null;
   private previousTrack: TrackInfo | null = null;
   private generationId = 0;
   private pendingMidSongTimer: ReturnType<typeof setTimeout> | null = null;
@@ -56,7 +45,7 @@ class AudioCoordinatorEngine {
   private currentVibe: Vibe = 'general';
 
   constructor() {
-    const saved = storage.getString('hostVolumeMix');
+    const saved = storage.getString(StorageKeys.HOST_VOLUME_MIX);
     if (saved) setTTSVolume(parseFloat(saved));
     transitionPreloader.setIsSpeakingCheck(() => this.isSpeaking);
   }
@@ -67,6 +56,11 @@ class AudioCoordinatorEngine {
     if (this.pendingPostSongTimer) {
       clearTimeout(this.pendingPostSongTimer);
       this.pendingPostSongTimer = null;
+    }
+    // Resolve any dangling post_song Promise so callers don't hang forever
+    if (this.pendingPostSongResolve) {
+      this.pendingPostSongResolve(null);
+      this.pendingPostSongResolve = null;
     }
     if (this.pendingMidSongTimer) {
       clearTimeout(this.pendingMidSongTimer);
@@ -219,8 +213,10 @@ class AudioCoordinatorEngine {
       const remainingMs = Math.max(0, targetDelay - elapsed);
 
       return new Promise((resolve) => {
+        this.pendingPostSongResolve = resolve;
         this.pendingPostSongTimer = setTimeout(async () => {
           this.pendingPostSongTimer = null;
+          this.pendingPostSongResolve = null;
 
           if (myId !== this.generationId || this.isSpeaking) {
             resolve(null);

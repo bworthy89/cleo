@@ -2,6 +2,7 @@ import { authenticatedFetch } from '../services/api';
 import type { TrackProfile } from '../services/TrackEnrichmentService';
 import type { Vibe } from '../cleo/fallbacks';
 import { getRecentlyPlayed } from '../services/Storage';
+import { getTimeOfDay } from '../utils/time';
 
 export interface QueuedTrack {
   trackId: string;
@@ -19,14 +20,6 @@ function getArcShape(trackCount: number): 'short' | 'medium' | 'long' {
   if (trackCount < 20) return 'short';
   if (trackCount <= 40) return 'medium';
   return 'long';
-}
-
-function getTimeOfDay(): string {
-  const hour = new Date().getHours();
-  if (hour >= 5 && hour < 12) return 'Morning';
-  if (hour >= 12 && hour < 17) return 'Afternoon';
-  if (hour >= 17 && hour < 21) return 'Evening';
-  return 'Late Night';
 }
 
 export async function planQueue(
@@ -128,20 +121,23 @@ Include ALL tracks. Every track must appear exactly once. Order them to create t
     try {
       plan = JSON.parse(text);
     } catch {
-      // Try to fix truncated JSON by closing open arrays/objects
-      let repaired = text;
-      // Close any unclosed array entries
-      if (!repaired.trimEnd().endsWith('}')) {
-        repaired += '"}';
+      // Try to salvage truncated JSON by extracting valid queue entries
+      const entryRegex = /\{\s*"trackId"\s*:\s*"([^"]+)"\s*,\s*"position"\s*:\s*(\d+)\s*,\s*"role"\s*:\s*"([^"]+)"\s*,\s*"reason"\s*:\s*"([^"]*)"\s*\}/g;
+      const entries: QueuedTrack[] = [];
+      let match;
+      while ((match = entryRegex.exec(text)) !== null) {
+        entries.push({
+          trackId: match[1],
+          position: parseInt(match[2], 10),
+          role: match[3],
+          reason: match[4],
+        });
       }
-      if (!repaired.includes('],"arcShape"')) {
-        repaired += `],"arcShape":"${getArcShape(tracks.length)}"}`;
+      if (entries.length === 0) {
+        throw new Error('Could not parse queue JSON — no valid entries found');
       }
-      try {
-        plan = JSON.parse(repaired);
-      } catch {
-        throw new Error('Could not parse queue JSON even after repair');
-      }
+      console.log(`[QueuePlanner] Recovered ${entries.length} entries from truncated JSON`);
+      plan = { queue: entries, arcShape: getArcShape(tracks.length) };
     }
 
     // Validate all tracks are present

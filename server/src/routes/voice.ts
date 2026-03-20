@@ -56,8 +56,13 @@ voiceRouter.post('/synthesize-voice', async (req: Request, res: Response) => {
     const wordCount = text?.split(/\s+/).length ?? 0;
     console.log(`[TTS] Received ${wordCount} words (${text?.length ?? 0} chars): "${text?.substring(0, 100)}..."`);
 
-    if (!text) {
+    if (!text || typeof text !== 'string') {
       res.status(400).json({ error: 'text is required' });
+      return;
+    }
+
+    if (text.length > 5000) {
+      res.status(400).json({ error: 'text exceeds maximum length of 5000 characters' });
       return;
     }
 
@@ -77,9 +82,9 @@ voiceRouter.post('/synthesize-voice', async (req: Request, res: Response) => {
     ] : undefined;
 
     const voiceSettings = {
-      stability: typeof stability === 'number' ? stability : 0.35,
-      style: typeof style === 'number' ? style : 0.55,
-      speed: typeof speed === 'number' ? speed : 1.0,
+      stability: Math.min(1.0, Math.max(0.0, typeof stability === 'number' ? stability : 0.35)),
+      style: Math.min(1.0, Math.max(0.0, typeof style === 'number' ? style : 0.55)),
+      speed: Math.min(2.0, Math.max(0.5, typeof speed === 'number' ? speed : 1.0)),
     };
 
     console.log(`[TTS] Voice settings: stability=${voiceSettings.stability}, style=${voiceSettings.style}, speed=${voiceSettings.speed}`);

@@ -17,9 +17,11 @@ export async function authenticatedFetch(
     ...(options.headers as Record<string, string> || {}),
   };
 
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
+  if (!token) {
+    throw new Error('authenticatedFetch: no authenticated user — cannot make API request');
   }
+
+  headers['Authorization'] = `Bearer ${token}`;
 
   return fetch(`${API_BASE_URL}${path}`, {
     ...options,

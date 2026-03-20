@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Image } from 'react-native';
 import Svg, { Path, Defs, LinearGradient as SvgLinearGradient, Stop, Circle } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -324,7 +324,10 @@ export function SessionArcScreen() {
   }, []);
 
   const vibeAccent = session ? getVibeAccent(session.vibe) : Colors.accent;
-  const station = session ? stationForSession(session) : undefined;
+  const station = useMemo(
+    () => (session ? stationForSession(session) : undefined),
+    [session?.stationId],
+  );
   const sessionName = station?.name ?? 'Untitled Session';
 
   return (
