@@ -123,6 +123,12 @@ export async function playAudioFromBase64(base64: string): Promise<void> {
   return await ExpoMusicKit.playAudioFromBase64(base64);
 }
 
+export function setTTSVolume(volume: number): void {
+  if (typeof ExpoMusicKit.setTTSVolume === 'function') {
+    ExpoMusicKit.setTTSVolume(volume);
+  }
+}
+
 export async function stopAudio(): Promise<void> {
   return await ExpoMusicKit.stopAudio();
 }

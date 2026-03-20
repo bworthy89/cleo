@@ -10,7 +10,8 @@
     "lint": "eslint src/ server/src/",
     "format": "prettier --write 'src/**/*.{ts,tsx}' 'server/src/**/*.ts'",
     "format:check": "prettier --check 'src/**/*.{ts,tsx}' 'server/src/**/*.ts'",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "jest --runInBand"
   },
   "dependencies": {
     "@expo-google-fonts/dm-mono": "^0.4.2",
@@ -18,6 +19,7 @@
     "@expo-google-fonts/inter": "^0.4.2",
     "@expo-google-fonts/playfair-display": "^0.4.2",
     "@expo/vector-icons": "^15.1.1",
+    "@react-native-community/slider": "^5.1.2",
     "@react-native-firebase/app": "^23.8.8",
     "@react-native-firebase/auth": "^23.8.8",
     "@react-native-google-signin/google-signin": "^16.1.2",
@@ -48,12 +50,15 @@
     "react-native-video": "^6.19.1"
   },
   "devDependencies": {
+    "@types/jest": "^30.0.0",
     "@types/react": "~19.2.2",
     "@typescript-eslint/eslint-plugin": "^8.57.1",
     "@typescript-eslint/parser": "^8.57.1",
     "eslint": "^10.0.3",
     "eslint-config-prettier": "^10.1.8",
+    "jest": "^30.3.0",
     "prettier": "^3.8.1",
+    "ts-jest": "^29.4.6",
     "typescript": "~5.9.2"
   },
   "private": true,

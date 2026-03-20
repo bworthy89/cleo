@@ -207,10 +207,10 @@ function getTimeOfDay(): string {
 export async function generateSegment(context: SegmentContext): Promise<string> {
   const userPrompt = buildDynamicPrompt(context);
 
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
+  try {
     console.log('[CleoScript] Calling Gemini for segment:', context.segmentType, `(${context.deliveryMode})`);
     const response = await authenticatedFetch('/generate-segment', {
       method: 'POST',
@@ -220,8 +220,6 @@ export async function generateSegment(context: SegmentContext): Promise<string> 
       }),
       signal: controller.signal,
     });
-
-    clearTimeout(timeout);
 
     if (!response.ok) {
       throw new Error(`Server error: ${response.status}`);
@@ -237,5 +235,7 @@ export async function generateSegment(context: SegmentContext): Promise<string> 
   } catch (error: any) {
     console.warn('Segment generation failed, using fallback. Error:', error?.message ?? error);
     return getFallbackLine(context.segmentType, context.vibe);
+  } finally {
+    clearTimeout(timeout);
   }
 }

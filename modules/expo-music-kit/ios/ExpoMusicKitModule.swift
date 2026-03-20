@@ -12,6 +12,7 @@ public class ExpoMusicKitModule: Module {
   private var audioDelegate: AudioPlayerDelegate?
   private var crossfadeTimer: Timer?
   private var crossfadeActive: Bool = false
+  private var ttsVolume: Float = 1.0
   private var cachedTracks: [String: Track] = [:]
   private var cachedSongs: [String: Song] = [:]
   private var cachedPlaylists: [String: Playlist] = [:]
@@ -361,6 +362,7 @@ public class ExpoMusicKitModule: Module {
           }
         }
         self.audioPlayer?.delegate = self.audioDelegate
+        newPlayer.volume = self.ttsVolume
         self.audioPlayer?.prepareToPlay()
 
         if let dur = self.audioPlayer?.duration {
@@ -389,6 +391,11 @@ public class ExpoMusicKitModule: Module {
       } catch {
         promise.reject("ERR", error.localizedDescription)
       }
+    }
+
+    Function("setTTSVolume") { (volume: Float) in
+      self.ttsVolume = max(0.0, min(1.0, volume))
+      self.audioPlayer?.volume = self.ttsVolume
     }
 
     AsyncFunction("stopAudio") {
