@@ -292,11 +292,17 @@ export function HomeScreenRedesign() {
     <View style={[styles.screen, { backgroundColor: Surface.base }]}>
       <AppHeader
         rightContent={
-          <View style={styles.avatarPlaceholder}>
-            <Text style={styles.avatarText}>
-              {(getUser()?.name ?? 'U').charAt(0).toUpperCase()}
-            </Text>
-          </View>
+          <Pressable
+            onPress={() => router.push('/(main)/(cleo)')}
+            accessibilityLabel="Profile"
+            accessibilityRole="button"
+          >
+            <View style={styles.avatarPlaceholder}>
+              <Text style={styles.avatarText}>
+                {(getUser()?.name ?? 'U').charAt(0).toUpperCase()}
+              </Text>
+            </View>
+          </Pressable>
         }
       />
 
