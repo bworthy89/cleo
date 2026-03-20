@@ -12,6 +12,9 @@ import { requireAuth } from './middleware/auth';
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Trust Railway's reverse proxy for rate limiting and IP detection
+app.set('trust proxy', 1);
+
 app.use(cors());
 app.use(express.json({ limit: '1mb' }));
 
