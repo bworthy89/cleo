@@ -1,8 +1,6 @@
 import { getIdToken } from './AuthService';
 
-export const API_BASE_URL = __DEV__
-  ? 'http://192.168.8.105:3001'
-  : 'https://your-railway-app.up.railway.app';
+export const API_BASE_URL = 'https://feisty-exploration-production-064e.up.railway.app';
 
 /**
  * Fetch wrapper that attaches the Firebase ID token to every request.

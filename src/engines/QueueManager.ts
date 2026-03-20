@@ -158,29 +158,74 @@ class QueueManagerService {
   }
 
   private async enrichMusicBrainzFirst(tracks: MusicTrack[]): Promise<void> {
-    if (this.enrichmentInProgress) return;
+    if (this.enrichmentInProgress) {
+      console.log('[QueueManager] enrichMusicBrainzFirst skipped — already in progress');
+      return;
+    }
     this.enrichmentInProgress = true;
+    console.log(`[QueueManager] enrichMusicBrainzFirst starting for ${tracks.length} tracks`);
+
 
     try {
       // Fast pass: MusicBrainz only (tags, year)
       this.trackProfiles = await enrichTracksMusicBrainzOnly(tracks);
       console.log('[QueueManager] MusicBrainz enrichment complete');
-    } catch {
-      // Non-fatal
+    } catch (err) {
+      console.warn('[QueueManager] MusicBrainz enrichment failed:', err);
     }
     // enrichmentInProgress stays true until enrichGeniusInBackground resets it in finally
   }
 
   private async enrichGeniusInBackground(tracks: MusicTrack[]): Promise<void> {
+    console.log(`[QueueManager] enrichGeniusInBackground starting for ${tracks.length} tracks`);
     try {
       // Full enrichment pass (MusicBrainz cache hit + Genius details)
       this.trackProfiles = await enrichTracks(tracks);
       console.log('[QueueManager] Full Genius enrichment complete');
-    } catch {
-      // Non-fatal
+    } catch (err) {
+      console.warn('[QueueManager] Genius enrichment failed:', err);
     } finally {
       this.enrichmentInProgress = false;
     }
+  }
+
+  /**
+   * Run enrichment for an already-playing session (e.g. on resume).
+   * Skips if tracks are already enriched or enrichment is in progress.
+   */
+  /**
+   * Run enrichment for an already-playing session (e.g. on resume).
+   * Skips if tracks are already enriched or enrichment is in progress.
+   */
+  async enrichExistingSession(playlistId: string): Promise<void> {
+    console.log(`[QueueManager] enrichExistingSession called, profiles: ${this.trackProfiles.length}, inProgress: ${this.enrichmentInProgress}`);
+    // Already enriched or in progress
+    if (this.enrichmentInProgress) return;
+    if (this.trackProfiles.some((t) => t.hasRichData || t.mbEnriched)) return;
+
+    // Need tracks to enrich — fetch them if we don't have profiles yet
+    let tracks: MusicTrack[];
+    if (this.trackProfiles.length > 0) {
+      tracks = this.trackProfiles;
+    } else {
+      tracks = await musicKitPlayer.fetchPlaylistTracks(playlistId);
+      console.log(`[QueueManager] fetchPlaylistTracks returned ${tracks.length} tracks`);
+      if (tracks.length === 0) return;
+      this.trackProfiles = tracks.map((t) => ({
+        ...t,
+        tags: [],
+        mbEnriched: false,
+        hasRichData: false,
+      }));
+    }
+
+    console.log(`[QueueManager] Enriching existing session (${tracks.length} tracks)`);
+    this.enrichMusicBrainzFirst(tracks).then(async () => {
+      await new Promise((r) => setTimeout(r, 10000));
+      this.enrichGeniusInBackground(tracks);
+    }).catch(() => {
+      this.enrichGeniusInBackground(tracks);
+    });
   }
 
   getTrackProfiles(): TrackProfile[] {
