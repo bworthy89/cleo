@@ -3,7 +3,7 @@ import { getFallbackLine, type SegmentType, type Vibe } from '../cleo/fallbacks'
 import { authenticatedFetch } from './api';
 import type { EnrichedFacts } from './TrackEnrichmentService';
 
-export type DeliveryMode = 'pre_song' | 'post_song';
+export type DeliveryMode = 'pre_song' | 'post_song' | 'eject_transition';
 export type SessionPhase = 'opening' | 'mid' | 'late';
 
 export interface SegmentContext {
@@ -96,6 +96,16 @@ The listener was just hearing "${context.previousTrack.title}" by ${context.prev
       prompt += `\n\nDELIVERY MODE: pre_song
 "${context.currentTrack.title}" by ${context.currentTrack.artistName} just started playing. Introduce what the listener is now hearing — do NOT say the song is "coming up" or "next," it is already on.`;
     }
+  } else if (context.deliveryMode === 'eject_transition') {
+    prompt += `\n\nDELIVERY MODE: eject_transition
+You are speaking OVER the fade-out of "${context.currentTrack.title}" by ${context.currentTrack.artistName}. The listener can still hear it underneath you, fading out.`;
+    if (context.nextTrack) {
+      prompt += ` Bridge into "${context.nextTrack.title}" by ${context.nextTrack.artistName} — it is about to begin.`;
+    } else {
+      prompt += ` Wrap this moment smoothly — another track is coming.`;
+    }
+    prompt += `
+Do NOT say "that was" — the song is still audible. Do NOT say "coming up next" — speak as if the transition is already happening. Be confident, smooth, like a DJ talking over the outro.`;
   } else {
     prompt += `\n\nDELIVERY MODE: post_song
 The listener is currently hearing "${context.currentTrack.title}" by ${context.currentTrack.artistName} right now. Comment naturally, as if dropping in mid-listen. Do not hand off to the next song.`;
