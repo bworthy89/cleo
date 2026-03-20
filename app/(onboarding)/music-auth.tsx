@@ -17,10 +17,11 @@ export default function MusicAuthScreen() {
       if (result.status === 'authorized') {
         const existing = getUser();
         setUser({
-          ...existing,
+          name: existing?.name,
+          defaultVibe: existing?.defaultVibe,
           appleMusicAuthorized: true,
           createdAt: existing?.createdAt ?? new Date().toISOString(),
-        } as any);
+        });
         router.push('/(onboarding)/cleo-setup');
       } else {
         Alert.alert(
@@ -38,10 +39,11 @@ export default function MusicAuthScreen() {
   const handleSkip = () => {
     const existing = getUser();
     setUser({
-      ...existing,
+      name: existing?.name,
+      defaultVibe: existing?.defaultVibe,
       appleMusicAuthorized: false,
       createdAt: existing?.createdAt ?? new Date().toISOString(),
-    } as any);
+    });
     router.push('/(onboarding)/cleo-setup');
   };
 

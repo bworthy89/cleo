@@ -11,20 +11,7 @@ import { playEjectTransition, cancelEjectTransition } from '../../modules/expo-m
 import { musicKitPlayer } from '../services/MusicKitPlayer';
 import type { Vibe } from '../cleo/fallbacks';
 import type { SegmentResult } from './SegmentController';
-
-// ── Types ────────────────────────────────────────────────────────────────
-
-interface TrackInfo {
-  id?: string;
-  title: string;
-  artistName: string;
-  albumTitle?: string;
-  genre?: string;
-  genreNames?: string[];
-  duration?: number;
-  enrichedFacts?: any;
-  hasRichData?: boolean;
-}
+import type { TrackInfo } from '../types/TrackInfo';
 
 type PreloaderState = 'idle' | 'generating' | 'ready' | 'fired' | 'done';
 
@@ -63,6 +50,7 @@ class TransitionPreloaderEngine {
   private state: PreloaderState = 'idle';
   private vibe: Vibe = 'general';
   private isSpeakingCheck: (() => boolean) | null = null;
+  private generationId = 0;
 
   private currentTrack: TrackInfo | null = null;
   private nextTrack: TrackInfo | null = null;
@@ -206,17 +194,29 @@ class TransitionPreloaderEngine {
     }
 
     this.state = 'generating';
+    const myGenId = ++this.generationId;
     console.log('[TransitionPreloader] State: generating — calling generateEjectTransition');
 
     try {
       const track = this.currentTrack!;
+
+      // Fetch the real next track from MusicKit's queue (not the session plan index)
+      let nextTrack = this.nextTrack;
+      try {
+        const realNext = await musicKitPlayer.getNextInQueue();
+        if (realNext) {
+          nextTrack = { title: realNext.title, artistName: realNext.artistName };
+          console.log(`[TransitionPreloader] Real next in queue: "${realNext.title}" by ${realNext.artistName}`);
+        }
+      } catch {}
+
       const segment = await segmentController.generateEjectTransition(
         track,
-        this.nextTrack ?? undefined,
+        nextTrack ?? undefined,
         this.previousTrack ?? undefined
       );
 
-      if (this.state !== 'generating') return; // cancelled during generation
+      if (myGenId !== this.generationId) return; // cancelled during generation
 
       if (!segment || !segment.text) {
         console.log('[TransitionPreloader] Generation returned empty segment');
@@ -229,11 +229,19 @@ class TransitionPreloaderEngine {
         `[TransitionPreloader] Script generated (${segment.text.split(' ').length} words)`
       );
 
-      // Synthesize TTS
-      const base64Audio = await synthesize(segment.text, this.vibe);
-      if (this.state !== 'generating') return; // cancelled during synthesis
+      // Synthesize TTS (retry up to 3 times with backoff for 429 rate limits)
+      let base64Audio: string | null = null;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (myGenId !== this.generationId) return; // cancelled during synthesis
+        base64Audio = await synthesize(segment.text, this.vibe);
+        if (base64Audio) break;
+        console.log(`[TransitionPreloader] TTS attempt ${attempt + 1} returned null, retrying in ${(attempt + 1) * 3}s...`);
+        await new Promise((r) => setTimeout(r, (attempt + 1) * 3000));
+        if (myGenId !== this.generationId) return; // check after sleep too
+      }
+      if (myGenId !== this.generationId) return;
       if (!base64Audio) {
-        console.log('[TransitionPreloader] TTS synthesis returned null');
+        console.log('[TransitionPreloader] TTS synthesis failed after 3 attempts');
         this.state = 'idle';
         return;
       }

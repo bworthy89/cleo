@@ -155,7 +155,7 @@ export function ArchiveScreen() {
     }, []),
   );
 
-  const handleStationPress = (station: Station) => {
+  const handleStationPress = useCallback((station: Station) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     router.push({
       pathname: '/(main)/(broadcast)/player',
@@ -166,7 +166,7 @@ export function ArchiveScreen() {
         vibe: (station.defaultVibe as Vibe) ?? 'chill',
       },
     });
-  };
+  }, []);
 
   const sortedStations = [...stations].sort((a, b) => {
     if (activeFilter === 'byMood') {

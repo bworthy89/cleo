@@ -1,4 +1,4 @@
-import { storage } from './Storage';
+import { getObject, setObject, storage, StorageKeys } from './Storage';
 
 export interface SessionMemoryData {
   lastStationId: string;
@@ -10,18 +10,14 @@ export interface SessionMemoryData {
   sessionCount: number;
 }
 
-const KEY = 'session.memory';
-
 export function saveSessionMemory(data: Partial<SessionMemoryData>): void {
   const existing = loadSessionMemory();
   const merged = { ...existing, ...data };
-  storage.set(KEY, JSON.stringify(merged));
+  setObject(StorageKeys.SESSION_MEMORY, merged);
 }
 
 export function loadSessionMemory(): SessionMemoryData | null {
-  const raw = storage.getString(KEY);
-  if (!raw) return null;
-  return JSON.parse(raw) as SessionMemoryData;
+  return getObject<SessionMemoryData>(StorageKeys.SESSION_MEMORY) ?? null;
 }
 
 export function getTimeSinceLastSession(): { hours: number; sameDay: boolean; label: string } | null {
@@ -55,5 +51,5 @@ export function incrementSessionCount(): number {
 }
 
 export function clearSessionMemory(): void {
-  storage.remove(KEY);
+  storage.remove(StorageKeys.SESSION_MEMORY);
 }

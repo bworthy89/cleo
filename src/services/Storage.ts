@@ -13,6 +13,10 @@ export const StorageKeys = {
   CLEO_VIDEO_CACHE: 'cleoVideoCache',
   ENRICHMENT_CACHE: 'enrichmentCache',
   PLAYLISTS_CACHE: 'playlistsCache',
+  SESSION_HISTORY: 'sessionHistory',
+  CURRENT_SESSION: 'currentSession',
+  SESSION_MEMORY: 'session.memory',
+  HOST_VOLUME_MIX: 'hostVolumeMix',
 } as const;
 
 export interface UserData {
@@ -36,13 +40,19 @@ export interface RecentlyPlayed {
   lastUpdated: string;
 }
 
-function getObject<T>(key: string): T | undefined {
+export function getObject<T>(key: string): T | undefined {
   const raw = storage.getString(key);
   if (!raw) return undefined;
-  return JSON.parse(raw) as T;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    console.warn(`[Storage] Corrupt data for key "${key}", clearing`);
+    storage.remove(key);
+    return undefined;
+  }
 }
 
-function setObject<T>(key: string, value: T): void {
+export function setObject<T>(key: string, value: T): void {
   storage.set(key, JSON.stringify(value));
 }
 
@@ -88,18 +98,16 @@ export function addRecentlyPlayedTrack(trackId: string): void {
 
 // Playlists Cache
 export function getCachedPlaylists(): MusicPlaylist[] | undefined {
-  const raw = storage.getString(StorageKeys.PLAYLISTS_CACHE);
-  if (!raw) return undefined;
-  return JSON.parse(raw) as MusicPlaylist[];
+  return getObject<MusicPlaylist[]>(StorageKeys.PLAYLISTS_CACHE);
 }
 
 export function setCachedPlaylists(playlists: MusicPlaylist[]): void {
-  storage.set(StorageKeys.PLAYLISTS_CACHE, JSON.stringify(playlists));
+  setObject(StorageKeys.PLAYLISTS_CACHE, playlists);
 }
 
-// Clear user-facing data on logout (preserves enrichment cache)
+// Clear user-facing data on logout (preserves enrichment cache and user profile
+// so returning users are not re-routed through onboarding)
 export function clearUserData(): void {
-  storage.remove(StorageKeys.USER);
   storage.remove(StorageKeys.STATIONS);
   storage.remove(StorageKeys.RECENTLY_PLAYED);
   storage.remove(StorageKeys.SESSIONS);

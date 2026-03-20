@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Easing,
@@ -39,7 +39,24 @@ import { sessionEngine } from '../../engines/SessionEngine';
 import { addRecentlyPlayedTrack } from '../../services/Storage';
 import { transitionPreloader } from '../../engines/TransitionPreloader';
 import type { SegmentType, Vibe } from '../../cleo/fallbacks';
-import type { NowPlaying } from '../../../modules/expo-music-kit';
+import { getNextInQueue, type NowPlaying } from '../../../modules/expo-music-kit';
+import type { TrackInfo } from '../../types/TrackInfo';
+
+const FULL_OVERLAY_TYPES: Array<SegmentType | 'cold_open' | 'session_close'> = [
+  'song_intro', 'track_story', 'post_track_reflection', 'cold_open', 'session_close',
+];
+
+function buildTrackInfo(np: NowPlaying): TrackInfo {
+  return {
+    id: np.id,
+    title: np.title,
+    artistName: np.artistName,
+    albumTitle: np.albumTitle,
+    duration: np.duration,
+    genre: np.genreNames?.[0],
+    genreNames: np.genreNames,
+  };
+}
 
 interface BroadcastScreenProps {
   stationName: string;
@@ -64,12 +81,30 @@ export function BroadcastScreen({
   const [progress, setProgress] = useState(0);
   const durationRef = useRef(0);
   const manualSkipRef = useRef(false);
+  const cleoSpeakingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const vibeAccent = getVibeAccent(vibe);
 
-  const FULL_OVERLAY_TYPES: Array<SegmentType | 'cold_open' | 'session_close'> = [
-    'song_intro', 'track_story', 'post_track_reflection', 'cold_open', 'session_close',
-  ];
+  // Get next track from MusicKit's actual queue (not session plan index) for spoken content
+  const getNextTrackForPreloader = useCallback(async (): Promise<{ title: string; artistName: string } | undefined> => {
+    try {
+      const realNext = await getNextInQueue();
+      if (realNext) return { title: realNext.title, artistName: realNext.artistName };
+    } catch {}
+    const nextId = sessionEngine.getNextTrackId();
+    const profile = nextId ? queueManager.getTrackProfile(nextId) : null;
+    return profile ? { title: profile.title, artistName: profile.artistName } : undefined;
+  }, []);
+
+  // Cleanup speaking timer on unmount
+  useEffect(() => {
+    return () => {
+      if (cleoSpeakingTimerRef.current) {
+        clearTimeout(cleoSpeakingTimerRef.current);
+      }
+    };
+  }, []);
+
   const isFullOverlay = cleoSpeaking && segmentType != null && FULL_OVERLAY_TYPES.includes(segmentType);
 
   // --- RN Animated values ---
@@ -122,23 +157,8 @@ export function BroadcastScreen({
           setTimeout(() => startEjectPreGen(retries - 1), 2000);
           return;
         }
-        const nextTrackId = sessionEngine.getNextTrackId();
-        const nextProfile = nextTrackId ? queueManager.getTrackProfile(nextTrackId) : null;
-        audioCoordinator.handleTrackStart(
-          {
-            id: np.id,
-            title: np.title,
-            artistName: np.artistName,
-            albumTitle: np.albumTitle,
-            duration: np.duration,
-            genre: np.genreNames?.[0],
-            genreNames: np.genreNames,
-          },
-          nextProfile ? {
-            title: nextProfile.title,
-            artistName: nextProfile.artistName,
-          } : undefined
-        );
+        const nextTrackForPreloader = await getNextTrackForPreloader();
+        audioCoordinator.handleTrackStart(buildTrackInfo(np), nextTrackForPreloader);
       };
 
       const existing = sessionEngine.getSession();
@@ -222,19 +242,17 @@ export function BroadcastScreen({
           durationRef.current = np.duration ?? 0;
           setNowPlaying({ ...np, artworkUrl });
 
-          const trackInfo = {
-            id: np.id,
-            title: np.title,
-            artistName: np.artistName,
-            albumTitle: np.albumTitle,
-            duration: np.duration,
-            genre: np.genreNames?.[0],
-            genreNames: np.genreNames,
-          };
+          const trackInfo = buildTrackInfo(np);
 
           // Always cancel old preloader — if onTrackChanged fired, the eject
           // didn't happen, so the preloader is stale regardless of skip type.
           transitionPreloader.cancel();
+
+          // Clear any pending speaking timer from previous track
+          if (cleoSpeakingTimerRef.current) {
+            clearTimeout(cleoSpeakingTimerRef.current);
+            cleoSpeakingTimerRef.current = null;
+          }
 
           // Run Cleo's speech for this track change (cold open, pre_song, post_song).
           await audioCoordinator.handleTrackChangeWithResult(
@@ -247,16 +265,16 @@ export function BroadcastScreen({
             },
             isManualSkip
           );
-          setTimeout(() => {
+          cleoSpeakingTimerRef.current = setTimeout(() => {
+            cleoSpeakingTimerRef.current = null;
             setCleoSpeaking(false);
           }, 1500);
 
           // Start fresh preloader for the new track
-          const nextTrackId = sessionEngine.getNextTrackId();
-          const nextProfile = nextTrackId ? queueManager.getTrackProfile(nextTrackId) : null;
+          const nextTrackForPreloader = await getNextTrackForPreloader();
           audioCoordinator.handleTrackStart(
             trackInfo,
-            nextProfile ? { title: nextProfile.title, artistName: nextProfile.artistName } : undefined
+            nextTrackForPreloader
           );
         }
       }
@@ -281,36 +299,22 @@ export function BroadcastScreen({
 
           const ejectSegment = transitionPreloader.getCachedSegment();
           if (ejectSegment) {
+            if (cleoSpeakingTimerRef.current) {
+              clearTimeout(cleoSpeakingTimerRef.current);
+            }
             setCleoText(ejectSegment.text);
             setSegmentType(ejectSegment.type);
             setCleoSpeaking(true);
-            setTimeout(() => setCleoSpeaking(false), 1500);
+            cleoSpeakingTimerRef.current = setTimeout(() => {
+              cleoSpeakingTimerRef.current = null;
+              setCleoSpeaking(false);
+            }, 1500);
           }
 
           audioCoordinator.handleEjectComplete();
 
-          const nextTrackId = sessionEngine.getNextTrackId();
-          const nextProfile = nextTrackId ? queueManager.getTrackProfile(nextTrackId) : null;
-          audioCoordinator.handleTrackStart(
-            {
-              id: np.id,
-              title: np.title,
-              artistName: np.artistName,
-              albumTitle: np.albumTitle,
-              duration: np.duration,
-              genre: np.genreNames?.[0],
-              genreNames: np.genreNames,
-            },
-            nextProfile ? {
-              title: nextProfile.title,
-              artistName: nextProfile.artistName,
-            } : undefined,
-            (segment) => {
-              setCleoText(segment.text);
-              setSegmentType(segment.type);
-              setCleoSpeaking(true);
-            }
-          );
+          const nextTrackForPreloader = await getNextTrackForPreloader();
+          audioCoordinator.handleTrackStart(buildTrackInfo(np), nextTrackForPreloader);
         }
       }
     });

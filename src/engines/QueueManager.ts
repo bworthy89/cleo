@@ -68,8 +68,8 @@ class QueueManagerService {
     if (allTrackIds.length > 0) {
       // Native play() caps at 50 items to avoid XPC crashes.
       // Pass all IDs — native queues first 50, we add the rest below.
+      // Don't call advanceTrack here — let onTrackChanged be the sole source of truth.
       await musicKitPlayer.play(allTrackIds, playlistId);
-      sessionEngine.advanceTrack(allTrackIds[0]);
 
       // Queue next batch after initial 50 (cap at 100 more — no session needs 1000+)
       if (allTrackIds.length > 50) {
@@ -101,9 +101,10 @@ class QueueManagerService {
   }
 
   private async upgradeQueueInBackground(vibe: Vibe): Promise<void> {
+    const playlistId = this.currentPlaylistId;
     try {
       // Check cache first
-      const cached = getCachedQueuePlan(this.currentPlaylistId, vibe);
+      const cached = getCachedQueuePlan(playlistId, vibe);
       let validated: QueuePlan;
       if (cached) {
         console.log('[QueueManager] Using cached AI queue plan');
@@ -111,8 +112,11 @@ class QueueManagerService {
       } else {
         const aiPlan = await planQueue(this.trackProfiles, vibe);
         validated = enforceRules(aiPlan, this.trackProfiles);
-        setCachedQueuePlan(this.currentPlaylistId, vibe, validated);
+        setCachedQueuePlan(playlistId, vibe, validated);
       }
+
+      // Bail if session changed while we were planning
+      if (this.currentPlaylistId !== playlistId) return;
 
       const session = sessionEngine.getSession();
       if (!session) return;
@@ -227,10 +231,6 @@ class QueueManagerService {
    * Run enrichment for an already-playing session (e.g. on resume).
    * Skips if tracks are already enriched or enrichment is in progress.
    */
-  /**
-   * Run enrichment for an already-playing session (e.g. on resume).
-   * Skips if tracks are already enriched or enrichment is in progress.
-   */
   async enrichExistingSession(playlistId: string): Promise<void> {
     console.log(`[QueueManager] enrichExistingSession called, profiles: ${this.trackProfiles.length}, inProgress: ${this.enrichmentInProgress}`);
     // Already enriched or in progress
@@ -256,9 +256,10 @@ class QueueManagerService {
     console.log(`[QueueManager] Enriching existing session (${tracks.length} tracks)`);
     this.enrichMusicBrainzFirst(tracks).then(async () => {
       await new Promise((r) => setTimeout(r, 10000));
-      this.enrichGeniusInBackground(tracks);
+      // Use this.trackProfiles (updated by enrichMusicBrainzFirst), not stale `tracks` snapshot
+      this.enrichGeniusInBackground(this.trackProfiles);
     }).catch(() => {
-      this.enrichGeniusInBackground(tracks);
+      this.enrichGeniusInBackground(this.trackProfiles);
     });
   }
 

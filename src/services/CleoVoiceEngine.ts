@@ -35,18 +35,19 @@ const DELIVERY_CUE_NUDGES: Record<DeliveryCue, Partial<VoiceProfile>> = {
 };
 
 function parseDeliveryCue(text: string): { cue: DeliveryCue | null; cleanText: string } {
-  const match = text.match(/^\[(warm|hype|quiet|playful|reflective|matter-of-fact)\]\s*/);
+  // Match cue tag anywhere in text (Gemini may add preamble before the tag)
+  const match = text.match(/\[(warm|hype|quiet|playful|reflective|matter-of-fact)\]\s*/);
   if (!match) return { cue: null, cleanText: text };
-  return { cue: match[1] as DeliveryCue, cleanText: text.slice(match[0].length) };
+  return { cue: match[1] as DeliveryCue, cleanText: text.replace(match[0], '').trim() };
 }
 
 function resolveVoiceParams(vibe: Vibe, cue: DeliveryCue | null): VoiceProfile {
   const base = { ...VIBE_VOICE_PROFILES[vibe] };
   if (!cue) return base;
   const nudge = DELIVERY_CUE_NUDGES[cue];
-  if (nudge.stability) base.stability = Math.max(0, Math.min(1, base.stability + nudge.stability));
-  if (nudge.style) base.style = Math.max(0, Math.min(1, base.style + nudge.style));
-  if (nudge.speed) base.speed = Math.max(0.5, Math.min(2, base.speed + nudge.speed));
+  if (nudge.stability !== undefined) base.stability = Math.max(0, Math.min(1, base.stability + nudge.stability));
+  if (nudge.style !== undefined) base.style = Math.max(0, Math.min(1, base.style + nudge.style));
+  if (nudge.speed !== undefined) base.speed = Math.max(0.5, Math.min(2, base.speed + nudge.speed));
   return base;
 }
 
@@ -162,7 +163,12 @@ function formatForSpeech(text: string): string {
  * Used for pre-generation — synthesize while current track is still playing,
  * then play the cached audio instantly when the track changes.
  */
+const TTS_TIMEOUT_MS = 15000;
+
 export async function synthesize(text: string, vibe: Vibe = 'general'): Promise<string | null> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), TTS_TIMEOUT_MS);
+
   try {
     const { cue, cleanText } = parseDeliveryCue(text);
     const formatted = formatForSpeech(cleanText);
@@ -179,6 +185,7 @@ export async function synthesize(text: string, vibe: Vibe = 'general'): Promise<
         style: voiceParams.style,
         speed: voiceParams.speed,
       }),
+      signal: controller.signal,
     });
 
     if (!response.ok) {
@@ -198,6 +205,8 @@ export async function synthesize(text: string, vibe: Vibe = 'general'): Promise<
   } catch (error) {
     console.error('Voice synthesis failed:', error);
     return null;
+  } finally {
+    clearTimeout(timeout);
   }
 }
 

@@ -109,6 +109,10 @@ export async function getNowPlaying(): Promise<NowPlaying | null> {
   return await ExpoMusicKit.getNowPlaying();
 }
 
+export async function getNextInQueue(): Promise<{ id?: string; title: string; artistName: string } | null> {
+  return await ExpoMusicKit.getNextInQueue();
+}
+
 export async function getPlaybackTime(): Promise<number> {
   return await ExpoMusicKit.getPlaybackTime();
 }
