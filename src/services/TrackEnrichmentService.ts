@@ -27,7 +27,7 @@ export interface TrackProfile extends MusicTrack {
 }
 
 const CACHE_KEY_PREFIX = 'enrichment:';
-const CACHE_VERSION = 2;
+const CACHE_VERSION = 3;
 
 function getCached(trackId: string): TrackProfile | null {
   const raw = storage.getString(`${CACHE_KEY_PREFIX}${trackId}`);
@@ -55,6 +55,7 @@ export async function enrichTrack(track: MusicTrack): Promise<TrackProfile> {
 
   // MusicBrainz enrichment
   try {
+    console.log(`[Enrichment] MusicBrainz lookup: "${track.title}" by ${track.artistName}`);
     const mbResponse = await authenticatedFetch('/enrich-musicbrainz', {
       method: 'POST',
       body: JSON.stringify({ title: track.title, artist: track.artistName }),
@@ -67,13 +68,16 @@ export async function enrichTrack(track: MusicTrack): Promise<TrackProfile> {
         profile.year = data.firstReleaseYear ?? undefined;
         profile.mbEnriched = true;
       }
+    } else {
+      console.warn(`[Enrichment] MusicBrainz ${mbResponse.status} for "${track.title}"`);
     }
-  } catch {
-    // Non-fatal
+  } catch (err) {
+    console.warn(`[Enrichment] MusicBrainz error for "${track.title}":`, err);
   }
 
   // Genius enrichment
   try {
+    console.log(`[Enrichment] Genius lookup: "${track.title}" by ${track.artistName}`);
     const geniusResponse = await authenticatedFetch('/enrich-track', {
       method: 'POST',
       body: JSON.stringify({ title: track.title, artist: track.artistName }),
@@ -97,7 +101,8 @@ export async function enrichTrack(track: MusicTrack): Promise<TrackProfile> {
       );
       console.log(`[Enrichment] "${track.title}" — hasRichData: ${profile.hasRichData}, producer: ${facts.producer ?? 'none'}, songwriter: ${facts.songwriter ?? 'none'}, sample: ${facts.sample ?? 'none'}`);
     }
-  } catch {
+  } catch (err) {
+    console.warn(`[Enrichment] Genius error for "${track.title}":`, err);
     // Non-fatal — still save MusicBrainz data if available
     if (profile.tags?.length || profile.year) {
       profile.enrichedFacts = {
@@ -107,7 +112,10 @@ export async function enrichTrack(track: MusicTrack): Promise<TrackProfile> {
     }
   }
 
-  setCache(track.id, profile);
+  // Only cache if we got meaningful data — don't cache empty failures
+  if (profile.mbEnriched || profile.hasRichData) {
+    setCache(track.id, profile);
+  }
   return profile;
 }
 
@@ -121,9 +129,11 @@ export async function enrichTracks(tracks: MusicTrack[]): Promise<TrackProfile[]
 
 export async function enrichTracksMusicBrainzOnly(tracks: MusicTrack[]): Promise<TrackProfile[]> {
   const results: TrackProfile[] = [];
+  let cacheHits = 0;
   for (const track of tracks) {
     const cached = getCached(track.id);
     if (cached) {
+      cacheHits++;
       results.push(cached);
       continue;
     }
@@ -137,6 +147,7 @@ export async function enrichTracksMusicBrainzOnly(tracks: MusicTrack[]): Promise
     };
 
     try {
+      console.log(`[Enrichment] MB-only lookup: "${track.title}" by ${track.artistName}`);
       const mbResponse = await authenticatedFetch('/enrich-musicbrainz', {
         method: 'POST',
         body: JSON.stringify({ title: track.title, artist: track.artistName }),
@@ -153,13 +164,16 @@ export async function enrichTracksMusicBrainzOnly(tracks: MusicTrack[]): Promise
             year: profile.year ?? undefined,
           };
         }
+      } else {
+        console.warn(`[Enrichment] MB-only ${mbResponse.status} for "${track.title}"`);
       }
-    } catch {
-      // Non-fatal
+    } catch (err) {
+      console.warn(`[Enrichment] MB-only error for "${track.title}":`, err);
     }
 
     // Don't cache yet — Genius pass will complete the profile
     results.push(profile);
   }
+  console.log(`[Enrichment] MB-only done: ${cacheHits} cache hits, ${tracks.length - cacheHits} API calls`);
   return results;
 }
