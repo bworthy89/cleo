@@ -102,7 +102,7 @@ function LoadingScreen() {
           { opacity },
         ]}
       >
-        CLEO
+        ONAY
       </Animated.Text>
     </View>
   );
@@ -112,7 +112,7 @@ function LoadingScreen() {
 function UnauthorizedScreen({ onAuthorize }: { onAuthorize: () => void }) {
   return (
     <View style={[styles.fullScreen, { backgroundColor: Surface.base }]}>
-      <Text style={styles.unauthTitle}>CLEO</Text>
+      <Text style={styles.unauthTitle}>ONAY</Text>
       <View style={styles.unauthAccentLine} />
       <Text style={styles.unauthTagline}>AI RADIO HOST</Text>
       <Text style={styles.unauthDescription}>
@@ -412,7 +412,7 @@ export function HomeScreenRedesign() {
           <View style={styles.suggestionInner}>
             <CleoOrb size={40} />
             <View style={styles.suggestionContent}>
-              <Text style={styles.suggestionLabel}>CLEO SAYS</Text>
+              <Text style={styles.suggestionLabel}>ONAY SAYS</Text>
               <Text style={styles.suggestionText}>
                 {stations.length > 0
                   ? `\u201CReady when you are. Tap a station and let\u2019s go.\u201D`

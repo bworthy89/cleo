@@ -11,7 +11,7 @@ const TABS: { key: string; label: string; icon: TabIconName }[] = [
   { key: '(broadcast)', label: 'Broadcast', icon: 'sensors' },
   { key: '(arc)', label: 'Arc', icon: 'timeline' },
   { key: '(archive)', label: 'Archive', icon: 'library_music' },
-  { key: '(cleo)', label: 'Cleo', icon: 'blur_on' },
+  { key: '(cleo)', label: 'ONAY', icon: 'blur_on' },
 ];
 
 export function CustomTabBar({ state, navigation }: any) {

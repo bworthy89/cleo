@@ -118,11 +118,12 @@ class AudioCoordinatorEngine {
 
       if (segment.deliveryMode === 'pre_song') {
         await activateDuckingSession().catch(() => {});
-        try {
-          await synthesizeAndPlay(segment.text, this.currentVibe);
-        } catch {
-          await deactivateDuckingSession().catch(() => {});
-        }
+        await synthesizeAndPlay(segment.text, this.currentVibe);
+        // Deactivate ducking after speech completes (or fails silently).
+        // synthesizeAndPlay never throws — its internal catch returns void on failure.
+        // The native playAudioFromBase64 handles crossfade, but if TTS failed and
+        // no audio played, we must explicitly unduck the music.
+        await deactivateDuckingSession().catch(() => {});
         if (myId === this.generationId) this.scheduleMidSongDrop(trackInfo);
       } else {
         this.isSpeaking = false;
@@ -193,17 +194,12 @@ class AudioCoordinatorEngine {
     if (segment.deliveryMode === 'pre_song') {
       onSegmentReady?.(segment);
       await activateDuckingSession().catch(() => {});
-      try {
-        await synthesizeAndPlay(segment.text, this.currentVibe);
-        if (myId === this.generationId) this.scheduleMidSongDrop(trackInfo);
-      } catch (error) {
-        console.error('[AudioCoordinator] pre_song playback failed:', error);
-        await deactivateDuckingSession().catch(() => {});
-      } finally {
-        if (myId === this.generationId) {
-          this.lastSegmentEndTime = Date.now();
-          this.isSpeaking = false;
-        }
+      await synthesizeAndPlay(segment.text, this.currentVibe);
+      await deactivateDuckingSession().catch(() => {});
+      if (myId === this.generationId) {
+        this.scheduleMidSongDrop(trackInfo);
+        this.lastSegmentEndTime = Date.now();
+        this.isSpeaking = false;
       }
       return segment;
     } else {

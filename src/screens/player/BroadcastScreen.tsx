@@ -411,7 +411,7 @@ export function BroadcastScreen({
             {cleoSpeaking && (
               <View style={styles.cleoTalkingBadge}>
                 <WaveformBars color={Colors.accent} />
-                <Text style={styles.cleoTalkingLabel}>CLEO IS TALKING</Text>
+                <Text style={styles.cleoTalkingLabel}>ONAY IS TALKING</Text>
               </View>
             )}
           </LinearGradient>
