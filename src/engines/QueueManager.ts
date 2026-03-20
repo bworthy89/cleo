@@ -6,10 +6,34 @@ import { sessionEngine } from './SessionEngine';
 import { musicKitPlayer } from '../services/MusicKitPlayer';
 import type { Vibe } from '../cleo/fallbacks';
 import type { MusicTrack } from '../../modules/expo-music-kit';
+import { storage } from '../services/Storage';
+
+const QUEUE_CACHE_PREFIX = 'queuePlanCache:';
+const QUEUE_CACHE_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours
+
+function getCachedQueuePlan(playlistId: string, vibe: Vibe): QueuePlan | null {
+  const raw = storage.getString(`${QUEUE_CACHE_PREFIX}${playlistId}:${vibe}`);
+  if (!raw) return null;
+  try {
+    const cached = JSON.parse(raw) as { plan: QueuePlan; timestamp: number };
+    if (Date.now() - cached.timestamp > QUEUE_CACHE_TTL_MS) return null;
+    return cached.plan;
+  } catch {
+    return null;
+  }
+}
+
+function setCachedQueuePlan(playlistId: string, vibe: Vibe, plan: QueuePlan): void {
+  storage.set(
+    `${QUEUE_CACHE_PREFIX}${playlistId}:${vibe}`,
+    JSON.stringify({ plan, timestamp: Date.now() }),
+  );
+}
 
 class QueueManagerService {
   private trackProfiles: TrackProfile[] = [];
   private enrichmentInProgress = false;
+  private currentPlaylistId = '';
 
   async initializeSession(
     playlistId: string,
@@ -17,7 +41,8 @@ class QueueManagerService {
     stationId: string
   ): Promise<void> {
     sessionEngine.startSession(stationId, vibe);
-    this.enrichmentInProgress = false; // Reset for new session
+    this.enrichmentInProgress = false;
+    this.currentPlaylistId = playlistId;
 
     const tracks = await musicKitPlayer.fetchPlaylistTracks(playlistId);
     if (tracks.length === 0) {
@@ -77,8 +102,17 @@ class QueueManagerService {
 
   private async upgradeQueueInBackground(vibe: Vibe): Promise<void> {
     try {
-      const aiPlan = await planQueue(this.trackProfiles, vibe);
-      const validated = enforceRules(aiPlan, this.trackProfiles);
+      // Check cache first
+      const cached = getCachedQueuePlan(this.currentPlaylistId, vibe);
+      let validated: QueuePlan;
+      if (cached) {
+        console.log('[QueueManager] Using cached AI queue plan');
+        validated = enforceRules(cached, this.trackProfiles);
+      } else {
+        const aiPlan = await planQueue(this.trackProfiles, vibe);
+        validated = enforceRules(aiPlan, this.trackProfiles);
+        setCachedQueuePlan(this.currentPlaylistId, vibe, validated);
+      }
 
       const session = sessionEngine.getSession();
       if (!session) return;

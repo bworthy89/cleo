@@ -4,7 +4,8 @@ import type { SegmentResult } from './SegmentController';
 import { queueManager } from './QueueManager';
 import type { EnrichedFacts } from '../services/TrackEnrichmentService';
 import type { Vibe } from '../cleo/fallbacks';
-import { getPlaybackStatus, activateDuckingSession, deactivateDuckingSession } from '../../modules/expo-music-kit';
+import { getPlaybackStatus, activateDuckingSession, deactivateDuckingSession, setTTSVolume } from '../../modules/expo-music-kit';
+import { storage } from '../services/Storage';
 
 const GENERATION_TIMEOUT_MS = 8000;
 
@@ -51,6 +52,11 @@ class AudioCoordinatorEngine {
   private pendingMidSongTimer: ReturnType<typeof setTimeout> | null = null;
   private lastSegmentEndTime = 0;
   private currentVibe: Vibe = 'general';
+
+  constructor() {
+    const saved = storage.getString('hostVolumeMix');
+    if (saved) setTTSVolume(parseFloat(saved));
+  }
 
   private cancelPendingTimer() {
     if (this.pendingPostSongTimer) {

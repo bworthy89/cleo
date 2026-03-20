@@ -161,7 +161,7 @@ Include ALL tracks. Every track must appear exactly once. Order them to create t
 
     return plan;
   } catch (error) {
-    console.error('Queue planning failed, using original order:', error);
+    console.warn('[QueuePlanner] Queue planning failed, using original order:', error);
     // Fallback: return tracks in original order
     return {
       queue: tracks.map((t, i) => ({
