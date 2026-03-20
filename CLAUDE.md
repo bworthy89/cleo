@@ -25,8 +25,9 @@ ID (`com.worthymedia.cleo`) and git repo (`cleo-app`) also remain unchanged.
 
 ### AI & Voice
 - Gemini 2.5 Flash API — host script generation (maxOutputTokens: 8192 — thinking tokens consume budget)
-- ElevenLabs TTS (`eleven_turbo_v2_5`, custom Cleo voice) — voice synthesis
-- ~~HeyGen API~~ — deferred, not needed for MVP
+- ElevenLabs TTS (`eleven_turbo_v2_5`, custom Cleo voice) — voice synthesis (fallback)
+- Orpheus TTS (self-hosted via Pangolin tunnel) — primary voice synthesis
+- Ollama (self-hosted via Pangolin tunnel) — primary LLM, Gemini as fallback
 
 ### Data & Enrichment
 - MusicBrainz API — producer/songwriter/recording data (no key needed)
@@ -36,7 +37,7 @@ ID (`com.worthymedia.cleo`) and git repo (`cleo-app`) also remain unchanged.
 - Node.js + Express — proxy server (keeps API keys server-side)
 - All routes protected by Firebase JWT auth middleware (`requireAuth`)
 - Runs locally on port 3001 during development
-- Railway — deployed at `feisty-exploration-production-064e.up.railway.app` (auto-deploys from GitHub main)
+- Hostinger VPS — deployed via PM2 + Caddy reverse proxy (self-hosted providers via Pangolin tunnel)
 
 ---
 
@@ -92,14 +93,16 @@ cleo/
 │   └── src/
 │       ├── index.ts              ← Express app, CORS, rate limiting, requireAuth on all routes
 │       ├── middleware/auth.ts    ← Firebase JWT verification
+│       ├── providers/
+│       │   ├── llm/              ← LLM provider abstraction (Ollama primary, Gemini fallback)
+│       │   └── tts/              ← TTS provider abstraction (Orpheus primary, ElevenLabs fallback)
 │       └── routes/
-│           ├── segment.ts        ← POST /generate-segment (Gemini 2.5 Flash)
-│           ├── voice.ts          ← POST /synthesize-voice (ElevenLabs)
-│           ├── video.ts          ← POST /generate-cleo-video + GET /cleo-video-status/:id (HeyGen)
+│           ├── segment.ts        ← POST /generate-segment (Ollama primary, Gemini fallback)
+│           ├── voice.ts          ← POST /synthesize-voice (Orpheus primary, ElevenLabs fallback)
 │           └── enrichment.ts     ← POST /enrich-track (Genius)
 ├── assets/
 │   ├── fonts/                    ← .gitkeep (fonts loaded via @expo-google-fonts packages)
-│   └── cleo/                    ← Cleo character images (empty, HeyGen deferred)
+│   └── cleo/                    ← Cleo character images
 ├── src/
 │   ├── tokens/
 │   │   └── design-tokens.ts      ← single source of truth for all UI values
@@ -280,13 +283,19 @@ All screens follow the Stitch Gold Edition editorial design language:
 All sensitive keys live in `server/.env` (gitignored). Never commit keys.
 
 ```
-HEYGEN_API_KEY
-CLEO_AVATAR_ID
-GOOGLE_TTS_API_KEY
 GEMINI_API_KEY
 GENIUS_ACCESS_TOKEN
 ELEVENLABS_API_KEY
 ELEVENLABS_VOICE_ID
+ELEVENLABS_PRONUNCIATION_DICT_ID
+ELEVENLABS_PRONUNCIATION_DICT_VERSION
+OLLAMA_BASE_URL
+OLLAMA_MODEL
+ORPHEUS_BASE_URL
+ORPHEUS_VOICE
+ORPHEUS_MAX_TOKENS
+HEALTH_CHECK_INTERVAL_MS
+HEALTH_CHECK_TIMEOUT_MS
 ```
 
 ---
