@@ -288,9 +288,8 @@ class SegmentControllerEngine {
     nextTrack?: TrackInfo,
     previousTrack?: TrackInfo
   ): Promise<SegmentResult | null> {
-    // Don't consume lastWasMidSongDrop flag — if eject returns null or fallback
-    // fires, the flag should still suppress the next pre_song in generateNext.
-    if (this.lastWasMidSongDrop) return null;
+    // Eject transitions always fire — they're pre-generated radio-style crossfades.
+    // lastWasMidSongDrop only suppresses the fallback generateNext path, not ejects.
 
     this.bufferedSegment = null;
 
