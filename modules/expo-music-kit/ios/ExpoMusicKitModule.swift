@@ -17,11 +17,15 @@ public class ExpoMusicKitModule: Module {
   private var cachedSongs: [String: Song] = [:]
   private var cachedPlaylists: [String: Playlist] = [:]
   private var lastPlaybackStatus: ApplicationMusicPlayer.PlaybackStatus?
+  private var ejectTransitionInProgress: Bool = false
+  private var ejectSuppressedTrackInfo: [String: Any]? = nil
+  private var ejectTrackIdBeforeSkip: String? = nil
+  private var ejectPromiseResolve: (() -> Void)? = nil
 
   public func definition() -> ModuleDefinition {
     Name("ExpoMusicKit")
 
-    Events("onTrackChanged", "onPlaybackStateChanged")
+    Events("onTrackChanged", "onPlaybackStateChanged", "onEjectTrackChanged")
 
     // MARK: - Authorization
 
@@ -423,6 +427,153 @@ public class ExpoMusicKitModule: Module {
       try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
     }
 
+    // MARK: - Eject Transition
+
+    AsyncFunction("playEjectTransition") { (ttsBase64: String, fadeInDelayMs: Int, promise: Promise) in
+      guard let data = Data(base64Encoded: ttsBase64) else {
+        promise.reject("ERR", "Invalid base64 audio data")
+        return
+      }
+
+      do {
+        // Record current track ID so we can detect if it auto-advances
+        let currentTrackId: String? = {
+          guard let entry = self.player.queue.currentEntry else { return nil }
+          if case .song(let song) = entry.item { return song.id.rawValue }
+          return nil
+        }()
+        self.ejectTrackIdBeforeSkip = currentTrackId
+        self.ejectTransitionInProgress = true
+        self.ejectSuppressedTrackInfo = nil
+
+        // Stop any currently playing TTS
+        if let existing = self.audioPlayer, existing.isPlaying {
+          existing.stop()
+        }
+        self.audioPlayer = nil
+        self.audioDelegate = nil
+
+        // Activate ducking
+        try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers, .duckOthers])
+        try AVAudioSession.sharedInstance().setActive(true)
+
+        let newPlayer = try AVAudioPlayer(data: data)
+        self.audioPlayer = newPlayer
+
+        let ttsDuration = newPlayer.duration
+
+        self.ejectPromiseResolve = { promise.resolve(nil) }
+
+        self.audioDelegate = AudioPlayerDelegate(player: newPlayer) { [weak self] in
+          guard let self = self else { return }
+          self.audioPlayer = nil
+          self.audioDelegate = nil
+          self.crossfadeTimer?.invalidate()
+          self.crossfadeTimer = nil
+
+          if self.crossfadeActive {
+            // Music already resumed from fade point — just resolve
+            self.crossfadeActive = false
+          } else {
+            // No crossfade — hard transition
+            try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
+            Task {
+              try? await self.player.play()
+            }
+          }
+
+          // Clear eject state
+          self.ejectTransitionInProgress = false
+
+          // Emit synthetic event with suppressed track info or current state
+          if let suppressed = self.ejectSuppressedTrackInfo {
+            self.sendEvent("onEjectTrackChanged", suppressed)
+            self.ejectSuppressedTrackInfo = nil
+          } else {
+            // Build event from current queue state
+            var event: [String: Any] = [:]
+            if let entry = self.player.queue.currentEntry {
+              if case .song(let song) = entry.item {
+                event["trackId"] = song.id.rawValue
+              }
+            }
+            if let prevId = self.ejectTrackIdBeforeSkip {
+              event["previousTrackId"] = prevId
+            }
+            self.sendEvent("onEjectTrackChanged", event)
+          }
+
+          self.ejectTrackIdBeforeSkip = nil
+          self.ejectPromiseResolve?()
+          self.ejectPromiseResolve = nil
+        }
+        self.audioPlayer?.delegate = self.audioDelegate
+        newPlayer.volume = self.ttsVolume
+        self.audioPlayer?.prepareToPlay()
+
+        // Schedule track skip
+        let fadeInDelaySec = Double(fadeInDelayMs) / 1000.0
+        let skipDelay = min(fadeInDelaySec, max(ttsDuration * 0.5, 1.0))
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + skipDelay) { [weak self] in
+          guard let self = self, self.ejectTransitionInProgress else { return }
+          // Check if track already auto-advanced
+          let nowTrackId: String? = {
+            guard let entry = self.player.queue.currentEntry else { return nil }
+            if case .song(let song) = entry.item { return song.id.rawValue }
+            return nil
+          }()
+          if nowTrackId == self.ejectTrackIdBeforeSkip {
+            // Track hasn't changed — skip it
+            Task {
+              try? await self.player.skipToNextEntry()
+            }
+          }
+        }
+
+        // Crossfade: schedule ducking deactivation 2s before audio ends
+        self.crossfadeActive = false
+        self.crossfadeTimer?.invalidate()
+        self.crossfadeTimer = nil
+
+        if ttsDuration > 3.0 {
+          let fadePoint = ttsDuration - 2.0
+          DispatchQueue.main.async {
+            self.crossfadeTimer = Timer.scheduledTimer(withTimeInterval: fadePoint, repeats: false) { [weak self] _ in
+              guard let self = self, self.audioPlayer?.isPlaying == true else { return }
+              self.crossfadeActive = true
+              try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
+            }
+          }
+        }
+
+        self.audioPlayer?.play()
+      } catch {
+        self.ejectTransitionInProgress = false
+        self.ejectSuppressedTrackInfo = nil
+        self.ejectTrackIdBeforeSkip = nil
+        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
+        promise.reject("ERR", error.localizedDescription)
+      }
+    }
+
+    AsyncFunction("cancelEjectTransition") {
+      guard self.ejectTransitionInProgress else { return }
+      self.crossfadeTimer?.invalidate()
+      self.crossfadeTimer = nil
+      self.crossfadeActive = false
+      self.audioPlayer?.stop()
+      self.audioPlayer = nil
+      self.audioDelegate = nil
+      self.ejectTransitionInProgress = false
+      self.ejectSuppressedTrackInfo = nil
+      self.ejectTrackIdBeforeSkip = nil
+      // Resolve the dangling playEjectTransition promise so it doesn't leak
+      self.ejectPromiseResolve?()
+      self.ejectPromiseResolve = nil
+      try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
+    }
+
     // MARK: - Observation Lifecycle
 
     OnStartObserving {
@@ -568,7 +719,11 @@ public class ExpoMusicKitModule: Module {
           if let previousTrackId = previousTrackId {
             event["previousTrackId"] = previousTrackId
           }
-          self.sendEvent("onTrackChanged", event)
+          if self.ejectTransitionInProgress {
+            self.ejectSuppressedTrackInfo = event
+          } else {
+            self.sendEvent("onTrackChanged", event)
+          }
         }
       }
     }

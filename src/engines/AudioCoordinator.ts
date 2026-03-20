@@ -1,6 +1,7 @@
 import { synthesizeAndPlay } from '../services/CleoVoiceEngine';
 import { segmentController } from './SegmentController';
 import type { SegmentResult } from './SegmentController';
+import { transitionPreloader } from './TransitionPreloader';
 import { queueManager } from './QueueManager';
 import type { EnrichedFacts } from '../services/TrackEnrichmentService';
 import type { Vibe } from '../cleo/fallbacks';
@@ -39,6 +40,7 @@ interface TrackInfo {
   artistName: string;
   albumTitle?: string;
   genre?: string;
+  genreNames?: string[];
   enrichedFacts?: EnrichedFacts;
   hasRichData?: boolean;
   duration?: number;
@@ -56,9 +58,12 @@ class AudioCoordinatorEngine {
   constructor() {
     const saved = storage.getString('hostVolumeMix');
     if (saved) setTTSVolume(parseFloat(saved));
+    transitionPreloader.setIsSpeakingCheck(() => this.isSpeaking);
   }
 
   private cancelPendingTimer() {
+    // Note: does NOT cancel transitionPreloader — that's handled explicitly
+    // by the caller on manual skips only, so natural track changes don't kill the preloader.
     if (this.pendingPostSongTimer) {
       clearTimeout(this.pendingPostSongTimer);
       this.pendingPostSongTimer = null;
@@ -335,8 +340,47 @@ class AudioCoordinatorEngine {
     }, delay);
   }
 
+  /**
+   * Primary entry point for new tracks. Kicks off the eject window pre-generation
+   * pipeline. Does NOT schedule mid-song drops — the caller handles that separately
+   * or handleTrackChangeWithResult handles it in fallback mode.
+   */
+  handleTrackStart(
+    currentTrack: TrackInfo,
+    nextTrack?: TrackInfo,
+    onSegmentReady?: (segment: SegmentResult) => void
+  ): void {
+    // Read previousTrack but do NOT overwrite it — handleTrackChangeWithResult
+    // already set it correctly. Double-writing loses the real previous track.
+    const previous = this.previousTrack;
+
+    const trackInfo = this.enrichTrack(currentTrack);
+
+    transitionPreloader.startForTrack(
+      { ...trackInfo, genreNames: currentTrack.genreNames },
+      nextTrack,
+      previous ?? undefined,
+      (segment) => {
+        onSegmentReady?.(segment);
+      },
+      () => {
+        this.isSpeaking = true;
+      },
+      () => {
+        console.log('[AudioCoordinator] Eject fallback — will use handleTrackChange on next track event');
+      }
+    );
+    // No scheduleMidSongDrop here — handleTrackChangeWithResult already schedules it.
+  }
+
+  handleEjectComplete(): void {
+    this.isSpeaking = false;
+    this.lastSegmentEndTime = Date.now();
+  }
+
   setVibe(vibe: Vibe) {
     this.currentVibe = vibe;
+    transitionPreloader.setVibe(vibe);
   }
 
   getIsSpeaking(): boolean {
