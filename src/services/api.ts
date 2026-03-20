@@ -1,6 +1,7 @@
 import { getIdToken } from './AuthService';
 
-export const API_BASE_URL = 'https://feisty-exploration-production-064e.up.railway.app';
+export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL
+  ?? 'https://api.cleodomain.com';
 
 /**
  * Fetch wrapper that attaches the Firebase ID token to every request.
