@@ -37,6 +37,7 @@ import { segmentController } from '../../engines/SegmentController';
 import { queueManager } from '../../engines/QueueManager';
 import { sessionEngine } from '../../engines/SessionEngine';
 import { addRecentlyPlayedTrack } from '../../services/Storage';
+import { transitionPreloader } from '../../engines/TransitionPreloader';
 import type { SegmentType, Vibe } from '../../cleo/fallbacks';
 import type { NowPlaying } from '../../../modules/expo-music-kit';
 
@@ -62,6 +63,7 @@ export function BroadcastScreen({
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const durationRef = useRef(0);
+  const manualSkipRef = useRef(false);
 
   const vibeAccent = getVibeAccent(vibe);
 
@@ -112,11 +114,39 @@ export function BroadcastScreen({
   // --- Session initialization ---
   useEffect(() => {
     (async () => {
+      const startEjectPreGen = async (retries = 3) => {
+        const np = await musicKitPlayer.getNowPlaying();
+        if (!np) return;
+        // Duration may be 0 when track just started — retry after 2s
+        if ((!np.duration || np.duration <= 0) && retries > 0) {
+          setTimeout(() => startEjectPreGen(retries - 1), 2000);
+          return;
+        }
+        const nextTrackId = sessionEngine.getNextTrackId();
+        const nextProfile = nextTrackId ? queueManager.getTrackProfile(nextTrackId) : null;
+        audioCoordinator.handleTrackStart(
+          {
+            id: np.id,
+            title: np.title,
+            artistName: np.artistName,
+            albumTitle: np.albumTitle,
+            duration: np.duration,
+            genre: np.genreNames?.[0],
+            genreNames: np.genreNames,
+          },
+          nextProfile ? {
+            title: nextProfile.title,
+            artistName: nextProfile.artistName,
+          } : undefined
+        );
+      };
+
       const existing = sessionEngine.getSession();
       if (existing && existing.stationId === stationId && existing.tracksPlayed.length > 0) {
         refreshNowPlaying();
         // Enrich tracks if not already done (enrichment only runs on new sessions otherwise)
         queueManager.enrichExistingSession(playlistId);
+        await startEjectPreGen();
         return;
       }
 
@@ -124,6 +154,7 @@ export function BroadcastScreen({
       audioCoordinator.setVibe(vibe);
       await queueManager.initializeSession(playlistId, vibe, stationId);
       refreshNowPlaying();
+      await startEjectPreGen();
     })();
   }, []);
 
@@ -170,9 +201,72 @@ export function BroadcastScreen({
     return () => clearInterval(interval);
   }, []);
 
-  // --- Track change listener ---
+  // --- Track change listener (fallback path) ---
+  // Only runs when onTrackChanged is NOT suppressed (eject not active).
+  // Skips the old Cleo timing when the preloader is already generating/ready for this track,
+  // since the eject system will handle the transition at the end of the track.
   useEffect(() => {
     const unsub = musicKitPlayer.onTrackChanged(async (event) => {
+      if (event.trackId) {
+        const isManualSkip = manualSkipRef.current;
+        manualSkipRef.current = false;
+
+        addRecentlyPlayedTrack(event.trackId);
+        setProgress(0);
+        progressWidth.setValue(0);
+
+        const np = await musicKitPlayer.getNowPlaying();
+        if (np) {
+          const profile = queueManager.getTrackProfile(event.trackId);
+          const artworkUrl = profile?.artworkUrl ?? np.artworkUrl;
+          durationRef.current = np.duration ?? 0;
+          setNowPlaying({ ...np, artworkUrl });
+
+          const trackInfo = {
+            id: np.id,
+            title: np.title,
+            artistName: np.artistName,
+            albumTitle: np.albumTitle,
+            duration: np.duration,
+            genre: np.genreNames?.[0],
+            genreNames: np.genreNames,
+          };
+
+          // Always cancel old preloader — if onTrackChanged fired, the eject
+          // didn't happen, so the preloader is stale regardless of skip type.
+          transitionPreloader.cancel();
+
+          // Run Cleo's speech for this track change (cold open, pre_song, post_song).
+          await audioCoordinator.handleTrackChangeWithResult(
+            trackInfo,
+            undefined,
+            (segment) => {
+              setCleoText(segment.text);
+              setSegmentType(segment.type);
+              setCleoSpeaking(true);
+            },
+            isManualSkip
+          );
+          setTimeout(() => {
+            setCleoSpeaking(false);
+          }, 1500);
+
+          // Start fresh preloader for the new track
+          const nextTrackId = sessionEngine.getNextTrackId();
+          const nextProfile = nextTrackId ? queueManager.getTrackProfile(nextTrackId) : null;
+          audioCoordinator.handleTrackStart(
+            trackInfo,
+            nextProfile ? { title: nextProfile.title, artistName: nextProfile.artistName } : undefined
+          );
+        }
+      }
+    });
+    return unsub;
+  }, []);
+
+  // --- Eject transition completed listener ---
+  useEffect(() => {
+    const unsub = musicKitPlayer.onEjectTrackChanged(async (event) => {
       if (event.trackId) {
         addRecentlyPlayedTrack(event.trackId);
         setProgress(0);
@@ -185,7 +279,19 @@ export function BroadcastScreen({
           durationRef.current = np.duration ?? 0;
           setNowPlaying({ ...np, artworkUrl });
 
-          await audioCoordinator.handleTrackChangeWithResult(
+          const ejectSegment = transitionPreloader.getCachedSegment();
+          if (ejectSegment) {
+            setCleoText(ejectSegment.text);
+            setSegmentType(ejectSegment.type);
+            setCleoSpeaking(true);
+            setTimeout(() => setCleoSpeaking(false), 1500);
+          }
+
+          audioCoordinator.handleEjectComplete();
+
+          const nextTrackId = sessionEngine.getNextTrackId();
+          const nextProfile = nextTrackId ? queueManager.getTrackProfile(nextTrackId) : null;
+          audioCoordinator.handleTrackStart(
             {
               id: np.id,
               title: np.title,
@@ -193,17 +299,18 @@ export function BroadcastScreen({
               albumTitle: np.albumTitle,
               duration: np.duration,
               genre: np.genreNames?.[0],
+              genreNames: np.genreNames,
             },
-            undefined,
+            nextProfile ? {
+              title: nextProfile.title,
+              artistName: nextProfile.artistName,
+            } : undefined,
             (segment) => {
               setCleoText(segment.text);
               setSegmentType(segment.type);
               setCleoSpeaking(true);
             }
           );
-          setTimeout(() => {
-            setCleoSpeaking(false);
-          }, 1500);
         }
       }
     });
@@ -242,6 +349,7 @@ export function BroadcastScreen({
 
   const handleNext = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    manualSkipRef.current = true;
     try {
       await musicKitPlayer.skip();
     } catch {

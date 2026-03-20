@@ -289,6 +289,63 @@ class SegmentControllerEngine {
     return { text, type: segmentType, deliveryMode };
   }
 
+  async generateEjectTransition(
+    currentTrack: TrackInfo,
+    nextTrack?: TrackInfo,
+    previousTrack?: TrackInfo
+  ): Promise<SegmentResult | null> {
+    if (this.shouldStaySilent()) return null;
+
+    this.bufferedSegment = null;
+
+    let segmentType = this.getNextSegmentType();
+
+    if (segmentType === 'track_story' && !currentTrack.hasRichData) {
+      segmentType = 'artist_context';
+    }
+
+    segmentType = this.applyDataOverride(segmentType, currentTrack, previousTrack);
+
+    this.consecutivePreSong++;
+    this.lastDeliveryMode = 'pre_song';
+
+    const context: SegmentContext = {
+      segmentType,
+      vibe: this.currentVibe,
+      deliveryMode: 'eject_transition',
+      sessionPhase: this.getSessionPhase(),
+      currentTrack,
+      previousTrack,
+      nextTrack,
+      sessionDurationMinutes: this.getSessionDuration(),
+      segmentHistory: this.history.slice(0, 3),
+      listenerName: this.listenerName,
+      enrichedFacts: currentTrack.enrichedFacts,
+      tracksReferenced: [...this.tracksReferenced],
+      previousSession: this.buildPreviousSession(),
+      maxWords: 40,
+    };
+
+    const text = await generateSegment(context);
+
+    this.history.unshift(text);
+    if (this.history.length > 3) this.history.pop();
+    this.segmentCount++;
+    this.segmentsSinceExtended = this.segmentsSinceExtended + 1;
+    this.consecutiveSpokenSegments++;
+    this.lastWasMidSongDrop = false;
+    this.addToTracksReferenced(currentTrack.artistName);
+
+    saveSessionMemory({
+      lastTrackTitle: currentTrack.title,
+      lastArtistName: currentTrack.artistName,
+      lastArtists: [...this.tracksReferenced].slice(0, 10),
+      lastTimestamp: Date.now(),
+    });
+
+    return { text, type: segmentType, deliveryMode: 'eject_transition' };
+  }
+
   async preloadNext(currentTrack: TrackInfo, nextTrack?: TrackInfo): Promise<void> {
     if (this.bufferedSegment) return;
 

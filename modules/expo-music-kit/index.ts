@@ -141,6 +141,16 @@ export async function deactivateDuckingSession(): Promise<void> {
   return await ExpoMusicKit.deactivateDuckingSession();
 }
 
+// ── Eject Transition ──────────────────────────────────────────────────
+
+export async function playEjectTransition(ttsBase64: string, fadeInDelayMs: number): Promise<void> {
+  return await ExpoMusicKit.playEjectTransition(ttsBase64, fadeInDelayMs);
+}
+
+export async function cancelEjectTransition(): Promise<void> {
+  return await ExpoMusicKit.cancelEjectTransition();
+}
+
 // ── Event Listeners ────────────────────────────────────────────────────
 
 export function addTrackChangedListener(
@@ -153,4 +163,15 @@ export function addPlaybackStateListener(
   listener: (event: PlaybackStateEvent) => void
 ): EventSubscription {
   return emitter.addListener('onPlaybackStateChanged', listener);
+}
+
+export type EjectTrackChangedEvent = {
+  trackId?: string;
+  previousTrackId?: string;
+};
+
+export function addEjectTrackChangedListener(
+  listener: (event: EjectTrackChangedEvent) => void
+): EventSubscription {
+  return emitter.addListener('onEjectTrackChanged', listener);
 }
