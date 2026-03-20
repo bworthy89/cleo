@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Alert, View, Text, ScrollView, StyleSheet, Pressable, Switch } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import Slider from '@react-native-community/slider';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import auth from '@react-native-firebase/auth';
@@ -12,6 +13,7 @@ import { AppHeader } from '../../components/AppHeader';
 import { storage } from '../../services/Storage';
 import { signOut } from '../../services/AuthService';
 import { musicKitPlayer } from '../../services/MusicKitPlayer';
+import { setTTSVolume, authorize } from '../../../modules/expo-music-kit';
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -59,14 +61,48 @@ export function ProfileScreen() {
     () => (storage.getString('cleoPersonality') as Personality) ?? 'curator',
   );
   const [appleMusicConnected, setAppleMusicConnected] = useState(false);
+  const [hostVolume, setHostVolume] = useState<number>(
+    () => {
+      const saved = storage.getString('hostVolumeMix');
+      return saved ? parseFloat(saved) : 0.7;
+    },
+  );
 
   useEffect(() => {
     musicKitPlayer.isAuthorized().then(setAppleMusicConnected).catch(() => {});
+    setTTSVolume(hostVolume);
   }, []);
 
   const handlePersonalityChange = (personality: Personality) => {
     setSelectedPersonality(personality);
     storage.set('cleoPersonality', personality);
+  };
+
+  const handleVolumeChange = (value: number) => {
+    setHostVolume(value);
+    setTTSVolume(value);
+    storage.set('hostVolumeMix', value.toString());
+  };
+
+  const volumeToDb = (v: number): string => {
+    if (v <= 0.01) return '-∞ dB';
+    const db = 20 * Math.log10(v);
+    return `${db >= 0 ? '+' : ''}${db.toFixed(0)} dB`;
+  };
+
+  const handleAppleMusicToggle = async () => {
+    if (appleMusicConnected) return;
+    try {
+      const result = await authorize();
+      if (result.status === 'authorized') {
+        setAppleMusicConnected(true);
+        storage.set('appleMusicAuthorized', 'true');
+      }
+    } catch {}
+  };
+
+  const handleManageSubscription = () => {
+    Alert.alert('Coming Soon', 'Subscription management will be available in a future update.');
   };
 
   const handleSignOut = () => {
@@ -176,8 +212,8 @@ export function ProfileScreen() {
               </Text>
               <Switch
                 value={appleMusicConnected}
-                onValueChange={() => {}}
-                disabled
+                onValueChange={handleAppleMusicToggle}
+                disabled={appleMusicConnected}
                 trackColor={{ false: Surface.bright, true: withAlpha(Colors.accent, 0.4) }}
                 thumbColor={appleMusicConnected ? Colors.accent : TextColors.outline}
                 style={styles.ecosystemSwitch}
@@ -190,7 +226,7 @@ export function ProfileScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>VOICE PROFILE</Text>
 
-          {/* Audio Fidelity */}
+          {/* Audio Fidelity (display-only) */}
           <View style={styles.sliderRow}>
             <View style={styles.sliderHeader}>
               <Text style={styles.sliderLabel}>Audio Fidelity</Text>
@@ -206,16 +242,23 @@ export function ProfileScreen() {
             </View>
           </View>
 
-          {/* Host Volume Mix */}
+          {/* Host Volume Mix (interactive) */}
           <View style={styles.sliderRow}>
             <View style={styles.sliderHeader}>
               <Text style={styles.sliderLabel}>Host Volume Mix</Text>
-              <Text style={styles.sliderValue}>-4dB</Text>
+              <Text style={styles.sliderValue}>{volumeToDb(hostVolume)}</Text>
             </View>
-            <View style={styles.sliderTrack}>
-              <View style={[styles.sliderFillGray, { width: '40%' }]} />
-              <View style={[styles.sliderThumb, { left: '40%' }]} />
-            </View>
+            <Slider
+              style={styles.volumeSlider}
+              minimumValue={0}
+              maximumValue={1}
+              step={0.05}
+              value={hostVolume}
+              onValueChange={handleVolumeChange}
+              minimumTrackTintColor={Colors.accent}
+              maximumTrackTintColor={Surface.bright}
+              thumbTintColor={Colors.base.white}
+            />
           </View>
         </View>
 
@@ -225,6 +268,7 @@ export function ProfileScreen() {
 
           <Pressable
             style={({ pressed }) => [styles.accountRow, pressed && { opacity: 0.7 }]}
+            onPress={handleManageSubscription}
             accessibilityLabel="Manage Subscription"
             accessibilityRole="button"
           >
@@ -441,19 +485,9 @@ const styles = StyleSheet.create({
     height: 4,
     borderRadius: 2,
   },
-  sliderFillGray: {
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: TextColors.outline,
-  },
-  sliderThumb: {
-    position: 'absolute',
-    top: -5,
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: Colors.base.white,
-    marginLeft: -7,
+  volumeSlider: {
+    width: '100%',
+    height: 30,
   },
 
   // Account Rows
