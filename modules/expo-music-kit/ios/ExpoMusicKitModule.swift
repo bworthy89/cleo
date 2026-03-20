@@ -74,10 +74,6 @@ public class ExpoMusicKitModule: Module {
     }
 
     AsyncFunction("fetchPlaylistTracks") { (playlistId: String) -> [[String: Any]] in
-      // Clear stale caches from previous playlists to prevent unbounded memory growth
-      self.cachedTracks.removeAll()
-      self.cachedSongs.removeAll()
-
       var request = MusicLibraryRequest<Playlist>()
       request.filter(matching: \.id, equalTo: MusicItemID(playlistId))
       let response = try await request.response()

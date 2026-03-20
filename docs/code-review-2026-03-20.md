@@ -358,4 +358,4 @@ Performance optimizations, accessibility, and safe area fixes.
   - [x] #42: FIXED — VibePicker uses `useWindowDimensions` + `useSafeAreaInsets`, adds `insets.bottom` to padding
   - [x] #43: FIXED — Nudge checks use `!== undefined` instead of truthy
   - [x] #44: FIXED — `cold-opens.ts` imports and uses `StorageKeys.COLD_OPEN_HISTORY`
-  - [x] #45: FIXED — `cachedTracks`/`cachedSongs` cleared at start of `fetchPlaylistTracks`
+  - [x] #45: REVERTED — Clearing caches at `fetchPlaylistTracks` broke active sessions (caches needed by `setUpcomingQueue`). Needs a smarter approach (clear only when switching playlists, not on re-fetch).
