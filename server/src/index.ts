@@ -4,15 +4,16 @@ import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import { segmentRouter } from './routes/segment';
 import { voiceRouter } from './routes/voice';
-import { videoRouter } from './routes/video';
 import { enrichmentRouter } from './routes/enrichment';
 import { musicbrainzRouter } from './routes/musicbrainz';
 import { requireAuth } from './middleware/auth';
+import { llmProvider } from './providers/llm';
+import { ttsProvider } from './providers/tts';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Trust Railway's reverse proxy for rate limiting and IP detection
+// Trust reverse proxy for rate limiting and IP detection
 app.set('trust proxy', 1);
 
 app.use(cors());
@@ -28,7 +29,7 @@ app.use((req, _res, next) => {
 // so users behind shared NAT/VPN aren't blocked by one heavy user.
 const keyByUser = (req: any) => req.uid ?? req.ip;
 
-// Tighter limit for AI generation routes (Gemini + ElevenLabs)
+// Tighter limit for AI generation routes (LLM + TTS)
 const generationLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 30,
@@ -47,15 +48,24 @@ const enrichmentLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// Health check — no auth required
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok' });
+// Health check with provider status — no auth required
+app.get('/health', async (_req, res) => {
+  const llmStatus = llmProvider.getStatus();
+  const ttsStatus = ttsProvider.getStatus();
+  res.json({
+    status: 'ok',
+    uptime: process.uptime(),
+    providers: {
+      llm: llmStatus,
+      tts: ttsStatus,
+    },
+    timestamp: new Date().toISOString(),
+  });
 });
 
-// Auth-protected API routes — enrichment gets a higher rate limit
+// Auth-protected API routes
 app.use(requireAuth, generationLimiter, segmentRouter);
 app.use(requireAuth, generationLimiter, voiceRouter);
-app.use(requireAuth, generationLimiter, videoRouter);
 app.use(requireAuth, enrichmentLimiter, enrichmentRouter);
 app.use(requireAuth, enrichmentLimiter, musicbrainzRouter);
 
