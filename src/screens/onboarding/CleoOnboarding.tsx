@@ -84,7 +84,7 @@ export function CleoOnboarding() {
 
       {/* Greeting */}
       <Text style={styles.greeting}>
-        {'\u201C'}Hello, I'm <Text style={styles.cleoName}>Cleo.</Text>{'\u201D'}
+        {'\u201C'}Hello, I'm <Text style={styles.cleoName}>ONAY.</Text>{'\u201D'}
       </Text>
       <Text style={styles.subtext}>
         Your personal AI radio host. I curate frequencies that match your soul's current wavelength. How are we feeling today?

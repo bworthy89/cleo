@@ -25,7 +25,7 @@ export default function WelcomeScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <Text style={styles.logo}>CLEO</Text>
+        <Text style={styles.logo}>ONAY</Text>
         <View style={styles.accentLine} />
         <Text style={styles.tagline}>
           Every song has a story.{'\n'}I'm just here to tell it.

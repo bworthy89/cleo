@@ -26,7 +26,7 @@ export default function MusicAuthScreen() {
       } else {
         Alert.alert(
           'Apple Music Required',
-          'Cleo needs access to your Apple Music library to play your playlists. Please enable it in Settings.',
+          'ONAY needs access to your Apple Music library to play your playlists. Please enable it in Settings.',
         );
       }
     } catch {
@@ -55,7 +55,7 @@ export default function MusicAuthScreen() {
 
         <Text style={styles.title}>Connect Your{'\n'}Library</Text>
         <Text style={styles.description}>
-          Cleo plays music from your Apple Music library. Connect your account so she can access your playlists and start hosting your sessions.
+          ONAY plays music from your Apple Music library. Connect your account so she can access your playlists and start hosting your sessions.
         </Text>
 
         <View style={styles.featureList}>
@@ -65,7 +65,7 @@ export default function MusicAuthScreen() {
           </View>
           <View style={styles.featureRow}>
             <Ionicons name="mic-outline" size={18} color={Colors.accent} />
-            <Text style={styles.featureText}>Cleo hosts between your tracks</Text>
+            <Text style={styles.featureText}>ONAY hosts between your tracks</Text>
           </View>
           <View style={styles.featureRow}>
             <Ionicons name="radio-outline" size={18} color={Colors.accent} />

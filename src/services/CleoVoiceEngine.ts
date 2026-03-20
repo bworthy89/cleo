@@ -163,7 +163,7 @@ function formatForSpeech(text: string): string {
  * Used for pre-generation — synthesize while current track is still playing,
  * then play the cached audio instantly when the track changes.
  */
-const TTS_TIMEOUT_MS = 15000;
+const TTS_TIMEOUT_MS = 20000;
 
 export async function synthesize(text: string, vibe: Vibe = 'general'): Promise<string | null> {
   const controller = new AbortController();
@@ -173,6 +173,11 @@ export async function synthesize(text: string, vibe: Vibe = 'general'): Promise<
     const { cue, cleanText } = parseDeliveryCue(text);
     const formatted = formatForSpeech(cleanText);
     const voiceParams = resolveVoiceParams(vibe, cue);
+
+    if (!formatted || formatted.length < 2) {
+      console.warn('[CleoVoice] Text too short after formatting, skipping synthesis');
+      return null;
+    }
 
     const wordCount = formatted.split(/\s+/).length;
     console.log(`[CleoVoice] Synthesizing ${wordCount} words, vibe: ${vibe}, cue: ${cue ?? 'none'}`);

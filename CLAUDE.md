@@ -1,9 +1,14 @@
-# CLAUDE.md — Cleo AI Radio App
+# CLAUDE.md — ONAY AI Radio App
 
 ## Project Overview
-React Native / Expo SDK 55 iOS app. AI radio host named Cleo plays Apple Music
-playlists with dynamic host commentary between tracks. Every session feels
-like a personalized radio broadcast — not a playlist shuffler.
+React Native / Expo SDK 55 iOS app. AI radio host named **ONAY** (pronounced "Oh-Nay")
+plays Apple Music playlists with dynamic host commentary between tracks. Every session
+feels like a personalized radio broadcast — not a playlist shuffler.
+
+**Branding note:** The AI host was renamed from "Cleo" to "ONAY" on 2026-03-20.
+Internal code names (CleoOrb, CleoVoiceEngine, `src/cleo/`, etc.) remain unchanged —
+only user-facing text, the system prompt, and dialogue content were renamed. The bundle
+ID (`com.worthymedia.cleo`) and git repo (`cleo-app`) also remain unchanged.
 
 ---
 
@@ -340,14 +345,16 @@ ELEVENLABS_VOICE_ID
 - **Post_song Promise must be resolvable on cancel**: `handleTrackChangeWithResult` returns a Promise for post_song delivery. `cancelPendingTimer()` must resolve the stored `pendingPostSongResolve` callback — otherwise callers (BroadcastScreen) hang forever on skip.
 - **TransitionPreloader needs generationId**: The preloader's state machine (`idle/generating/ready/fired/done`) is not sufficient to distinguish stale vs current generations. A `generationId` counter must be checked after every async gap (sleep, network call) to detect if `reset()` + `startForTrack()` happened during the gap.
 - **Don't advance rotation in generateEjectTransition**: The eject path peeks at the rotation without advancing `rotationIndex`. It only advances after successful generation. This prevents double-advancing when the eject misses and the fallback path's `generateNext()` also runs.
-- **Don't consume shouldStaySilent flag in eject path**: `generateEjectTransition` checks `lastWasMidSongDrop` but must NOT consume it (no side effect). If the eject returns null and fallback fires, the flag should still suppress the next `pre_song` in `generateNext`.
+- **Eject transitions must never be suppressed by mid-song drops**: `generateEjectTransition` must NOT check `lastWasMidSongDrop` or `shouldStaySilent()`. Ejects are pre-generated radio crossfades that always fire. The `lastWasMidSongDrop` flag only suppresses the fallback `generateNext` path. Checking it in the eject path caused the first track's eject to always be suppressed (because the cold open triggers a mid-song drop which sets the flag).
+- **Never clear cachedTracks/cachedSongs during active playback**: The native module's `cachedTracks` and `cachedSongs` dictionaries are used by `play()` and `setUpcomingQueue()` to build MusicKit queues. Clearing them in `fetchPlaylistTracks` broke active sessions when `enrichExistingSession` re-fetched tracks mid-playback. Only clear caches when explicitly switching to a different playlist, not on re-fetch.
 - **clearUserData must preserve USER key**: `clearUserData()` on sign-out must NOT remove `StorageKeys.USER`. Removing it causes returning users to be re-routed through onboarding on every sign-in.
 - **authenticatedFetch must throw on null token**: Never silently send unauthenticated requests. `authenticatedFetch` throws if no Firebase token is available, forcing callers to handle the auth-not-ready state.
 - **Server must validate and clamp client inputs**: `maxTokens` clamped to 256–8192, voice `stability`/`style`/`speed` clamped to valid ranges, `text` capped at 5000 chars, `audioUrl` must be HTTPS, video IDs validated with regex. Never forward raw upstream error bodies to the client.
 - **MusicKitPlayer listeners need try/catch**: Each listener callback in `forEach` must be wrapped in try/catch. One throwing listener (e.g., unmounted component state setter) must not abort iteration and silently kill subsequent listeners like AudioCoordinator.
 - **BroadcastScreen timers must be ref-tracked**: All `setTimeout` calls for `setCleoSpeaking(false)` must be stored in a `useRef` and cleared on unmount and before each new track. Bare `setTimeout` causes state updates on unmounted components and race conditions on fast skips.
-- **fetchPlaylistTracks clears caches**: The native module clears `cachedTracks` and `cachedSongs` at the start of `fetchPlaylistTracks` to prevent unbounded memory growth from browsing multiple playlists.
 - **initializeSession must not call advanceTrack eagerly**: The `onTrackChanged` native event is the sole source of truth for queue advancement. Calling `advanceTrack(allTrackIds[0])` in `initializeSession` double-counts the first track if `onTrackChanged` also fires.
+- **Ducking must deactivate after synthesizeAndPlay regardless of success**: `synthesizeAndPlay` never throws — it catches errors internally and returns void. So `deactivateDuckingSession()` must be called AFTER `synthesizeAndPlay`, not in a `catch` block. Putting it only in `catch` means ducking is never deactivated when TTS fails silently, leaving music permanently quiet.
+- **User-facing rename checklist**: When renaming the host, check ALL components that render the name: `AppHeader.tsx` (logo text), `HomeScreenRedesign.tsx` (loading/unauth/suggestion), `welcome.tsx` (logo), `CleoOnboarding.tsx` (greeting), `TabBar.tsx` (tab label), `CleoSpeakingOverlay.tsx` (speaking badge), `BroadcastScreen.tsx` (talking label), `SessionArcScreen.tsx` (commentary nodes), `music-auth.tsx` (descriptions), `static-core.ts` (system prompt), `cold-opens.ts` (first-ever open), `fallbacks.ts` (station_id lines), `CleoScriptGenerator.ts` (creative brief).
 
 ---
 

@@ -109,7 +109,7 @@ const COLD_OPENS: Record<Vibe, string[]> = {
 
 const SPECIAL_OPENS: Record<string, string[]> = {
   firstEver: [
-    "Hey — first time here. I'm Cleo. I'm not going to explain too much — the music will do that for me. Just know you're in good hands.",
+    "Hey — first time here. I'm ONAY. I'm not going to explain too much — the music will do that for me. Just know you're in good hands.",
   ],
   sameDayReturn: [
     "Back already? I respect that. Got something different lined up this time.",

@@ -17,7 +17,7 @@ export function AppHeader({ leftContent, rightContent }: AppHeaderProps) {
       <View style={styles.inner}>
         <View style={styles.left}>
           {leftContent}
-          <Text style={styles.logo}>CLEO</Text>
+          <Text style={styles.logo}>ONAY</Text>
         </View>
         {rightContent && <View style={styles.right}>{rightContent}</View>}
       </View>

@@ -252,7 +252,7 @@ function UpcomingManifest({ vibeAccent }: { vibeAccent: string }) {
   const items: { type: 'track' | 'cleo'; id: string; index: number }[] = [];
   upcomingIds.forEach((id, i) => {
     items.push({ type: 'track', id, index: i });
-    // Insert a Cleo commentary node after every 2 tracks
+    // Insert a ONAY commentary node after every 2 tracks
     if ((i + 1) % 2 === 0 && i < upcomingIds.length - 1) {
       items.push({ type: 'cleo', id: `cleo-${i}`, index: i });
     }
@@ -266,7 +266,7 @@ function UpcomingManifest({ vibeAccent }: { vibeAccent: string }) {
           return (
             <View key={item.id} style={[styles.cleoNode, { backgroundColor: withAlpha(vibeAccent, 0.15) }]}>
               <CleoOrb size={20} />
-              <Text style={styles.cleoNodeText}>Cleo commentary</Text>
+              <Text style={styles.cleoNodeText}>ONAY commentary</Text>
             </View>
           );
         }

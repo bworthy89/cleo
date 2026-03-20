@@ -344,7 +344,7 @@ export function CleoSpeakingOverlay({
 
           {/* 7  Speaking badge */}
           <Animated.View style={[styles.speakingBadge, { opacity: badgePulse }]}>
-            <Text style={styles.speakingBadgeText}>CLEO IS SPEAKING...</Text>
+            <Text style={styles.speakingBadgeText}>ONAY IS SPEAKING...</Text>
           </Animated.View>
         </Animated.View>
 
