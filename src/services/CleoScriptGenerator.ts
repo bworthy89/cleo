@@ -53,7 +53,7 @@ const SEGMENT_BRIEFS: Record<SegmentType, string> = {
   song_intro: 'Tease or bridge. Create anticipation without over-explaining.',
   track_story: 'Drop one specific detail that makes the listener lean in.',
   artist_context: "One true thing about this artist that most people haven't considered.",
-  station_id: 'Brief, warm, present. Cleo is here. Nothing more needed.',
+  station_id: 'Brief, warm, present. ONAY is here. Nothing more needed.',
   genre_bridge: 'Narrate the musical shift like a journey, not a playlist change.',
   post_track_reflection: 'One honest reaction to what the listener is currently hearing. No recap.',
   listener_shoutout: 'Specific, not generic. Make someone feel seen.',

@@ -196,9 +196,9 @@ const fallbacks: FallbackEntry[] = [
   {
     type: 'station_id',
     lines: [
-      "You're with Cleo. This one's for you.",
+      "You're with ONAY. This one's for you.",
       'Still here. Still playing the good stuff.',
-      'Cleo — keeping you company.',
+      'ONAY — keeping you company.',
       "Your music. My voice. Let's keep going.",
       "This is what we do.",
       'Still with you.',
