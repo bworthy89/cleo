@@ -151,14 +151,13 @@ export function ArchiveScreen() {
     useCallback(() => {
       let current = getStations();
 
-      // Backfill missing artwork from cached playlists
+      // Refresh artwork from cached playlists
       const playlists = getCachedPlaylists();
       if (playlists) {
         let updated = false;
         current = current.map((s) => {
-          if (s.artworkUrl) return s;
           const match = playlists.find((p) => p.id === s.playlistId);
-          if (match?.artworkUrl) {
+          if (match?.artworkUrl && match.artworkUrl !== s.artworkUrl) {
             updated = true;
             return { ...s, artworkUrl: match.artworkUrl };
           }

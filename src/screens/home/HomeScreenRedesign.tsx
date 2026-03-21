@@ -197,13 +197,12 @@ export function HomeScreenRedesign() {
       setPlaylists(lists);
       setCachedPlaylists(lists);
 
-      // Backfill artwork for stations that were created before artwork was cached
+      // Backfill or refresh artwork for all stations from playlist data
       const currentStations = getStations();
       let stationsUpdated = false;
       const updatedStations = currentStations.map((s) => {
-        if (s.artworkUrl) return s;
         const match = lists.find((p) => p.id === s.playlistId);
-        if (match?.artworkUrl) {
+        if (match?.artworkUrl && match.artworkUrl !== s.artworkUrl) {
           stationsUpdated = true;
           return { ...s, artworkUrl: match.artworkUrl };
         }
