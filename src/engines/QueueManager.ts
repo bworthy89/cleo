@@ -5,7 +5,7 @@ import { enrichTracks, enrichTracksMusicBrainzOnly, type TrackProfile } from '..
 import { sessionEngine } from './SessionEngine';
 import { musicKitPlayer } from '../services/MusicKitPlayer';
 import type { Vibe } from '../cleo/fallbacks';
-import type { MusicTrack } from '../../modules/expo-music-kit';
+import { clearQueueCache, type MusicTrack } from '../../modules/expo-music-kit';
 import { storage } from '../services/Storage';
 
 const QUEUE_CACHE_PREFIX = 'queuePlanCache:';
@@ -42,6 +42,12 @@ class QueueManagerService {
   ): Promise<void> {
     sessionEngine.startSession(stationId, vibe);
     this.enrichmentInProgress = false;
+
+    // Clear native track/song caches when switching playlists to prevent
+    // old playlist tracks from contaminating the new queue
+    if (this.currentPlaylistId && this.currentPlaylistId !== playlistId) {
+      await clearQueueCache();
+    }
     this.currentPlaylistId = playlistId;
 
     const tracks = await musicKitPlayer.fetchPlaylistTracks(playlistId);

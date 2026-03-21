@@ -285,6 +285,11 @@ public class ExpoMusicKitModule: Module {
       player.playbackTime = time
     }
 
+    AsyncFunction("clearQueueCache") { () in
+      self.cachedTracks.removeAll()
+      self.cachedSongs.removeAll()
+    }
+
     // MARK: - Now Playing
 
     AsyncFunction("getNowPlaying") { () -> [String: Any]? in

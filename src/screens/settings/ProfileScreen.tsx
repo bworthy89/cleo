@@ -116,6 +116,7 @@ export function ProfileScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
+              await musicKitPlayer.pause();
               await signOut();
               router.replace('/(auth)/login');
             } catch {

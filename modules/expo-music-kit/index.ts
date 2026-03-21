@@ -79,6 +79,10 @@ export async function fetchPlaylistTracks(playlistId: string): Promise<MusicTrac
 
 // ── Playback ───────────────────────────────────────────────────────────
 
+export async function clearQueueCache(): Promise<void> {
+  return await ExpoMusicKit.clearQueueCache();
+}
+
 export async function play(trackIds?: string[], playlistId?: string): Promise<void> {
   return await ExpoMusicKit.play(trackIds ?? null, playlistId ?? null);
 }
