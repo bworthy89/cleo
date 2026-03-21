@@ -51,8 +51,12 @@ class SessionEngineService {
     if (!this.session) return 'coldOpen';
     const minutes = this.getSessionDuration();
     const trackCount = this.session.tracksPlayed.length;
+    const totalTracks = this.session.queuePlan?.queue.length ?? 0;
+    const tracksRemaining = totalTracks > 0 ? totalTracks - trackCount : Infinity;
 
     if (trackCount === 0) return 'coldOpen';
+    // Queue-aware signOff: last 2 tracks
+    if (totalTracks > 0 && tracksRemaining <= 2) return 'signOff';
     if (minutes < 12) return 'earlySession';
     if (minutes < 35) return 'build';
     if (minutes < 50) return 'peak';

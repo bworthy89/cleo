@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Animated,
   Easing,
   FlatList,
@@ -354,7 +353,7 @@ export function HomeScreenRedesign() {
                 {nowPlaying.artworkUrl ? (
                   <Image source={{ uri: nowPlaying.artworkUrl }} style={styles.nowPlayingArt} />
                 ) : (
-                  <View style={[styles.nowPlayingArt, { backgroundColor: Surface.high }]} />
+                  <View style={[styles.nowPlayingArt, { backgroundColor: Surface.container }]} />
                 )}
                 <View style={styles.nowPlayingInfo}>
                   <Text style={styles.nowPlayingLabel}>NOW PLAYING</Text>
@@ -405,7 +404,11 @@ export function HomeScreenRedesign() {
         <View style={styles.section}>
           <Text style={styles.sectionLabelText}>PLAYLISTS</Text>
           {playlists.length === 0 && playlistsLoading ? (
-            <ActivityIndicator style={{ marginTop: Spacing.lg }} color={Colors.accent} />
+            <View style={[styles.listContent, { flexDirection: 'row' }]}>
+              {[1, 2, 3].map((i) => (
+                <StationCard key={i} name="" onPress={() => {}} />
+              ))}
+            </View>
           ) : (
             <FlatList
               data={playlists}
@@ -424,21 +427,21 @@ export function HomeScreenRedesign() {
           )}
         </View>
 
-        {/* ── Cleo Suggestion ───────────────────────────────────── */}
-        <View style={styles.suggestionCard}>
-          <View style={styles.suggestionGoldEdge} />
-          <View style={styles.suggestionInner}>
-            <CleoOrb size={40} />
-            <View style={styles.suggestionContent}>
-              <Text style={styles.suggestionLabel}>ONAY SAYS</Text>
-              <Text style={styles.suggestionText}>
-                {stations.length > 0
-                  ? `\u201CReady when you are. Tap a station and let\u2019s go.\u201D`
-                  : `\u201CPick a playlist. I\u2019ll do the rest.\u201D`}
-              </Text>
+        {/* ── Cleo Suggestion (only when no stations) ────────── */}
+        {stations.length === 0 && (
+          <View style={styles.suggestionCard}>
+            <View style={styles.suggestionGoldEdge} />
+            <View style={styles.suggestionInner}>
+              <CleoOrb size={40} />
+              <View style={styles.suggestionContent}>
+                <Text style={styles.suggestionLabel}>ONAY SAYS</Text>
+                <Text style={styles.suggestionText}>
+                  {`\u201CPick a playlist. I\u2019ll do the rest.\u201D`}
+                </Text>
+              </View>
             </View>
           </View>
-        </View>
+        )}
       </ScrollView>
 
       {/* Vibe Picker */}
@@ -497,7 +500,7 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xl,
     paddingVertical: 14,
     paddingHorizontal: Spacing.xl,
-    borderRadius: Radius.md,
+    borderRadius: Radius.sm,
   },
   ctaButtonText: {
     fontFamily: Typography.mono.family,
@@ -633,7 +636,7 @@ const styles = StyleSheet.create({
     fontFamily: Typography.body.family,
     fontSize: 13,
     color: TextColors.secondary,
-    opacity: Opacity.muted,
+    opacity: Opacity.secondary,
     marginTop: Spacing.xs,
     textAlign: 'center',
   },
