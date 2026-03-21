@@ -1,24 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Image, StyleSheet, View } from 'react-native';
+import { useCallback, useRef } from 'react';
+import { Animated, StyleSheet, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
+import Video from 'react-native-video';
 
-const FRAMES = [
-  require('../../assets/cleo/onay-frame-1.png'),
-  require('../../assets/cleo/onay-frame-2.png'),
-  require('../../assets/cleo/onay-frame-3.png'),
-];
-
-const FRAME_INTERVAL = 3000;
-const CROSSFADE_DURATION = 800;
-const CHARACTER_HEIGHT = 200;
+const CHARACTER_HEIGHT = 280;
 
 export function OnayCharacter() {
-  const [currentFrame, setCurrentFrame] = useState(0);
-  const fadeIn = useRef(new Animated.Value(1)).current;
-  const fadeOut = useRef(new Animated.Value(0)).current;
   const entranceOpacity = useRef(new Animated.Value(0)).current;
   const entranceSlide = useRef(new Animated.Value(10)).current;
-  const prevFrameRef = useRef(0);
 
   // Entrance animation on tab focus
   useFocusEffect(
@@ -40,37 +29,6 @@ export function OnayCharacter() {
     }, []),
   );
 
-  // Idle crossfade loop
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentFrame((prev) => {
-        const next = (prev + 1) % FRAMES.length;
-        prevFrameRef.current = prev;
-
-        // Reset fade values for crossfade
-        fadeIn.setValue(0);
-        fadeOut.setValue(1);
-
-        Animated.parallel([
-          Animated.timing(fadeIn, {
-            toValue: 1,
-            duration: CROSSFADE_DURATION,
-            useNativeDriver: true,
-          }),
-          Animated.timing(fadeOut, {
-            toValue: 0,
-            duration: CROSSFADE_DURATION,
-            useNativeDriver: true,
-          }),
-        ]).start();
-
-        return next;
-      });
-    }, FRAME_INTERVAL);
-
-    return () => clearInterval(interval);
-  }, []);
-
   return (
     <Animated.View
       style={[
@@ -81,17 +39,15 @@ export function OnayCharacter() {
         },
       ]}
     >
-      {/* Outgoing frame */}
-      <Animated.Image
-        source={FRAMES[prevFrameRef.current]}
-        style={[styles.frame, { opacity: fadeOut }]}
+      <Video
+        source={require('../../assets/cleo/onay-animation.mp4')}
+        style={styles.video}
         resizeMode="contain"
-      />
-      {/* Incoming frame */}
-      <Animated.Image
-        source={FRAMES[currentFrame]}
-        style={[styles.frame, { opacity: fadeIn }]}
-        resizeMode="contain"
+        repeat
+        muted
+        disableFocus
+        playWhenInactive={false}
+        playInBackground={false}
       />
     </Animated.View>
   );
@@ -103,9 +59,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  frame: {
-    position: 'absolute',
+  video: {
     height: CHARACTER_HEIGHT,
-    width: CHARACTER_HEIGHT * 0.8, // 4:5 aspect ratio
+    width: CHARACTER_HEIGHT * (720 / 1280), // match video aspect ratio
   },
 });
