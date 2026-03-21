@@ -671,7 +671,7 @@ public class ExpoMusicKitModule: Module {
 
   /// Resolves artwork to a URL that React Native Image can load.
   /// For http:// URLs, returns as-is. For musickit:// URLs (local library items),
-  /// loads the image data and caches to a temp file, returning a file:// URL.
+  /// loads the image data synchronously and caches to a temp file, returning a file:// URL.
   private func resolveArtworkUrl(_ artwork: Artwork?, id: String, width: Int, height: Int) -> String? {
     guard let artwork = artwork,
           let url = artwork.url(width: width, height: height) else { return nil }
@@ -693,16 +693,14 @@ public class ExpoMusicKitModule: Module {
       return filePath.absoluteString
     }
 
-    // Cache asynchronously — don't block the module queue with synchronous network I/O.
-    // The next fetchPlaylists call will pick up the cached file.
-    Task.detached(priority: .utility) {
-      guard let data = try? Data(contentsOf: url),
-            let image = UIImage(data: data),
-            let jpegData = image.jpegData(compressionQuality: 0.85) else { return }
-      try? jpegData.write(to: filePath)
-    }
+    // Load and cache synchronously so artwork is available on first fetch.
+    // This runs on the Expo module queue, not the main thread.
+    guard let data = try? Data(contentsOf: url),
+          let image = UIImage(data: data),
+          let jpegData = image.jpegData(compressionQuality: 0.85) else { return nil }
+    try? jpegData.write(to: filePath)
 
-    return nil
+    return filePath.absoluteString
   }
 
   private func trackToDictionary(_ track: Track) -> [String: Any] {
