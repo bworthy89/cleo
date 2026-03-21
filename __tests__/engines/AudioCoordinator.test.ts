@@ -2,6 +2,14 @@ import { audioCoordinator } from '../../src/engines/AudioCoordinator';
 import { getPlaybackStatus, activateDuckingSession, deactivateDuckingSession } from '../../modules/expo-music-kit';
 import type { TrackInfo } from '../../src/types/TrackInfo';
 
+jest.mock('../../src/services/logger', () => ({
+  logger: {
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  },
+}));
+
 // Mock dependencies
 jest.mock('../../src/services/CleoVoiceEngine', () => ({
   synthesizeAndPlay: jest.fn().mockResolvedValue(undefined),
