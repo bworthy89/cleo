@@ -799,7 +799,11 @@ public class ExpoMusicKitModule: Module {
       // Stop TTS when music is paused/stopped externally (Lock Screen, AirPods, Control Center)
       if let last = self.lastPlaybackStatus, last == .playing,
          (currentStatus == .paused || currentStatus == .stopped) {
-        if let ttsPlayer = self.audioPlayer, ttsPlayer.isPlaying {
+        // Only stop TTS if we're not currently in a ducking session.
+        // Ducking can cause brief playback status changes that shouldn't interrupt TTS.
+        let isDucking = (try? AVAudioSession.sharedInstance().category == .playback &&
+          AVAudioSession.sharedInstance().categoryOptions.contains(.duckOthers)) ?? false
+        if let ttsPlayer = self.audioPlayer, ttsPlayer.isPlaying, !isDucking {
           self.crossfadeTimer?.invalidate()
           self.crossfadeTimer = nil
           self.crossfadeActive = false
