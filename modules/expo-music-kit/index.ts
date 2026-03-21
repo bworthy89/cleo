@@ -113,6 +113,17 @@ export async function getNextInQueue(): Promise<{ id?: string; title: string; ar
   return await ExpoMusicKit.getNextInQueue();
 }
 
+export type UpcomingTrack = {
+  id?: string;
+  title: string;
+  artistName: string;
+  artworkUrl?: string;
+};
+
+export async function getUpcomingQueue(count: number = 6): Promise<UpcomingTrack[]> {
+  return await ExpoMusicKit.getUpcomingQueue(count);
+}
+
 export async function getPlaybackTime(): Promise<number> {
   return await ExpoMusicKit.getPlaybackTime();
 }

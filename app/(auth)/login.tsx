@@ -97,7 +97,7 @@ export default function LoginScreen() {
         >
           {/* Branding */}
           <View style={styles.brandingSection}>
-            <Text style={styles.logo}>CLEO</Text>
+            <Text style={styles.logo}>ONAY</Text>
             <View style={styles.accentLine} />
           </View>
 
@@ -218,7 +218,7 @@ export default function LoginScreen() {
                   </>
                 ) : (
                   <>
-                    NEW TO CLEO?{'  '}
+                    NEW TO ONAY?{'  '}
                     <Text style={styles.footerLink}>CREATE ACCOUNT</Text>
                   </>
                 )}
