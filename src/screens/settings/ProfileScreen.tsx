@@ -1,15 +1,17 @@
-import React, { useEffect, useState } from 'react';
-import { Alert, View, Text, ScrollView, StyleSheet, Pressable, Switch } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, Animated, View, Text, ScrollView, StyleSheet, Pressable, Switch } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Slider from '@react-native-community/slider';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from 'expo-router';
 import auth from '@react-native-firebase/auth';
 import { router } from 'expo-router';
 import {
   Colors, Surface, TextColors, Typography, Spacing, Radius, withAlpha, AppHeaderTokens,
 } from '../../tokens/design-tokens';
 import { AppHeader } from '../../components/AppHeader';
+import { OnayCharacter } from '../../components/OnayCharacter';
 import { storage } from '../../services/Storage';
 import { signOut } from '../../services/AuthService';
 import { musicKitPlayer } from '../../services/MusicKitPlayer';
@@ -50,6 +52,14 @@ const PERSONALITIES: PersonalityOption[] = [
     iconColor: '#ff97b8',
   },
 ];
+
+function getOnayGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return '\u201CMorning, listener. What are we getting into today?\u201D';
+  if (hour < 17) return '\u201CAfternoon session? I like where your head\u2019s at.\u201D';
+  if (hour < 21) return '\u201CEvening. Let\u2019s set the mood.\u201D';
+  return '\u201CLate night vibes. I\u2019ve got just the thing.\u201D';
+}
 
 // ─── Component ───────────────────────────────────────────────────────
 
@@ -132,7 +142,22 @@ export function ProfileScreen() {
 
   const displayName = firebaseUser?.displayName ?? 'Listener';
   const email = firebaseUser?.email ?? '';
-  const initial = displayName.charAt(0).toUpperCase();
+  const greeting = useMemo(() => getOnayGreeting(), []);
+  const greetingOpacity = useRef(new Animated.Value(0)).current;
+
+  useFocusEffect(
+    React.useCallback(() => {
+      greetingOpacity.setValue(0);
+      const timer = setTimeout(() => {
+        Animated.timing(greetingOpacity, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }).start();
+      }, 300);
+      return () => clearTimeout(timer);
+    }, []),
+  );
 
   return (
     <View style={styles.root}>
@@ -145,24 +170,21 @@ export function ProfileScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Profile Header ── */}
-        <View style={styles.profileHeader}>
-          <LinearGradient
-            colors={[Colors.accent, withAlpha(Colors.accent, 0.3)]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.avatarRing}
-          >
-            <View style={styles.avatarInner}>
-              {displayName !== 'Listener' ? (
-                <Text style={styles.avatarInitial}>{initial}</Text>
-              ) : (
-                <Ionicons name="person" size={36} color={TextColors.outline} />
-              )}
-            </View>
-          </LinearGradient>
-          <Text style={styles.userName}>{displayName}</Text>
-          {email ? <Text style={styles.userEmail}>{email}</Text> : null}
+        {/* ── ONAY Character + Greeting ── */}
+        <OnayCharacter />
+
+        <Animated.View style={[styles.greetingCard, { opacity: greetingOpacity }]}>
+          <View style={styles.greetingGoldEdge} />
+          <View style={styles.greetingInner}>
+            <Text style={styles.greetingLabel}>ONAY SAYS</Text>
+            <Text style={styles.greetingText}>{greeting}</Text>
+          </View>
+        </Animated.View>
+
+        {/* ── Profile Info ── */}
+        <View style={styles.profileRow}>
+          <Text style={styles.profileName}>{displayName}</Text>
+          {email ? <Text style={styles.profileEmail}>{'\u00B7 '}{email}</Text> : null}
         </View>
 
         {/* ── AI Personality ── */}
@@ -298,10 +320,6 @@ export function ProfileScreen() {
 
 // ─── Styles ──────────────────────────────────────────────────────────
 
-const RING_SIZE = 100;
-const RING_BORDER = 3;
-const INNER_SIZE = RING_SIZE - RING_BORDER * 2;
-
 const styles = StyleSheet.create({
   root: {
     flex: 1,
@@ -321,41 +339,53 @@ const styles = StyleSheet.create({
   },
 
   // Profile Header
-  profileHeader: {
+  greetingCard: {
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.md,
+    flexDirection: 'row',
+    backgroundColor: Surface.container,
+    borderRadius: Radius.sm,
+    overflow: 'hidden',
+  },
+  greetingGoldEdge: {
+    width: 2,
+    backgroundColor: Colors.accent,
+  },
+  greetingInner: {
+    flex: 1,
+    padding: Spacing.md,
+  },
+  greetingLabel: {
+    fontFamily: Typography.mono.family,
+    fontSize: 9,
+    letterSpacing: 2,
+    color: Colors.accent,
+    marginBottom: Spacing.xs,
+  },
+  greetingText: {
+    fontFamily: Typography.cleoVoice.family,
+    fontStyle: Typography.cleoVoice.style,
+    fontSize: 16,
+    color: TextColors.secondary,
+    lineHeight: 24,
+  },
+  profileRow: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    marginTop: Spacing.md,
     marginBottom: Spacing.xl,
   },
-  avatarRing: {
-    width: RING_SIZE,
-    height: RING_SIZE,
-    borderRadius: RING_SIZE / 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarInner: {
-    width: INNER_SIZE,
-    height: INNER_SIZE,
-    borderRadius: INNER_SIZE / 2,
-    backgroundColor: Surface.base,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarInitial: {
-    fontFamily: Typography.display.family,
-    fontSize: 36,
+  profileName: {
+    fontFamily: Typography.body.familySemiBold,
+    fontSize: 14,
     color: TextColors.primary,
   },
-  userName: {
-    fontFamily: Typography.display.family,
-    fontSize: 24,
-    color: TextColors.primary,
-    marginTop: Spacing.md,
-  },
-  userEmail: {
+  profileEmail: {
     fontFamily: Typography.body.family,
     fontSize: 12,
     color: TextColors.secondary,
-    marginTop: Spacing.xs,
   },
 
   // Section
