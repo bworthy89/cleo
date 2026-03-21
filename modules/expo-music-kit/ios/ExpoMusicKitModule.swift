@@ -333,6 +333,30 @@ public class ExpoMusicKitModule: Module {
       return result
     }
 
+    AsyncFunction("getUpcomingQueue") { (count: Int) -> [[String: Any]] in
+      let entries = Array(self.player.queue.entries)
+      guard let currentEntry = self.player.queue.currentEntry,
+            let currentIndex = entries.firstIndex(where: { $0.id == currentEntry.id }) else { return [] }
+      let startIndex = entries.index(after: currentIndex)
+      guard startIndex < entries.endIndex else { return [] }
+      let endIndex = min(entries.endIndex, startIndex + count)
+      var results: [[String: Any]] = []
+      for entry in entries[startIndex..<endIndex] {
+        var dict: [String: Any] = [
+          "title": entry.title,
+          "artistName": entry.subtitle ?? ""
+        ]
+        if case .song(let song) = entry.item {
+          dict["id"] = song.id.rawValue
+          if let artworkUrl = self.artworkUrlString(song.artwork, width: 96, height: 96) {
+            dict["artworkUrl"] = artworkUrl
+          }
+        }
+        results.append(dict)
+      }
+      return results
+    }
+
     AsyncFunction("getPlaybackTime") { () -> Double in
       return player.playbackTime
     }

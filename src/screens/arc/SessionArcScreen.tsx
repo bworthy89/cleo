@@ -7,8 +7,9 @@ import { AppHeader } from '../../components/AppHeader';
 import { CleoOrb } from '../../components/CleoOrb';
 import { WaveformBars } from '../../components/WaveformBars';
 import { sessionEngine, type Session, type SessionPhase } from '../../engines/SessionEngine';
-import { queueManager } from '../../engines/QueueManager';
 import { getStations, type Station } from '../../services/Storage';
+import { musicKitPlayer } from '../../services/MusicKitPlayer';
+import { getUpcomingQueue, type NowPlaying, type UpcomingTrack } from '../../../modules/expo-music-kit';
 
 // ---------- helpers ----------
 
@@ -18,18 +19,6 @@ function phaseProgress(phase: SessionPhase): number {
   const idx = PHASE_ORDER.indexOf(phase);
   if (idx < 0) return 0;
   return idx / (PHASE_ORDER.length - 1);
-}
-
-function energyFromPhase(phase: SessionPhase): number {
-  const map: Record<SessionPhase, number> = {
-    coldOpen: 20,
-    earlySession: 35,
-    build: 60,
-    peak: 90,
-    resolution: 55,
-    signOff: 25,
-  };
-  return map[phase] ?? 40;
 }
 
 function formatMinutes(m: number): string {
@@ -160,44 +149,28 @@ function ArcVisualization({ phase, vibeAccent }: { phase: SessionPhase; vibeAcce
   );
 }
 
-function CurrentTrackCard({ session, vibeAccent }: { session: Session; vibeAccent: string }) {
-  const currentTrackId = session.tracksPlayed[session.tracksPlayed.length - 1];
-  const profile = currentTrackId ? queueManager.getTrackProfile(currentTrackId) : undefined;
-
-  const title = profile?.title ?? 'Loading...';
-  const artist = profile?.artistName ?? '';
-  const artworkUrl = profile?.artworkUrl
-    ? profile.artworkUrl.replace('{w}', '96').replace('{h}', '96')
-    : undefined;
-  const tags = profile?.tags ?? [];
-  const genreNames = profile?.genreNames ?? [];
-  const genre = genreNames[0];
-
-  const chipItems: string[] = [];
-  if (genre) chipItems.push(genre);
-  if (tags.length > 0) chipItems.push(...tags.slice(0, 2));
+function CurrentTrackCard({ nowPlaying, vibeAccent }: { nowPlaying: NowPlaying; vibeAccent: string }) {
+  const genre = nowPlaying.genreNames?.[0];
 
   return (
     <View style={styles.trackCard}>
       <View style={styles.trackCardGoldEdge} />
       <View style={styles.trackCardInner}>
-        {artworkUrl ? (
-          <Image source={{ uri: artworkUrl }} style={styles.trackArt} />
+        {nowPlaying.artworkUrl ? (
+          <Image source={{ uri: nowPlaying.artworkUrl }} style={styles.trackArt} />
         ) : (
           <View style={[styles.trackArt, styles.trackArtPlaceholder]} />
         )}
         <View style={styles.trackInfo}>
-          <Text style={styles.trackTitle} numberOfLines={1}>{title}</Text>
-          <Text style={styles.trackArtist} numberOfLines={1}>{'\u2014 '}{artist}</Text>
-          {chipItems.length > 0 && (
+          <Text style={styles.trackTitle} numberOfLines={1}>{nowPlaying.title}</Text>
+          <Text style={styles.trackArtist} numberOfLines={1}>{'\u2014 '}{nowPlaying.artistName}</Text>
+          {genre ? (
             <View style={styles.chipRow}>
-              {chipItems.map((chip, i) => (
-                <View key={i} style={styles.chip}>
-                  <Text style={styles.chipText}>{chip}</Text>
-                </View>
-              ))}
+              <View style={styles.chip}>
+                <Text style={styles.chipText}>{genre}</Text>
+              </View>
             </View>
-          )}
+          ) : null}
         </View>
         <View style={styles.nowIndicator}>
           <WaveformBars color={vibeAccent} />
@@ -209,38 +182,51 @@ function CurrentTrackCard({ session, vibeAccent }: { session: Session; vibeAccen
 }
 
 function SessionPulse({ session, vibeAccent }: { session: Session; vibeAccent: string }) {
-  const duration = sessionEngine.getSessionDuration();
-  const energy = energyFromPhase(session.currentPhase);
-  // Estimate ~60 min total session
-  const estimatedTotal = 60;
-  const remaining = Math.max(0, estimatedTotal - duration);
+  const duration = Math.floor((Date.now() - session.startTime) / 60000);
+  const played = session.tracksPlayed.length;
+  const totalTracks = session.queuePlan?.queue.length ?? 0;
+  const progressPct = totalTracks > 0 ? Math.min(100, Math.round((played / totalTracks) * 100)) : 0;
+  const skipped = session.skippedTracks.length;
+
+  // Estimate remaining: average time per track so far, times tracks left
+  const avgPerTrack = played > 0 ? duration / played : 3.5; // fallback ~3.5 min
+  const tracksRemaining = Math.max(0, totalTracks - played);
+  const estimatedRemaining = Math.round(avgPerTrack * tracksRemaining);
 
   return (
     <View style={styles.pulseCard}>
       <Text style={styles.sectionLabel}>SESSION PULSE</Text>
       <View style={styles.pulseRow}>
-        <Text style={styles.pulseLabel}>Energy Level</Text>
-        <Text style={styles.pulseValue}>{energy}%</Text>
+        <Text style={styles.pulseLabel}>Session Progress</Text>
+        <Text style={styles.pulseValue}>{progressPct}%</Text>
       </View>
       <View style={styles.progressBarBg}>
-        <View style={[styles.progressBarFill, { width: `${energy}%`, backgroundColor: Colors.accent }]} />
+        <View style={[styles.progressBarFill, { width: `${progressPct}%`, backgroundColor: Colors.accent }]} />
       </View>
       <View style={[styles.pulseRow, { marginTop: Spacing.md }]}>
-        <Text style={styles.pulseLabel}>Time Remaining</Text>
-        <Text style={[styles.pulseValue, { color: vibeAccent }]}>~{formatMinutes(remaining)}</Text>
+        <Text style={styles.pulseLabel}>Time Elapsed</Text>
+        <Text style={styles.pulseValue}>{formatMinutes(duration)}</Text>
+      </View>
+      <View style={[styles.pulseRow, { marginTop: Spacing.sm }]}>
+        <Text style={styles.pulseLabel}>Estimated Remaining</Text>
+        <Text style={[styles.pulseValue, { color: vibeAccent }]}>~{formatMinutes(estimatedRemaining)}</Text>
       </View>
       <View style={[styles.pulseRow, { marginTop: Spacing.sm }]}>
         <Text style={styles.pulseLabel}>Tracks Played</Text>
-        <Text style={styles.pulseValue}>{session.tracksPlayed.length}</Text>
+        <Text style={styles.pulseValue}>{played}{totalTracks > 0 ? ` / ${totalTracks}` : ''}</Text>
       </View>
+      {skipped > 0 && (
+        <View style={[styles.pulseRow, { marginTop: Spacing.sm }]}>
+          <Text style={styles.pulseLabel}>Skipped</Text>
+          <Text style={styles.pulseValue}>{skipped}</Text>
+        </View>
+      )}
     </View>
   );
 }
 
-function UpcomingManifest({ vibeAccent }: { vibeAccent: string }) {
-  const upcomingIds = sessionEngine.getNextTrackIds(6);
-
-  if (upcomingIds.length === 0) {
+function UpcomingManifest({ upcoming, vibeAccent }: { upcoming: UpcomingTrack[]; vibeAccent: string }) {
+  if (upcoming.length === 0) {
     return (
       <View style={styles.manifestSection}>
         <Text style={styles.sectionLabel}>UPCOMING MANIFEST</Text>
@@ -249,12 +235,12 @@ function UpcomingManifest({ vibeAccent }: { vibeAccent: string }) {
     );
   }
 
-  const items: { type: 'track' | 'cleo'; id: string; index: number }[] = [];
-  upcomingIds.forEach((id, i) => {
-    items.push({ type: 'track', id, index: i });
+  const items: { type: 'track' | 'cleo'; track?: UpcomingTrack; key: string }[] = [];
+  upcoming.forEach((track, i) => {
+    items.push({ type: 'track', track, key: track.id ?? `track-${i}` });
     // Insert a ONAY commentary node after every 2 tracks
-    if ((i + 1) % 2 === 0 && i < upcomingIds.length - 1) {
-      items.push({ type: 'cleo', id: `cleo-${i}`, index: i });
+    if ((i + 1) % 2 === 0 && i < upcoming.length - 1) {
+      items.push({ type: 'cleo', key: `cleo-${i}` });
     }
   });
 
@@ -264,30 +250,27 @@ function UpcomingManifest({ vibeAccent }: { vibeAccent: string }) {
       {items.map((item) => {
         if (item.type === 'cleo') {
           return (
-            <View key={item.id} style={[styles.cleoNode, { backgroundColor: withAlpha(vibeAccent, 0.15) }]}>
+            <View key={item.key} style={[styles.cleoNode, { backgroundColor: withAlpha(vibeAccent, 0.15) }]}>
               <CleoOrb size={20} />
               <Text style={styles.cleoNodeText}>ONAY commentary</Text>
             </View>
           );
         }
-        const profile = queueManager.getTrackProfile(item.id);
-        const artworkUrl = profile?.artworkUrl
-          ? profile.artworkUrl.replace('{w}', '96').replace('{h}', '96')
-          : undefined;
+        const t = item.track!;
         return (
-          <View key={item.id} style={styles.manifestTrack}>
+          <View key={item.key} style={styles.manifestTrack}>
             <View style={styles.manifestTrackInner}>
-              {artworkUrl ? (
-                <Image source={{ uri: artworkUrl }} style={styles.manifestArt} />
+              {t.artworkUrl ? (
+                <Image source={{ uri: t.artworkUrl }} style={styles.manifestArt} />
               ) : (
                 <View style={[styles.manifestArt, styles.trackArtPlaceholder]} />
               )}
               <View style={styles.manifestTrackInfo}>
                 <Text style={styles.manifestTrackTitle} numberOfLines={1}>
-                  {profile?.title ?? 'Unknown Track'}
+                  {t.title}
                 </Text>
                 <Text style={styles.manifestTrackArtist} numberOfLines={1}>
-                  {profile?.artistName ?? ''}
+                  {t.artistName}
                 </Text>
               </View>
             </View>
@@ -314,12 +297,31 @@ function EmptyState() {
 export function SessionArcScreen() {
   const insets = useSafeAreaInsets();
   const [session, setSession] = useState<Session | null>(null);
+  const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
+  const [upcoming, setUpcoming] = useState<UpcomingTrack[]>([]);
 
   useEffect(() => {
-    setSession(sessionEngine.getSession());
-    const interval = setInterval(() => {
-      setSession(sessionEngine.getSession());
-    }, 3000);
+    const refresh = async () => {
+      const s = sessionEngine.getSession();
+      if (s) {
+        s.currentPhase = sessionEngine.getCurrentPhase();
+      }
+      setSession(s ? { ...s } : null);
+
+      try {
+        const [np, queue] = await Promise.all([
+          musicKitPlayer.getNowPlaying(),
+          getUpcomingQueue(6),
+        ]);
+        setNowPlaying(np);
+        setUpcoming(queue);
+      } catch {
+        setNowPlaying(null);
+        setUpcoming([]);
+      }
+    };
+    refresh();
+    const interval = setInterval(refresh, 3000);
     return () => clearInterval(interval);
   }, []);
 
@@ -358,13 +360,13 @@ export function SessionArcScreen() {
           <ArcVisualization phase={session.currentPhase} vibeAccent={vibeAccent} />
 
           {/* Current Track Card */}
-          <CurrentTrackCard session={session} vibeAccent={vibeAccent} />
+          {nowPlaying && <CurrentTrackCard nowPlaying={nowPlaying} vibeAccent={vibeAccent} />}
 
           {/* Session Pulse */}
           <SessionPulse session={session} vibeAccent={vibeAccent} />
 
           {/* Upcoming Manifest */}
-          <UpcomingManifest vibeAccent={vibeAccent} />
+          <UpcomingManifest upcoming={upcoming} vibeAccent={vibeAccent} />
 
           <View style={{ height: 120 }} />
         </ScrollView>
