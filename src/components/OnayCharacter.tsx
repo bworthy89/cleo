@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { Animated, Image, StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useIsFocused } from '@react-navigation/native';
 import { useFocusEffect } from 'expo-router';
 import Video from 'react-native-video';
 import { Colors, Surface, withAlpha } from '../tokens/design-tokens';
@@ -9,6 +10,7 @@ const FRAME_SIZE = 220;
 const VIDEO_SCALE = 1.25;
 
 export function OnayCharacter() {
+  const isFocused = useIsFocused();
   const [videoFailed, setVideoFailed] = useState(false);
   const entranceOpacity = useRef(new Animated.Value(0)).current;
   const entranceSlide = useRef(new Animated.Value(10)).current;
@@ -52,7 +54,7 @@ export function OnayCharacter() {
       >
         <View style={styles.frameInner}>
           <View style={styles.videoClip}>
-            {videoFailed ? (
+            {!isFocused || videoFailed ? (
               <Image
                 source={require('../../assets/cleo/onay-frame-1.png')}
                 style={styles.fallbackImage}
