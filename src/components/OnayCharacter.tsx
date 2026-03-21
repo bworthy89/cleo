@@ -1,18 +1,18 @@
-import { useCallback, useRef } from 'react';
-import { Animated, StyleSheet, View } from 'react-native';
+import { useCallback, useRef, useState } from 'react';
+import { Animated, Image, StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from 'expo-router';
 import Video from 'react-native-video';
-import { Colors, Surface, Radius, withAlpha } from '../tokens/design-tokens';
+import { Colors, Surface, withAlpha } from '../tokens/design-tokens';
 
 const FRAME_SIZE = 220;
-const VIDEO_SCALE = 1.25; // scale up to crop out bottom logo
+const VIDEO_SCALE = 1.25;
 
 export function OnayCharacter() {
+  const [videoFailed, setVideoFailed] = useState(false);
   const entranceOpacity = useRef(new Animated.Value(0)).current;
   const entranceSlide = useRef(new Animated.Value(10)).current;
 
-  // Entrance animation on tab focus
   useFocusEffect(
     useCallback(() => {
       entranceOpacity.setValue(0);
@@ -42,31 +42,37 @@ export function OnayCharacter() {
         },
       ]}
     >
-      {/* Gold glow behind frame */}
       <View style={styles.glow} />
 
-      {/* Frame border */}
       <LinearGradient
         colors={[Colors.accent, withAlpha(Colors.accent, 0.3)]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.frameBorder}
       >
-        {/* Inner clip area */}
         <View style={styles.frameInner}>
           <View style={styles.videoClip}>
-            <Video
-              source={require('../../assets/cleo/onay-animation.mp4')}
-              style={styles.video}
-              resizeMode="cover"
-              repeat
-              muted
-              disableFocus
-              ignoreSilentSwitch="ignore"
-              mixWithOthers
-              playWhenInactive={false}
-              playInBackground={false}
-            />
+            {videoFailed ? (
+              <Image
+                source={require('../../assets/cleo/onay-frame-1.png')}
+                style={styles.fallbackImage}
+                resizeMode="cover"
+              />
+            ) : (
+              <Video
+                source={require('../../assets/cleo/onay-animation.mp4')}
+                style={styles.video}
+                resizeMode="cover"
+                repeat
+                muted
+                disableFocus
+                ignoreSilentSwitch="ignore"
+                mixWithOthers
+                playWhenInactive={false}
+                playInBackground={false}
+                onError={() => setVideoFailed(true)}
+              />
+            )}
           </View>
         </View>
       </LinearGradient>
@@ -110,7 +116,11 @@ const styles = StyleSheet.create({
   },
   video: {
     width: FRAME_SIZE,
-    height: FRAME_SIZE * VIDEO_SCALE, // taller than container to crop bottom logo
-    marginTop: -(FRAME_SIZE * (VIDEO_SCALE - 1)) * 0.3, // shift up slightly to center face
+    height: FRAME_SIZE * VIDEO_SCALE,
+    marginTop: -(FRAME_SIZE * (VIDEO_SCALE - 1)) * 0.3,
+  },
+  fallbackImage: {
+    width: FRAME_SIZE,
+    height: FRAME_SIZE,
   },
 });
