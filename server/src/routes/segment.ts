@@ -1,23 +1,14 @@
 import { Router, Request, Response } from 'express';
 import { llmProvider } from '../providers/llm';
+import { validate, segmentSchema } from '../middleware/validate';
 
 export const segmentRouter = Router();
 
-segmentRouter.post('/generate-segment', async (req: Request, res: Response) => {
+segmentRouter.post('/generate-segment', validate(segmentSchema), async (req: Request, res: Response) => {
   console.log('[Segment] Request received');
   try {
-    const { systemPrompt, userPrompt, maxTokens: rawMaxTokens } = req.body;
-    console.log(`[Segment] systemPrompt: ${systemPrompt?.length ?? 0} chars, userPrompt: ${userPrompt?.length ?? 0} chars`);
-
-    if (!systemPrompt || !userPrompt) {
-      res.status(400).json({ error: 'systemPrompt and userPrompt are required' });
-      return;
-    }
-
-    // Clamp maxTokens to prevent abuse (max 8192 per CLAUDE.md)
-    const maxTokens = typeof rawMaxTokens === 'number'
-      ? Math.min(Math.max(rawMaxTokens, 256), 8192)
-      : 2048;
+    const { systemPrompt, userPrompt, maxTokens } = req.body;
+    console.log(`[Segment] systemPrompt: ${systemPrompt.length} chars, userPrompt: ${userPrompt.length} chars`);
 
     console.log('[Segment] Generating via LLM provider...');
     const result = await llmProvider.generate({

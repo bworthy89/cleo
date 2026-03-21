@@ -44,7 +44,12 @@ function Bar({ height, delay, color }: { height: number; delay: number; color: s
 
 export function WaveformBars({ color = Colors.accent }: WaveformBarsProps) {
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: 20 }}>
+    <View
+      style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: 20 }}
+      accessibilityLabel="Audio visualization"
+      accessibilityRole="image"
+      accessible
+    >
       {BAR_HEIGHTS.map((h, i) => (
         <Bar key={i} height={h} delay={DELAYS[i]} color={color} />
       ))}
