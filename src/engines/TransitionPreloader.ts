@@ -12,6 +12,7 @@ import { musicKitPlayer } from '../services/MusicKitPlayer';
 import type { Vibe } from '../cleo/fallbacks';
 import type { SegmentResult } from './SegmentController';
 import type { TrackInfo } from '../types/TrackInfo';
+import { logger } from '../services/logger';
 
 type PreloaderState = 'idle' | 'generating' | 'ready' | 'fired' | 'done';
 
@@ -157,7 +158,7 @@ class TransitionPreloaderEngine {
           }
         }
       } catch (err) {
-        console.warn('[TransitionPreloader] Poll error:', err);
+        logger.warn('TransitionPreloader', 'Poll error', err);
       }
     }, 2000);
 
@@ -211,7 +212,7 @@ class TransitionPreloaderEngine {
           console.log(`[TransitionPreloader] Real next in queue: "${realNext.title}" by ${realNext.artistName}`);
         }
       } catch (err) {
-        console.warn('[TransitionPreloader] getNextInQueue failed:', err);
+        logger.warn('TransitionPreloader', 'getNextInQueue failed', err);
       }
 
       const segment = await segmentController.generateEjectTransition(

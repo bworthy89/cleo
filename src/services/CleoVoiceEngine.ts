@@ -1,6 +1,7 @@
 import { playAudioFromBase64 } from '../../modules/expo-music-kit';
 import { authenticatedFetch } from './api';
 import type { Vibe } from '../cleo/fallbacks';
+import { logger } from './logger';
 
 interface VoiceProfile {
   stability: number;
@@ -175,7 +176,7 @@ export async function synthesize(text: string, vibe: Vibe = 'general'): Promise<
     const voiceParams = resolveVoiceParams(vibe, cue);
 
     if (!formatted || formatted.length < 2) {
-      console.warn('[CleoVoice] Text too short after formatting, skipping synthesis');
+      logger.warn('CleoVoice', 'Text too short after formatting, skipping synthesis');
       return null;
     }
 
@@ -208,7 +209,7 @@ export async function synthesize(text: string, vibe: Vibe = 'general'): Promise<
     console.log(`[CleoVoice] Audio synthesized: ${audioSizeKB}KB`);
     return base64Audio;
   } catch (error) {
-    console.error('Voice synthesis failed:', error);
+    logger.error('CleoVoice', 'Voice synthesis failed', error);
     return null;
   } finally {
     clearTimeout(timeout);
@@ -233,6 +234,6 @@ export async function synthesizeAndPlay(text: string, vibe: Vibe = 'general'): P
     await playAudioFromBase64(base64Audio);
     console.log(`[CleoVoice] Playback finished`);
   } catch (error) {
-    console.error('Voice playback failed:', error);
+    logger.error('CleoVoice', 'Voice playback failed', error);
   }
 }

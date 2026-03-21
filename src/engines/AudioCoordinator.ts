@@ -8,6 +8,7 @@ import type { Vibe } from '../cleo/fallbacks';
 import { getPlaybackStatus, activateDuckingSession, deactivateDuckingSession, setTTSVolume } from '../../modules/expo-music-kit';
 import { storage, StorageKeys } from '../services/Storage';
 import NetInfo from '@react-native-community/netinfo';
+import { logger } from '../services/logger';
 
 const GENERATION_TIMEOUT_MS = 8000;
 
@@ -87,7 +88,7 @@ class AudioCoordinatorEngine {
       const status = await getPlaybackStatus();
       return status === 'playing';
     } catch (err) {
-      console.warn('[AudioCoordinator] getPlaybackStatus failed:', err);
+      logger.warn('AudioCoordinator', 'getPlaybackStatus failed', err);
       return false;
     }
   }
@@ -154,7 +155,7 @@ class AudioCoordinatorEngine {
         return;
       }
     } catch (error) {
-      console.error('[AudioCoordinator] Handoff failed:', error);
+      logger.error('AudioCoordinator', 'Handoff failed', error);
     } finally {
       if (myId === this.generationId && this.isSpeaking) {
         this.lastSegmentEndTime = Date.now();
@@ -241,7 +242,7 @@ class AudioCoordinatorEngine {
             await synthesizeAndPlay(segment.text, this.currentVibe);
             if (myId === this.generationId) this.scheduleMidSongDrop(trackInfo);
           } catch (error) {
-            console.error('[AudioCoordinator] post_song playback failed:', error);
+            logger.error('AudioCoordinator', 'post_song playback failed', error);
           } finally {
             if (myId === this.generationId) {
               this.lastSegmentEndTime = Date.now();
@@ -277,7 +278,7 @@ class AudioCoordinatorEngine {
       const result = await Promise.race([generationPromise, timeoutPromise]);
 
       if (result === 'timeout') {
-        console.warn('[AudioCoordinator] Generation timed out at 8s — skipping segment');
+        logger.warn('AudioCoordinator', 'Generation timed out at 8s — skipping segment');
         await deactivateDuckingSession().catch(() => {});
         return null;
       }
@@ -293,7 +294,7 @@ class AudioCoordinatorEngine {
       console.log(`[Cleo] ${segment.type} (${segment.deliveryMode}): ${segment.text}`);
       return segment;
     } catch (error) {
-      console.error('[AudioCoordinator] Segment generation failed:', error);
+      logger.error('AudioCoordinator', 'Segment generation failed', error);
       return null;
     }
   }
@@ -333,7 +334,7 @@ class AudioCoordinatorEngine {
         await synthesizeAndPlay(segment.text, this.currentVibe);
         segmentController.markMidSongDropCompleted();
       } catch (error) {
-        console.error('[AudioCoordinator] Mid-song drop failed:', error);
+        logger.error('AudioCoordinator', 'Mid-song drop failed', error);
       } finally {
         if (myId === this.generationId) {
           this.lastSegmentEndTime = Date.now();

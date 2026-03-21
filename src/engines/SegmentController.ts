@@ -3,6 +3,7 @@ import type { SegmentType, Vibe } from '../cleo/fallbacks';
 import { getColdOpen } from '../cleo/cold-opens';
 import type { TrackInfo } from '../types/TrackInfo';
 import { saveSessionMemory, loadSessionMemory, getTimeSinceLastSession, incrementSessionCount } from '../services/SessionMemory';
+import { logger } from '../services/logger';
 
 export type LengthTier = 'brief' | 'standard' | 'extended';
 
@@ -359,7 +360,7 @@ class SegmentControllerEngine {
       const text = await generateSegment(context);
       this.bufferedSegment = { text, type: segmentType, deliveryMode };
     } catch (err) {
-      console.warn('[SegmentController] Pre-load failed:', err);
+      logger.warn('SegmentController', 'Pre-load failed', err);
     }
   }
 

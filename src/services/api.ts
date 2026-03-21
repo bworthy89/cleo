@@ -1,5 +1,6 @@
 import { getIdToken } from './AuthService';
 import { withRetry } from '../utils/retry';
+import { logger } from './logger';
 
 export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL
   ?? 'https://api.worthymedia.tech';
@@ -45,7 +46,7 @@ export async function authenticatedFetch(
       initialDelayMs: 1000,
       backoff: 'exponential',
       onRetry: (attempt, err) => {
-        console.warn(`[API] Retry ${attempt} for ${path}:`, err);
+        logger.warn('API', `Retry ${attempt} for ${path}`, err);
       },
     }
   );
