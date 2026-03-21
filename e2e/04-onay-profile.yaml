@@ -1,0 +1,31 @@
+appId: com.worthymedia.cleo
+name: ONAY Profile - character and settings render
+---
+- launchApp
+- tapOn: "ONAY"
+
+# ONAY greeting card
+- assertVisible: "ONAY SAYS"
+
+# AI Personality section
+- scrollUntilVisible:
+    element: "AI PERSONALITY"
+    direction: DOWN
+- assertVisible: "AI PERSONALITY"
+- assertVisible: "The Curator"
+- assertVisible: "The Companion"
+- assertVisible: "The Oracle"
+
+# Connected Ecosystem section
+- scrollUntilVisible:
+    element: "CONNECTED ECOSYSTEM"
+    direction: DOWN
+- assertVisible: "CONNECTED ECOSYSTEM"
+- assertVisible: "Apple Music"
+
+# Account section
+- scrollUntilVisible:
+    element: "ACCOUNT"
+    direction: DOWN
+- assertVisible: "ACCOUNT"
+- assertVisible: "Sign Out"

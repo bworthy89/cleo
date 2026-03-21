@@ -1,0 +1,17 @@
+appId: com.worthymedia.cleo
+name: Station Creation - playlist tap opens vibe picker
+---
+- launchApp
+
+# Scroll to playlists
+- scrollUntilVisible:
+    element: "PLAYLISTS"
+    direction: DOWN
+
+# Tap first playlist (creates station + opens vibe picker)
+- tapOn:
+    index: 0
+    parentId: "PLAYLISTS"
+
+# Vibe picker should appear
+- assertVisible: "Choose a Vibe"

@@ -1,0 +1,6 @@
+appId: com.worthymedia.cleo
+name: App Launch - loads to broadcast tab
+---
+- launchApp
+- assertVisible: "ONAY"
+- assertVisible: "LIVE BROADCAST"
