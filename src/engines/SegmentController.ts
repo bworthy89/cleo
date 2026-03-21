@@ -358,8 +358,8 @@ class SegmentControllerEngine {
     try {
       const text = await generateSegment(context);
       this.bufferedSegment = { text, type: segmentType, deliveryMode };
-    } catch {
-      // Pre-load failure is non-fatal
+    } catch (err) {
+      console.warn('[SegmentController] Pre-load failed:', err);
     }
   }
 

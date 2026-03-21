@@ -7,6 +7,7 @@ import type { TrackInfo } from '../types/TrackInfo';
 import type { Vibe } from '../cleo/fallbacks';
 import { getPlaybackStatus, activateDuckingSession, deactivateDuckingSession, setTTSVolume } from '../../modules/expo-music-kit';
 import { storage, StorageKeys } from '../services/Storage';
+import NetInfo from '@react-native-community/netinfo';
 
 const GENERATION_TIMEOUT_MS = 8000;
 
@@ -85,7 +86,8 @@ class AudioCoordinatorEngine {
     try {
       const status = await getPlaybackStatus();
       return status === 'playing';
-    } catch {
+    } catch (err) {
+      console.warn('[AudioCoordinator] getPlaybackStatus failed:', err);
       return false;
     }
   }
@@ -169,6 +171,15 @@ class AudioCoordinatorEngine {
   ): Promise<SegmentResult | null> {
     this.cancelPendingTimer();
     const myId = this.generationId;
+
+    // Skip commentary when offline — music continues, ONAY stays quiet
+    const netState = await NetInfo.fetch();
+    if (!(netState.isConnected ?? true)) {
+      console.log('[AudioCoordinator] Offline — skipping commentary');
+      this.isSpeaking = false;
+      return null;
+    }
+
     this.isSpeaking = true;
 
     const previous = this.previousTrack;

@@ -98,7 +98,9 @@ export function ProfileScreen() {
         setAppleMusicConnected(true);
         storage.set('appleMusicAuthorized', 'true');
       }
-    } catch {}
+    } catch (err) {
+      console.warn('[ProfileScreen] Apple Music auth failed:', err);
+    }
   };
 
   const handleManageSubscription = () => {

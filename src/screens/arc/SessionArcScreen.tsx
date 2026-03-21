@@ -315,7 +315,8 @@ export function SessionArcScreen() {
         ]);
         setNowPlaying(np);
         setUpcoming(queue);
-      } catch {
+      } catch (err) {
+        console.warn('[SessionArcScreen] Refresh failed:', err);
         setNowPlaying(null);
         setUpcoming([]);
       }
