@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated,
+  AppState,
   Easing,
   Image,
   Pressable,
@@ -79,12 +80,14 @@ export function BroadcastScreen({
   const [segmentType, setSegmentType] = useState<SegmentType | 'cold_open' | 'session_close' | null>(null);
   const [overlayMounted, setOverlayMounted] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [sessionEnded, setSessionEnded] = useState(false);
   const [progress, setProgress] = useState(0);
   const [nextUp, setNextUp] = useState<{ title: string; artistName: string; artworkUrl?: string } | null>(null);
   const durationRef = useRef(0);
   const manualSkipRef = useRef(false);
   const cleoSpeakingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const appActiveRef = useRef(true);
   const badgeOpacity = useRef(new Animated.Value(0)).current;
 
   const vibeAccent = getVibeAccent(vibe);
@@ -241,9 +244,18 @@ export function BroadcastScreen({
     return unsub;
   }, []);
 
-  // --- Progress polling (always active, 1s interval) ---
+  // --- App state tracking (pause polling when backgrounded) ---
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      appActiveRef.current = state === 'active';
+    });
+    return () => sub.remove();
+  }, []);
+
+  // --- Progress polling (pauses when backgrounded) ---
   useEffect(() => {
     const poll = async () => {
+      if (!appActiveRef.current) return;
       try {
         const status = await musicKitPlayer.getPlaybackStatus();
         const playing = status === 'playing';
@@ -307,16 +319,19 @@ export function BroadcastScreen({
           }
 
           // Run Cleo's speech for this track change (cold open, pre_song, post_song).
+          setIsGenerating(true);
           await audioCoordinator.handleTrackChangeWithResult(
             trackInfo,
             undefined,
             (segment) => {
+              setIsGenerating(false);
               setCleoText(segment.text);
               setSegmentType(segment.type);
               setCleoSpeaking(true);
             },
             isManualSkip
           );
+          setIsGenerating(false);
           cleoSpeakingTimerRef.current = setTimeout(() => {
             cleoSpeakingTimerRef.current = null;
             setCleoSpeaking(false);
@@ -480,12 +495,18 @@ export function BroadcastScreen({
         showsVerticalScrollIndicator={false}
       >
         {/* Album Art Hero */}
-        <Animated.View style={[styles.artHero, { opacity: artOpacity }]}>
+        <Animated.View
+          style={[styles.artHero, { opacity: artOpacity }]}
+          accessible
+          accessibilityLabel={nowPlaying ? `Album artwork for ${nowPlaying.title} by ${nowPlaying.artistName}` : 'Album artwork'}
+          accessibilityRole="image"
+        >
           {nowPlaying?.artworkUrl ? (
             <Image
               source={{ uri: nowPlaying.artworkUrl }}
               style={styles.artImage}
               resizeMode="cover"
+              accessible={false}
             />
           ) : (
             <View style={[styles.artImage, styles.artPlaceholder]}>
@@ -504,7 +525,11 @@ export function BroadcastScreen({
         </Animated.View>
 
         {/* Track Info */}
-        <View style={styles.trackInfo}>
+        <View
+          style={styles.trackInfo}
+          accessible
+          accessibilityLabel={nowPlaying ? `Now playing: ${nowPlaying.title} by ${nowPlaying.artistName}, on station ${stationName}` : 'Loading track'}
+        >
           <Text style={styles.stationNameLabel}>{stationName}</Text>
           <Text style={styles.trackTitle} numberOfLines={2}>
             {nowPlaying?.title ?? ''}
@@ -518,6 +543,14 @@ export function BroadcastScreen({
             </>
           ) : null}
         </View>
+
+        {/* ONAY Thinking Indicator */}
+        {isGenerating && cleoText.length === 0 && (
+          <View style={styles.thinkingCard}>
+            <CleoOrb size={20} />
+            <Text style={styles.thinkingText}>ONAY IS THINKING...</Text>
+          </View>
+        )}
 
         {/* Editorial Insight Card */}
         {cleoText.length > 0 && (
@@ -536,7 +569,13 @@ export function BroadcastScreen({
         )}
 
         {/* Progress Bar */}
-        <View style={styles.progressSection}>
+        <View
+          style={styles.progressSection}
+          accessible
+          accessibilityRole="adjustable"
+          accessibilityLabel={`Track progress: ${formatTime(elapsed)} of ${formatTime(elapsed + remaining)}`}
+          accessibilityValue={{ min: 0, max: 100, now: Math.round(progress * 100) }}
+        >
           <View style={styles.progressTrack}>
             <Animated.View style={[styles.progressFill, { width: progressWidthPercent, backgroundColor: Colors.accent }]} />
             <Animated.View style={[styles.progressIndicator, { left: progressWidthPercent }]} />
@@ -726,6 +765,24 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: TextColors.secondary,
     textAlign: 'center',
+  },
+
+  // Thinking
+  thinkingCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.lg,
+    paddingVertical: Spacing.md,
+  },
+  thinkingText: {
+    fontFamily: Typography.mono.family,
+    fontSize: 10,
+    letterSpacing: 2,
+    color: Colors.accent,
+    opacity: 0.6,
   },
 
   // Editorial Insight

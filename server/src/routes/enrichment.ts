@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { validate, enrichTrackSchema } from '../middleware/validate';
 
 export const enrichmentRouter = Router();
 
@@ -83,16 +84,11 @@ async function fetchSongDetails(songId: number, token: string): Promise<GeniusEn
   return facts;
 }
 
-enrichmentRouter.post('/enrich-track', async (req: Request, res: Response) => {
+enrichmentRouter.post('/enrich-track', validate(enrichTrackSchema), async (req: Request, res: Response) => {
   console.log('[Enrichment] Request received');
   try {
     const { title, artist } = req.body;
     console.log(`[Enrichment] title: "${title}", artist: "${artist}"`);
-
-    if (!title || !artist) {
-      res.status(400).json({ error: 'title and artist are required' });
-      return;
-    }
 
     const token = process.env.GENIUS_ACCESS_TOKEN;
     if (!token) {

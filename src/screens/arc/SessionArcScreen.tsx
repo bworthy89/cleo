@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Image } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { AppState, View, Text, StyleSheet, ScrollView, Image } from 'react-native';
 import Svg, { Path, Defs, LinearGradient as SvgLinearGradient, Stop, Circle } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Surface, TextColors, Typography, Spacing, Radius, Opacity, AppHeaderTokens, withAlpha, getVibeAccent } from '../../tokens/design-tokens';
@@ -299,9 +299,18 @@ export function SessionArcScreen() {
   const [session, setSession] = useState<Session | null>(null);
   const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
   const [upcoming, setUpcoming] = useState<UpcomingTrack[]>([]);
+  const appActiveRef = useRef(true);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      appActiveRef.current = state === 'active';
+    });
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
     const refresh = async () => {
+      if (!appActiveRef.current) return;
       const s = sessionEngine.getSession();
       if (s) {
         s.currentPhase = sessionEngine.getCurrentPhase();

@@ -12,7 +12,7 @@ export function CleoOrb({ size = 28, showGlow = false }: CleoOrbProps) {
   const innerSize = size - 6;
 
   return (
-    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }} accessible accessibilityLabel="ONAY" accessibilityRole="image">
       {showGlow && (
         <View
           style={{
