@@ -292,19 +292,8 @@ export function HomeScreenRedesign() {
     });
   }, [activeStation]);
 
-  // ── Render: Loading ────────────────────────────────────────────────
-  if (authState === 'loading') {
-    return <LoadingScreen />;
-  }
-
-  // ── Render: Unauthorized ───────────────────────────────────────────
-  if (authState === 'unauthorized') {
-    return <UnauthorizedScreen onAuthorize={handleAuthorize} />;
-  }
-
-  // ── Render: Ready / Playing ────────────────────────────────────────
+  // ── Hooks that must run before early returns ──────────────────────
   const greeting = useMemo(() => getGreeting(), []);
-  const headerHeight = AppHeaderTokens.height + insets.top;
 
   const renderStationItem = useCallback(
     ({ item }: { item: Station }) => (
@@ -327,6 +316,19 @@ export function HomeScreenRedesign() {
     ),
     [handlePlaylistPress],
   );
+
+  // ── Render: Loading ────────────────────────────────────────────────
+  if (authState === 'loading') {
+    return <LoadingScreen />;
+  }
+
+  // ── Render: Unauthorized ───────────────────────────────────────────
+  if (authState === 'unauthorized') {
+    return <UnauthorizedScreen onAuthorize={handleAuthorize} />;
+  }
+
+  // ── Render: Ready / Playing ────────────────────────────────────────
+  const headerHeight = AppHeaderTokens.height + insets.top;
 
   return (
     <View style={[styles.screen, { backgroundColor: Surface.base }]}>
