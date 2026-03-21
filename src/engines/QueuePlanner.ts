@@ -35,8 +35,8 @@ export async function planQueue(
     title: t.title,
     artist: t.artistName,
     album: t.albumTitle ?? '',
-    genre: (t.genreNames ?? []).join(', '),
-    tags: (t.tags ?? []).join(', '),
+    genre: (t.genreNames ?? []).join(', ').replace(/\n/g, ' ').substring(0, 100),
+    tags: (t.tags ?? []).join(', ').replace(/\n/g, ' ').substring(0, 100),
     year: t.year ?? '',
     duration: t.duration ?? 0,
   }));

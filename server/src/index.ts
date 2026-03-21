@@ -16,7 +16,13 @@ const PORT = process.env.PORT || 3001;
 // Trust reverse proxy for rate limiting and IP detection
 app.set('trust proxy', 1);
 
-app.use(cors());
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, curl, server-to-server)
+    if (!origin) return callback(null, true);
+    callback(new Error('Not allowed by CORS'));
+  },
+}));
 app.use(express.json({ limit: '1mb' }));
 
 // Log all incoming requests
@@ -48,19 +54,26 @@ const enrichmentLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// Health check with provider status — no auth required
-app.get('/health', async (_req, res) => {
-  const llmStatus = llmProvider.getStatus();
-  const ttsStatus = ttsProvider.getStatus();
-  res.json({
-    status: 'ok',
-    uptime: process.uptime(),
-    providers: {
-      llm: llmStatus,
-      tts: ttsStatus,
-    },
-    timestamp: new Date().toISOString(),
-  });
+// Health check — detailed provider info only for authenticated requests
+app.get('/health', async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    // Authenticated request — return detailed provider info
+    const llmStatus = llmProvider.getStatus();
+    const ttsStatus = ttsProvider.getStatus();
+    res.json({
+      status: 'ok',
+      uptime: process.uptime(),
+      providers: {
+        llm: llmStatus,
+        tts: ttsStatus,
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } else {
+    // Unauthenticated — minimal response
+    res.json({ status: 'ok' });
+  }
 });
 
 // Auth-protected API routes

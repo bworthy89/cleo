@@ -47,23 +47,7 @@ export class GeminiProvider implements LLMProvider {
   }
 
   async healthCheck(): Promise<boolean> {
-    try {
-      // Lightweight check — just verify the API key works with a tiny request
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${this.apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: 'ping' }] }],
-            generationConfig: { maxOutputTokens: 1 },
-          }),
-          signal: AbortSignal.timeout(Number(process.env.HEALTH_CHECK_TIMEOUT_MS) || 2000),
-        }
-      );
-      return response.ok;
-    } catch {
-      return false;
-    }
+    // Just verify the API key is configured — no generation call to avoid burning quota
+    return !!this.apiKey;
   }
 }
