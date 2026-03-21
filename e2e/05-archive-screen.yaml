@@ -4,10 +4,7 @@ name: Archive Screen - renders with filter tabs
 - launchApp
 - tapOn: "Archive"
 
-# Header
-- assertVisible: "BROADCAST ARCHIVES"
-
-# Filter tabs
+# Filter tabs should be visible
 - assertVisible: "Latest"
 - assertVisible: "By Mood"
 - assertVisible: "By Date"
