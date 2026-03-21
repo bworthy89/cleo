@@ -3,6 +3,7 @@ import { getFallbackLine, type SegmentType, type Vibe } from '../cleo/fallbacks'
 import { authenticatedFetch } from './api';
 import type { EnrichedFacts } from './TrackEnrichmentService';
 import { getTimeOfDay } from '../utils/time';
+import { logger } from './logger';
 
 export type DeliveryMode = 'pre_song' | 'post_song' | 'eject_transition';
 export type SessionPhase = 'opening' | 'mid' | 'late';
@@ -238,7 +239,7 @@ export async function generateSegment(context: SegmentContext): Promise<string> 
 
     throw new Error('Empty response');
   } catch (error: any) {
-    console.warn('Segment generation failed, using fallback. Error:', error?.message ?? error);
+    logger.warn('CleoScript', 'Segment generation failed, using fallback', error);
     return getFallbackLine(context.segmentType, context.vibe);
   } finally {
     clearTimeout(timeout);
