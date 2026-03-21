@@ -55,33 +55,68 @@ function renderSessionTitle(name: string, accentColor: string) {
 
 function ArcVisualization({ phase, vibeAccent }: { phase: SessionPhase; vibeAccent: string }) {
   const progress = phaseProgress(phase);
-  const arcWidth = 340;
-  const arcHeight = 180;
+  const W = 320;
+  const H = 140;
+  const PAD_BOTTOM = 40; // space for labels below curve
 
-  // Node positions along the curve (t parameter roughly)
-  const nodes = [
-    { t: 0.2, label: 'Intro', size: 10 },
-    { t: 0.5, label: 'Build', size: 12 },
-    { t: 0.75, label: 'Peak', size: 16 },
+  // Key points on the curve, manually placed to match the visual arc
+  // Format: [x, y] where y=0 is top, y=H is bottom
+  const curvePoints: [number, number][] = [
+    [10, H - 10],       // start (bottom-left)
+    [65, H - 30],       // intro
+    [140, H - 70],      // build
+    [220, 20],           // peak (near top)
+    [280, H - 50],      // resolution
+    [310, H - 40],      // end
   ];
 
-  // Approximate x,y on the bezier for a given t
-  function bezierPoint(t: number): { x: number; y: number } {
-    // Simplified cubic bezier approximation matching the SVG path
-    const x = 10 + t * (arcWidth - 20);
-    // Inverted parabola peaking around t=0.75
-    const peak = 0.75;
-    const spread = 0.6;
-    const normalizedDist = Math.abs(t - peak) / spread;
-    const y = arcHeight - 20 - (1 - normalizedDist * normalizedDist) * (arcHeight - 50);
-    return { x: Math.max(10, Math.min(arcWidth - 10, x)), y: Math.max(20, Math.min(arcHeight - 10, y)) };
+  // Nodes positioned at specific curve points
+  const nodes = [
+    { idx: 1, label: 'INTRO', size: 8 },
+    { idx: 2, label: 'BUILD', size: 10 },
+    { idx: 3, label: 'PEAK', size: 14 },
+  ];
+
+  // Interpolate position along the curve points by progress (0-1)
+  function getPosition(t: number): { x: number; y: number } {
+    const totalSegments = curvePoints.length - 1;
+    const segFloat = t * totalSegments;
+    const segIdx = Math.min(Math.floor(segFloat), totalSegments - 1);
+    const segT = segFloat - segIdx;
+    const [x0, y0] = curvePoints[segIdx];
+    const [x1, y1] = curvePoints[segIdx + 1];
+    return { x: x0 + (x1 - x0) * segT, y: y0 + (y1 - y0) * segT };
   }
 
-  const youAreHere = bezierPoint(progress);
+  // Build SVG path from curve points
+  const pathD = curvePoints
+    .map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0]} ${p[1]}`)
+    .join(' ');
+
+  // Smooth path using quadratic curves
+  const smoothPath = (() => {
+    let d = `M${curvePoints[0][0]} ${curvePoints[0][1]}`;
+    for (let i = 1; i < curvePoints.length; i++) {
+      const [px, py] = curvePoints[i - 1];
+      const [cx, cy] = curvePoints[i];
+      const midX = (px + cx) / 2;
+      const midY = (py + cy) / 2;
+      if (i === 1) {
+        d += ` Q${midX} ${py} ${cx} ${cy}`;
+      } else {
+        d += ` Q${px} ${py} ${midX} ${midY}`;
+      }
+    }
+    const last = curvePoints[curvePoints.length - 1];
+    d += ` L${last[0]} ${last[1]}`;
+    return d;
+  })();
+
+  const youAreHere = getPosition(progress);
 
   return (
-    <View style={styles.arcContainer}>
-      <Svg width={arcWidth} height={arcHeight} viewBox={`0 0 ${arcWidth} ${arcHeight}`}>
+    <View style={[styles.arcContainer, { height: H + PAD_BOTTOM }]}>
+      <Svg width={W} height={H + PAD_BOTTOM} viewBox={`0 0 ${W} ${H + PAD_BOTTOM}`}>
         <Defs>
           <SvgLinearGradient id="arcGrad" x1="0%" y1="0%" x2="100%" y2="0%">
             <Stop offset="0%" stopColor={Colors.accent} stopOpacity="1" />
@@ -89,47 +124,42 @@ function ArcVisualization({ phase, vibeAccent }: { phase: SessionPhase; vibeAcce
           </SvgLinearGradient>
         </Defs>
         <Path
-          d="M10 160 C60 160, 80 100, 150 100 S230 30, 260 30 S320 80, 330 80"
+          d={smoothPath}
           stroke="url(#arcGrad)"
-          strokeWidth={3}
+          strokeWidth={2.5}
           fill="none"
           strokeLinecap="round"
+          strokeLinejoin="round"
         />
-        {/* Cleo moment nodes */}
+        {/* Phase nodes */}
         {nodes.map((node, i) => {
-          const pt = bezierPoint(node.t);
-          const isPeak = node.label === 'Peak';
+          const [x, y] = curvePoints[node.idx];
+          const isPeak = node.label === 'PEAK';
           return (
-            <Circle
-              key={i}
-              cx={pt.x}
-              cy={pt.y}
-              r={node.size / 2}
-              fill={isPeak ? vibeAccent : withAlpha(Colors.accent, 0.3)}
-              stroke={Colors.accent}
-              strokeWidth={isPeak ? 2 : 1}
-            />
+            <React.Fragment key={i}>
+              <Circle
+                cx={x}
+                cy={y}
+                r={node.size / 2}
+                fill={isPeak ? vibeAccent : withAlpha(Colors.accent, 0.3)}
+                stroke={Colors.accent}
+                strokeWidth={isPeak ? 2 : 1}
+              />
+            </React.Fragment>
           );
         })}
         {/* You are here indicator */}
         <Circle cx={youAreHere.x} cy={youAreHere.y} r={4} fill={Colors.base.white} />
-        <Path
-          d={`M${youAreHere.x} ${youAreHere.y + 4} L${youAreHere.x} ${youAreHere.y + 20}`}
-          stroke={Colors.base.white}
-          strokeWidth={1.5}
-          strokeLinecap="round"
-          strokeOpacity={0.6}
-        />
       </Svg>
-      {/* Node labels */}
+      {/* Node labels (positioned absolutely below each node) */}
       {nodes.map((node, i) => {
-        const pt = bezierPoint(node.t);
+        const [x, y] = curvePoints[node.idx];
         return (
           <Text
             key={`label-${i}`}
             style={[
               styles.nodeLabel,
-              { left: pt.x - 20, top: pt.y + (node.size / 2) + 6 },
+              { left: x - 20, top: y + (node.size / 2) + 4 },
             ]}
           >
             {node.label}
@@ -140,7 +170,7 @@ function ArcVisualization({ phase, vibeAccent }: { phase: SessionPhase; vibeAcce
       <Text
         style={[
           styles.youAreHere,
-          { left: youAreHere.x - 24, top: youAreHere.y + 22 },
+          { left: youAreHere.x - 24, top: youAreHere.y + 8 },
         ]}
       >
         YOU ARE HERE
@@ -433,13 +463,12 @@ const styles = StyleSheet.create({
 
   // Arc visualization
   arcContainer: {
-    height: 200,
     backgroundColor: Surface.container,
     borderRadius: Radius.sm,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: Spacing.lg,
-    overflow: 'hidden',
+    paddingVertical: Spacing.md,
   },
   nodeLabel: {
     position: 'absolute',
