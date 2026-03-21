@@ -18,7 +18,6 @@ import {
   Surface,
   TextColors,
   Typography,
-  Glow,
   Spacing,
   Radius,
   AppHeaderTokens,
@@ -39,7 +38,7 @@ import { sessionEngine } from '../../engines/SessionEngine';
 import { addRecentlyPlayedTrack } from '../../services/Storage';
 import { transitionPreloader } from '../../engines/TransitionPreloader';
 import type { SegmentType, Vibe } from '../../cleo/fallbacks';
-import { getNextInQueue, type NowPlaying } from '../../../modules/expo-music-kit';
+import { getNextInQueue, skipToPrevious, type NowPlaying } from '../../../modules/expo-music-kit';
 import type { TrackInfo } from '../../types/TrackInfo';
 
 const FULL_OVERLAY_TYPES: Array<SegmentType | 'cold_open' | 'session_close'> = [
@@ -400,6 +399,15 @@ export function BroadcastScreen({
     }
   };
 
+  const handlePrevious = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    try {
+      await skipToPrevious();
+    } catch {
+      // may throw if at start of queue
+    }
+  };
+
   const handleNext = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     manualSkipRef.current = true;
@@ -475,7 +483,9 @@ export function BroadcastScreen({
               resizeMode="cover"
             />
           ) : (
-            <View style={[styles.artImage, styles.artPlaceholder]} />
+            <View style={[styles.artImage, styles.artPlaceholder]}>
+              <Ionicons name="musical-notes" size={48} color={TextColors.outlineVariant} style={{ opacity: 0.3 }} />
+            </View>
           )}
           <LinearGradient
             colors={['transparent', 'rgba(0,0,0,0.75)']}
@@ -492,11 +502,16 @@ export function BroadcastScreen({
         <View style={styles.trackInfo}>
           <Text style={styles.stationNameLabel}>{stationName}</Text>
           <Text style={styles.trackTitle} numberOfLines={2}>
-            {nowPlaying?.title ?? 'Loading...'}
+            {nowPlaying?.title ?? ''}
           </Text>
-          <Text style={styles.trackArtist} numberOfLines={1}>
-            {nowPlaying?.artistName ? `\u2014 ${nowPlaying.artistName}` : ''}
-          </Text>
+          {nowPlaying?.artistName ? (
+            <>
+              <View style={styles.trackSeparator} />
+              <Text style={styles.trackArtist} numberOfLines={1}>
+                {nowPlaying.artistName}
+              </Text>
+            </>
+          ) : null}
         </View>
 
         {/* Editorial Insight Card */}
@@ -505,7 +520,7 @@ export function BroadcastScreen({
             <View style={styles.commentaryGoldEdge} />
             <View style={styles.commentaryInner}>
               <View style={styles.commentaryHeader}>
-                <CleoOrb size={28} />
+                <CleoOrb size={20} />
                 <Text style={styles.commentaryLabel}>EDITORIAL INSIGHT</Text>
               </View>
               <Text style={styles.commentaryText}>
@@ -518,14 +533,8 @@ export function BroadcastScreen({
         {/* Progress Bar */}
         <View style={styles.progressSection}>
           <View style={styles.progressTrack}>
-            <Animated.View style={[styles.progressFill, { width: progressWidthPercent }]}>
-              <LinearGradient
-                colors={[Colors.accent, vibeAccent]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={StyleSheet.absoluteFill}
-              />
-            </Animated.View>
+            <Animated.View style={[styles.progressFill, { width: progressWidthPercent, backgroundColor: Colors.accent }]} />
+            <Animated.View style={[styles.progressIndicator, { left: progressWidthPercent }]} />
           </View>
           <View style={styles.progressTimes}>
             <Text style={styles.timeText}>{formatTime(elapsed)}</Text>
@@ -536,6 +545,16 @@ export function BroadcastScreen({
         {/* Playback Controls */}
         <View style={styles.controls}>
           <Pressable
+            onPress={handlePrevious}
+            hitSlop={12}
+            style={({ pressed }) => [styles.secondaryControl, pressed && styles.pressed]}
+            accessibilityLabel="Previous track"
+            accessibilityRole="button"
+          >
+            <Ionicons name="play-skip-back" size={24} color={TextColors.primary} />
+          </Pressable>
+
+          <Pressable
             onPress={handlePlayPause}
             style={({ pressed }) => [pressed && styles.pressed]}
             accessibilityLabel={isPlaying ? 'Pause' : 'Play'}
@@ -545,7 +564,7 @@ export function BroadcastScreen({
               colors={[Colors.accent, Colors.accentDark]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
-              style={[styles.playButton, Glow.ctaShadow]}
+              style={styles.playButton}
             >
               <Ionicons
                 name={isPlaying ? 'pause' : 'play'}
@@ -643,6 +662,8 @@ const styles = StyleSheet.create({
   },
   artPlaceholder: {
     backgroundColor: Surface.container,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   artGradient: {
     position: 'absolute',
@@ -688,11 +709,17 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     textAlign: 'center',
   },
+  trackSeparator: {
+    width: 40,
+    height: 1,
+    backgroundColor: Colors.accent,
+    alignSelf: 'center',
+    marginVertical: Spacing.sm,
+  },
   trackArtist: {
     fontFamily: Typography.body.family,
     fontSize: 16,
     color: TextColors.secondary,
-    marginTop: Spacing.xs,
     textAlign: 'center',
   },
 
@@ -721,8 +748,8 @@ const styles = StyleSheet.create({
   },
   commentaryLabel: {
     fontFamily: Typography.mono.family,
-    fontSize: 9,
-    letterSpacing: 1.6,
+    fontSize: 10,
+    letterSpacing: 2,
     color: Colors.accent,
   },
   commentaryText: {
@@ -739,15 +766,22 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.lg,
   },
   progressTrack: {
-    height: 5,
-    borderRadius: 2.5,
+    height: 3,
+    borderRadius: 1.5,
     backgroundColor: withAlpha(TextColors.primary, 0.1),
-    overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    borderRadius: 2.5,
-    overflow: 'hidden',
+    borderRadius: 1.5,
+  },
+  progressIndicator: {
+    position: 'absolute',
+    top: -2.5,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.accent,
+    marginLeft: -4,
   },
   progressTimes: {
     flexDirection: 'row',
@@ -756,7 +790,7 @@ const styles = StyleSheet.create({
   },
   timeText: {
     fontFamily: Typography.mono.family,
-    fontSize: 9,
+    fontSize: 10,
     color: TextColors.outline,
     letterSpacing: 0.5,
   },
@@ -786,7 +820,7 @@ const styles = StyleSheet.create({
   // Synchronized Next
   upNextCard: {
     marginHorizontal: Spacing.lg,
-    marginTop: Spacing.xl,
+    marginTop: Spacing.lg,
     flexDirection: 'row',
     backgroundColor: Surface.container,
     borderRadius: Radius.sm,
