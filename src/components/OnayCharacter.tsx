@@ -1,17 +1,12 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef } from 'react';
 import { Animated, Image, StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useIsFocused } from '@react-navigation/native';
 import { useFocusEffect } from 'expo-router';
-import Video from 'react-native-video';
 import { Colors, Surface, withAlpha } from '../tokens/design-tokens';
 
 const FRAME_SIZE = 220;
-const VIDEO_SCALE = 1.25;
 
 export function OnayCharacter() {
-  const isFocused = useIsFocused();
-  const [videoFailed, setVideoFailed] = useState(false);
   const entranceOpacity = useRef(new Animated.Value(0)).current;
   const entranceSlide = useRef(new Animated.Value(10)).current;
 
@@ -53,28 +48,11 @@ export function OnayCharacter() {
         style={styles.frameBorder}
       >
         <View style={styles.frameInner}>
-          <View style={styles.videoClip}>
-            {!isFocused || videoFailed ? (
-              <Image
-                source={require('../../assets/cleo/onay-frame-1.png')}
-                style={styles.fallbackImage}
-                resizeMode="cover"
-              />
-            ) : (
-              <Video
-                source={require('../../assets/cleo/onay-animation.mp4')}
-                style={styles.video}
-                resizeMode="cover"
-                repeat
-                muted
-                disableFocus
-                disableAudioSessionManagement
-                playWhenInactive={false}
-                playInBackground={false}
-                onError={() => setVideoFailed(true)}
-              />
-            )}
-          </View>
+          <Image
+            source={require('../../assets/cleo/onay-frame-1.png')}
+            style={styles.image}
+            resizeMode="cover"
+          />
         </View>
       </LinearGradient>
     </Animated.View>
@@ -109,18 +87,7 @@ const styles = StyleSheet.create({
     backgroundColor: Surface.base,
     overflow: 'hidden',
   },
-  videoClip: {
-    width: FRAME_SIZE,
-    height: FRAME_SIZE,
-    overflow: 'hidden',
-    alignItems: 'center',
-  },
-  video: {
-    width: FRAME_SIZE,
-    height: FRAME_SIZE * VIDEO_SCALE,
-    marginTop: -(FRAME_SIZE * (VIDEO_SCALE - 1)) * 0.3,
-  },
-  fallbackImage: {
+  image: {
     width: FRAME_SIZE,
     height: FRAME_SIZE,
   },
