@@ -8,10 +8,8 @@ name: Station Creation - playlist tap opens vibe picker
     element: "PLAYLISTS"
     direction: DOWN
 
-# Tap first playlist (creates station + opens vibe picker)
-- tapOn:
-    index: 0
-    parentId: "PLAYLISTS"
+# Tap on a station card (accessibility label starts with "Station:")
+- tapOn: "Station:.*"
 
 # Vibe picker should appear
 - assertVisible: "Choose a Vibe"
