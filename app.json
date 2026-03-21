@@ -16,14 +16,17 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.worthymedia.cleo",
-      "buildNumber": "6",
+      "buildNumber": "7",
       "infoPlist": {
         "NSAppleMusicUsageDescription": "ONAY uses Apple Music to play your playlists with AI-powered radio hosting.",
         "NSPhotoLibraryUsageDescription": "ONAY may access your photo library to set a profile picture.",
         "UIBackgroundModes": [
           "audio"
         ],
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true
+        }
       },
       "entitlements": {
         "com.apple.developer.applesignin": [
