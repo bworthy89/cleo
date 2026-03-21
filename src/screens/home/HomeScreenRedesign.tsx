@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Easing,
@@ -303,7 +303,30 @@ export function HomeScreenRedesign() {
   }
 
   // ── Render: Ready / Playing ────────────────────────────────────────
+  const greeting = useMemo(() => getGreeting(), []);
   const headerHeight = AppHeaderTokens.height + insets.top;
+
+  const renderStationItem = useCallback(
+    ({ item }: { item: Station }) => (
+      <StationCard
+        name={item.name}
+        artworkUrl={item.artworkUrl}
+        onPress={() => handleStationPress(item)}
+      />
+    ),
+    [handleStationPress],
+  );
+
+  const renderPlaylistItem = useCallback(
+    ({ item }: { item: MusicPlaylist }) => (
+      <StationCard
+        name={item.name}
+        artworkUrl={item.artworkUrl}
+        onPress={() => handlePlaylistPress(item)}
+      />
+    ),
+    [handlePlaylistPress],
+  );
 
   return (
     <View style={[styles.screen, { backgroundColor: Surface.base }]}>
@@ -334,7 +357,7 @@ export function HomeScreenRedesign() {
         {/* ── Greeting ──────────────────────────────────────────── */}
         <View style={styles.greetingContainer}>
           <Text style={styles.greetingLabel}>LIVE BROADCAST</Text>
-          <Text style={styles.greetingTitle}>{getGreeting()}</Text>
+          <Text style={styles.greetingTitle}>{greeting}</Text>
           <View style={styles.greetingAccent} />
           <Text style={styles.greetingSubtext}>Your radio is ready.</Text>
         </View>
@@ -380,13 +403,7 @@ export function HomeScreenRedesign() {
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.listContent}
-              renderItem={({ item }) => (
-                <StationCard
-                  name={item.name}
-                  artworkUrl={item.artworkUrl}
-                  onPress={() => handleStationPress(item)}
-                />
-              )}
+              renderItem={renderStationItem}
             />
           ) : (
             <View style={styles.emptyState}>
@@ -416,13 +433,7 @@ export function HomeScreenRedesign() {
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.listContent}
-              renderItem={({ item }) => (
-                <StationCard
-                  name={item.name}
-                  artworkUrl={item.artworkUrl}
-                  onPress={() => handlePlaylistPress(item)}
-                />
-              )}
+              renderItem={renderPlaylistItem}
             />
           )}
         </View>
