@@ -22,7 +22,7 @@ import {
 } from '../../tokens/design-tokens';
 import { AppHeader } from '../../components/AppHeader';
 import { CleoOrb } from '../../components/CleoOrb';
-import { getStations, type Station } from '../../services/Storage';
+import { getStations, setStations as persistStations, getCachedPlaylists, type Station } from '../../services/Storage';
 import { loadSessionMemory } from '../../services/SessionMemory';
 import type { Vibe } from '../../cleo/fallbacks';
 
@@ -149,7 +149,25 @@ export function ArchiveScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      setStations(getStations());
+      let current = getStations();
+
+      // Backfill missing artwork from cached playlists
+      const playlists = getCachedPlaylists();
+      if (playlists) {
+        let updated = false;
+        current = current.map((s) => {
+          if (s.artworkUrl) return s;
+          const match = playlists.find((p) => p.id === s.playlistId);
+          if (match?.artworkUrl) {
+            updated = true;
+            return { ...s, artworkUrl: match.artworkUrl };
+          }
+          return s;
+        });
+        if (updated) persistStations(current);
+      }
+
+      setStations(current);
       const mem = loadSessionMemory();
       setLastStationId(mem?.lastStationId ?? null);
     }, []),
