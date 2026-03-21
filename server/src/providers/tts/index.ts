@@ -21,15 +21,15 @@ class TTSProviderFactory {
 
   constructor() {
     try {
-      this.primary = new OrpheusProvider();
+      this.primary = new ElevenLabsProvider();
     } catch (e) {
-      console.warn('[TTS] Orpheus provider unavailable:', (e as Error).message);
+      console.warn('[TTS] ElevenLabs provider unavailable:', (e as Error).message);
     }
 
     try {
-      this.fallback = new ElevenLabsProvider();
+      this.fallback = new OrpheusProvider();
     } catch (e) {
-      console.warn('[TTS] ElevenLabs provider unavailable:', (e as Error).message);
+      console.warn('[TTS] Orpheus provider unavailable:', (e as Error).message);
     }
 
     this.runHealthChecks();
@@ -96,11 +96,11 @@ class TTSProviderFactory {
 
     return {
       active,
-      orpheus: {
+      elevenlabs: {
         healthy: this.primaryHealthy,
         lastCheck: this.lastPrimaryCheck?.toISOString() ?? null,
       },
-      elevenlabs: {
+      orpheus: {
         healthy: this.fallbackHealthy,
         lastCheck: this.lastFallbackCheck?.toISOString() ?? null,
       },
