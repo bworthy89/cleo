@@ -81,11 +81,31 @@ export function BroadcastScreen({
   const [overlayMounted, setOverlayMounted] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [nextUp, setNextUp] = useState<{ title: string; artistName: string; artworkUrl?: string } | null>(null);
   const durationRef = useRef(0);
   const manualSkipRef = useRef(false);
   const cleoSpeakingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const vibeAccent = getVibeAccent(vibe);
+
+  // Refresh "Synchronized Next" from MusicKit's actual queue
+  const refreshNextUp = useCallback(async () => {
+    try {
+      const real = await getNextInQueue();
+      if (real) {
+        const profile = real.id ? queueManager.getTrackProfile(real.id) : null;
+        setNextUp({
+          title: real.title,
+          artistName: real.artistName,
+          artworkUrl: profile?.artworkUrl,
+        });
+      } else {
+        setNextUp(null);
+      }
+    } catch {
+      setNextUp(null);
+    }
+  }, []);
 
   // Get next track from MusicKit's actual queue (not session plan index) for spoken content
   const getNextTrackForPreloader = useCallback(async (): Promise<{ title: string; artistName: string } | undefined> => {
@@ -335,6 +355,7 @@ export function BroadcastScreen({
       durationRef.current = np.duration ?? 0;
       setNowPlaying(np);
     }
+    refreshNextUp();
   }
 
   function formatTime(seconds: number): string {
@@ -372,9 +393,7 @@ export function BroadcastScreen({
   const elapsed = nowPlaying?.duration ? progress * nowPlaying.duration : 0;
   const remaining = nowPlaying?.duration ? nowPlaying.duration - elapsed : 0;
 
-  // Get next track info for "Up Next" card
-  const nextTrackId = sessionEngine.getNextTrackId();
-  const nextTrack = nextTrackId ? queueManager.getTrackProfile(nextTrackId) : null;
+  const nextTrack = nextUp;
 
   return (
     <View style={styles.container}>
