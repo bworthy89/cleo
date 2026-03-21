@@ -1,7 +1,9 @@
 import { useEffect } from 'react';
+import { View } from 'react-native';
 import { Stack } from 'expo-router';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
+import { OfflineBanner, useNetworkStatus } from '../src/components/OfflineBanner';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -22,14 +24,21 @@ export default function RootLayout() {
     }
   }, [fontsLoaded, fontError]);
 
+  const isOffline = useNetworkStatus();
+
   if (!fontsLoaded && !fontError) return null;
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="index" />
-      <Stack.Screen name="(auth)" />
-      <Stack.Screen name="(onboarding)" />
-      <Stack.Screen name="(main)" />
-    </Stack>
+    <View style={{ flex: 1 }}>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="index" />
+        <Stack.Screen name="(auth)" />
+        <Stack.Screen name="(onboarding)" />
+        <Stack.Screen name="(main)" />
+      </Stack>
+      {isOffline && (
+        <OfflineBanner isOffline={isOffline} />
+      )}
+    </View>
   );
 }

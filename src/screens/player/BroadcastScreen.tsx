@@ -103,7 +103,8 @@ export function BroadcastScreen({
       } else {
         setNextUp(null);
       }
-    } catch {
+    } catch (err) {
+      console.warn('[BroadcastScreen] refreshNextUp failed:', err);
       setNextUp(null);
     }
   }, []);
@@ -113,7 +114,9 @@ export function BroadcastScreen({
     try {
       const realNext = await getNextInQueue();
       if (realNext) return { title: realNext.title, artistName: realNext.artistName };
-    } catch {}
+    } catch (err) {
+      console.warn('[BroadcastScreen] getNextInQueue failed:', err);
+    }
     const nextId = sessionEngine.getNextTrackId();
     const profile = nextId ? queueManager.getTrackProfile(nextId) : null;
     return profile ? { title: profile.title, artistName: profile.artistName } : undefined;
@@ -260,7 +263,9 @@ export function BroadcastScreen({
         if (dur > 0) {
           setProgress(Math.min(time / dur, 1));
         }
-      } catch {}
+      } catch (err) {
+        console.warn('[BroadcastScreen] Progress poll error:', err);
+      }
     };
 
     poll();
@@ -394,8 +399,8 @@ export function BroadcastScreen({
         await musicKitPlayer.play();
         setIsPlaying(true);
       }
-    } catch {
-      // MusicKit may throw if queue is empty
+    } catch (err) {
+      console.warn('[BroadcastScreen] Play/pause failed:', err);
     }
   };
 
@@ -403,8 +408,8 @@ export function BroadcastScreen({
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     try {
       await skipToPrevious();
-    } catch {
-      // may throw if at start of queue
+    } catch (err) {
+      console.warn('[BroadcastScreen] Skip previous failed:', err);
     }
   };
 
@@ -413,8 +418,8 @@ export function BroadcastScreen({
     manualSkipRef.current = true;
     try {
       await musicKitPlayer.skip();
-    } catch {
-      // skip may throw if at end of queue
+    } catch (err) {
+      console.warn('[BroadcastScreen] Skip next failed:', err);
     }
   };
 

@@ -18,7 +18,8 @@ function getCachedQueuePlan(playlistId: string, vibe: Vibe): QueuePlan | null {
     const cached = JSON.parse(raw) as { plan: QueuePlan; timestamp: number };
     if (Date.now() - cached.timestamp > QUEUE_CACHE_TTL_MS) return null;
     return cached.plan;
-  } catch {
+  } catch (err) {
+    console.warn('[QueueManager] Cache parse error:', err);
     return null;
   }
 }

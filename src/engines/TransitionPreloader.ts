@@ -156,7 +156,9 @@ class TransitionPreloaderEngine {
             if (this.onFallback) this.onFallback();
           }
         }
-      } catch {}
+      } catch (err) {
+        console.warn('[TransitionPreloader] Poll error:', err);
+      }
     }, 2000);
 
     this.unsubscribePlayback = () => clearInterval(pollInterval);
@@ -208,7 +210,9 @@ class TransitionPreloaderEngine {
           nextTrack = { title: realNext.title, artistName: realNext.artistName };
           console.log(`[TransitionPreloader] Real next in queue: "${realNext.title}" by ${realNext.artistName}`);
         }
-      } catch {}
+      } catch (err) {
+        console.warn('[TransitionPreloader] getNextInQueue failed:', err);
+      }
 
       const segment = await segmentController.generateEjectTransition(
         track,
