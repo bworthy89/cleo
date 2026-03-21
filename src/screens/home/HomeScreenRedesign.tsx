@@ -33,6 +33,7 @@ import { CleoOrb } from '../../components/CleoOrb';
 import { StationCard } from '../../components/StationCard';
 import { VibePicker } from '../../components/VibePicker';
 import { musicKitPlayer } from '../../services/MusicKitPlayer';
+import { sessionEngine } from '../../engines/SessionEngine';
 import type { Vibe } from '../../cleo/fallbacks';
 import {
   getStations,
@@ -278,18 +279,26 @@ export function HomeScreenRedesign() {
   }, [pickerStation]);
 
   const handleNowPlayingPress = useCallback(() => {
-    if (!activeStation) return;
+    // Use activeStation if available, otherwise look up from current session
+    let station = activeStation;
+    if (!station) {
+      const session = sessionEngine.getSession();
+      if (session) {
+        station = stations.find((s) => s.id === session.stationId) ?? null;
+      }
+    }
+    if (!station) return;
     router.push({
       pathname: '/(main)/(broadcast)/player',
       params: {
-        stationName: activeStation.name,
-        playlistId: activeStation.playlistId,
-        stationId: activeStation.id,
-        vibe: (activeStation.defaultVibe as Vibe) ?? 'chill',
+        stationName: station.name,
+        playlistId: station.playlistId,
+        stationId: station.id,
+        vibe: (station.defaultVibe as Vibe) ?? 'chill',
         resume: 'true',
       },
     });
-  }, [activeStation]);
+  }, [activeStation, stations]);
 
   // ── Hooks that must run before early returns ──────────────────────
   const greeting = useMemo(() => getGreeting(), []);
