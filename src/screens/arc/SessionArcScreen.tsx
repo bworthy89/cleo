@@ -15,10 +15,39 @@ import { getUpcomingQueue, type NowPlaying, type UpcomingTrack } from '../../../
 
 const PHASE_ORDER: SessionPhase[] = ['coldOpen', 'earlySession', 'build', 'peak', 'resolution', 'signOff'];
 
-function phaseProgress(phase: SessionPhase): number {
+function phaseProgress(session: Session | null): number {
+  if (!session) return 0;
+  const phase = session.currentPhase;
   const idx = PHASE_ORDER.indexOf(phase);
   if (idx < 0) return 0;
-  return idx / (PHASE_ORDER.length - 1);
+
+  const minutes = Math.floor((Date.now() - session.startTime) / 60000);
+  const trackCount = session.tracksPlayed.length;
+  const totalTracks = session.queuePlan?.queue.length ?? 0;
+
+  // Calculate sub-progress within the current phase for smooth movement
+  let subProgress = 0;
+  if (phase === 'coldOpen') {
+    subProgress = Math.min(trackCount, 1); // 0→1 when first track plays
+  } else if (phase === 'earlySession') {
+    subProgress = Math.min(minutes / 12, 1); // 0→1 over 12 min
+  } else if (phase === 'build') {
+    subProgress = Math.min((minutes - 12) / 23, 1); // 12→35 min
+  } else if (phase === 'peak') {
+    subProgress = Math.min((minutes - 35) / 15, 1); // 35→50 min
+  } else if (phase === 'resolution') {
+    // Progress toward signOff based on tracks remaining
+    if (totalTracks > 0) {
+      const tracksRemaining = totalTracks - trackCount;
+      subProgress = Math.max(0, 1 - tracksRemaining / 10);
+    } else {
+      subProgress = Math.min((minutes - 50) / 20, 1);
+    }
+  } else {
+    subProgress = 0.5; // signOff — middle of final segment
+  }
+
+  return (idx + subProgress) / (PHASE_ORDER.length - 1);
 }
 
 function formatMinutes(m: number): string {
@@ -55,8 +84,8 @@ function renderSessionTitle(name: string, accentColor: string) {
 
 const AnimatedCircle = RNAnimated.createAnimatedComponent(Circle);
 
-function ArcVisualization({ phase, vibeAccent }: { phase: SessionPhase; vibeAccent: string }) {
-  const progress = phaseProgress(phase);
+function ArcVisualization({ session, vibeAccent }: { session: Session; vibeAccent: string }) {
+  const progress = phaseProgress(session);
   const pulseScale = useRef(new RNAnimated.Value(6)).current;
   const pulseOpacity = useRef(new RNAnimated.Value(0.4)).current;
 
@@ -397,7 +426,7 @@ export function SessionArcScreen() {
           </View>
 
           {/* Arc Visualization */}
-          <ArcVisualization phase={session.currentPhase} vibeAccent={vibeAccent} />
+          <ArcVisualization session={session} vibeAccent={vibeAccent} />
 
           {/* Current Track Card */}
           {nowPlaying && <CurrentTrackCard nowPlaying={nowPlaying} vibeAccent={vibeAccent} />}
