@@ -67,7 +67,7 @@ export function OnayCharacter() {
                 muted
                 disableFocus
                 ignoreSilentSwitch="ignore"
-                mixWithOthers
+                mixWithOthers="mix"
                 playWhenInactive={false}
                 playInBackground={false}
                 onError={() => setVideoFailed(true)}
