@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, View, Text, StyleSheet, ScrollView, Image } from 'react-native';
+import { Animated as RNAnimated, AppState, View, Text, StyleSheet, ScrollView, Image } from 'react-native';
 import Svg, { Path, Defs, LinearGradient as SvgLinearGradient, Stop, Circle } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Surface, TextColors, Typography, Spacing, Radius, Opacity, AppHeaderTokens, withAlpha, getVibeAccent } from '../../tokens/design-tokens';
@@ -53,8 +53,29 @@ function renderSessionTitle(name: string, accentColor: string) {
 
 // ---------- sub-components ----------
 
+const AnimatedCircle = RNAnimated.createAnimatedComponent(Circle);
+
 function ArcVisualization({ phase, vibeAccent }: { phase: SessionPhase; vibeAccent: string }) {
   const progress = phaseProgress(phase);
+  const pulseScale = useRef(new RNAnimated.Value(6)).current;
+  const pulseOpacity = useRef(new RNAnimated.Value(0.4)).current;
+
+  useEffect(() => {
+    const anim = RNAnimated.loop(
+      RNAnimated.sequence([
+        RNAnimated.parallel([
+          RNAnimated.timing(pulseScale, { toValue: 14, duration: 1000, useNativeDriver: false }),
+          RNAnimated.timing(pulseOpacity, { toValue: 0, duration: 1000, useNativeDriver: false }),
+        ]),
+        RNAnimated.parallel([
+          RNAnimated.timing(pulseScale, { toValue: 6, duration: 0, useNativeDriver: false }),
+          RNAnimated.timing(pulseOpacity, { toValue: 0.4, duration: 0, useNativeDriver: false }),
+        ]),
+      ]),
+    );
+    anim.start();
+    return () => anim.stop();
+  }, []);
   const W = 320;
   const H = 160;
   const PAD_BOTTOM = 30;
@@ -130,10 +151,7 @@ function ArcVisualization({ phase, vibeAccent }: { phase: SessionPhase; vibeAcce
           );
         })}
         {/* You are here — pulse ring */}
-        <Circle cx={youAreHere.x} cy={youAreHere.y} r={10} fill="none" stroke={Colors.base.white} strokeWidth={1} opacity={0.3}>
-          <animate attributeName="r" values="6;12;6" dur="2s" repeatCount="indefinite" />
-          <animate attributeName="opacity" values="0.4;0.1;0.4" dur="2s" repeatCount="indefinite" />
-        </Circle>
+        <AnimatedCircle cx={youAreHere.x} cy={youAreHere.y} r={pulseScale} fill="none" stroke={Colors.base.white} strokeWidth={1.5} opacity={pulseOpacity} />
         <Circle cx={youAreHere.x} cy={youAreHere.y} r={4} fill={Colors.base.white} />
       </Svg>
       {/* Node labels */}
