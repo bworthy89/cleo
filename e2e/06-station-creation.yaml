@@ -4,8 +4,7 @@ name: Station Creation - playlist tap opens vibe picker
 - launchApp
 
 # Scroll to playlists
-- scroll:
-    direction: DOWN
+- scroll
 
 # Tap on a playlist card by accessibility label
 - tapOn:
