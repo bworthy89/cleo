@@ -254,18 +254,18 @@ public class ExpoMusicKitModule: Module {
       try await self.player.play()
     }
 
-    // Set queue to new track order without restarting current track
+    // Append tracks to the end of the queue without restarting current track
     AsyncFunction("setUpcomingQueue") { (trackIds: [String]) in
       // Try cached Track objects first, then cached Song objects
       let orderedTracks = trackIds.compactMap { self.cachedTracks[$0] }
       if !orderedTracks.isEmpty {
-        for track in orderedTracks.reversed() {
-          try await self.player.queue.insert(track, position: .afterCurrentEntry)
+        for track in orderedTracks {
+          try await self.player.queue.insert(track, position: .tail)
         }
       } else {
         let orderedSongs = trackIds.compactMap { self.cachedSongs[$0] }
-        for song in orderedSongs.reversed() {
-          try await self.player.queue.insert(song, position: .afterCurrentEntry)
+        for song in orderedSongs {
+          try await self.player.queue.insert(song, position: .tail)
         }
       }
     }
