@@ -66,8 +66,7 @@ export function OnayCharacter() {
                 repeat
                 muted
                 disableFocus
-                ignoreSilentSwitch="ignore"
-                mixWithOthers="mix"
+                disableAudioSessionManagement
                 playWhenInactive={false}
                 playInBackground={false}
                 onError={() => setVideoFailed(true)}
