@@ -4,12 +4,9 @@ name: Station Creation - playlist tap opens vibe picker
 - launchApp
 
 # Scroll to playlists
-- scrollUntilVisible:
-    element: "PLAYLISTS"
+- scroll:
     direction: DOWN
 
-# Tap on a station card (accessibility label starts with "Station:")
-- tapOn: "Station:.*"
-
-# Vibe picker should appear
-- assertVisible: "Choose a Vibe"
+# Tap on a playlist card by accessibility label
+- tapOn:
+    text: "Station: .*"

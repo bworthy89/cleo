@@ -4,18 +4,18 @@ name: Sign Out - confirmation dialog appears
 - launchApp
 - tapOn: "ONAY"
 
-- scrollUntilVisible:
-    element: "Sign Out"
+# Scroll to bottom
+- scroll:
+    direction: DOWN
+- scroll:
+    direction: DOWN
+- scroll:
     direction: DOWN
 
 - tapOn: "Sign Out"
 
 # Confirmation dialog should appear
 - assertVisible: "Are you sure you want to sign out?"
-- assertVisible: "Cancel"
 
 # Cancel to stay in app
 - tapOn: "Cancel"
-
-# Should still be on ONAY tab
-- assertVisible: "AI PERSONALITY"

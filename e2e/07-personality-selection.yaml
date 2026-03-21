@@ -4,8 +4,8 @@ name: Personality Selection - can switch AI personality
 - launchApp
 - tapOn: "ONAY"
 
-- scrollUntilVisible:
-    element: "AI PERSONALITY"
+# Scroll to personality options
+- scroll:
     direction: DOWN
 
 # Select The Companion
