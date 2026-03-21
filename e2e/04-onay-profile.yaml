@@ -8,21 +8,18 @@ name: ONAY Profile - character and settings render
 - assertVisible: "ONAY SAYS"
 
 # Scroll down and check for personality options
-- scroll:
-    direction: DOWN
+- scroll
 
 - assertVisible: "The Curator"
 - assertVisible: "The Companion"
 - assertVisible: "The Oracle"
 
 # Scroll more for ecosystem
-- scroll:
-    direction: DOWN
+- scroll
 
 - assertVisible: "Apple Music"
 
 # Scroll more for account
-- scroll:
-    direction: DOWN
+- scroll
 
 - assertVisible: "Sign Out"

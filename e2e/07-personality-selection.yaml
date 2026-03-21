@@ -5,8 +5,7 @@ name: Personality Selection - can switch AI personality
 - tapOn: "ONAY"
 
 # Scroll to personality options
-- scroll:
-    direction: DOWN
+- scroll
 
 # Select The Companion
 - tapOn: "The Companion"

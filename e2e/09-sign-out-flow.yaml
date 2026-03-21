@@ -5,12 +5,9 @@ name: Sign Out - confirmation dialog appears
 - tapOn: "ONAY"
 
 # Scroll to bottom
-- scroll:
-    direction: DOWN
-- scroll:
-    direction: DOWN
-- scroll:
-    direction: DOWN
+- scroll
+- scroll
+- scroll
 
 - tapOn: "Sign Out"
 
