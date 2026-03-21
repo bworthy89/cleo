@@ -271,6 +271,7 @@ export function HomeScreenRedesign() {
         playlistId: activeStation.playlistId,
         stationId: activeStation.id,
         vibe: (activeStation.defaultVibe as Vibe) ?? 'chill',
+        resume: 'true',
       },
     });
   }, [activeStation]);

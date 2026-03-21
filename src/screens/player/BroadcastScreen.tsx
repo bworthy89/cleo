@@ -63,6 +63,7 @@ interface BroadcastScreenProps {
   playlistId: string;
   stationId: string;
   vibe: Vibe;
+  resume?: boolean;
 }
 
 export function BroadcastScreen({
@@ -70,6 +71,7 @@ export function BroadcastScreen({
   playlistId,
   stationId,
   vibe,
+  resume = false,
 }: BroadcastScreenProps) {
   const insets = useSafeAreaInsets();
   const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
@@ -160,6 +162,12 @@ export function BroadcastScreen({
         const nextTrackForPreloader = await getNextTrackForPreloader();
         audioCoordinator.handleTrackStart(buildTrackInfo(np), nextTrackForPreloader);
       };
+
+      // Resume: just refresh UI state, don't touch the session or queue
+      if (resume) {
+        refreshNowPlaying();
+        return;
+      }
 
       const existing = sessionEngine.getSession();
       if (existing && existing.stationId === stationId && existing.tracksPlayed.length > 0) {
