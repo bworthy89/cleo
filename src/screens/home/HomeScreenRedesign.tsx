@@ -213,8 +213,8 @@ export function HomeScreenRedesign() {
         persistStations(updatedStations);
         setStations(updatedStations);
       }
-    } catch {
-      // playlists may fail in simulator — non-fatal
+    } catch (err) {
+      console.warn('[HomeScreen] fetchPlaylists failed:', err);
     } finally {
       setPlaylistsLoading(false);
     }
