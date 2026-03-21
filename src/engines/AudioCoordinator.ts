@@ -143,11 +143,11 @@ class AudioCoordinatorEngine {
           }
           this.isSpeaking = true;
           try {
-            await activateDuckingSession().catch(() => {});
+            // Note: playAudioFromBase64 (inside synthesizeAndPlay) handles ducking
+            // natively — no need to activate/deactivate from JS side here.
             await synthesizeAndPlay(segment.text, this.currentVibe);
             if (myId === this.generationId) this.scheduleMidSongDrop(trackInfo);
           } finally {
-            await deactivateDuckingSession().catch(() => {});
             if (myId === this.generationId) {
               this.lastSegmentEndTime = Date.now();
               this.isSpeaking = false;
