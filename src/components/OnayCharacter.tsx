@@ -62,6 +62,8 @@ export function OnayCharacter() {
               repeat
               muted
               disableFocus
+              ignoreSilentSwitch="ignore"
+              mixWithOthers
               playWhenInactive={false}
               playInBackground={false}
             />
