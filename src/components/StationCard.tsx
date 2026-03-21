@@ -34,7 +34,7 @@ export function StationCard({ name, artworkUrl, accentColor, width, onPress }: S
   return (
     <Pressable
       style={({ pressed }) => [
-        { width: cardWidth, height: cardHeight, borderRadius: Radius.lg },
+        { width: cardWidth, height: cardHeight, borderRadius: Radius.sm },
         styles.card,
         pressed && styles.cardPressed,
       ]}
@@ -43,18 +43,18 @@ export function StationCard({ name, artworkUrl, accentColor, width, onPress }: S
       accessibilityRole="button"
     >
       {artworkUrl ? (
-        <Image source={{ uri: artworkUrl }} style={[styles.artwork, { borderRadius: Radius.lg }]} />
+        <Image source={{ uri: artworkUrl }} style={[styles.artwork, { borderRadius: Radius.sm }]} />
       ) : (
         <Animated.View
           style={[
             styles.artwork,
-            { borderRadius: Radius.lg, backgroundColor: Surface.high, opacity: shimmerAnim },
+            { borderRadius: Radius.sm, backgroundColor: Surface.high, opacity: shimmerAnim },
           ]}
         />
       )}
       <LinearGradient
         colors={['transparent', 'rgba(0,0,0,0.7)']}
-        style={[styles.gradient, { borderRadius: Radius.lg }]}
+        style={[styles.gradient, { borderRadius: Radius.sm }]}
       />
       <Text style={styles.label} numberOfLines={2}>
         {name}

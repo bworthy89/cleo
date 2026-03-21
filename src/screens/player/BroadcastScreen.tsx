@@ -80,11 +80,13 @@ export function BroadcastScreen({
   const [segmentType, setSegmentType] = useState<SegmentType | 'cold_open' | 'session_close' | null>(null);
   const [overlayMounted, setOverlayMounted] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [sessionEnded, setSessionEnded] = useState(false);
   const [progress, setProgress] = useState(0);
   const [nextUp, setNextUp] = useState<{ title: string; artistName: string; artworkUrl?: string } | null>(null);
   const durationRef = useRef(0);
   const manualSkipRef = useRef(false);
   const cleoSpeakingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const badgeOpacity = useRef(new Animated.Value(0)).current;
 
   const vibeAccent = getVibeAccent(vibe);
 
@@ -134,13 +136,20 @@ export function BroadcastScreen({
   const contentDim = useRef(new Animated.Value(1)).current;
   const progressWidth = useRef(new Animated.Value(0)).current;
 
-  // Art dim when Cleo speaks
+  // Art dim + badge fade when Cleo speaks
   useEffect(() => {
-    Animated.timing(artOpacity, {
-      toValue: cleoSpeaking ? 0.85 : 1,
-      duration: 400,
-      useNativeDriver: true,
-    }).start();
+    Animated.parallel([
+      Animated.timing(artOpacity, {
+        toValue: cleoSpeaking ? 0.85 : 1,
+        duration: 400,
+        useNativeDriver: true,
+      }),
+      Animated.timing(badgeOpacity, {
+        toValue: cleoSpeaking ? 1 : 0,
+        duration: cleoSpeaking ? 300 : 500,
+        useNativeDriver: true,
+      }),
+    ]).start();
   }, [cleoSpeaking]);
 
   // Content dim when full overlay is active
@@ -206,15 +215,26 @@ export function BroadcastScreen({
     })();
   }, []);
 
-  // --- Playback state listener (for play/pause visual state) ---
+  // --- Playback state listener (for play/pause visual state + session end) ---
   useEffect(() => {
     // Set initial state
     musicKitPlayer.getPlaybackStatus().then((status) => {
       setIsPlaying(status === 'playing');
     }).catch(() => {});
 
-    const unsub = musicKitPlayer.onPlaybackStateChanged((event) => {
+    const unsub = musicKitPlayer.onPlaybackStateChanged(async (event) => {
       setIsPlaying(event.status === 'playing');
+
+      // Queue exhausted — end the session
+      if (event.status === 'stopped') {
+        const np = await musicKitPlayer.getNowPlaying().catch(() => null);
+        if (!np) {
+          // No current track = queue truly empty, not just a momentary stop
+          sessionEngine.endSession();
+          transitionPreloader.reset();
+          setSessionEnded(true);
+        }
+      }
     });
     return unsub;
   }, []);
@@ -411,7 +431,33 @@ export function BroadcastScreen({
         }
       />
 
-      <Animated.View style={[{ flex: 1 }, { opacity: contentDim }]}>
+      {sessionEnded && (
+        <View style={styles.sessionEndedOverlay}>
+          {nowPlaying?.artworkUrl && (
+            <Image
+              source={{ uri: nowPlaying.artworkUrl }}
+              style={styles.sessionEndedArt}
+              resizeMode="cover"
+              blurRadius={20}
+            />
+          )}
+          <CleoOrb size={56} showGlow />
+          <Text style={styles.sessionEndedTitle}>Broadcast Complete</Text>
+          <Text style={styles.sessionEndedSubtext}>
+            That's a wrap on this session. Start a new one whenever you're ready.
+          </Text>
+          <Pressable
+            onPress={() => router.back()}
+            style={({ pressed }) => [styles.sessionEndedButton, pressed && { opacity: 0.7 }]}
+            accessibilityLabel="Back to home"
+            accessibilityRole="button"
+          >
+            <Text style={styles.sessionEndedButtonText}>BACK TO HOME</Text>
+          </Pressable>
+        </View>
+      )}
+
+      {!sessionEnded && <Animated.View style={[{ flex: 1 }, { opacity: contentDim }]}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={[
@@ -435,12 +481,10 @@ export function BroadcastScreen({
             colors={['transparent', 'rgba(0,0,0,0.75)']}
             style={styles.artGradient}
           >
-            {cleoSpeaking && (
-              <View style={styles.cleoTalkingBadge}>
-                <WaveformBars color={Colors.accent} />
-                <Text style={styles.cleoTalkingLabel}>ONAY IS TALKING</Text>
-              </View>
-            )}
+            <Animated.View style={[styles.cleoTalkingBadge, { opacity: badgeOpacity }]}>
+              <WaveformBars color={Colors.accent} />
+              <Text style={styles.cleoTalkingLabel}>ONAY IS TALKING</Text>
+            </Animated.View>
           </LinearGradient>
         </Animated.View>
 
@@ -473,7 +517,6 @@ export function BroadcastScreen({
 
         {/* Progress Bar */}
         <View style={styles.progressSection}>
-          <Text style={styles.progressLabel}>LIVE CONNECTION</Text>
           <View style={styles.progressTrack}>
             <Animated.View style={[styles.progressFill, { width: progressWidthPercent }]}>
               <LinearGradient
@@ -492,14 +535,6 @@ export function BroadcastScreen({
 
         {/* Playback Controls */}
         <View style={styles.controls}>
-          <View style={[styles.secondaryControl, styles.controlDisabled]}>
-            <Ionicons name="shuffle" size={22} color={TextColors.outline} />
-          </View>
-
-          <View style={[styles.secondaryControl, styles.controlDisabled]}>
-            <Ionicons name="play-skip-back" size={24} color={TextColors.outline} />
-          </View>
-
           <Pressable
             onPress={handlePlayPause}
             style={({ pressed }) => [pressed && styles.pressed]}
@@ -530,10 +565,6 @@ export function BroadcastScreen({
           >
             <Ionicons name="play-skip-forward" size={24} color={TextColors.primary} />
           </Pressable>
-
-          <View style={[styles.secondaryControl, styles.controlDisabled]}>
-            <Ionicons name="repeat" size={22} color={TextColors.outline} />
-          </View>
         </View>
 
         {/* Synchronized Next */}
@@ -565,7 +596,7 @@ export function BroadcastScreen({
           </View>
         )}
       </ScrollView>
-      </Animated.View>
+      </Animated.View>}
 
       {/* Full-screen Cleo Speaking overlay for disruptive segment types */}
       {overlayMounted && (
@@ -602,7 +633,7 @@ const styles = StyleSheet.create({
   // Album Art Hero
   artHero: {
     aspectRatio: 1,
-    borderRadius: Radius.xl,
+    borderRadius: Radius.sm,
     overflow: 'hidden',
     marginHorizontal: Spacing.lg,
   },
@@ -643,22 +674,26 @@ const styles = StyleSheet.create({
   },
   stationNameLabel: {
     fontFamily: Typography.mono.family,
-    fontSize: 9,
+    fontSize: 10,
     letterSpacing: 2,
     color: Colors.accent,
     marginBottom: Spacing.xs,
+    textAlign: 'center',
   },
   trackTitle: {
     fontFamily: Typography.display.family,
-    fontSize: 28,
+    fontSize: 34,
     color: TextColors.primary,
-    lineHeight: 34,
+    lineHeight: 40,
+    textTransform: 'uppercase',
+    textAlign: 'center',
   },
   trackArtist: {
     fontFamily: Typography.body.family,
     fontSize: 16,
     color: TextColors.secondary,
     marginTop: Spacing.xs,
+    textAlign: 'center',
   },
 
   // Editorial Insight
@@ -701,14 +736,7 @@ const styles = StyleSheet.create({
   // Progress
   progressSection: {
     paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.xl,
-  },
-  progressLabel: {
-    fontFamily: Typography.mono.family,
-    fontSize: 9,
-    letterSpacing: 2,
-    color: Colors.accent,
-    marginBottom: Spacing.sm,
+    paddingTop: Spacing.lg,
   },
   progressTrack: {
     height: 5,
@@ -746,9 +774,6 @@ const styles = StyleSheet.create({
     height: 44,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  controlDisabled: {
-    opacity: 0.35,
   },
   playButton: {
     width: 72,
@@ -805,5 +830,43 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: TextColors.secondary,
     marginTop: 2,
+  },
+  sessionEndedOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.xl,
+    gap: Spacing.md,
+    overflow: 'hidden',
+  },
+  sessionEndedArt: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0.15,
+  },
+  sessionEndedTitle: {
+    fontFamily: Typography.display.family,
+    fontSize: 28,
+    color: TextColors.primary,
+    textAlign: 'center',
+  },
+  sessionEndedSubtext: {
+    fontFamily: Typography.body.family,
+    fontSize: 15,
+    color: TextColors.secondary,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  sessionEndedButton: {
+    borderWidth: 1,
+    borderColor: Colors.accent,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.xl,
+    marginTop: Spacing.md,
+  },
+  sessionEndedButtonText: {
+    fontFamily: Typography.mono.family,
+    fontSize: 12,
+    color: Colors.accent,
+    letterSpacing: 3,
   },
 });
