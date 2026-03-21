@@ -21,8 +21,9 @@ export function CustomTabBar({ state, navigation }: any) {
     <View style={[styles.container, { paddingBottom: insets.bottom || 20 }]}>
       <BlurView intensity={24} tint="dark" style={StyleSheet.absoluteFill} />
       <View style={styles.inner}>
-        {TABS.map((tab, index) => {
-          const isActive = state.index === index;
+        {TABS.map((tab) => {
+          const routeIndex = state.routes.findIndex((r: any) => r.name === tab.key);
+          const isActive = state.index === routeIndex;
           const color = isActive ? TabBarTokens.activeColor : TabBarTokens.inactiveColor;
           return (
             <Pressable
