@@ -21,6 +21,7 @@ public class ExpoMusicKitModule: Module {
   private var ejectSuppressedTrackInfo: [String: Any]? = nil
   private var ejectTrackIdBeforeSkip: String? = nil
   private var ejectPromiseResolve: (() -> Void)? = nil
+  private var ttsPromiseResolve: (() -> Void)? = nil
 
   public func definition() -> ModuleDefinition {
     Name("ExpoMusicKit")
@@ -380,6 +381,10 @@ public class ExpoMusicKitModule: Module {
 
       do {
         // Stop any currently playing audio and resolve its pending promise
+        // AVAudioPlayer.stop() does NOT fire audioPlayerDidFinishPlaying,
+        // so resolve the dangling ttsPromiseResolve before overwriting.
+        self.ttsPromiseResolve?()
+        self.ttsPromiseResolve = nil
         if let existing = self.audioPlayer, existing.isPlaying {
           existing.stop()
         }
@@ -391,6 +396,8 @@ public class ExpoMusicKitModule: Module {
 
         let newPlayer = try AVAudioPlayer(data: data)
         self.audioPlayer = newPlayer
+        // Store the new promise's resolve closure so it can be resolved on cancel/stop
+        self.ttsPromiseResolve = { promise.resolve(nil) }
         self.audioDelegate = AudioPlayerDelegate(player: newPlayer) { [weak self] in
           self?.audioPlayer = nil
           self?.audioDelegate = nil
@@ -400,7 +407,8 @@ public class ExpoMusicKitModule: Module {
           if self?.crossfadeActive == true {
             // Music already resumed from fade point — just resolve
             self?.crossfadeActive = false
-            promise.resolve(nil)
+            self?.ttsPromiseResolve?()
+            self?.ttsPromiseResolve = nil
           } else {
             // No crossfade — hard transition (short segment or timer didn't fire)
             // Remove duckOthers but keep session active — setActive(false) would kill MusicKit playback
@@ -408,7 +416,8 @@ public class ExpoMusicKitModule: Module {
             Task {
               try? await self?.player.play()
             }
-            promise.resolve(nil)
+            self?.ttsPromiseResolve?()
+            self?.ttsPromiseResolve = nil
           }
         }
         self.audioPlayer?.delegate = self.audioDelegate
@@ -452,6 +461,9 @@ public class ExpoMusicKitModule: Module {
       self.crossfadeTimer?.invalidate()
       self.crossfadeTimer = nil
       self.crossfadeActive = false
+      // Resolve dangling TTS promise before stop() — stop() won't trigger the delegate
+      self.ttsPromiseResolve?()
+      self.ttsPromiseResolve = nil
       self.audioPlayer?.stop()
       self.audioPlayer = nil
       self.audioDelegate = nil
@@ -802,6 +814,8 @@ public class ExpoMusicKitModule: Module {
             self.ejectSuppressedTrackInfo = nil
             self.ejectTrackIdBeforeSkip = nil
           }
+          self.ttsPromiseResolve?()
+          self.ttsPromiseResolve = nil
           self.ejectPromiseResolve?()
           self.ejectPromiseResolve = nil
         }

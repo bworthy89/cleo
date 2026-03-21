@@ -143,9 +143,11 @@ class AudioCoordinatorEngine {
           }
           this.isSpeaking = true;
           try {
+            await activateDuckingSession().catch(() => {});
             await synthesizeAndPlay(segment.text, this.currentVibe);
             if (myId === this.generationId) this.scheduleMidSongDrop(trackInfo);
           } finally {
+            await deactivateDuckingSession().catch(() => {});
             if (myId === this.generationId) {
               this.lastSegmentEndTime = Date.now();
               this.isSpeaking = false;
@@ -324,8 +326,8 @@ class AudioCoordinatorEngine {
         return;
       }
 
-      this.isSpeaking = true;
       const myId = this.generationId;
+      this.isSpeaking = true;
 
       try {
         const segment = await segmentController.generateMidSongDrop(trackInfo);

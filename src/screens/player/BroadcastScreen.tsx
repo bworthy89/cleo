@@ -87,6 +87,7 @@ export function BroadcastScreen({
   const durationRef = useRef(0);
   const manualSkipRef = useRef(false);
   const cleoSpeakingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ejectRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const appActiveRef = useRef(true);
   const badgeOpacity = useRef(new Animated.Value(0)).current;
 
@@ -130,6 +131,9 @@ export function BroadcastScreen({
     return () => {
       if (cleoSpeakingTimerRef.current) {
         clearTimeout(cleoSpeakingTimerRef.current);
+      }
+      if (ejectRetryTimerRef.current) {
+        clearTimeout(ejectRetryTimerRef.current);
       }
     };
   }, []);
@@ -190,7 +194,10 @@ export function BroadcastScreen({
         if (!np) return;
         // Duration may be 0 when track just started — retry after 2s
         if ((!np.duration || np.duration <= 0) && retries > 0) {
-          setTimeout(() => startEjectPreGen(retries - 1), 2000);
+          ejectRetryTimerRef.current = setTimeout(() => {
+            ejectRetryTimerRef.current = null;
+            startEjectPreGen(retries - 1);
+          }, 2000);
           return;
         }
         const nextTrackForPreloader = await getNextTrackForPreloader();
@@ -236,7 +243,7 @@ export function BroadcastScreen({
         if (!np) {
           // No current track = queue truly empty, not just a momentary stop
           sessionEngine.endSession();
-          transitionPreloader.reset();
+          transitionPreloader.cancel();
           setSessionEnded(true);
         }
       }

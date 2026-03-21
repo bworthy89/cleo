@@ -1,35 +1,34 @@
 import { Router, Request, Response } from 'express';
+import { validate, enrichMusicBrainzSchema } from '../middleware/validate';
 
 export const musicbrainzRouter = Router();
 
-let lastRequestTime = 0;
 const MIN_INTERVAL = 1100;
 
-async function rateLimitedFetch(url: string): Promise<any> {
-  const now = Date.now();
-  const elapsed = now - lastRequestTime;
-  if (elapsed < MIN_INTERVAL) {
-    await new Promise((r) => setTimeout(r, MIN_INTERVAL - elapsed));
-  }
-  lastRequestTime = Date.now();
+// Promise-chain queue ensures requests are serialized with minimum interval,
+// even when multiple concurrent requests arrive simultaneously.
+let mbQueue = Promise.resolve() as Promise<unknown>;
 
-  const response = await fetch(url, {
-    headers: {
-      'User-Agent': 'CleoRadioApp/1.0 (bworthy89@gmail.com)',
-      Accept: 'application/json',
-    },
+async function rateLimitedFetch(url: string): Promise<any> {
+  const result = mbQueue.then(async () => {
+    await new Promise((r) => setTimeout(r, MIN_INTERVAL));
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'CleoRadioApp/1.0 (bworthy89@gmail.com)',
+        Accept: 'application/json',
+      },
+    });
+    if (!response.ok) throw new Error(`MusicBrainz: ${response.status}`);
+    return response.json();
   });
-  if (!response.ok) throw new Error(`MusicBrainz: ${response.status}`);
-  return response.json();
+  // Chain regardless of success/failure so subsequent requests still wait
+  mbQueue = result.catch(() => {});
+  return result;
 }
 
-musicbrainzRouter.post('/enrich-musicbrainz', async (req: Request, res: Response) => {
+musicbrainzRouter.post('/enrich-musicbrainz', validate(enrichMusicBrainzSchema), async (req: Request, res: Response) => {
   try {
     const { title, artist } = req.body;
-    if (!title || !artist) {
-      res.status(400).json({ error: 'title and artist are required' });
-      return;
-    }
 
     const query = encodeURIComponent(`recording:"${title}" AND artist:"${artist}"`);
     const data = await rateLimitedFetch(

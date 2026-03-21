@@ -50,34 +50,44 @@ export async function enrichTrack(track: MusicTrack): Promise<TrackProfile> {
   const cached = getCached(track.id);
   if (cached) return cached;
 
+  // Check if the track was already MB-enriched (e.g. from enrichTracksMusicBrainzOnly pass)
+  const alreadyMbEnriched = 'mbEnriched' in track && (track as TrackProfile).mbEnriched;
+
   const profile: TrackProfile = {
     ...track,
-    tags: [],
-    mbEnriched: false,
+    tags: alreadyMbEnriched ? (track as TrackProfile).tags ?? [] : [],
+    mbEnriched: alreadyMbEnriched ? true : false,
     hasRichData: false,
     cacheVersion: CACHE_VERSION,
   };
 
-  // MusicBrainz enrichment
-  try {
-    console.log(`[Enrichment] MusicBrainz lookup: "${track.title}" by ${track.artistName}`);
-    const mbResponse = await authenticatedFetch('/enrich-musicbrainz', {
-      method: 'POST',
-      body: JSON.stringify({ title: track.title, artist: track.artistName }),
-    });
-
-    if (mbResponse.ok) {
-      const data = await mbResponse.json();
-      if (data.found) {
-        profile.tags = data.tags ?? [];
-        profile.year = data.firstReleaseYear ?? undefined;
-        profile.mbEnriched = true;
-      }
-    } else {
-      console.warn(`[Enrichment] MusicBrainz ${mbResponse.status} for "${track.title}"`);
+  // MusicBrainz enrichment — skip if already enriched from prior pass
+  if (alreadyMbEnriched) {
+    console.log(`[Enrichment] Skipping MusicBrainz for "${track.title}" — already enriched`);
+    if ((track as TrackProfile).year) {
+      profile.year = (track as TrackProfile).year;
     }
-  } catch (err) {
-    console.warn(`[Enrichment] MusicBrainz error for "${track.title}":`, err);
+  } else {
+    try {
+      console.log(`[Enrichment] MusicBrainz lookup: "${track.title}" by ${track.artistName}`);
+      const mbResponse = await authenticatedFetch('/enrich-musicbrainz', {
+        method: 'POST',
+        body: JSON.stringify({ title: track.title, artist: track.artistName }),
+      });
+
+      if (mbResponse.ok) {
+        const data = await mbResponse.json();
+        if (data.found) {
+          profile.tags = data.tags ?? [];
+          profile.year = data.firstReleaseYear ?? undefined;
+          profile.mbEnriched = true;
+        }
+      } else {
+        console.warn(`[Enrichment] MusicBrainz ${mbResponse.status} for "${track.title}"`);
+      }
+    } catch (err) {
+      console.warn(`[Enrichment] MusicBrainz error for "${track.title}":`, err);
+    }
   }
 
   // Genius enrichment
@@ -139,13 +149,21 @@ export async function enrichTracks(tracks: MusicTrack[]): Promise<TrackProfile[]
 export async function enrichTracksMusicBrainzOnly(tracks: MusicTrack[]): Promise<TrackProfile[]> {
   const results: TrackProfile[] = [];
   let cacheHits = 0;
-  for (const track of tracks) {
+  let apiCalls = 0;
+  for (let i = 0; i < tracks.length; i++) {
+    const track = tracks[i];
     const cached = getCached(track.id);
     if (cached) {
       cacheHits++;
       results.push(cached);
       continue;
     }
+
+    // Rate limit: MusicBrainz requires max 1 req/sec (1100ms minimum interval)
+    if (apiCalls > 0) {
+      await new Promise((r) => setTimeout(r, 1100));
+    }
+    apiCalls++;
 
     const profile: TrackProfile = {
       ...track,
