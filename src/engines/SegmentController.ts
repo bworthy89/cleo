@@ -174,9 +174,8 @@ class SegmentControllerEngine {
   }
 
   shouldStaySilent(): boolean {
-    // After mid-song drop, suppress next pre_song
+    // After mid-song drop, suppress next pre_song (consume-once flag)
     if (this.lastWasMidSongDrop) {
-      this.lastWasMidSongDrop = false;
       return true;
     }
 
@@ -237,6 +236,7 @@ class SegmentControllerEngine {
 
     // Skip-some-tracks: let the music breathe
     if (this.shouldStaySilent()) {
+      this.lastWasMidSongDrop = false; // consume the flag
       console.log('[SegmentController] Staying silent — letting music breathe');
       return null;
     }

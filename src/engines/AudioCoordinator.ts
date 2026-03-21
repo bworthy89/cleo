@@ -207,13 +207,19 @@ class AudioCoordinatorEngine {
 
     if (segment.deliveryMode === 'pre_song') {
       onSegmentReady?.(segment);
-      await activateDuckingSession().catch(() => {});
-      await synthesizeAndPlay(segment.text, this.currentVibe);
-      await deactivateDuckingSession().catch(() => {});
-      if (myId === this.generationId) {
-        this.scheduleMidSongDrop(trackInfo);
-        this.lastSegmentEndTime = Date.now();
+      try {
+        await activateDuckingSession().catch(() => {});
+        await synthesizeAndPlay(segment.text, this.currentVibe);
+        await deactivateDuckingSession().catch(() => {});
+        if (myId === this.generationId) {
+          this.scheduleMidSongDrop(trackInfo);
+          this.lastSegmentEndTime = Date.now();
+          this.isSpeaking = false;
+        }
+      } catch (error) {
+        logger.error('AudioCoordinator', 'pre_song playback failed in handleTrackChangeWithResult', error);
         this.isSpeaking = false;
+        await deactivateDuckingSession().catch(() => {});
       }
       return segment;
     } else {
