@@ -56,61 +56,45 @@ function renderSessionTitle(name: string, accentColor: string) {
 function ArcVisualization({ phase, vibeAccent }: { phase: SessionPhase; vibeAccent: string }) {
   const progress = phaseProgress(phase);
   const W = 320;
-  const H = 140;
-  const PAD_BOTTOM = 40; // space for labels below curve
+  const H = 160;
+  const PAD_BOTTOM = 30;
 
-  // Key points on the curve, manually placed to match the visual arc
-  // Format: [x, y] where y=0 is top, y=H is bottom
-  const curvePoints: [number, number][] = [
-    [10, H - 10],       // start (bottom-left)
-    [65, H - 30],       // intro
-    [140, H - 70],      // build
-    [220, 20],           // peak (near top)
-    [280, H - 50],      // resolution
-    [310, H - 40],      // end
-  ];
+  // The path is hand-crafted so nodes sit exactly on the line.
+  // Points: start → intro → build → peak → resolution → end
+  const pts = {
+    intro: { x: 70, y: 120 },
+    build: { x: 155, y: 72 },
+    peak:  { x: 230, y: 22 },
+  };
 
-  // Nodes positioned at specific curve points
+  // SVG path that passes through all node positions
+  const pathD = `M10 ${H - 10} C30 ${H - 10}, 50 ${pts.intro.y}, ${pts.intro.x} ${pts.intro.y} S120 ${pts.build.y}, ${pts.build.x} ${pts.build.y} S200 ${pts.peak.y}, ${pts.peak.x} ${pts.peak.y} S290 70, 310 80`;
+
   const nodes = [
-    { idx: 1, label: 'INTRO', size: 8 },
-    { idx: 2, label: 'BUILD', size: 10 },
-    { idx: 3, label: 'PEAK', size: 14 },
+    { ...pts.intro, label: 'INTRO', size: 8 },
+    { ...pts.build, label: 'BUILD', size: 10 },
+    { ...pts.peak, label: 'PEAK', size: 14 },
   ];
 
-  // Interpolate position along the curve points by progress (0-1)
-  function getPosition(t: number): { x: number; y: number } {
-    const totalSegments = curvePoints.length - 1;
-    const segFloat = t * totalSegments;
-    const segIdx = Math.min(Math.floor(segFloat), totalSegments - 1);
-    const segT = segFloat - segIdx;
-    const [x0, y0] = curvePoints[segIdx];
-    const [x1, y1] = curvePoints[segIdx + 1];
-    return { x: x0 + (x1 - x0) * segT, y: y0 + (y1 - y0) * segT };
-  }
+  // "You are here" interpolated between node positions
+  const phasePositions = [
+    { x: 10, y: H - 10 },    // coldOpen (0)
+    pts.intro,                 // earlySession (0.2)
+    pts.build,                 // build (0.4)
+    pts.peak,                  // peak (0.6)
+    { x: 280, y: 60 },        // resolution (0.8)
+    { x: 310, y: 80 },        // signOff (1.0)
+  ];
 
-  // Build SVG path from curve points
-  const pathD = curvePoints
-    .map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0]} ${p[1]}`)
-    .join(' ');
-
-  // Smooth path using quadratic curves
-  const smoothPath = (() => {
-    let d = `M${curvePoints[0][0]} ${curvePoints[0][1]}`;
-    for (let i = 1; i < curvePoints.length; i++) {
-      const [px, py] = curvePoints[i - 1];
-      const [cx, cy] = curvePoints[i];
-      const midX = (px + cx) / 2;
-      const midY = (py + cy) / 2;
-      if (i === 1) {
-        d += ` Q${midX} ${py} ${cx} ${cy}`;
-      } else {
-        d += ` Q${px} ${py} ${midX} ${midY}`;
-      }
-    }
-    const last = curvePoints[curvePoints.length - 1];
-    d += ` L${last[0]} ${last[1]}`;
-    return d;
-  })();
+  const getPosition = (t: number) => {
+    const seg = t * (phasePositions.length - 1);
+    const i = Math.min(Math.floor(seg), phasePositions.length - 2);
+    const f = seg - i;
+    return {
+      x: phasePositions[i].x + (phasePositions[i + 1].x - phasePositions[i].x) * f,
+      y: phasePositions[i].y + (phasePositions[i + 1].y - phasePositions[i].y) * f,
+    };
+  };
 
   const youAreHere = getPosition(progress);
 
@@ -124,53 +108,51 @@ function ArcVisualization({ phase, vibeAccent }: { phase: SessionPhase; vibeAcce
           </SvgLinearGradient>
         </Defs>
         <Path
-          d={smoothPath}
+          d={pathD}
           stroke="url(#arcGrad)"
           strokeWidth={2.5}
           fill="none"
           strokeLinecap="round"
-          strokeLinejoin="round"
         />
         {/* Phase nodes */}
         {nodes.map((node, i) => {
-          const [x, y] = curvePoints[node.idx];
           const isPeak = node.label === 'PEAK';
           return (
-            <React.Fragment key={i}>
-              <Circle
-                cx={x}
-                cy={y}
-                r={node.size / 2}
-                fill={isPeak ? vibeAccent : withAlpha(Colors.accent, 0.3)}
-                stroke={Colors.accent}
-                strokeWidth={isPeak ? 2 : 1}
-              />
-            </React.Fragment>
+            <Circle
+              key={i}
+              cx={node.x}
+              cy={node.y}
+              r={node.size / 2}
+              fill={isPeak ? vibeAccent : withAlpha(Colors.accent, 0.3)}
+              stroke={Colors.accent}
+              strokeWidth={isPeak ? 2 : 1}
+            />
           );
         })}
-        {/* You are here indicator */}
+        {/* You are here — pulse ring */}
+        <Circle cx={youAreHere.x} cy={youAreHere.y} r={10} fill="none" stroke={Colors.base.white} strokeWidth={1} opacity={0.3}>
+          <animate attributeName="r" values="6;12;6" dur="2s" repeatCount="indefinite" />
+          <animate attributeName="opacity" values="0.4;0.1;0.4" dur="2s" repeatCount="indefinite" />
+        </Circle>
         <Circle cx={youAreHere.x} cy={youAreHere.y} r={4} fill={Colors.base.white} />
       </Svg>
-      {/* Node labels (positioned absolutely below each node) */}
-      {nodes.map((node, i) => {
-        const [x, y] = curvePoints[node.idx];
-        return (
-          <Text
-            key={`label-${i}`}
-            style={[
-              styles.nodeLabel,
-              { left: x - 20, top: y + (node.size / 2) + 4 },
-            ]}
-          >
-            {node.label}
-          </Text>
-        );
-      })}
+      {/* Node labels */}
+      {nodes.map((node, i) => (
+        <Text
+          key={`label-${i}`}
+          style={[
+            styles.nodeLabel,
+            { left: node.x - 20, top: node.y + (node.size / 2) + 4 },
+          ]}
+        >
+          {node.label}
+        </Text>
+      ))}
       {/* You are here label */}
       <Text
         style={[
           styles.youAreHere,
-          { left: youAreHere.x - 24, top: youAreHere.y + 8 },
+          { left: youAreHere.x - 24, top: youAreHere.y + 10 },
         ]}
       >
         YOU ARE HERE
