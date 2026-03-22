@@ -396,6 +396,34 @@ public class ExpoMusicKitModule: Module {
       return results
     }
 
+    AsyncFunction("createPlaylist") { (name: String, description: String, trackIds: [String]) -> String in
+      // Resolve string IDs to MusicItemIDs
+      let musicItemIDs = trackIds.map { MusicItemID($0) }
+
+      // Fetch Song objects from catalog by ID
+      let resourceRequest = MusicCatalogResourceRequest<Song>(matching: \.id, memberOf: musicItemIDs)
+      let resourceResponse = try await resourceRequest.response()
+
+      // Preserve the original track order
+      let songMap = Dictionary(uniqueKeysWithValues: resourceResponse.items.map { ($0.id.rawValue, $0) })
+      let orderedSongs = trackIds.compactMap { songMap[$0] }
+
+      guard !orderedSongs.isEmpty else {
+        throw NSError(domain: "ExpoMusicKit", code: 1, userInfo: [
+          NSLocalizedDescriptionKey: "No valid songs found for the provided track IDs"
+        ])
+      }
+
+      // Create the playlist
+      let playlist = try await MusicLibrary.shared.createPlaylist(
+        name: name,
+        description: description,
+        items: orderedSongs
+      )
+
+      return playlist.id.rawValue
+    }
+
     AsyncFunction("getPlaybackTime") { () -> Double in
       return player.playbackTime
     }
