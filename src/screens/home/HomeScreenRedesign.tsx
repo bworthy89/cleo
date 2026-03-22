@@ -43,8 +43,13 @@ import {
   getCachedPlaylists,
   setCachedPlaylists,
   getUser,
+  getOnaySuggestion,
+  setOnaySuggestion,
   type Station,
+  type OnaySuggestion,
 } from '../../services/Storage';
+import { authenticatedFetch } from '../../services/api';
+import { getAuth } from 'firebase/auth';
 import type { MusicPlaylist } from '../../../modules/expo-music-kit';
 
 // ── Types ──────────────────────────────────────────────────────────────
@@ -147,6 +152,7 @@ export function HomeScreenRedesign() {
   const [playlistsLoading, setPlaylistsLoading] = useState(true);
   const [activeStation, setActiveStation] = useState<Station | null>(null);
   const [pickerStation, setPickerStation] = useState<Station | null>(null);
+  const [onaySuggestion, setOnaySuggestionState] = useState<OnaySuggestion | null>(null);
 
   // ── Auth check ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -174,6 +180,58 @@ export function HomeScreenRedesign() {
       }
     });
     return unsub;
+  }, []);
+
+  // ── ONAY Suggestion fetch ─────────────────────────────────────────
+  useEffect(() => {
+    async function fetchSuggestion() {
+      try {
+        const user = getAuth().currentUser;
+        if (!user) return;
+
+        // Check cache first
+        const cached = getOnaySuggestion(user.uid);
+        if (cached) {
+          setOnaySuggestionState(cached);
+          return;
+        }
+
+        // Fire non-blocking LLM call
+        const hour = new Date().getHours();
+        const dayOfWeek = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+        const userData = getUser();
+
+        const response = await authenticatedFetch('/curate-playlist', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt: `It's ${dayOfWeek}, ${hour}:00. Mood: ${userData?.onboardingMood || 'general'}. Goal: ${userData?.onboardingGoal || 'discovery'}. Genres: ${userData?.onboardingGenres?.join(', ') || 'eclectic'}. Suggest a playlist for right now.`,
+            trackCount: 20,
+            round: 'initial',
+          }),
+        });
+
+        if (!response.ok) return;
+        const data = await response.json();
+
+        const suggestion: OnaySuggestion = {
+          playlistTitle: data.playlistTitle,
+          playlistDescription: data.playlistDescription,
+          conversationalResponse: data.conversationalResponse,
+          tracks: data.tracks,
+          suggestedVibe: data.suggestedVibe,
+          generatedAt: Date.now(),
+          uid: user.uid,
+        };
+
+        setOnaySuggestion(user.uid, suggestion);
+        setOnaySuggestionState(suggestion);
+      } catch {
+        // Non-blocking — silently fail
+      }
+    }
+
+    fetchSuggestion();
   }, []);
 
   // ── Data loading ───────────────────────────────────────────────────
@@ -372,6 +430,22 @@ export function HomeScreenRedesign() {
           <Text style={styles.greetingSubtext}>Your radio is ready.</Text>
         </View>
 
+        {/* ── ASK ONAY ──────────────────────────────────────────── */}
+        <Pressable
+          style={styles.askOnayCard}
+          onPress={() => router.push('/(main)/(broadcast)/ask-onay')}
+          accessibilityLabel="Ask ONAY to curate a playlist"
+          accessibilityRole="button"
+        >
+          <View style={styles.askOnayGoldEdge} />
+          <View style={styles.askOnayInner}>
+            <Text style={styles.sectionLabelGold}>ASK ONAY</Text>
+            <Text style={styles.askOnayDescription}>
+              Tell me what you want to hear and I'll curate it for you.
+            </Text>
+          </View>
+        </Pressable>
+
         {/* ── Now Playing Mini ──────────────────────────────────── */}
         {nowPlaying && (
           <Pressable
@@ -461,6 +535,35 @@ export function HomeScreenRedesign() {
                 </Text>
               </View>
             </View>
+          </View>
+        )}
+
+        {/* ── ONAY SUGGESTS ─────────────────────────────────────── */}
+        {onaySuggestion && (
+          <View style={styles.suggestSection}>
+            <Text style={styles.sectionLabelGold}>ONAY SUGGESTS</Text>
+            <Pressable
+              style={styles.suggestCard}
+              onPress={() => {
+                router.push({
+                  pathname: '/(main)/(broadcast)/ask-onay',
+                  params: { suggestion: JSON.stringify(onaySuggestion) },
+                });
+              }}
+              accessibilityLabel={`ONAY suggests: ${onaySuggestion.playlistTitle}`}
+              accessibilityRole="button"
+            >
+              <View style={styles.suggestGoldEdge} />
+              <View style={styles.suggestInner}>
+                <Text style={styles.suggestTitle}>{onaySuggestion.playlistTitle}</Text>
+                <Text style={styles.suggestPitch}>
+                  {`\u201C${onaySuggestion.playlistDescription}\u201D`}
+                </Text>
+                <Text style={styles.suggestTrackCount}>
+                  {onaySuggestion.tracks.length} TRACKS
+                </Text>
+              </View>
+            </Pressable>
           </View>
         )}
       </ScrollView>
@@ -660,6 +763,80 @@ const styles = StyleSheet.create({
     opacity: Opacity.secondary,
     marginTop: Spacing.xs,
     textAlign: 'center',
+  },
+
+  // ── ASK ONAY Card ──────────────────────────────────────────────────
+  askOnayCard: {
+    flexDirection: 'row',
+    marginHorizontal: Spacing.md,
+    marginBottom: Spacing.md,
+    backgroundColor: Surface.container,
+    borderRadius: Radius.sm,
+  },
+  askOnayGoldEdge: {
+    width: 2,
+    backgroundColor: Colors.accent,
+    borderTopLeftRadius: Radius.sm,
+    borderBottomLeftRadius: Radius.sm,
+  },
+  askOnayInner: {
+    flex: 1,
+    padding: Spacing.md,
+  },
+  askOnayDescription: {
+    fontFamily: Typography.cleoVoice.family,
+    fontSize: 15,
+    color: TextColors.secondary,
+    marginTop: Spacing.xs,
+    fontStyle: 'italic',
+  },
+
+  // ── ONAY Suggests ──────────────────────────────────────────────────
+  suggestSection: {
+    marginHorizontal: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  suggestCard: {
+    flexDirection: 'row',
+    backgroundColor: Surface.container,
+    borderRadius: Radius.sm,
+    marginTop: Spacing.sm,
+  },
+  suggestGoldEdge: {
+    width: 2,
+    backgroundColor: Colors.accent,
+    borderTopLeftRadius: Radius.sm,
+    borderBottomLeftRadius: Radius.sm,
+  },
+  suggestInner: {
+    flex: 1,
+    padding: Spacing.md,
+  },
+  suggestTitle: {
+    fontFamily: Typography.display.family,
+    fontSize: 17,
+    color: TextColors.primary,
+  },
+  suggestPitch: {
+    fontFamily: Typography.cleoVoice.family,
+    fontSize: 14,
+    color: TextColors.secondary,
+    marginTop: Spacing.xs,
+    fontStyle: 'italic',
+  },
+  suggestTrackCount: {
+    fontFamily: Typography.mono.family,
+    fontSize: 10,
+    letterSpacing: 2,
+    color: Colors.accent,
+    marginTop: Spacing.sm,
+  },
+  sectionLabelGold: {
+    fontFamily: Typography.mono.family,
+    fontSize: 10,
+    letterSpacing: 2.5,
+    color: Colors.accent,
+    textTransform: 'uppercase',
   },
 
   // ── Cleo Suggestion ────────────────────────────────────────────────
