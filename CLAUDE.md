@@ -34,10 +34,11 @@ ID (`com.worthymedia.cleo`) and git repo (`cleo-app`) also remain unchanged.
 - Genius API — song annotations, behind-the-scenes context
 
 ### Backend
-- Node.js + Express — proxy server (keeps API keys server-side)
+- **Local dev:** Node.js + Express (`server/`) — proxy server on port 3001
+- **Production:** Fastify server at `/home/cleo/cleo-api/` on Hostinger VPS (<VPS_HOST>) — port 3100 behind Caddy reverse proxy → `api.worthymedia.tech`
 - All routes protected by Firebase JWT auth middleware (`requireAuth`)
-- Runs locally on port 3001 during development
-- Hostinger VPS — deployed via PM2 + Caddy reverse proxy (self-hosted providers via Pangolin tunnel)
+- Rate limiting via Redis cache (200 req/min per IP, configured in `.env`)
+- Hostinger VPS managed via Hostinger MCP tools; self-hosted providers (Ollama, Orpheus) via Pangolin tunnel
 
 ---
 
@@ -91,7 +92,7 @@ cleo/
 │   ├── .env                      ← API keys (gitignored)
 │   ├── package.json
 │   └── src/
-│       ├── index.ts              ← Express app, CORS, rate limiting, requireAuth on all routes
+│       ├── index.ts              ← Express app (local dev), CORS, rate limiting, requireAuth on all routes
 │       ├── middleware/auth.ts    ← Firebase JWT verification
 │       ├── providers/
 │       │   ├── llm/              ← LLM provider abstraction (Ollama primary, Gemini fallback)
@@ -269,7 +270,8 @@ All screens follow the Stitch Gold Edition editorial design language:
 ## Build Environment
 
 - **Working directory**: `/Users/kari/Documents/cleo-app/` — all editing, building, and git operations happen here. No rsync workflow needed.
-- **Entitlements**: `Cleo.entitlements` must have empty `<dict/>` — `com.apple.developer.musickit` is NOT a valid entitlement (MusicKit uses Info.plist instead)
+- **Entitlements**: `ONAY.entitlements` must not contain `com.apple.developer.musickit` — MusicKit uses Info.plist, not entitlements. Sign in with Apple (`com.apple.developer.applesignin`) is valid.
+- **TestFlight builds**: `npx expo prebuild --platform ios --clean` → `SENTRY_DISABLE_AUTO_UPLOAD=true xcodebuild archive` → `xcodebuild -exportArchive` with `ExportOptions.plist` (method: `app-store-connect`). Bump `buildNumber` in `app.json` before each upload.
 - **Ruby**: rbenv + Ruby 3.2.4 at ~/.rbenv/ (system Ruby 2.6 too old for CocoaPods)
 - **CocoaPods**: Installed via gem under rbenv Ruby 3.2.4 (`~/.rbenv/shims/pod`)
 - **iOS deployment target**: 16.0 (MusicLibraryRequest requirement)
@@ -324,7 +326,7 @@ HEALTH_CHECK_TIMEOUT_MS
 - TTS synthesis calls must have an `AbortController` timeout (15s) — hung calls block the eject preloader
 - External-origin strings (Genius annotations, user display names) must be sanitized before Gemini prompt injection
 - Enrichment loops must include 1100ms delay between iterations to respect MusicBrainz rate limits
-- Rate limiters on the server use `req.uid` (Firebase UID) not IP — prevents shared NAT/VPN blocking
+- Rate limiters: local Express server uses `req.uid` (Firebase UID); production Fastify server uses IP-based Redis rate limiting (200 req/min, configured in `.env`)
 
 ---
 
@@ -360,6 +362,11 @@ HEALTH_CHECK_TIMEOUT_MS
 - **initializeSession must not call advanceTrack eagerly**: The `onTrackChanged` native event is the sole source of truth for queue advancement. Calling `advanceTrack(allTrackIds[0])` in `initializeSession` double-counts the first track if `onTrackChanged` also fires.
 - **Ducking must deactivate after synthesizeAndPlay regardless of success**: `synthesizeAndPlay` never throws — it catches errors internally and returns void. So `deactivateDuckingSession()` must be called AFTER `synthesizeAndPlay`, not in a `catch` block. Putting it only in `catch` means ducking is never deactivated when TTS fails silently, leaving music permanently quiet.
 - **User-facing rename checklist**: When renaming the host, check ALL components that render the name: `AppHeader.tsx` (logo text), `HomeScreenRedesign.tsx` (loading/unauth/suggestion), `welcome.tsx` (logo), `CleoOnboarding.tsx` (greeting), `TabBar.tsx` (tab label), `CleoSpeakingOverlay.tsx` (speaking badge), `BroadcastScreen.tsx` (talking label), `SessionArcScreen.tsx` (commentary nodes), `music-auth.tsx` (descriptions), `static-core.ts` (system prompt), `cold-opens.ts` (first-ever open), `fallbacks.ts` (station_id lines), `CleoScriptGenerator.ts` (creative brief).
+- **SessionEngine.advanceTrack must be called on every track change**: Both `onTrackChanged` and `onEjectTrackChanged` handlers in BroadcastScreen must call `sessionEngine.advanceTrack(event.trackId)`. Without it, `currentQueueIndex` stays at 0, `tracksPlayed` stays empty, the AI queue upgrade re-inserts already-played tracks, and `getCurrentPhase()` always returns `'coldOpen'`.
+- **Crossfade completion must call player.play()**: Both the normal TTS and eject TTS crossfade completion handlers in the native module must call `player.play()`. The non-crossfade path already does this, but the crossfade path assumed music was still playing. If `activateDuckingSession` paused MusicKit instead of just ducking, music stayed paused permanently.
+- **External-pause handler must check crossfadeActive**: The 0.5s playback polling timer's external-pause handler must guard with `!self.crossfadeActive` in addition to `!isDucking`. During the last 2s of TTS (crossfade window), `duckOthers` is already removed but TTS is still playing — brief MusicKit status glitches would falsely trigger the handler.
+- **Eject preloader must revalidate after AI queue upgrade**: The preloader generates at ~25s but the AI queue upgrade runs at ~65s+. `QueueManager.upgradeQueueInBackground` must call `transitionPreloader.revalidateNextTrack()` after `setUpcomingQueue`. If the next track changed, the preloader regenerates script + TTS proactively. Safety net in `tryFireEject` re-verifies at fire time.
+- **Production server rate limits**: The Fastify server at `api.worthymedia.tech` has a single global rate limiter (200 req/min per IP). During session startup, enrichment fires 50+ MusicBrainz + 50+ Genius requests, plus segment + TTS + eject pre-gen. With retries on 429, request counts compound. Keep the limit generous.
 
 ---
 
