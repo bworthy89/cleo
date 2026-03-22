@@ -146,6 +146,14 @@ export async function searchCatalog(
   return await ExpoMusicKit.searchCatalog(query, types, limit);
 }
 
+export async function createPlaylist(
+  name: string,
+  description: string,
+  trackIds: string[]
+): Promise<string> {
+  return await ExpoMusicKit.createPlaylist(name, description, trackIds);
+}
+
 export async function getPlaybackTime(): Promise<number> {
   return await ExpoMusicKit.getPlaybackTime();
 }
