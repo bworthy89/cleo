@@ -17,6 +17,7 @@ export const StorageKeys = {
   CURRENT_SESSION: 'currentSession',
   SESSION_MEMORY: 'session.memory',
   HOST_VOLUME_MIX: 'hostVolumeMix',
+  ONAY_SUGGESTION: 'onay_suggestion',
 } as const;
 
 export interface UserData {
@@ -24,6 +25,9 @@ export interface UserData {
   appleMusicAuthorized: boolean;
   createdAt: string;
   defaultVibe?: Vibe;
+  onboardingMood?: 'focused' | 'energetic' | 'mellow';
+  onboardingGoal?: 'discovery' | 'relaxation' | 'work';
+  onboardingGenres?: string[];
 }
 
 export interface Station {
@@ -105,9 +109,34 @@ export function setCachedPlaylists(playlists: MusicPlaylist[]): void {
   setObject(StorageKeys.PLAYLISTS_CACHE, playlists);
 }
 
+// ONAY Suggestion
+export interface OnaySuggestion {
+  playlistTitle: string;
+  playlistDescription: string;
+  conversationalResponse: string;
+  tracks: { title: string; artist: string }[];
+  suggestedVibe: string;
+  generatedAt: number;
+  uid: string;
+}
+
+export function getOnaySuggestion(uid: string): OnaySuggestion | undefined {
+  const suggestion = getObject<OnaySuggestion>(`${StorageKeys.ONAY_SUGGESTION}:${uid}`);
+  if (!suggestion) return undefined;
+  // 6-hour TTL
+  const SIX_HOURS = 6 * 60 * 60 * 1000;
+  if (Date.now() - suggestion.generatedAt > SIX_HOURS) return undefined;
+  return suggestion;
+}
+
+export function setOnaySuggestion(uid: string, suggestion: OnaySuggestion): void {
+  setObject(`${StorageKeys.ONAY_SUGGESTION}:${uid}`, suggestion);
+}
+
 // Clear user-facing data on logout (preserves enrichment cache and user profile
 // so returning users are not re-routed through onboarding)
-export function clearUserData(): void {
+export function clearUserData(uid?: string): void {
+  if (uid) storage.delete(`${StorageKeys.ONAY_SUGGESTION}:${uid}`);
   storage.remove(StorageKeys.STATIONS);
   storage.remove(StorageKeys.RECENTLY_PLAYED);
   storage.remove(StorageKeys.SESSIONS);
