@@ -405,8 +405,12 @@ public class ExpoMusicKitModule: Module {
           self?.crossfadeTimer = nil
 
           if self?.crossfadeActive == true {
-            // Music already resumed from fade point — just resolve
+            // Crossfade already removed duckOthers — ensure MusicKit is playing
+            // (ducking activation can occasionally pause MusicKit instead of just lowering volume)
             self?.crossfadeActive = false
+            Task {
+              try? await self?.player.play()
+            }
             self?.ttsPromiseResolve?()
             self?.ttsPromiseResolve = nil
           } else {
@@ -532,8 +536,11 @@ public class ExpoMusicKitModule: Module {
           self.crossfadeTimer = nil
 
           if self.crossfadeActive {
-            // Music already resumed from fade point — just resolve
+            // Crossfade already removed duckOthers — ensure MusicKit is playing
             self.crossfadeActive = false
+            Task {
+              try? await self.player.play()
+            }
           } else {
             // No crossfade — hard transition
             try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
@@ -799,11 +806,13 @@ public class ExpoMusicKitModule: Module {
       // Stop TTS when music is paused/stopped externally (Lock Screen, AirPods, Control Center)
       if let last = self.lastPlaybackStatus, last == .playing,
          (currentStatus == .paused || currentStatus == .stopped) {
-        // Only stop TTS if we're not currently in a ducking session.
+        // Only stop TTS if we're not currently in a ducking session or crossfade.
         // Ducking can cause brief playback status changes that shouldn't interrupt TTS.
+        // During crossfade (last 2s of TTS), duckOthers is already removed but TTS is
+        // still playing — don't treat brief MusicKit glitches as external pauses.
         let isDucking = (try? AVAudioSession.sharedInstance().category == .playback &&
           AVAudioSession.sharedInstance().categoryOptions.contains(.duckOthers)) ?? false
-        if let ttsPlayer = self.audioPlayer, ttsPlayer.isPlaying, !isDucking {
+        if let ttsPlayer = self.audioPlayer, ttsPlayer.isPlaying, !isDucking, !self.crossfadeActive {
           self.crossfadeTimer?.invalidate()
           self.crossfadeTimer = nil
           self.crossfadeActive = false

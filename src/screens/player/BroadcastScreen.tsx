@@ -113,7 +113,8 @@ export function BroadcastScreen({
     }
   }, []);
 
-  // Get next track from MusicKit's actual queue (not session plan index) for spoken content
+  // Get next track from MusicKit's actual queue (not session plan index) for spoken content.
+  // No fallback to sessionEngine — its index can drift from MusicKit's real queue.
   const getNextTrackForPreloader = useCallback(async (): Promise<{ title: string; artistName: string } | undefined> => {
     try {
       const realNext = await getNextInQueue();
@@ -121,9 +122,7 @@ export function BroadcastScreen({
     } catch (err) {
       console.warn('[BroadcastScreen] getNextInQueue failed:', err);
     }
-    const nextId = sessionEngine.getNextTrackId();
-    const profile = nextId ? queueManager.getTrackProfile(nextId) : null;
-    return profile ? { title: profile.title, artistName: profile.artistName } : undefined;
+    return undefined;
   }, []);
 
   // Cleanup speaking timer on unmount
@@ -303,6 +302,7 @@ export function BroadcastScreen({
         manualSkipRef.current = false;
 
         addRecentlyPlayedTrack(event.trackId);
+        sessionEngine.advanceTrack(event.trackId);
         setProgress(0);
         progressWidth.setValue(0);
 
@@ -344,6 +344,9 @@ export function BroadcastScreen({
             setCleoSpeaking(false);
           }, 1500);
 
+          // Refresh "Synchronized Next" card from MusicKit's actual queue
+          refreshNextUp();
+
           // Start fresh preloader for the new track
           const nextTrackForPreloader = await getNextTrackForPreloader();
           audioCoordinator.handleTrackStart(
@@ -361,6 +364,7 @@ export function BroadcastScreen({
     const unsub = musicKitPlayer.onEjectTrackChanged(async (event) => {
       if (event.trackId) {
         addRecentlyPlayedTrack(event.trackId);
+        sessionEngine.advanceTrack(event.trackId);
         setProgress(0);
         progressWidth.setValue(0);
 
@@ -386,6 +390,9 @@ export function BroadcastScreen({
           }
 
           audioCoordinator.handleEjectComplete();
+
+          // Refresh "Synchronized Next" card from MusicKit's actual queue
+          refreshNextUp();
 
           const nextTrackForPreloader = await getNextTrackForPreloader();
           audioCoordinator.handleTrackStart(buildTrackInfo(np), nextTrackForPreloader);
