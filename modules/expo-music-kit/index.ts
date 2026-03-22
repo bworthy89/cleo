@@ -128,6 +128,24 @@ export async function getUpcomingQueue(count: number = 6): Promise<UpcomingTrack
   return await ExpoMusicKit.getUpcomingQueue(count);
 }
 
+export interface CatalogSearchResult {
+  id: string;
+  title: string;
+  artistName: string;
+  albumTitle: string;
+  duration: number;
+  genreNames: string[];
+  artworkUrl: string;
+}
+
+export async function searchCatalog(
+  query: string,
+  types: string[] = ['songs'],
+  limit: number = 5
+): Promise<CatalogSearchResult[]> {
+  return await ExpoMusicKit.searchCatalog(query, types, limit);
+}
+
 export async function getPlaybackTime(): Promise<number> {
   return await ExpoMusicKit.getPlaybackTime();
 }
