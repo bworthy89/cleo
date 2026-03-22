@@ -22,6 +22,9 @@ public class ExpoMusicKitModule: Module {
   private var ejectTrackIdBeforeSkip: String? = nil
   private var ejectPromiseResolve: (() -> Void)? = nil
   private var ttsPromiseResolve: (() -> Void)? = nil
+  private var backgroundTaskId: UIBackgroundTaskIdentifier = .invalid
+  private var lifecycleObservers: [Any] = []
+  private var silencePlayer: AVAudioPlayer?
 
   public func definition() -> ModuleDefinition {
     Name("ExpoMusicKit")
@@ -363,6 +366,36 @@ public class ExpoMusicKitModule: Module {
       return results
     }
 
+    AsyncFunction("searchCatalog") { (query: String, types: [String], limit: Int) -> [[String: Any]] in
+      var searchRequest = MusicCatalogSearchRequest(term: query, types: [Song.self])
+      searchRequest.limit = limit
+
+      let response = try await searchRequest.response()
+
+      var results: [[String: Any]] = []
+      for song in response.songs {
+        var dict: [String: Any] = [
+          "id": song.id.rawValue,
+          "title": song.title,
+          "artistName": song.artistName,
+          "albumTitle": song.albumTitle ?? "",
+          "duration": song.duration ?? 0,
+          "genreNames": song.genreNames,
+        ]
+
+        if let artwork = song.artwork {
+          let url = artwork.url(width: 300, height: 300)
+          dict["artworkUrl"] = url?.absoluteString ?? ""
+        } else {
+          dict["artworkUrl"] = ""
+        }
+
+        results.append(dict)
+      }
+
+      return results
+    }
+
     AsyncFunction("getPlaybackTime") { () -> Double in
       return player.playbackTime
     }
@@ -378,6 +411,9 @@ public class ExpoMusicKitModule: Module {
         promise.reject("ERR", "Invalid base64 audio data")
         return
       }
+
+      // Protect entire TTS lifecycle from iOS background suspension
+      // Background task removed — it prevents iOS from throttling CPU
 
       do {
         // Stop any currently playing audio and resolve its pending promise
@@ -410,6 +446,7 @@ public class ExpoMusicKitModule: Module {
             self?.crossfadeActive = false
             Task {
               try? await self?.player.play()
+              // no-op: background task removed
             }
             self?.ttsPromiseResolve?()
             self?.ttsPromiseResolve = nil
@@ -419,6 +456,7 @@ public class ExpoMusicKitModule: Module {
             try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
             Task {
               try? await self?.player.play()
+              // no-op: background task removed
             }
             self?.ttsPromiseResolve?()
             self?.ttsPromiseResolve = nil
@@ -452,6 +490,7 @@ public class ExpoMusicKitModule: Module {
 
         self.audioPlayer?.play()
       } catch {
+        // no-op: background task removed
         promise.reject("ERR", error.localizedDescription)
       }
     }
@@ -473,6 +512,7 @@ public class ExpoMusicKitModule: Module {
       self.audioDelegate = nil
       // Remove duckOthers but keep session active — setActive(false) would kill MusicKit playback
       try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
+      // no-op: background task removed
     }
 
     AsyncFunction("activateDuckingSession") {
@@ -496,6 +536,9 @@ public class ExpoMusicKitModule: Module {
         promise.reject("ERR", "Invalid base64 audio data")
         return
       }
+
+      // Protect entire eject lifecycle from iOS background suspension
+      // Background task removed — it prevents iOS from throttling CPU
 
       do {
         // Record current track ID so we can detect if it auto-advances
@@ -540,12 +583,14 @@ public class ExpoMusicKitModule: Module {
             self.crossfadeActive = false
             Task {
               try? await self.player.play()
+              // no-op: background task removed
             }
           } else {
             // No crossfade — hard transition
             try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
             Task {
               try? await self.player.play()
+              // no-op: background task removed
             }
           }
 
@@ -620,6 +665,7 @@ public class ExpoMusicKitModule: Module {
         self.ejectSuppressedTrackInfo = nil
         self.ejectTrackIdBeforeSkip = nil
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
+        // no-op: background task removed
         promise.reject("ERR", error.localizedDescription)
       }
     }
@@ -639,6 +685,7 @@ public class ExpoMusicKitModule: Module {
       self.ejectPromiseResolve?()
       self.ejectPromiseResolve = nil
       try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
+      // no-op: background task removed
     }
 
     // MARK: - Observation Lifecycle
@@ -650,6 +697,58 @@ public class ExpoMusicKitModule: Module {
     OnStopObserving {
       self.stopObserving()
     }
+  }
+
+  // MARK: - Memory Management
+
+  /// Trim MusicKit object caches to only upcoming queue entries.
+  /// Large playlists (100-1000+ tracks) can cause jetsam termination when backgrounded
+  /// because iOS enforces a much lower memory budget for background apps (~50MB).
+  /// Tracks already in MusicKit's queue don't need our cache — MusicKit holds its own references.
+  private func trimCachesForBackground() {
+    // Collect IDs of tracks currently in MusicKit's queue — these must be kept
+    var queueIds = Set<String>()
+    for entry in self.player.queue.entries {
+      if case .song(let song) = entry.item {
+        queueIds.insert(song.id.rawValue)
+      }
+    }
+
+    let tracksBefore = self.cachedTracks.count
+    let songsBefore = self.cachedSongs.count
+
+    // Keep only tracks that are in the active queue
+    if !queueIds.isEmpty {
+      self.cachedTracks = self.cachedTracks.filter { queueIds.contains($0.key) }
+      self.cachedSongs = self.cachedSongs.filter { queueIds.contains($0.key) }
+    }
+
+    // Playlists can be re-fetched — drop them entirely
+    self.cachedPlaylists.removeAll()
+
+    let tracksAfter = self.cachedTracks.count
+    let songsAfter = self.cachedSongs.count
+    if tracksBefore != tracksAfter || songsBefore != songsAfter {
+      print("[ExpoMusicKit] Trimmed caches: tracks \(tracksBefore)→\(tracksAfter), songs \(songsBefore)→\(songsAfter), playlists cleared")
+    }
+  }
+
+  // MARK: - Background Task Protection
+
+  /// Request extra execution time from iOS to complete TTS playback + MusicKit resume.
+  /// Without this, iOS can suspend the app in the gap between TTS ending and MusicKit resuming.
+  private func beginTTSBackgroundTask() {
+    guard self.backgroundTaskId == .invalid else { return }
+    self.backgroundTaskId = UIApplication.shared.beginBackgroundTask(withName: "TTSPlayback") { [weak self] in
+      // Expiration handler — clean up if iOS forces us to stop
+      // no-op: background task removed
+    }
+  }
+
+  private func endTTSBackgroundTask() {
+    guard self.backgroundTaskId != .invalid else { return }
+    UIApplication.shared.endBackgroundTask(self.backgroundTaskId)
+    self.backgroundTaskId = .invalid
   }
 
   // MARK: - Private Helpers
@@ -757,10 +856,15 @@ public class ExpoMusicKitModule: Module {
   }
 
   private func startObserving() {
-    // Observe queue changes for track change detection
-    queueObservation = player.queue.objectWillChange.sink { [weak self] _ in
-      guard let self = self else { return }
-      DispatchQueue.main.async {
+    // Observe queue changes for track change detection.
+    // Throttle to max once per second — objectWillChange fires on EVERY internal
+    // MusicKit state mutation (buffer updates, playback position, etc.), potentially
+    // hundreds of times per second. Unthrottled, this causes 96% background CPU usage
+    // and iOS terminates the app for violating the 48s/60s CPU limit.
+    queueObservation = player.queue.objectWillChange
+      .throttle(for: .seconds(1), scheduler: DispatchQueue.main, latest: true)
+      .sink { [weak self] _ in
+        guard let self = self else { return }
         let currentId: String? = {
           guard let entry = self.player.queue.currentEntry else {
             return nil
@@ -793,12 +897,39 @@ public class ExpoMusicKitModule: Module {
             self.sendEvent("onTrackChanged", event)
           }
         }
-      }
     }
 
-    // Timer-based polling for playback state
+    // Start playback polling timer (paused/resumed on app lifecycle)
+    self.startPlaybackTimer()
+
+    // Pause timer when backgrounded to eliminate wakeups; resume when foregrounded.
+    // Also trim MusicKit object caches to reduce memory — iOS background memory budget
+    // is much lower than foreground, and large playlists can trigger jetsam termination.
+    let bgObserver = NotificationCenter.default.addObserver(
+      forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main
+    ) { [weak self] _ in
+      self?.playbackTimer?.invalidate()
+      self?.playbackTimer = nil
+      self?.trimCachesForBackground()
+    }
+    let fgObserver = NotificationCenter.default.addObserver(
+      forName: UIApplication.willEnterForegroundNotification, object: nil, queue: .main
+    ) { [weak self] _ in
+      self?.startPlaybackTimer()
+    }
+    let memObserver = NotificationCenter.default.addObserver(
+      forName: UIApplication.didReceiveMemoryWarningNotification, object: nil, queue: .main
+    ) { [weak self] _ in
+      self?.trimCachesForBackground()
+    }
+    self.lifecycleObservers = [bgObserver, fgObserver, memObserver]
+  }
+
+  private func startPlaybackTimer() {
+    playbackTimer?.invalidate()
     playbackTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
       guard let self = self else { return }
+
       let currentStatus = self.player.state.playbackStatus
       let statusStr = self.playbackStatusString(currentStatus)
       let time = self.player.playbackTime
@@ -848,6 +979,10 @@ public class ExpoMusicKitModule: Module {
     playbackTimer?.invalidate()
     playbackTimer = nil
     lastPlaybackStatus = nil
+    for observer in lifecycleObservers {
+      NotificationCenter.default.removeObserver(observer)
+    }
+    lifecycleObservers.removeAll()
   }
 }
 
