@@ -155,6 +155,13 @@ Include ALL tracks. Every track must appear exactly once. Order them to create t
       });
     }
 
+    console.log('[QueuePlanner] Plan complete:', {
+      arcShape: plan.arcShape,
+      trackCount: plan.queue.length,
+      opener: plan.queue.slice(0, 3).map(t => `${t.role}: ${tracks.find(tr => tr.id === t.trackId)?.title}`),
+      closer: plan.queue.slice(-3).map(t => `${t.role}: ${tracks.find(tr => tr.id === t.trackId)?.title}`),
+    });
+
     return plan;
   } catch (error) {
     console.warn('[QueuePlanner] Queue planning failed, using original order:', error);
