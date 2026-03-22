@@ -59,30 +59,56 @@ export function AskOnayScreen() {
     }
   }, []);
 
+  // Shared guard: checks broadcast and subscription before curation
+  const checkGuards = useCallback(async (): Promise<boolean> => {
+    const activeSession = sessionEngine.getSession();
+    if (activeSession) {
+      addMessage({
+        role: 'error',
+        text: 'Playlist curation is unavailable during an active broadcast. End your session first.',
+      });
+      return false;
+    }
+    const authResult = await authorize();
+    if (!authResult.canPlayCatalog) {
+      addMessage({
+        role: 'error',
+        text: 'An Apple Music subscription is required to create playlists. Please subscribe in the Music app.',
+      });
+      return false;
+    }
+    return true;
+  }, [addMessage]);
+
+  // Shared curation logic for both handleSend and suggestion/retry paths
+  const executeCuration = useCallback(async (prompt: string) => {
+    addMessage({ role: 'user', text: prompt });
+    setIsGenerating(true);
+    const loadingId = addMessage({ role: 'loading' });
+    try {
+      setOriginalPrompt(prompt);
+      const result = await curatePlaylist({ prompt });
+      removeMessage(loadingId);
+      setCurrentPlaylist(result);
+      addMessage({ role: 'onay', text: `\u201C${result.conversationalResponse}\u201D` });
+      addMessage({ role: 'playlist', playlist: result });
+    } catch (error: any) {
+      removeMessage(loadingId);
+      addMessage({ role: 'error', text: error.message || 'Something went wrong.' });
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [addMessage, removeMessage]);
+
   // Auto-send when pending suggestion is set (runs after mount)
   useEffect(() => {
     if (pendingSuggestionRef.current && !isGenerating) {
       const prompt = pendingSuggestionRef.current;
       pendingSuggestionRef.current = null;
       setInputText(prompt);
-      // Directly invoke curation with the prompt text, bypassing inputText state
       (async () => {
-        addMessage({ role: 'user', text: prompt });
-        setIsGenerating(true);
-        const loadingId = addMessage({ role: 'loading' });
-        try {
-          setOriginalPrompt(prompt);
-          const result = await curatePlaylist({ prompt });
-          removeMessage(loadingId);
-          setCurrentPlaylist(result);
-          addMessage({ role: 'onay', text: `\u201C${result.conversationalResponse}\u201D` });
-          addMessage({ role: 'playlist', playlist: result });
-        } catch (error: any) {
-          removeMessage(loadingId);
-          addMessage({ role: 'error', text: error.message || 'Something went wrong.' });
-        } finally {
-          setIsGenerating(false);
-        }
+        if (!(await checkGuards())) return;
+        await executeCuration(prompt);
       })();
     }
   }, []);
@@ -103,25 +129,7 @@ export function AskOnayScreen() {
     const text = inputText.trim();
     if (!text || isGenerating) return;
 
-    // Block during active broadcast
-    const activeSession = sessionEngine.getSession();
-    if (activeSession) {
-      addMessage({
-        role: 'error',
-        text: 'Playlist curation is unavailable during an active broadcast. End your session first.',
-      });
-      return;
-    }
-
-    // Check Apple Music subscription
-    const authResult = await authorize();
-    if (!authResult.canPlayCatalog) {
-      addMessage({
-        role: 'error',
-        text: 'An Apple Music subscription is required to create playlists. Please subscribe in the Music app.',
-      });
-      return;
-    }
+    if (!(await checkGuards())) return;
 
     setInputText('');
     addMessage({ role: 'user', text });
@@ -231,9 +239,9 @@ export function AskOnayScreen() {
           {originalPrompt && (
             <Pressable
               style={styles.retryButton}
-              onPress={() => {
-                setInputText(originalPrompt);
-                handleSend();
+              onPress={async () => {
+                if (!(await checkGuards())) return;
+                await executeCuration(originalPrompt);
               }}
               accessibilityLabel="Retry"
               accessibilityRole="button"
@@ -311,7 +319,7 @@ export function AskOnayScreen() {
     }
 
     return null;
-  }, [handleSave, handleTakeLive, originalPrompt, handleSend]);
+  }, [handleSave, handleTakeLive, originalPrompt, checkGuards, executeCuration]);
 
   return (
     <KeyboardAvoidingView
@@ -426,6 +434,7 @@ const styles = StyleSheet.create({
   },
   onayText: {
     fontFamily: Typography.cleoVoice.family,
+    fontStyle: Typography.cleoVoice.style,
     fontSize: 16,
     color: TextColors.primary,
     lineHeight: 24,
@@ -506,7 +515,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.sm,
   },
   trackArtPlaceholder: {
-    backgroundColor: Surface.container,
+    backgroundColor: Surface.high,
   },
   trackInfo: {
     flex: 1,
