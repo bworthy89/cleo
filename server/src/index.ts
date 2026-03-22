@@ -6,6 +6,7 @@ import { segmentRouter } from './routes/segment';
 import { voiceRouter } from './routes/voice';
 import { enrichmentRouter } from './routes/enrichment';
 import { musicbrainzRouter } from './routes/musicbrainz';
+import { curationRouter } from './routes/curation';
 import { requireAuth } from './middleware/auth';
 import { llmProvider } from './providers/llm';
 import { ttsProvider } from './providers/tts';
@@ -35,10 +36,11 @@ app.use((req, _res, next) => {
 // so users behind shared NAT/VPN aren't blocked by one heavy user.
 const keyByUser = (req: any) => req.uid ?? req.ip;
 
-// Tighter limit for AI generation routes (LLM + TTS)
+// AI generation routes (LLM + TTS): each track needs ~4-8 requests
+// (segment + TTS + eject pre-gen + mid-song drops + retries)
 const generationLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 30,
+  max: 60,
   keyGenerator: keyByUser,
   standardHeaders: true,
   legacyHeaders: false,
@@ -81,6 +83,7 @@ app.use(requireAuth, generationLimiter, segmentRouter);
 app.use(requireAuth, generationLimiter, voiceRouter);
 app.use(requireAuth, enrichmentLimiter, enrichmentRouter);
 app.use(requireAuth, enrichmentLimiter, musicbrainzRouter);
+app.use(requireAuth, generationLimiter, curationRouter);
 
 app.listen(PORT, () => {
   console.log(`Cleo server running on port ${PORT}`);
