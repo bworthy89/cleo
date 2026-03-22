@@ -354,11 +354,22 @@ export function BroadcastScreen({
           // Refresh "Synchronized Next" card from MusicKit's actual queue
           refreshNextUp();
 
-          // Start fresh preloader for the new track
+          // Start fresh preloader for the new track.
+          // Pass onSegmentReady so the overlay shows when the eject fires
+          // (when ONAY starts speaking), not after the eject completes.
           const nextTrackForPreloader = await getNextTrackForPreloader();
           audioCoordinator.handleTrackStart(
             trackInfo,
-            nextTrackForPreloader
+            nextTrackForPreloader,
+            (segment) => {
+              if (cleoSpeakingTimerRef.current) {
+                clearTimeout(cleoSpeakingTimerRef.current);
+                cleoSpeakingTimerRef.current = null;
+              }
+              setCleoText(segment.text);
+              setSegmentType(segment.type);
+              setCleoSpeaking(true);
+            }
           );
         }
       }
@@ -382,19 +393,12 @@ export function BroadcastScreen({
           durationRef.current = np.duration ?? 0;
           setNowPlaying({ ...np, artworkUrl });
 
-          const ejectSegment = transitionPreloader.getCachedSegment();
-          if (ejectSegment) {
-            if (cleoSpeakingTimerRef.current) {
-              clearTimeout(cleoSpeakingTimerRef.current);
-            }
-            setCleoText(ejectSegment.text);
-            setSegmentType(ejectSegment.type);
-            setCleoSpeaking(true);
-            cleoSpeakingTimerRef.current = setTimeout(() => {
-              cleoSpeakingTimerRef.current = null;
-              setCleoSpeaking(false);
-            }, 1500);
-          }
+          // Overlay was already shown by onSegmentReady when eject fired.
+          // Now dismiss it after a short linger.
+          cleoSpeakingTimerRef.current = setTimeout(() => {
+            cleoSpeakingTimerRef.current = null;
+            setCleoSpeaking(false);
+          }, 1500);
 
           audioCoordinator.handleEjectComplete();
 
@@ -402,7 +406,19 @@ export function BroadcastScreen({
           refreshNextUp();
 
           const nextTrackForPreloader = await getNextTrackForPreloader();
-          audioCoordinator.handleTrackStart(buildTrackInfo(np), nextTrackForPreloader);
+          audioCoordinator.handleTrackStart(
+            buildTrackInfo(np),
+            nextTrackForPreloader,
+            (segment) => {
+              if (cleoSpeakingTimerRef.current) {
+                clearTimeout(cleoSpeakingTimerRef.current);
+                cleoSpeakingTimerRef.current = null;
+              }
+              setCleoText(segment.text);
+              setSegmentType(segment.type);
+              setCleoSpeaking(true);
+            }
+          );
         }
       }
     });

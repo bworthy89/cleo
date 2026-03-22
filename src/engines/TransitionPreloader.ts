@@ -282,10 +282,7 @@ class TransitionPreloaderEngine {
       this.cachedBase64 = base64Audio;
       this.state = 'ready';
       console.log('[TransitionPreloader] State: ready — script + TTS cached');
-
-      if (this.onSegmentReady) {
-        this.onSegmentReady(segment);
-      }
+      // Don't fire onSegmentReady here — it fires in fireEject() when ONAY starts speaking
     } catch (err) {
       console.log('[TransitionPreloader] Generation/synthesis error:', err);
       this.state = 'idle';
@@ -371,6 +368,10 @@ class TransitionPreloaderEngine {
     );
     this.state = 'fired';
 
+    // Notify UI so the speaking overlay shows when ONAY starts talking
+    if (this.cachedSegment && this.onSegmentReady) {
+      this.onSegmentReady(this.cachedSegment);
+    }
     if (this.onEjectFired) this.onEjectFired();
 
     playEjectTransition(this.cachedBase64, fadeInDelayMs)
