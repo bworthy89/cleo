@@ -242,22 +242,25 @@ All screens follow the Stitch Gold Edition editorial design language:
 3. getNextInQueue() reads MusicKit's actual next track for accurate naming
 4. TTS synthesized and cached in memory (retry up to 3x on 429)
 5. State: ready — waiting for eject point
-6. At (duration - genre window): playEjectTransition() fires with cached TTS base64
-7. Native: old track fades out, Cleo speaks over it, new track fades in
-8. onEjectTrackChanged fires (onTrackChanged suppressed) → UI updates → new preloader starts
+6. If AI queue upgrade reorders queue → revalidateNextTrack() regenerates if next track changed
+7. At (duration - genre window): playEjectTransition() fires with cached TTS base64
+8. onSegmentReady fires at eject start → BroadcastScreen shows speaking overlay
+9. Native: old track fades out, Cleo speaks over it, new track fades in
+10. onEjectTrackChanged fires (onTrackChanged suppressed) → UI updates → overlay dismiss timer → new preloader starts
 ```
 
 ### Fallback Path — Post-Track-Change (original timing)
 ```
 1. onTrackChanged fires (eject missed or manual skip)
 2. Old preloader cancelled, cancelPendingTimer() clears timers + increments generationId
-3. 3.5s natural delay (1.5s on manual skip; bail if generationId changed)
-4. SegmentController generates via Gemini (delivery mode determines framing)
-5. AVAudioSession activates with .mixWithOthers + .duckOthers
-6. AVAudioPlayer plays ElevenLabs TTS (music ducks automatically)
-7. Crossfade: 2s before audio ends, setCategory removes duckOthers — music rises
-8. Audio finishes → new preloader starts for eject window at end of track
-9. Schedule mid-song drop if track > 3.5 min (20-40% chance by vibe)
+3. sessionEngine.advanceTrack(trackId) updates queue index + tracksPlayed
+4. 3.5s natural delay (1.5s on manual skip; bail if generationId changed)
+5. SegmentController generates via Gemini (delivery mode determines framing)
+6. AVAudioSession activates with .mixWithOthers + .duckOthers
+7. AVAudioPlayer plays TTS (music ducks automatically)
+8. Crossfade: 1s before audio ends, setCategory removes duckOthers — music rises under last words
+9. Audio finishes → player.play() ensures MusicKit resumes → new preloader starts
+10. Schedule mid-song drop if track > 3.5 min (20-40% chance by vibe)
 ```
 
 **Delivery modes:**
@@ -367,6 +370,8 @@ HEALTH_CHECK_TIMEOUT_MS
 - **External-pause handler must check crossfadeActive**: The 0.5s playback polling timer's external-pause handler must guard with `!self.crossfadeActive` in addition to `!isDucking`. During the last 2s of TTS (crossfade window), `duckOthers` is already removed but TTS is still playing — brief MusicKit status glitches would falsely trigger the handler.
 - **Eject preloader must revalidate after AI queue upgrade**: The preloader generates at ~25s but the AI queue upgrade runs at ~65s+. `QueueManager.upgradeQueueInBackground` must call `transitionPreloader.revalidateNextTrack()` after `setUpcomingQueue`. If the next track changed, the preloader regenerates script + TTS proactively. Safety net in `tryFireEject` re-verifies at fire time.
 - **Production server rate limits**: The Fastify server at `api.worthymedia.tech` has a single global rate limiter (200 req/min per IP). During session startup, enrichment fires 50+ MusicBrainz + 50+ Genius requests, plus segment + TTS + eject pre-gen. With retries on 429, request counts compound. Keep the limit generous.
+- **Crossfade window is 1s, not 2s**: The `setCategory` call that removes `.duckOthers` is instant (no gradual fade). A 2s window made music jump back to full volume while ONAY still had two sentences left. 1s means un-duck happens during her last word — much less jarring. Threshold remains 3s minimum TTS duration.
+- **Eject overlay fires at fireEject, not beginGeneration**: `onSegmentReady` must fire in `fireEject()` when ONAY starts speaking, not in `beginGeneration()` when the script is pre-generated (~25s into the track). The `onEjectTrackChanged` handler only starts the dismiss timer — the overlay is already showing. BroadcastScreen passes `onSegmentReady` through `handleTrackStart` for this.
 
 ---
 
