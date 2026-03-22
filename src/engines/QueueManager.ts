@@ -40,7 +40,8 @@ class QueueManagerService {
   async initializeSession(
     playlistId: string,
     vibe: Vibe,
-    stationId: string
+    stationId: string,
+    options?: { skipAIUpgrade?: boolean }
   ): Promise<void> {
     sessionEngine.startSession(stationId, vibe);
     this.enrichmentInProgress = false;
@@ -96,14 +97,18 @@ class QueueManagerService {
     this.enrichMusicBrainzFirst(tracks).then(async () => {
       // Longer delay to avoid Gemini 429 rate limit collision with segment generation
       await new Promise((r) => setTimeout(r, 10000));
-      // Phase 2: AI queue planning uses enriched tags/year
-      this.upgradeQueueInBackground(vibe);
+      // Phase 2: AI queue planning uses enriched tags/year (skip for curated playlists)
+      if (!options?.skipAIUpgrade) {
+        this.upgradeQueueInBackground(vibe);
+      }
       // Phase 3: Genius metadata (slow) — background, non-blocking
       this.enrichGeniusInBackground(tracks);
     }).catch((err) => {
       console.warn('[QueueManager] Enrichment chain failed:', err);
-      // Fallback: still run queue planning and Genius enrichment
-      this.upgradeQueueInBackground(vibe);
+      // Fallback: still run queue planning and Genius enrichment (unless skipped)
+      if (!options?.skipAIUpgrade) {
+        this.upgradeQueueInBackground(vibe);
+      }
       this.enrichGeniusInBackground(tracks);
     });
   }
