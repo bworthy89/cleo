@@ -84,6 +84,9 @@ interface MusicProvider {
   readonly connectionStatus: ConnectionStatus
   onConnectionStatusChanged(cb: (status: ConnectionStatus) => void): () => void
 
+  // Lifecycle
+  destroy(): void  // Cleanup subscriptions, disconnect App Remote (Spotify), invalidate timers
+
   // Capabilities
   readonly providerType: 'apple-music' | 'spotify'
   readonly supportsDucking: boolean  // true for both
@@ -123,8 +126,17 @@ No `resetMusicProvider()` needed — users can't switch providers.
 | `clearQueueCache()` | Clears native `cachedTracks`/`cachedSongs` | No-op (no server-side queue to clear) |
 | `setTTSVolume(volume)` | Sets AVAudioPlayer volume | Sets MediaPlayer volume |
 | `connectionStatus` | Always `'connected'` | Reflects `SpotifyAppRemote` connection state |
+| `destroy()` | Removes MusicKit observers, invalidates timers | Disconnects `SpotifyAppRemote`, removes player state subscription, invalidates timers |
 
-Types (`MusicTrack`, `MusicPlaylist`, `NowPlaying`, `PlaybackStatus`, `UpcomingTrack`) are defined in `MusicProvider.ts` and re-exported. Consumers import types from `src/providers/`, not `expo-music-kit`.
+Types (`MusicTrack`, `MusicPlaylist`, `NowPlaying`, `PlaybackStatus`, `UpcomingTrack`) are defined in `MusicProvider.ts` and re-exported. Consumers import types from `src/providers/`, not `expo-music-kit`. The `UpcomingTrack` type preserves the `artworkUrl?: string` field from the current `expo-music-kit` definition (used by `SessionArcScreen` for rendering artwork).
+
+### Notes on `skipToPrevious` for Spotify
+
+On Spotify, `skipPrevious` resets the current track to the beginning if more than a few seconds have played (matching Apple Music). However, Spotify's "previous" is its own internal history, not ONAY's queue plan. If ONAY's queue differs from Spotify's history, `skipToPrevious` may go to an unexpected track. This is an acceptable edge case — the primary UX for skip-back is restarting the current track.
+
+### Notes on Android Audio Ducking
+
+`AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK` is advisory — the Spotify app chooses whether and how much to duck. In practice, Spotify respects audio focus on Android, but the ducking amount may differ from iOS (e.g., -6dB vs iOS's typical -14dB). If ducking is insufficient, ONAY's voice may be harder to hear. This is a known behavioral difference. If user feedback indicates the balance is off, `TTS volume` can be adjusted in the `SpotifyProvider` implementation.
 
 ## Spotify Native Module (`expo-spotify`, Android/Kotlin)
 
@@ -159,9 +171,11 @@ No `ios/` directory — Android only.
 
 6. **Eject Transition (two-layer)** — Request audio focus (duck Spotify) -> play TTS -> at `fadeInDelay`: call `skipNext()` -> emit `onEjectTrackChanged` when player state reports new track -> abandon audio focus.
 
-7. **Connection Lifecycle** — Auto-reconnect on disconnect. Emit `connectionStatus` changes to JS. If Spotify killed during eject, suppress `onEjectTrackChanged`, let fallback `onTrackChanged` path handle it.
+7. **Connection Lifecycle** — Auto-reconnect on disconnect. Emit `connectionStatus` changes to JS. If Spotify killed during eject, suppress `onEjectTrackChanged`, let fallback `onTrackChanged` path handle it. If Spotify is force-closed mid-session (outside of eject), `connectionStatus` changes to `'disconnected'` and BroadcastScreen shows a "Reconnecting to Spotify..." overlay. AudioCoordinator and TransitionPreloader check `connectionStatus` before operations and skip/defer if disconnected.
 
-8. **Spotify App Check** — `packageManager.getLaunchIntentForPackage("com.spotify.music")` to verify installed. Block at onboarding if missing.
+8. **Inactivity Timeout Handling** — The Spotify Android SDK disconnects `SpotifyAppRemote` after ~30 minutes of inactivity. On session resume (app foreground), check connection state and reconnect if needed before resuming playback.
+
+9. **Spotify App Check** — `packageManager.getLaunchIntentForPackage("com.spotify.music")` to verify installed. Block at onboarding if missing.
 
 ### What It Does NOT Handle
 
@@ -175,17 +189,40 @@ Every direct import from `expo-music-kit` or `MusicKitPlayer` must be routed thr
 
 ### Files to Migrate
 
-| File | Current Imports from `expo-music-kit` | Change |
-|------|---------------------------------------|--------|
-| `AudioCoordinator.ts` | `activateDuckingSession`, `deactivateDuckingSession`, `getPlaybackStatus`, `setTTSVolume` | Use provider via constructor or `getMusicProvider()` |
-| `TransitionPreloader.ts` | `getNextInQueue`, `playEjectTransition`, `cancelEjectTransition` | Use provider |
-| `CleoVoiceEngine.ts` | `playAudioFromBase64`, `stopAudio` | Use provider |
-| `QueueManager.ts` | `clearQueueCache`, `MusicKitPlayer` | Use provider |
-| `BroadcastScreen.tsx` | `addTrackChangedListener`, `addPlaybackStateListener`, `addEjectTrackChangedListener`, `skip`, `skipToPrevious`, `getNowPlaying`, `getPlaybackTime`, `getPlaybackStatus`, `pause` | Use provider event registration + methods |
-| `HomeScreenRedesign.tsx` | `MusicKitPlayer` | Use provider |
-| `SessionArcScreen.tsx` | `getUpcomingQueue` | Use provider |
-| `ProfileScreen.tsx` | `setTTSVolume`, `authorize` | Use provider |
-| `music-auth.tsx` | `authorize` | Use provider (platform-conditional UI) |
+**Direct `expo-music-kit` imports:**
+
+| File | Current Imports | Change |
+|------|----------------|--------|
+| `MusicKitPlayer.ts` | All auth, playback, event listener functions + types | Absorbed into `AppleMusicProvider.ts`. File deleted after migration. |
+| `AudioCoordinator.ts` | `activateDuckingSession`, `deactivateDuckingSession`, `getPlaybackStatus`, `setTTSVolume` | Use provider via `getMusicProvider()` |
+| `TransitionPreloader.ts` | `playEjectTransition`, `cancelEjectTransition` + `musicKitPlayer` | Use provider |
+| `CleoVoiceEngine.ts` | `playAudioFromBase64` | Use provider |
+| `QueueManager.ts` | `clearQueueCache`, `type MusicTrack` + `musicKitPlayer` | Use provider |
+| `BroadcastScreen.tsx` | `getNextInQueue`, `skipToPrevious`, `type NowPlaying` + `musicKitPlayer` | Use provider |
+| `HomeScreenRedesign.tsx` | `type MusicPlaylist` + `musicKitPlayer` | Use provider |
+| `SessionArcScreen.tsx` | `getUpcomingQueue`, `type NowPlaying`, `type UpcomingTrack` + `musicKitPlayer` | Use provider |
+| `ProfileScreen.tsx` | `setTTSVolume`, `authorize` + `musicKitPlayer` | Use provider |
+| `music-auth.tsx` | `musicKitPlayer` | Use provider (platform-conditional UI) |
+
+**Type-only imports (still must be redirected):**
+
+| File | Current Type Imports | Change |
+|------|---------------------|--------|
+| `Storage.ts` | `type MusicPlaylist` from `expo-music-kit` | Import from `src/providers/MusicProvider` |
+| `TrackEnrichmentService.ts` | `type MusicTrack` from `expo-music-kit` | Import from `src/providers/MusicProvider` |
+
+**Test files (update mocks):**
+
+| File | Change |
+|------|--------|
+| `__tests__/services/Storage.test.ts` | Update type import |
+| `__tests__/services/CleoVoiceEngine.test.ts` | Mock provider instead of `expo-music-kit` |
+| `__tests__/engines/AudioCoordinator.test.ts` | Mock provider instead of `expo-music-kit` |
+| `__tests__/engines/TransitionPreloader.test.ts` | Mock provider instead of `expo-music-kit` |
+
+### Fate of `MusicKitPlayer.ts`
+
+`MusicKitPlayer.ts` is the existing singleton wrapper around `expo-music-kit`. It is **absorbed into `AppleMusicProvider.ts`** — the new provider class takes over its role as the iOS-specific wrapper. After migration, `MusicKitPlayer.ts` is deleted. `AppleMusicProvider` imports from `expo-music-kit` directly and implements the `MusicProvider` interface.
 
 ### Engine Behavior — Identical Code Paths
 
@@ -210,7 +247,7 @@ All protected by `requireAuth` middleware.
 
 3. **`POST /spotify/playlists`** — Proxies `GET /me/playlists` via Spotify Web API. Normalizes response to `MusicPlaylist[]` (same shape as Apple Music playlists). Handles pagination.
 
-4. **`POST /spotify/playlist-tracks`** — Proxies `GET /playlists/{id}/tracks`. Normalizes to `MusicTrack[]`. Maps `duration_ms` to seconds. Batch-fetches genres via `GET /artists` (up to 50 per call, 500ms between batches for large playlists).
+4. **`POST /spotify/playlist-tracks`** — Proxies `GET /playlists/{id}/tracks`. Normalizes to `MusicTrack[]`. Maps `duration_ms` to seconds. **Genre population:** Spotify's track endpoint does not return genres — genres are only available on artist objects. The route batch-fetches genres via `GET /artists` (up to 50 per call, 500ms between batches for large playlists) and maps them to `genreNames` on each track. This is critical — `TransitionPreloader` uses `genreNames` for genre-based eject timing windows.
 
 ### New Environment Variables
 
@@ -234,9 +271,17 @@ Same global limiter (200 req/min per IP). Spotify Web API has its own limits (~1
 
 1. Check if Spotify app is installed via native `isSpotifyInstalled()`
 2. If not installed: "ONAY requires Spotify" screen with Play Store link. Blocks progress.
-3. If installed: Initiate OAuth -> connect App Remote -> check Premium via `playerApi` capabilities
-4. If not Premium: "ONAY requires Spotify Premium" message. Blocks progress.
-5. On success: persist auth state, proceed to `cleo-setup.tsx`
+3. If installed: Initiate OAuth (scopes: `app-remote-control`, `playlist-read-private`, `user-library-read`) -> token swap via server
+4. Connect App Remote -> check Premium via Spotify Web API `GET /me` (response field `product === "premium"`)
+5. If not Premium: "ONAY requires Spotify Premium" message. Blocks progress.
+6. On success: persist auth state + tokens, proceed to `cleo-setup.tsx`
+
+### Spotify OAuth Redirect URI
+
+The OAuth flow requires a redirect URI registered in the Spotify Developer Dashboard. Format: `com.worthymedia.cleo://spotify-auth-callback`. This must match:
+- The redirect URI configured in `AuthorizationClient.createLoginActivityIntent()`
+- An intent filter in the Android manifest (`AndroidManifest.xml`)
+- The redirect URI registered in the Spotify Developer Dashboard
 
 ### iOS (`music-auth.tsx`)
 
@@ -293,7 +338,7 @@ Spotify SDK limitation — no bulk queue API.
 
 | Area | iOS (Apple Music) | Android (Spotify) |
 |------|-------------------|-------------------|
-| Ducking | Native AVAudioSession `.duckOthers` | AudioFocus `MAY_DUCK` (equivalent) |
+| Ducking | Native AVAudioSession `.duckOthers` (enforced by OS) | AudioFocus `MAY_DUCK` (advisory, Spotify complies in practice) |
 | Eject crossfade | Three-layer (old out + TTS + new in) | Two-layer (TTS over ducked music + skip) |
 | Queue control | Full MusicKit queue API | Track-by-track enqueue, no reorder |
 | Next track peek | Direct queue read | Local plan + Web API verify |
@@ -320,21 +365,30 @@ Spotify SDK limitation — no bulk queue API.
 | File | Change |
 |------|--------|
 | `AudioCoordinator.ts` | Replace direct `expo-music-kit` imports with provider |
-| `TransitionPreloader.ts` | Replace direct imports with provider |
-| `CleoVoiceEngine.ts` | Replace `playAudioFromBase64`/`stopAudio` with provider |
-| `QueueManager.ts` | Replace `clearQueueCache`/`MusicKitPlayer` with provider |
-| `BroadcastScreen.tsx` | Replace all `expo-music-kit` imports with provider |
-| `HomeScreenRedesign.tsx` | Replace `MusicKitPlayer` with provider |
-| `SessionArcScreen.tsx` | Replace `getUpcomingQueue` with provider |
-| `ProfileScreen.tsx` | Replace imports, show provider name |
-| `music-auth.tsx` | Platform-conditional auth UI |
+| `TransitionPreloader.ts` | Replace direct imports + `musicKitPlayer` with provider |
+| `CleoVoiceEngine.ts` | Replace `playAudioFromBase64` with provider |
+| `QueueManager.ts` | Replace `clearQueueCache`/`musicKitPlayer` with provider |
+| `BroadcastScreen.tsx` | Replace all `expo-music-kit` + `musicKitPlayer` imports with provider |
+| `HomeScreenRedesign.tsx` | Replace `musicKitPlayer` + type import with provider |
+| `SessionArcScreen.tsx` | Replace `getUpcomingQueue` + `musicKitPlayer` with provider |
+| `ProfileScreen.tsx` | Replace imports + `musicKitPlayer`, show provider name |
+| `music-auth.tsx` | Platform-conditional auth UI, replace `musicKitPlayer` with provider |
+| `Storage.ts` | Redirect `type MusicPlaylist` import to `src/providers/` |
+| `TrackEnrichmentService.ts` | Redirect `type MusicTrack` import to `src/providers/` |
 | `server/src/index.ts` | Register Spotify routes |
+| Test files (4) | Update mocks to use provider instead of `expo-music-kit` |
+
+### Deleted Files
+
+| File | Reason |
+|------|--------|
+| `MusicKitPlayer.ts` | Absorbed into `AppleMusicProvider.ts` |
 
 ### Untouched
 
 - `SegmentController.ts`, `CleoScriptGenerator.ts` — provider-agnostic
 - `static-core.ts`, `cold-opens.ts`, `fallbacks.ts` — ONAY personality unchanged
-- `SessionMemory.ts`, `Storage.ts` — same shape
+- `SessionMemory.ts` — same shape
 - All design tokens, UI components
 - Enrichment pipeline (MusicBrainz, Genius)
 
