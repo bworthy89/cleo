@@ -11,12 +11,30 @@ export function enforceRules(plan: QueuePlan, tracks: TrackProfile[]): QueuePlan
 
   let queue = [...plan.queue];
 
+  let artistSwapCount = 0;
+  let albumSwapCount = 0;
+  let bridgeCount = 0;
+
+  const beforeArtist = queue.map(q => q.trackId);
   queue = enforceArtistVariety(queue, trackMap);
+  artistSwapCount = queue.filter((q, i) => q.trackId !== beforeArtist[i]).length;
+
+  const beforeAlbum = queue.map(q => q.trackId);
   queue = enforceAlbumVariety(queue, trackMap);
+  albumSwapCount = queue.filter((q, i) => q.trackId !== beforeAlbum[i]).length;
+
+  const beforeBridge = queue.map(q => q.trackId);
   queue = enforceGenreBridging(queue, trackMap);
+  bridgeCount = queue.filter((q, i) => q.trackId !== beforeBridge[i] || q.role === 'bridge').length;
 
   // Re-number positions
   queue = queue.map((q, i) => ({ ...q, position: i + 1 }));
+
+  console.log('[RulesEngine] Enforcement complete:', {
+    artistSwaps: artistSwapCount,
+    albumSwaps: albumSwapCount,
+    genreBridges: bridgeCount,
+  });
 
   return { ...plan, queue };
 }

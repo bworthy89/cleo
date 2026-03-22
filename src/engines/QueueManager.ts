@@ -113,6 +113,10 @@ class QueueManagerService {
     try {
       // Check cache first
       const cached = getCachedQueuePlan(playlistId, vibe);
+      console.log('[QueueManager] Pre-upgrade queue (first 5):',
+        this.trackProfiles.slice(0, 5).map(t => `${t.artistName} - ${t.title}`)
+      );
+
       let validated: QueuePlan;
       if (cached) {
         console.log('[QueueManager] Using cached AI queue plan');
@@ -137,6 +141,7 @@ class QueueManagerService {
 
       // Merge: played portion stays, upcoming replaced by AI ordering
       const playedQueue = session.queuePlan?.queue.slice(0, session.currentQueueIndex) ?? [];
+      const mergedOrder = upcomingAi.map((q) => q.trackId);
       const mergedPlan: QueuePlan = {
         queue: [
           ...playedQueue,
@@ -145,6 +150,13 @@ class QueueManagerService {
         arcShape: validated.arcShape,
       };
       sessionEngine.setQueuePlan(mergedPlan);
+
+      console.log('[QueueManager] Post-upgrade queue (first 5):',
+        mergedOrder.slice(0, 5).map(id => {
+          const t = this.trackProfiles.find(tp => tp.id === id);
+          return `${t?.artistName} - ${t?.title}`;
+        })
+      );
 
       // Update MusicKit's upcoming queue
       const upcomingIds = upcomingAi.map((q) => q.trackId);
