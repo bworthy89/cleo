@@ -3,6 +3,7 @@ import { planQueueLocally } from './LocalQueuePlanner';
 import { enforceRules } from './RulesEngine';
 import { enrichTracks, enrichTracksMusicBrainzOnly, type TrackProfile } from '../services/TrackEnrichmentService';
 import { sessionEngine } from './SessionEngine';
+import { transitionPreloader } from './TransitionPreloader';
 import { musicKitPlayer } from '../services/MusicKitPlayer';
 import type { Vibe } from '../cleo/fallbacks';
 import { clearQueueCache, type MusicTrack } from '../../modules/expo-music-kit';
@@ -148,6 +149,10 @@ class QueueManagerService {
       // Update MusicKit's upcoming queue
       const upcomingIds = upcomingAi.map((q) => q.trackId);
       await musicKitPlayer.setUpcomingQueue(upcomingIds);
+
+      // If the eject preloader already cached a script with the old queue order,
+      // re-verify and regenerate so the transition names the correct next track.
+      transitionPreloader.revalidateNextTrack();
 
       console.log('[QueueManager] Upgraded to AI-planned queue');
     } catch (error) {
