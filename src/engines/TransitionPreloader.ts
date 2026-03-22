@@ -59,6 +59,7 @@ class TransitionPreloaderEngine {
 
   private cachedSegment: SegmentResult | null = null;
   private cachedBase64: string | null = null;
+  private generatedNextTrackTitle: string | null = null;
 
   private preGenTriggerSec: number = 0;
   private ejectPointSec: number = 0;
@@ -188,6 +189,30 @@ class TransitionPreloaderEngine {
     return this.cachedSegment;
   }
 
+  /**
+   * Called after the AI queue upgrade reorders MusicKit's queue.
+   * If the cached eject script references a next track that no longer matches
+   * MusicKit's actual queue, regenerate the script + TTS proactively
+   * (well before the eject fires) so the transition names the correct song.
+   */
+  revalidateNextTrack(): void {
+    if (this.state !== 'ready' || !this.generatedNextTrackTitle) return;
+
+    musicKitPlayer.getNextInQueue().then((realNext) => {
+      if (!realNext || this.state !== 'ready') return;
+      if (realNext.title !== this.generatedNextTrackTitle) {
+        console.log(
+          `[TransitionPreloader] Queue reordered: "${this.generatedNextTrackTitle}" → "${realNext.title}" — regenerating`
+        );
+        this.cachedSegment = null;
+        this.cachedBase64 = null;
+        this.generatedNextTrackTitle = null;
+        this.state = 'idle';
+        this.beginGeneration();
+      }
+    }).catch(() => {});
+  }
+
   // ── Internal ───────────────────────────────────────────────────────
 
   private async beginGeneration(): Promise<void> {
@@ -214,6 +239,9 @@ class TransitionPreloaderEngine {
       } catch (err) {
         logger.warn('TransitionPreloader', 'getNextInQueue failed', err);
       }
+
+      // Remember which next track we baked into the script
+      this.generatedNextTrackTitle = nextTrack?.title ?? null;
 
       const segment = await segmentController.generateEjectTransition(
         track,
@@ -268,6 +296,24 @@ class TransitionPreloaderEngine {
     console.log(`[TransitionPreloader] tryFireEject — state: ${this.state}`);
 
     if (this.state === 'ready') {
+      // Re-verify the next track hasn't changed since generation.
+      // The AI queue upgrade can reorder MusicKit's queue after the script was generated,
+      // making the cached next-track name stale (especially on the first track).
+      try {
+        const realNext = await musicKitPlayer.getNextInQueue();
+        if (realNext && this.generatedNextTrackTitle && realNext.title !== this.generatedNextTrackTitle) {
+          console.log(
+            `[TransitionPreloader] Next track changed since generation: ` +
+            `"${this.generatedNextTrackTitle}" → "${realNext.title}" — falling back to regenerate`
+          );
+          this.state = 'done';
+          if (this.onFallback) this.onFallback();
+          return;
+        }
+      } catch (err) {
+        // getNextInQueue failed — proceed with cached data rather than blocking
+      }
+
       // Check if Cleo is currently speaking
       const isSpeaking = this.isSpeakingCheck ? this.isSpeakingCheck() : false;
       if (isSpeaking) {
@@ -350,6 +396,7 @@ class TransitionPreloaderEngine {
     this.previousTrack = null;
     this.cachedSegment = null;
     this.cachedBase64 = null;
+    this.generatedNextTrackTitle = null;
     this.preGenTriggerSec = 0;
     this.ejectPointSec = 0;
     this.preGenFired = false;

@@ -260,6 +260,7 @@ export function BroadcastScreen({
 
   // --- Progress polling (pauses when backgrounded) ---
   useEffect(() => {
+    let nextUpPollCounter = 0;
     const poll = async () => {
       if (!appActiveRef.current) return;
       try {
@@ -280,6 +281,12 @@ export function BroadcastScreen({
         const dur = durationRef.current;
         if (dur > 0) {
           setProgress(Math.min(time / dur, 1));
+        }
+
+        // Refresh "Synchronized Next" every 30s to catch AI queue reordering
+        nextUpPollCounter++;
+        if (nextUpPollCounter % 30 === 0) {
+          refreshNextUp();
         }
       } catch (err) {
         console.warn('[BroadcastScreen] Progress poll error:', err);
