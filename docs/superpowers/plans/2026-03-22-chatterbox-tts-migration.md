@@ -908,7 +908,8 @@ CHATTERBOX_VOICE
 In the `Known Issues & Gotchas` section, add:
 ```
 - **Chatterbox emotion tags in ElevenLabs fallback**: When Chatterbox is down, ElevenLabs serves as fallback. The ElevenLabs provider strips Chatterbox emotion tags (`[laugh]`, `[sigh]`, etc.) server-side so they aren't spoken as literal words. The client (`formatForSpeech`) passes them through regardless of active provider.
-- **SegmentPreloader must be cancelled on manual skip**: `cancelPendingTimer()` in AudioCoordinator cancels the SegmentPreloader. On natural track changes (eject or auto-advance), the cached pre-song bridge may still be valid — only cancel on manual skips.
+- **SegmentPreloader lifecycle is NOT managed by cancelPendingTimer**: Unlike other pending timers, the SegmentPreloader is NOT cancelled inside `cancelPendingTimer()`. On natural track changes, the cache is consumed before `cancelPendingTimer` runs. On manual skips, the cache is skipped (wrong track) and `startForTrack` resets it when the new track begins. The preloader's `reset()` is called internally by `startForTrack`.
+- **SegmentPreloader advances segment rotation**: The preloader calls `generateNext()` which advances `rotationIndex` in SegmentController. When both an eject fires AND a cached pre-song is consumed, two rotation slots are used for one transition. This is an accepted trade-off — segment type variety remains sufficient with 9 types, and the alternative (peeking without advancing) would require new SegmentController API surface.
 ```
 
 - [ ] **Step 4: Commit**
