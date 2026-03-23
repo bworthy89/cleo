@@ -160,15 +160,15 @@ export function BroadcastScreen({
     ]).start();
   }, [cleoSpeaking]);
 
-  // Content dim when full overlay is active
-  useEffect(() => {
-    Animated.timing(contentDim, {
-      toValue: isFullOverlay ? 0.3 : 1,
-      duration: 400,
-      useNativeDriver: true,
-    }).start();
-    if (isFullOverlay) setOverlayMounted(true);
-  }, [isFullOverlay]);
+  // Content dim when full overlay is active — temporarily disabled
+  // useEffect(() => {
+  //   Animated.timing(contentDim, {
+  //     toValue: isFullOverlay ? 0.3 : 1,
+  //     duration: 400,
+  //     useNativeDriver: true,
+  //   }).start();
+  //   if (isFullOverlay) setOverlayMounted(true);
+  // }, [isFullOverlay]);
 
   // Progress bar animation (width % - no native driver)
   useEffect(() => {
@@ -236,8 +236,11 @@ export function BroadcastScreen({
     const unsub = musicKitPlayer.onPlaybackStateChanged(async (event) => {
       setIsPlaying(event.status === 'playing');
 
-      // Queue exhausted — end the session
-      if (event.status === 'stopped') {
+      // Queue exhausted — end the session.
+      // Only check when app is active — backgrounded apps get transient 'stopped'
+      // states during audio session changes (eject transitions, ducking) that
+      // don't mean the queue is actually empty.
+      if (event.status === 'stopped' && appActiveRef.current) {
         const np = await musicKitPlayer.getNowPlaying().catch(() => null);
         if (!np) {
           // No current track = queue truly empty, not just a momentary stop
@@ -250,8 +253,11 @@ export function BroadcastScreen({
     return unsub;
   }, []);
 
-  // --- App state tracking (pause polling when backgrounded) ---
+  // --- App state tracking (pause polling + engine background awareness) ---
   useEffect(() => {
+    // Wire up app-active check so engines skip TTS/eject when backgrounded
+    audioCoordinator.setIsAppActiveCheck(() => appActiveRef.current);
+
     const sub = AppState.addEventListener('change', (state) => {
       appActiveRef.current = state === 'active';
     });
@@ -555,7 +561,7 @@ export function BroadcastScreen({
             style={styles.artGradient}
           >
             <Animated.View style={[styles.cleoTalkingBadge, { opacity: badgeOpacity }]}>
-              <WaveformBars color={Colors.accent} />
+              {cleoSpeaking && <WaveformBars color={Colors.accent} />}
               <Text style={styles.cleoTalkingLabel}>ONAY IS TALKING</Text>
             </Animated.View>
           </LinearGradient>
@@ -698,19 +704,7 @@ export function BroadcastScreen({
       </ScrollView>
       </Animated.View>}
 
-      {/* Full-screen Cleo Speaking overlay for disruptive segment types */}
-      {overlayMounted && (
-        <CleoSpeakingOverlay
-          text={cleoText}
-          visible={isFullOverlay}
-          onDismiss={() => {
-            setOverlayMounted(false);
-            setCleoSpeaking(false);
-            setSegmentType(null);
-          }}
-          vibeAccent={vibeAccent}
-        />
-      )}
+      {/* Full-screen Speaking overlay — temporarily disabled */}
     </View>
   );
 }
