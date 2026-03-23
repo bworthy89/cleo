@@ -72,7 +72,13 @@ Test with typical ONAY segments at three lengths:
 
 **New file**: `server/src/providers/tts/chatterbox.ts`
 
-Implements the existing `TTSProvider` interface:
+Implements the existing `TTSProvider` interface. The `TTSRequest` sends `stability`/`style`/`speed` (ElevenLabs-oriented params). The Chatterbox provider maps these to Chatterbox-native parameters internally:
+- `style` → `exaggeration` (both 0-1, direct mapping)
+- `stability` → `cfg` (inverted: low stability = high cfg adherence to reference voice, mapped as `cfg = 0.5 + (1 - stability) * 0.3`)
+- `speed` → `speed` (direct pass-through)
+
+This follows the same pattern as Orpheus, which ignores `stability`/`style` and only uses `speed`.
+
 ```typescript
 interface TTSProvider {
   name: string;
@@ -82,8 +88,8 @@ interface TTSProvider {
 ```
 
 - **Endpoint**: `POST ${CHATTERBOX_BASE_URL}/v1/audio/speech`
-- **Request payload**: OpenAI-compatible format with `voice` set to the reference voice path
-- **Response**: WAV audio → base64 (same as Orpheus and ElevenLabs)
+- **Request payload**: OpenAI-compatible format with `voice` set to the configured reference voice name
+- **Response**: WAV audio → base64. Note: WAV is ~10x larger than ElevenLabs' MP3. For typical ONAY segments (3-8s audio), this is ~200-500KB base64 — acceptable for in-memory caching (Phase 3 caches at most 2 segments). If the `travisvn/chatterbox-tts-api` supports MP3 output format, prefer it to reduce transfer and cache size.
 - **Timeout**: 20s with AbortController
 - **Health check**: GET to base URL with 2s timeout
 
@@ -115,18 +121,15 @@ Add pre-song bridge pre-generation alongside the existing eject pre-gen:
 
 1. **~25s into track**: Eject transition pre-gen starts (existing, unchanged)
 2. **~30s into track** (or after eject pre-gen completes): Pre-song bridge pre-gen starts
-   - Uses `getNextInQueue()` for accurate next-track naming
-   - Generates a `pre_song` delivery mode script via SegmentController
+   - Uses `getNextInQueue()` for accurate next-track naming (this becomes the "current" track after transition)
+   - Captures the current playing track as context (this becomes "previous" track after transition)
+   - Generates a `pre_song` delivery mode script via SegmentController with both previous and next track context — matching how `generateNext()` works with `previousTrack`
    - Synthesizes TTS and caches base64 audio in memory
 3. **Natural track change (eject fires)**: Play cached eject audio (existing)
 4. **Natural track change (eject misses)**: Play cached pre-song bridge (~0ms latency)
 5. **Manual skip (cache miss)**: Live generation via Chatterbox → ElevenLabs fallback
 
-**Implementation options**:
-- **Option A**: Extend `TransitionPreloader` with a second state machine for pre-song
-- **Option B**: Create a sibling `SegmentPreloader` class with the same pattern
-
-Option A is simpler since both pre-gens share the same lifecycle (track start → pre-gen → cache → fire/discard on track change).
+**Implementation**: Create a sibling `SegmentPreloader` class (Option B) rather than extending `TransitionPreloader`. The eject preloader already has 13+ private fields and a complex state machine. A separate class with its own `idle/generating/ready` cycle avoids coupling risks and is easier to reason about. Both preloaders share the same lifecycle triggers (track start, reset, revalidate) but manage independent state.
 
 **Rate limit protection**: Stagger the two pre-gens. The pre-song pre-gen only starts after the eject pre-gen completes or fails. This prevents concurrent TTS requests that could overload the Chatterbox server or hit ElevenLabs 429s.
 
@@ -153,6 +156,8 @@ Allowed: [laugh], [chuckle], [sigh], [gasp], [cough], [sniff], [groan], [shush]
 Stripped: all other [bracketed] or (parenthesized) content
 ```
 
+**ElevenLabs fallback safety**: When ElevenLabs is serving as fallback, it would speak emotion tags as literal words ("laugh", "chuckle"). The **server-side** ElevenLabs provider must strip Chatterbox tags from input text before forwarding to the ElevenLabs API. Add a `stripEmotionTags(text)` helper in the ElevenLabs provider that removes `\[(laugh|chuckle|sigh|gasp|cough|sniff|groan|shush)\]` before synthesis. This keeps the client unaware of which provider is active.
+
 ### Vibe-Based Voice Profiles
 
 Current ElevenLabs profiles use `stability`/`style`/`speed`. Chatterbox uses different parameters:
@@ -162,20 +167,22 @@ Current ElevenLabs profiles use `stability`/`style`/`speed`. Chatterbox uses dif
 
 Map the 12 vibes to Chatterbox equivalents. Exact values determined during Phase 2 listening tests:
 
-| Vibe | ElevenLabs stability/style/speed | Chatterbox exaggeration/speed (estimated) |
-|------|----------------------------------|-------------------------------------------|
-| morning | 0.40 / 0.50 / 1.0 | 0.4 / 1.0 |
-| chill | 0.30 / 0.45 / 0.95 | 0.3 / 0.95 |
-| workout | 0.45 / 0.65 / 1.08 | 0.6 / 1.08 |
-| lateNight | 0.25 / 0.40 / 0.92 | 0.3 / 0.92 |
-| party | 0.50 / 0.70 / 1.05 | 0.7 / 1.05 |
-| focus | 0.50 / 0.35 / 0.98 | 0.2 / 0.98 |
-| feelGood | 0.35 / 0.60 / 1.02 | 0.5 / 1.02 |
-| throwback | 0.35 / 0.55 / 0.98 | 0.4 / 0.98 |
-| elevated | 0.30 / 0.50 / 0.95 | 0.4 / 0.95 |
-| melancholy | 0.25 / 0.40 / 0.93 | 0.3 / 0.93 |
-| sunday | 0.30 / 0.45 / 0.93 | 0.3 / 0.93 |
-| general | 0.35 / 0.55 / 1.0 | 0.4 / 1.0 |
+Default `cfg` value: **0.5** (moderate adherence to reference voice). Higher values (0.7+) for intimate vibes (lateNight, melancholy), lower (0.3) for energetic vibes (party, workout) where expressiveness matters more than exact voice match.
+
+| Vibe | ElevenLabs stability/style/speed | Chatterbox exaggeration/speed/cfg (estimated) |
+|------|----------------------------------|-----------------------------------------------|
+| morning | 0.40 / 0.50 / 1.0 | 0.4 / 1.0 / 0.5 |
+| chill | 0.30 / 0.45 / 0.95 | 0.3 / 0.95 / 0.6 |
+| workout | 0.45 / 0.65 / 1.08 | 0.6 / 1.08 / 0.3 |
+| lateNight | 0.25 / 0.40 / 0.92 | 0.3 / 0.92 / 0.7 |
+| party | 0.50 / 0.70 / 1.05 | 0.7 / 1.05 / 0.3 |
+| focus | 0.50 / 0.35 / 0.98 | 0.2 / 0.98 / 0.5 |
+| feelGood | 0.35 / 0.60 / 1.02 | 0.5 / 1.02 / 0.4 |
+| throwback | 0.35 / 0.55 / 0.98 | 0.4 / 0.98 / 0.5 |
+| elevated | 0.30 / 0.50 / 0.95 | 0.4 / 0.95 / 0.6 |
+| melancholy | 0.25 / 0.40 / 0.93 | 0.3 / 0.93 / 0.7 |
+| sunday | 0.30 / 0.45 / 0.93 | 0.3 / 0.93 / 0.6 |
+| general | 0.35 / 0.55 / 1.0 | 0.4 / 1.0 / 0.5 |
 
 ### Delivery Cue Nudges
 Map existing nudges to Chatterbox `exaggeration` adjustments:
@@ -236,17 +243,31 @@ Health checks run every 30s. Automatic recovery when primary comes back online. 
 
 ---
 
+## Production Deployment
+
+The production Fastify server at `/home/cleo/cleo-api/` on the Hostinger VPS also needs the Chatterbox provider. The Pangolin tunnel from the Windows machine must be reachable from the VPS — verify tunnel connectivity during Phase 2 before deploying to production. The same env vars (`CHATTERBOX_BASE_URL`, `CHATTERBOX_VOICE`) are added to the production `.env`.
+
+Deploy to production after Phase 5 validation passes on the local dev server.
+
+---
+
 ## Files Modified
 
 ### Server (Phase 2)
-- `server/src/providers/tts/chatterbox.ts` — new file, Chatterbox provider
-- `server/src/providers/tts/index.ts` — update provider priority
+- `server/src/providers/tts/chatterbox.ts` — new file, Chatterbox provider with parameter mapping
+- `server/src/providers/tts/index.ts` — update provider priority, update `ProviderStatus` interface to include `chatterbox` alongside `elevenlabs` (replacing `orpheus`)
+- `server/src/providers/tts/elevenlabs.ts` — add `stripEmotionTags()` to remove Chatterbox tags before forwarding to ElevenLabs API
 - `server/.env` — add `CHATTERBOX_BASE_URL`, `CHATTERBOX_VOICE`
 
 ### Client (Phase 3)
-- `src/engines/TransitionPreloader.ts` — add pre-song bridge pre-generation
+- `src/engines/SegmentPreloader.ts` — new file, pre-song bridge pre-generation (sibling to TransitionPreloader)
 - `src/engines/AudioCoordinator.ts` — use cached pre-song bridge when available
+- `src/screens/player/BroadcastScreen.tsx` — wire up SegmentPreloader lifecycle
 
 ### Client (Phase 4)
 - `src/cleo/static-core.ts` — add emotion tag instructions to system prompt
-- `src/services/CleoVoiceEngine.ts` — allowlist emotion tags in `formatForSpeech()`, add Chatterbox vibe profiles
+- `src/services/CleoVoiceEngine.ts` — allowlist emotion tags in `formatForSpeech()`
+
+### Production (after Phase 5)
+- Production Fastify server TTS provider files (mirror of server changes)
+- Production `.env` — add Chatterbox env vars
