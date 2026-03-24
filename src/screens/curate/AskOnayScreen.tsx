@@ -9,9 +9,10 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
-  ActivityIndicator,
+  Animated,
   Alert,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Colors, Typography, Spacing, Radius, Surface, TextColors } from '../../tokens/design-tokens';
 import { curatePlaylist, refinePlaylist, CuratedPlaylist } from '../../engines/PlaylistCurator';
@@ -29,9 +30,78 @@ interface ChatMessage {
   playlist?: CuratedPlaylist;
 }
 
+function TypingIndicator() {
+  const dot1 = useRef(new Animated.Value(0.3)).current;
+  const dot2 = useRef(new Animated.Value(0.3)).current;
+  const dot3 = useRef(new Animated.Value(0.3)).current;
+
+  useEffect(() => {
+    const animate = (dot: Animated.Value, delay: number) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(dot, { toValue: 1, duration: 300, useNativeDriver: true }),
+          Animated.timing(dot, { toValue: 0.3, duration: 300, useNativeDriver: true }),
+          Animated.delay(600 - delay),
+        ])
+      );
+
+    const a1 = animate(dot1, 0);
+    const a2 = animate(dot2, 200);
+    const a3 = animate(dot3, 400);
+    a1.start();
+    a2.start();
+    a3.start();
+
+    return () => { a1.stop(); a2.stop(); a3.stop(); };
+  }, []);
+
+  return (
+    <View style={typingStyles.container}>
+      <View style={typingStyles.goldEdge} />
+      <View style={typingStyles.bubble}>
+        {[dot1, dot2, dot3].map((dot, i) => (
+          <Animated.View key={i} style={[typingStyles.dot, { opacity: dot }]} />
+        ))}
+      </View>
+    </View>
+  );
+}
+
+const typingStyles = StyleSheet.create({
+  container: {
+    flexDirection: 'row',
+    alignSelf: 'flex-start',
+  },
+  goldEdge: {
+    width: 2,
+    backgroundColor: Colors.accent,
+    borderRadius: 1,
+    marginRight: Spacing.sm,
+  },
+  bubble: {
+    flexDirection: 'row',
+    backgroundColor: Surface.container,
+    borderRadius: 18,
+    borderBottomLeftRadius: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 5,
+    alignItems: 'center',
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.accent,
+  },
+});
+
 export function AskOnayScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ suggestion?: string }>();
+  const insets = useSafeAreaInsets();
+  const inputRef = useRef<TextInput>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 'welcome',
@@ -83,6 +153,23 @@ export function AskOnayScreen() {
   // Shared curation logic for both handleSend and suggestion/retry paths
   const executeCuration = useCallback(async (prompt: string) => {
     addMessage({ role: 'user', text: prompt });
+
+    // Instant response before the typing indicator
+    const teasers = [
+      'Let me dig in the crates for you\u2026',
+      'I know just the vibe. Give me a second\u2026',
+      'Oh, I\u2019ve been waiting for this one\u2026',
+      'Say less. I\u2019m on it\u2026',
+      'Pulling from the archives\u2026',
+      'I\u2019ve got something special in mind\u2026',
+      'This is going to be good. Hold on\u2026',
+      'Let me curate something worth your time\u2026',
+      'I see where you\u2019re going with this\u2026',
+      'Already hearing it in my head\u2026',
+    ];
+    const teaser = teasers[Math.floor(Math.random() * teasers.length)];
+    addMessage({ role: 'onay', text: `\u201C${teaser}\u201D` });
+
     setIsGenerating(true);
     const loadingId = addMessage({ role: 'loading' });
     try {
@@ -224,12 +311,7 @@ export function AskOnayScreen() {
 
   const renderMessage = useCallback(({ item }: { item: ChatMessage }) => {
     if (item.role === 'loading') {
-      return (
-        <View style={styles.loadingBubble}>
-          <ActivityIndicator size="small" color={Colors.accent} />
-          <Text style={styles.loadingText}>ONAY is curating...</Text>
-        </View>
-      );
+      return <TypingIndicator />;
     }
 
     if (item.role === 'error') {
@@ -323,9 +405,9 @@ export function AskOnayScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={90}
+      style={[styles.container, { paddingTop: insets.top }]}
+      behavior="padding"
+      keyboardVerticalOffset={0}
     >
       <View style={styles.header}>
         <Pressable
@@ -347,23 +429,33 @@ export function AskOnayScreen() {
         style={styles.messageList}
         contentContainerStyle={styles.messageListContent}
         onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+        keyboardDismissMode="interactive"
+        keyboardShouldPersistTaps="handled"
       />
 
-      <View style={styles.inputBar}>
+      <View style={[styles.inputBar, { paddingBottom: Math.max(insets.bottom, Spacing.sm) }]}>
         <TextInput
+          ref={inputRef}
           style={styles.input}
           value={inputText}
           onChangeText={setInputText}
-          placeholder="What do you want to hear?"
+          placeholder={currentPlaylist ? "Refine it\u2026 \u201Cmore upbeat\u201D, \u201Cswap the Coldplay\u201D" : "What do you want to hear?"}
           placeholderTextColor={TextColors.outline}
           returnKeyType="send"
           onSubmitEditing={handleSend}
           editable={!isGenerating}
+          autoFocus
+          multiline
+          maxLength={500}
+          blurOnSubmit={false}
         />
         <Pressable
-          style={[styles.sendButton, isGenerating && styles.sendButtonDisabled]}
+          style={[
+            styles.sendButton,
+            (!inputText.trim() || isGenerating) && styles.sendButtonDisabled,
+          ]}
           onPress={handleSend}
-          disabled={isGenerating}
+          disabled={isGenerating || !inputText.trim()}
           accessibilityLabel="Send message"
           accessibilityRole="button"
         >
@@ -410,16 +502,17 @@ const styles = StyleSheet.create({
   },
   userBubble: {
     alignSelf: 'flex-end',
-    backgroundColor: Surface.container,
-    borderRadius: Radius.sm,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    backgroundColor: Colors.accent,
+    borderRadius: 18,
+    borderBottomRightRadius: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     maxWidth: '80%',
   },
   userText: {
     fontFamily: Typography.body.family,
-    fontSize: 15,
-    color: TextColors.primary,
+    fontSize: 16,
+    color: '#FFFFFF',
   },
   onayBubble: {
     alignSelf: 'flex-start',
@@ -439,20 +532,6 @@ const styles = StyleSheet.create({
     color: TextColors.primary,
     lineHeight: 24,
     flex: 1,
-  },
-  loadingBubble: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    alignSelf: 'flex-start',
-    paddingVertical: Spacing.sm,
-  },
-  loadingText: {
-    fontFamily: Typography.mono.family,
-    fontSize: 10,
-    letterSpacing: 2,
-    color: Colors.accent,
-    textTransform: 'uppercase',
   },
   errorBubble: {
     alignSelf: 'flex-start',
@@ -576,35 +655,46 @@ const styles = StyleSheet.create({
   },
   inputBar: {
     flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: Surface.container,
-    gap: Spacing.sm,
+    alignItems: 'flex-end',
+    paddingHorizontal: Spacing.sm,
+    paddingTop: Spacing.sm,
+    backgroundColor: Surface.base,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Surface.bright,
+    gap: Spacing.xs,
   },
   input: {
     flex: 1,
     fontFamily: Typography.body.family,
-    fontSize: 15,
+    fontSize: 16,
     color: TextColors.primary,
     backgroundColor: Surface.container,
-    borderRadius: Radius.sm,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    borderRadius: 20,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Surface.bright,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 10,
     minHeight: 40,
+    maxHeight: 120,
+  },
+  hiddenInput: {
+    position: 'absolute',
+    opacity: 0,
+    height: 0,
   },
   sendButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: Colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 3,
   },
   sendButtonText: {
     color: Surface.base,
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: '700',
   },
 });
