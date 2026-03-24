@@ -39,7 +39,7 @@ export interface CuratedPlaylist {
 
 const SEARCH_BATCH_SIZE = 5;
 const GAP_FILL_THRESHOLD = 0.2; // 20% unmatched triggers gap-fill
-const SEARCH_TIMEOUT_MS = 15000;
+const SEARCH_TIMEOUT_MS = 45000;
 
 async function callCurateEndpoint(body: Record<string, unknown>): Promise<CurationResponse> {
   const controller = new AbortController();

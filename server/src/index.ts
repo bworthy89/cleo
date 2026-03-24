@@ -85,6 +85,6 @@ app.use(requireAuth, enrichmentLimiter, enrichmentRouter);
 app.use(requireAuth, enrichmentLimiter, musicbrainzRouter);
 app.use(requireAuth, generationLimiter, curationRouter);
 
-app.listen(PORT, () => {
-  console.log(`Cleo server running on port ${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Cleo server running on 0.0.0.0:${PORT}`);
 });
