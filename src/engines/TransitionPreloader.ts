@@ -51,6 +51,7 @@ class TransitionPreloaderEngine {
   private state: PreloaderState = 'idle';
   private vibe: Vibe = 'general';
   private isSpeakingCheck: (() => boolean) | null = null;
+  private isAppActiveCheck: (() => boolean) | null = null;
   private generationId = 0;
 
   private currentTrack: TrackInfo | null = null;
@@ -81,6 +82,10 @@ class TransitionPreloaderEngine {
 
   setIsSpeakingCheck(fn: () => boolean): void {
     this.isSpeakingCheck = fn;
+  }
+
+  setIsAppActiveCheck(fn: () => boolean): void {
+    this.isAppActiveCheck = fn;
   }
 
   startForTrack(
