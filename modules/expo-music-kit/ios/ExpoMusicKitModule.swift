@@ -495,16 +495,16 @@ public class ExpoMusicKitModule: Module {
         self.audioPlayer?.prepareToPlay()
 
         if let dur = self.audioPlayer?.duration {
-          print("[ExpoMusicKit] Audio duration: \(String(format: "%.1f", dur))s, crossfade: \(dur > 3.0 ? "yes (fade at \(String(format: "%.1f", dur - 2.0))s)" : "no (too short)")")
+          print("[ExpoMusicKit] Audio duration: \(String(format: "%.1f", dur))s, crossfade: \(dur > 3.0 ? "yes (fade at \(String(format: "%.1f", dur - 1.5))s)" : "no (too short)")")
         }
 
-        // Crossfade: schedule ducking deactivation 1s before audio ends
+        // Crossfade: schedule ducking deactivation 1.5s before audio ends
         self.crossfadeActive = false
         self.crossfadeTimer?.invalidate()
         self.crossfadeTimer = nil
 
         if let duration = self.audioPlayer?.duration, duration > 3.0 {
-          let fadePoint = duration - 1.0
+          let fadePoint = duration - 1.5
           // Schedule on main thread to ensure RunLoop is active
           DispatchQueue.main.async {
             self.crossfadeTimer = Timer.scheduledTimer(withTimeInterval: fadePoint, repeats: false) { [weak self] _ in
@@ -671,13 +671,13 @@ public class ExpoMusicKitModule: Module {
           }
         }
 
-        // Crossfade: schedule ducking deactivation 1s before audio ends
+        // Crossfade: schedule ducking deactivation 1.5s before audio ends
         self.crossfadeActive = false
         self.crossfadeTimer?.invalidate()
         self.crossfadeTimer = nil
 
         if ttsDuration > 3.0 {
-          let fadePoint = ttsDuration - 1.0
+          let fadePoint = ttsDuration - 1.5
           DispatchQueue.main.async {
             self.crossfadeTimer = Timer.scheduledTimer(withTimeInterval: fadePoint, repeats: false) { [weak self] _ in
               guard let self = self, self.audioPlayer?.isPlaying == true else { return }

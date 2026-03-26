@@ -25,8 +25,9 @@ ID (`com.worthymedia.cleo`) and git repo (`cleo-app`) also remain unchanged.
 
 ### AI & Voice
 - Gemini 2.5 Flash API — host script generation (maxOutputTokens: 8192 — thinking tokens consume budget)
+- Cartesia TTS (`sonic-3`) — primary voice synthesis
 - ElevenLabs TTS (`eleven_turbo_v2_5`, custom Cleo voice) — voice synthesis (fallback)
-- Orpheus TTS (self-hosted via Pangolin tunnel) — primary voice synthesis
+- Orpheus TTS (self-hosted via Pangolin tunnel) — tertiary voice synthesis
 - Ollama (self-hosted via Pangolin tunnel) — primary LLM, Gemini as fallback
 
 ### Data & Enrichment
@@ -105,6 +106,8 @@ cleo/
 │   ├── fonts/                    ← .gitkeep (fonts loaded via @expo-google-fonts packages)
 │   └── cleo/                    ← Cleo character images
 ├── src/
+│   ├── hooks/
+│   │   └── useAppActive.ts         ← shared hook: pauses animations/work when backgrounded
 │   ├── tokens/
 │   │   └── design-tokens.ts      ← single source of truth for all UI values
 │   ├── engines/
@@ -294,6 +297,9 @@ ELEVENLABS_API_KEY
 ELEVENLABS_VOICE_ID
 ELEVENLABS_PRONUNCIATION_DICT_ID
 ELEVENLABS_PRONUNCIATION_DICT_VERSION
+CARTESIA_API_KEY
+CARTESIA_VOICE_ID
+CARTESIA_MODEL_ID
 OLLAMA_BASE_URL
 OLLAMA_MODEL
 ORPHEUS_BASE_URL
@@ -372,6 +378,14 @@ HEALTH_CHECK_TIMEOUT_MS
 - **Production server rate limits**: The Fastify server at `api.worthymedia.tech` has a single global rate limiter (200 req/min per IP). During session startup, enrichment fires 50+ MusicBrainz + 50+ Genius requests, plus segment + TTS + eject pre-gen. With retries on 429, request counts compound. Keep the limit generous.
 - **Crossfade window is 1s, not 2s**: The `setCategory` call that removes `.duckOthers` is instant (no gradual fade). A 2s window made music jump back to full volume while ONAY still had two sentences left. 1s means un-duck happens during her last word — much less jarring. Threshold remains 3s minimum TTS duration.
 - **Eject overlay fires at fireEject, not beginGeneration**: `onSegmentReady` must fire in `fireEject()` when ONAY starts speaking, not in `beginGeneration()` when the script is pre-generated (~25s into the track). The `onEjectTrackChanged` handler only starts the dismiss timer — the overlay is already showing. BroadcastScreen passes `onSegmentReady` through `handleTrackStart` for this.
+- **Background CPU budget — iOS kills at 48s/60s**: iOS terminates background apps that use >48 seconds of CPU in any 60-second window (RESOURCE_NOTIFY FATAL). Three critical mitigations are in place — do not remove any:
+  1. **MusicKit `objectWillChange` must be throttled**: The Combine publisher fires on every internal MusicKit state mutation (buffer updates, playback position), potentially hundreds of times/second. The `.throttle(for: .seconds(1))` in `startObserving()` reduces this to 1/sec. Without it, the observation alone causes 96% background CPU.
+  2. **Native 0.5s playback timer must stop when backgrounded**: `startObserving()` registers `didEnterBackgroundNotification` / `willEnterForegroundNotification` observers that invalidate/restart the timer. A running 0.5s timer in background burns through the CPU budget with bridge event dispatch.
+  3. **All `Animated.loop` animations must pause when backgrounded**: Components with looping animations (WaveformBars, CleoPulseDot, CleoSpeakingOverlay) use the `useAppActive()` hook from `src/hooks/useAppActive.ts` to stop loops when backgrounded and restart when foregrounded. With `UIBackgroundModes: audio`, `CADisplayLink` continues firing at 120Hz (ProMotion) — 5 looping animations = 600 callbacks/sec of wasted CPU.
+- **WaveformBars must be conditionally rendered**: In BroadcastScreen, render `{cleoSpeaking && <WaveformBars />}` — not always mounted. Even with the `useAppActive` pause, keeping 5 animated views mounted when hidden wastes resources.
+- **Session-end handler must check app active state**: The `onPlaybackStateChanged` 'stopped' handler in BroadcastScreen must guard with `appActiveRef.current`. When backgrounded, MusicKit reports transient 'stopped' states during audio session changes (ducking, eject transitions) that don't mean the queue is actually empty. Without the guard, transient states falsely end the session.
+- **Native external-pause handler must skip when backgrounded**: The 0.5s timer's external-pause detection (which stops TTS when music is paused externally) only runs when `UIApplication.shared.applicationState == .active`. Background audio session changes produce transient paused/stopped states that are not real user actions.
+- **MusicKit cache trimming on background**: The native module trims `cachedTracks`/`cachedSongs` to only active queue entries on `didEnterBackgroundNotification` and `didReceiveMemoryWarningNotification`. Large playlists (500+ tracks) can exceed iOS's lower background memory budget and cause jetsam termination.
 
 ---
 

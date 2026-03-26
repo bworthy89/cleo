@@ -5,6 +5,7 @@ export class CartesiaProvider implements TTSProvider {
   private apiKey: string;
   private voiceId: string;
   private modelId: string;
+  private pronunciationDictId?: string;
 
   constructor() {
     const apiKey = process.env.CARTESIA_API_KEY;
@@ -13,6 +14,7 @@ export class CartesiaProvider implements TTSProvider {
     this.apiKey = apiKey;
     this.voiceId = voiceId;
     this.modelId = process.env.CARTESIA_MODEL_ID || 'sonic-3';
+    this.pronunciationDictId = process.env.CARTESIA_PRONUNCIATION_DICT_ID;
   }
 
   async synthesize(request: TTSRequest): Promise<TTSResponse> {
@@ -45,6 +47,7 @@ export class CartesiaProvider implements TTSProvider {
           generation_config: {
             speed,
           },
+          ...(this.pronunciationDictId && { pronunciation_dict_id: this.pronunciationDictId }),
         }),
         signal: controller.signal,
       });

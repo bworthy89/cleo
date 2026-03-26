@@ -272,6 +272,50 @@ export function AskOnayScreen() {
     }
   }, []);
 
+  const handleRefineChip = useCallback(async (text: string) => {
+    if (isGenerating || !currentPlaylist) return;
+    if (!(await checkGuards())) return;
+
+    setInputText('');
+    addMessage({ role: 'user', text });
+
+    setIsGenerating(true);
+    const loadingId = addMessage({ role: 'loading' });
+
+    try {
+      const result = await refinePlaylist(
+        {
+          userFeedback: text,
+          existingTracks: currentPlaylist.tracks.map(t => ({
+            title: t.title,
+            artist: t.artistName,
+          })),
+        },
+        originalPrompt,
+        currentPlaylist.suggestedVibe
+      );
+
+      removeMessage(loadingId);
+      setCurrentPlaylist(result);
+      addMessage({ role: 'onay', text: `\u201C${result.conversationalResponse}\u201D` });
+      addMessage({ role: 'playlist', playlist: result });
+    } catch (error: any) {
+      removeMessage(loadingId);
+      addMessage({ role: 'error', text: error.message || 'Something went wrong. Try again.' });
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [isGenerating, currentPlaylist, originalPrompt, addMessage, removeMessage, checkGuards]);
+
+  const handleNewPlaylist = useCallback(() => {
+    setCurrentPlaylist(null);
+    setOriginalPrompt('');
+    addMessage({
+      role: 'onay',
+      text: '\u201CAlright, clean slate. What are we building next?\u201D',
+    });
+  }, [addMessage]);
+
   const handleTakeLive = useCallback(async (playlist: CuratedPlaylist) => {
     try {
       // Save first
@@ -395,13 +439,38 @@ export function AskOnayScreen() {
                 </Text>
               </Pressable>
             </View>
+            <View style={styles.refineSection}>
+              <Text style={styles.refineSectionLabel}>REFINE THIS</Text>
+              <View style={styles.refineChips}>
+                {['More upbeat', 'More chill', 'Longer playlist', 'Shorter playlist', 'More variety'].map(suggestion => (
+                  <Pressable
+                    key={suggestion}
+                    style={styles.refineChip}
+                    onPress={() => handleRefineChip(suggestion)}
+                    disabled={isGenerating}
+                    accessibilityLabel={`Refine: ${suggestion}`}
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.refineChipText}>{suggestion}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+            <Pressable
+              style={styles.newPlaylistButton}
+              onPress={handleNewPlaylist}
+              accessibilityLabel="Generate a new playlist"
+              accessibilityRole="button"
+            >
+              <Text style={styles.newPlaylistButtonText}>NEW PLAYLIST</Text>
+            </Pressable>
           </View>
         </View>
       );
     }
 
     return null;
-  }, [handleSave, handleTakeLive, originalPrompt, checkGuards, executeCuration]);
+  }, [handleSave, handleTakeLive, handleNewPlaylist, handleRefineChip, isGenerating, originalPrompt, checkGuards, executeCuration]);
 
   return (
     <KeyboardAvoidingView
@@ -649,6 +718,47 @@ const styles = StyleSheet.create({
     fontSize: 10,
     letterSpacing: 1.5,
     color: Colors.error,
+  },
+  refineSection: {
+    marginTop: Spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Surface.bright,
+    paddingTop: Spacing.sm,
+  },
+  refineSectionLabel: {
+    fontFamily: Typography.mono.family,
+    fontSize: 10,
+    letterSpacing: 2,
+    color: Colors.accent,
+    marginBottom: Spacing.sm,
+  },
+  refineChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.xs,
+  },
+  refineChip: {
+    borderWidth: 1,
+    borderColor: Surface.bright,
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  refineChipText: {
+    fontFamily: Typography.body.family,
+    fontSize: 13,
+    color: TextColors.secondary,
+  },
+  newPlaylistButton: {
+    marginTop: Spacing.md,
+    alignItems: 'center',
+    paddingVertical: Spacing.xs,
+  },
+  newPlaylistButtonText: {
+    fontFamily: Typography.mono.family,
+    fontSize: 10,
+    letterSpacing: 1.5,
+    color: TextColors.secondary,
   },
   sendButtonDisabled: {
     opacity: 0.4,

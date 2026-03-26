@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Animated, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useAppActive } from '../hooks/useAppActive';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Surface, TextColors, Typography, Spacing, Radius, Shadow } from '../tokens/design-tokens';
 
@@ -17,10 +18,11 @@ export function StationCard({ name, artworkUrl, accentColor, width, onPress }: S
   const cardWidth = width ?? DEFAULT_WIDTH;
   const cardHeight = Math.round(cardWidth * 1.43);
   const shimmerAnim = useRef(new Animated.Value(0.3)).current;
+  const active = useAppActive();
 
-  // Shimmer animation when no artwork
+  // Shimmer animation when no artwork — pauses when backgrounded
   useEffect(() => {
-    if (artworkUrl) return;
+    if (artworkUrl || !active) return;
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(shimmerAnim, { toValue: 0.6, duration: 1000, useNativeDriver: true }),
@@ -29,7 +31,7 @@ export function StationCard({ name, artworkUrl, accentColor, width, onPress }: S
     );
     loop.start();
     return () => loop.stop();
-  }, [artworkUrl]);
+  }, [artworkUrl, active]);
 
   return (
     <Pressable
