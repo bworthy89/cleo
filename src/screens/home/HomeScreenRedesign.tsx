@@ -27,6 +27,7 @@ import {
   Glow,
   AppHeaderTokens,
 } from '../../tokens/design-tokens';
+import { useAppActive } from '../../hooks/useAppActive';
 import { AppHeader } from '../../components/AppHeader';
 import { WaveformBars } from '../../components/WaveformBars';
 import { CleoOrb } from '../../components/CleoOrb';
@@ -72,8 +73,10 @@ function getGreeting(): string {
 // ── Loading Screen ─────────────────────────────────────────────────────
 function LoadingScreen() {
   const opacity = useRef(new Animated.Value(0.6)).current;
+  const active = useAppActive();
 
   useEffect(() => {
+    if (!active) return;
     const animation = Animated.loop(
       Animated.sequence([
         Animated.timing(opacity, {
@@ -92,7 +95,7 @@ function LoadingScreen() {
     );
     animation.start();
     return () => animation.stop();
-  }, [opacity]);
+  }, [opacity, active]);
 
   return (
     <View style={[styles.fullScreen, { backgroundColor: Surface.base }]}>

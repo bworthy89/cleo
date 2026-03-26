@@ -18,6 +18,7 @@ import {
   withAlpha,
 } from '../tokens/design-tokens';
 import { WaveformBars } from './WaveformBars';
+import { useAppActive } from '../hooks/useAppActive';
 
 interface CleoSpeakingOverlayProps {
   text: string;
@@ -55,6 +56,7 @@ export function CleoSpeakingOverlay({
   const { height: windowHeight } = useWindowDimensions();
   const [reduceMotion, setReduceMotion] = useState(false);
   const [mounted, setMounted] = useState(visible);
+  const appActive = useAppActive();
 
   const words = useMemo(() => tokenize(text), [text]);
   const wordCount = words.length;
@@ -87,6 +89,9 @@ export function CleoSpeakingOverlay({
   }, [visible]);
 
   // ---- enter animations ----
+  // Track looping animations so they can be stopped when backgrounded
+  const loopAnimsRef = useRef<Animated.CompositeAnimation[]>([]);
+
   useEffect(() => {
     if (!visible || !mounted) return;
 
@@ -127,6 +132,13 @@ export function CleoSpeakingOverlay({
     scanlineAnim.start();
 
     // 2  Title glitch-in then jitter
+    const titleJitterAnim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(titleX, { toValue: 1.5, duration: 120, useNativeDriver: false }),
+        Animated.timing(titleX, { toValue: -1, duration: 100, useNativeDriver: false }),
+        Animated.timing(titleX, { toValue: 0, duration: 80, useNativeDriver: false }),
+      ]),
+    );
     Animated.sequence([
       Animated.timing(titleX, {
         toValue: 0,
@@ -134,14 +146,7 @@ export function CleoSpeakingOverlay({
         easing: Easing.out(Easing.cubic),
         useNativeDriver: false,
       }),
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(titleX, { toValue: 1.5, duration: 120, useNativeDriver: false }),
-          Animated.timing(titleX, { toValue: -1, duration: 100, useNativeDriver: false }),
-          Animated.timing(titleX, { toValue: 0, duration: 80, useNativeDriver: false }),
-        ]),
-      ),
-    ]).start();
+    ]).start(() => titleJitterAnim.start());
 
     // Title skew (useNativeDriver: false since skewX isn't natively supported as string transform)
     Animated.timing(titleSkew, {
@@ -208,11 +213,26 @@ export function CleoSpeakingOverlay({
     );
     badgeAnim.start();
 
+    // Store looping animations for background pause
+    loopAnimsRef.current = [scanlineAnim, titleJitterAnim, badgeAnim];
+
     return () => {
       scanlineAnim.stop();
+      titleJitterAnim.stop();
       badgeAnim.stop();
+      loopAnimsRef.current = [];
     };
   }, [visible, mounted, reduceMotion]);
+
+  // ---- pause/resume loops when app backgrounds/foregrounds ----
+  useEffect(() => {
+    if (!appActive) {
+      loopAnimsRef.current.forEach((a) => a.stop());
+    } else if (visible && mounted && !reduceMotion) {
+      // Restart loops when returning to foreground
+      loopAnimsRef.current.forEach((a) => a.start());
+    }
+  }, [appActive]);
 
   // ---- exit animation ----
   useEffect(() => {

@@ -41,4 +41,5 @@ server/.env
 # generated native folders
 /ios/
 /android/
-GoogleService-Info.plist
+# GoogleService-Info.plist is safe to commit (contains no private keys)
+firebase-debug.log

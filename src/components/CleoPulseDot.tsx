@@ -1,11 +1,14 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated } from 'react-native';
 import { Colors } from '../tokens/design-tokens';
+import { useAppActive } from '../hooks/useAppActive';
 
 export function CleoPulseDot() {
   const progress = useRef(new Animated.Value(1)).current;
+  const active = useAppActive();
 
   useEffect(() => {
+    if (!active) return;
     const animation = Animated.loop(
       Animated.sequence([
         Animated.timing(progress, { toValue: 0, duration: 2000, useNativeDriver: true }),
@@ -14,7 +17,7 @@ export function CleoPulseDot() {
     );
     animation.start();
     return () => animation.stop();
-  }, [progress]);
+  }, [active, progress]);
 
   const opacity = progress.interpolate({
     inputRange: [0, 1],

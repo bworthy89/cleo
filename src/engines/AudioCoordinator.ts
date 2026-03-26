@@ -45,11 +45,17 @@ class AudioCoordinatorEngine {
   private pendingMidSongTimer: ReturnType<typeof setTimeout> | null = null;
   private lastSegmentEndTime = 0;
   private currentVibe: Vibe = 'general';
+  private isAppActiveCheck: (() => boolean) | null = null;
 
   constructor() {
     const saved = storage.getString(StorageKeys.HOST_VOLUME_MIX);
     if (saved) setTTSVolume(parseFloat(saved));
     transitionPreloader.setIsSpeakingCheck(() => this.isSpeaking);
+  }
+
+  setIsAppActiveCheck(fn: () => boolean): void {
+    this.isAppActiveCheck = fn;
+    transitionPreloader.setIsAppActiveCheck(fn);
   }
 
   private cancelPendingTimer() {
@@ -100,6 +106,7 @@ class AudioCoordinatorEngine {
   ): Promise<void> {
     this.cancelPendingTimer();
     const myId = this.generationId;
+
     this.isSpeaking = true;
 
     const previous = this.previousTrack;
