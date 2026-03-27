@@ -45,6 +45,25 @@ const ROTATION: SegmentType[] = [
   'listener_shoutout',
 ];
 
+// Per-segment-type word caps. Applied as Math.min(lengthTier, budget)
+// so the budget never increases words beyond what the tier assigns.
+// Uses Partial because not all SegmentType values need a cap
+// (e.g., 'sign_off' has no budget — it uses the tier value as-is).
+const WORD_BUDGET: Partial<Record<SegmentType, number>> = {
+  song_intro: 30,
+  artist_context: 35,
+  track_story: 40,
+  post_track_reflection: 40,
+  genre_bridge: 30,
+  station_id: 25,
+  session_checkin: 30,
+  listener_shoutout: 30,
+};
+
+// Eject transitions use their own generation path (not the rotation),
+// so they have a separate constant rather than a map entry.
+const EJECT_WORD_BUDGET = 35;
+
 class SegmentControllerEngine {
   private history: string[] = [];
   private rotationIndex = 0;
@@ -271,7 +290,10 @@ class SegmentControllerEngine {
       enrichedFacts: currentTrack.enrichedFacts,
       tracksReferenced: [...this.tracksReferenced],
       previousSession: this.buildPreviousSession(),
-      maxWords: lengthTier === 'brief' ? 30 : lengthTier === 'extended' ? 130 : 75,
+      maxWords: Math.min(
+        lengthTier === 'brief' ? 30 : lengthTier === 'extended' ? 130 : 75,
+        WORD_BUDGET[segmentType] ?? 75
+      ),
     };
 
     const text = await generateSegment(context);
@@ -318,7 +340,7 @@ class SegmentControllerEngine {
       enrichedFacts: currentTrack.enrichedFacts,
       tracksReferenced: [...this.tracksReferenced],
       previousSession: this.buildPreviousSession(),
-      maxWords: 40,
+      maxWords: EJECT_WORD_BUDGET,
     };
 
     const text = await generateSegment(context);
