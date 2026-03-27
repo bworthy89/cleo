@@ -46,6 +46,7 @@ export class CartesiaProvider implements TTSProvider {
           language: 'en',
           generation_config: {
             speed,
+            volume: 1.5,
           },
           ...(this.pronunciationDictId && { pronunciation_dict_id: this.pronunciationDictId }),
         }),
