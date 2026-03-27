@@ -43,3 +43,6 @@ server/.env
 /android/
 # GoogleService-Info.plist is safe to commit (contains no private keys)
 firebase-debug.log
+
+# TTS audio cache
+server/.cache/
