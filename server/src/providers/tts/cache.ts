@@ -37,12 +37,19 @@ export class CachingTTSProvider implements TTSProvider {
     try {
       const fileInfo = await stat(cachePath);
       if (fileInfo.size > 0) {
-        const audioContent = await readFile(cachePath, 'utf-8');
-        console.log(`[TTS:cache] HIT ${hash.slice(0, 8)}`);
-        return { audioContent };
+        try {
+          const audioContent = await readFile(cachePath, 'utf-8');
+          console.log(`[TTS:cache] HIT ${hash.slice(0, 8)}`);
+          return { audioContent };
+        } catch {
+          // Corrupt file — delete and fall through to re-synthesize
+          console.warn(`[TTS:cache] Corrupt file ${hash.slice(0, 8)}, deleting`);
+          await unlink(cachePath).catch(() => {});
+        }
+      } else {
+        // Empty file — clean up
+        await unlink(cachePath).catch(() => {});
       }
-      // Empty file — treat as miss, clean up
-      await unlink(cachePath).catch(() => {});
     } catch {
       // File doesn't exist — cache miss, fall through
     }
