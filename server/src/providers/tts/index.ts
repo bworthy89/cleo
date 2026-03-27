@@ -1,4 +1,5 @@
 import { TTSProvider, TTSRequest, TTSResponse } from './types';
+import { CachingTTSProvider } from './cache';
 import { CartesiaProvider } from './cartesia';
 import { ElevenLabsProvider } from './elevenlabs';
 import { OrpheusProvider } from './orpheus';
@@ -157,4 +158,20 @@ class TTSProviderFactory {
   }
 }
 
-export const ttsProvider = new TTSProviderFactory();
+const _factory = new TTSProviderFactory();
+
+// Wrap the factory with filesystem caching.
+// The adapter gives TTSProviderFactory a TTSProvider interface so
+// CachingTTSProvider can wrap it. Name is static ('factory') because
+// getStatus().active is not yet populated at module load time.
+const _cache = new CachingTTSProvider({
+  name: 'factory',
+  synthesize: (req: TTSRequest) => _factory.synthesize(req),
+  healthCheck: async () => true,
+});
+
+export const ttsProvider = {
+  synthesize: (req: TTSRequest) => _cache.synthesize(req),
+  getStatus: () => _factory.getStatus(),
+  destroy: () => _factory.destroy(),
+};
