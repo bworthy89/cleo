@@ -186,6 +186,10 @@ export async function deactivateDuckingSession(): Promise<void> {
   return await ExpoMusicKit.deactivateDuckingSession();
 }
 
+export async function releaseAudioSession(): Promise<void> {
+  return await ExpoMusicKit.releaseAudioSession();
+}
+
 // ── Eject Transition ──────────────────────────────────────────────────
 
 export async function playEjectTransition(ttsBase64: string, fadeInDelayMs: number): Promise<void> {
