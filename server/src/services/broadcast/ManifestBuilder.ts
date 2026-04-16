@@ -29,7 +29,7 @@ export function buildManifest(input: {
     kind: 'cold_open',
     beforeTrackId: tracks[0].id,
     afterTrackId: undefined,
-    variantCount: 3,
+    variantCount: 1,
     status: 'pending',
   });
 

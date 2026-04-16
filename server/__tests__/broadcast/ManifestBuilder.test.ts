@@ -67,13 +67,12 @@ describe('buildManifest', () => {
     expect(m.segmentSlots[5].beforeTrackId).toBeUndefined();
   });
 
-  it('cold_open has variantCount 3; others 1', () => {
+  it('all slots have variantCount 1 (MVP keeps the LLM budget tight)', () => {
     const m = buildManifest({
       userId: 'u1', playlistId: 'p1', vibe: 'morning',
       length: 'quick', tracks,
     });
-    expect(m.segmentSlots[0].variantCount).toBe(3);
-    for (let i = 1; i < m.segmentSlots.length; i++) {
+    for (let i = 0; i < m.segmentSlots.length; i++) {
       expect(m.segmentSlots[i].variantCount).toBe(1);
     }
   });
