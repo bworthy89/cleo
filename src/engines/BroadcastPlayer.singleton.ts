@@ -18,6 +18,8 @@ export const broadcastPlayer = new BroadcastPlayer(
     setUpcomingQueue: (ids: string[]) => musicKitPlayer.setUpcomingQueue(ids),
     onTrackChanged: (cb) => musicKitPlayer.onTrackChanged(cb),
     onPlaybackStateChanged: (cb) => musicKitPlayer.onPlaybackStateChanged(cb),
+    getPlaybackStatus: () => musicKitPlayer.getPlaybackStatus(),
+    getPlaybackTime: () => musicKitPlayer.getPlaybackTime(),
   },
   { activateDuckingSession, deactivateDuckingSession, playAudioFromBase64, stopAudio, releaseAudioSession },
   new BroadcastManifestClient(),
