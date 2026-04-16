@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import * as path from 'path';
 import express from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
@@ -7,9 +8,13 @@ import { voiceRouter } from './routes/voice';
 import { enrichmentRouter } from './routes/enrichment';
 import { musicbrainzRouter } from './routes/musicbrainz';
 import { curationRouter } from './routes/curation';
+import { createBroadcastRouter } from './routes/broadcast';
 import { requireAuth } from './middleware/auth';
 import { llmProvider } from './providers/llm';
 import { ttsProvider } from './providers/tts';
+import { LocalFilesystemStorage } from './services/storage/ObjectStorage';
+import { BroadcastStore } from './services/broadcast/BroadcastStore';
+import { BroadcastOrchestrator } from './services/broadcast/BroadcastOrchestrator';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -78,12 +83,35 @@ app.get('/health', async (req, res) => {
   }
 });
 
+// Broadcast subsystem — pre-baked episode pipeline
+const broadcastCacheDir = path.resolve(__dirname, '../.broadcast-cache');
+const broadcastStorage = new LocalFilesystemStorage(
+  broadcastCacheDir,
+  `${process.env.BROADCAST_ASSET_BASE_URL ?? 'http://localhost:3001'}/broadcast-asset`,
+);
+const broadcastStore = new BroadcastStore();
+const broadcastOrchestrator = new BroadcastOrchestrator(
+  llmProvider, ttsProvider, broadcastStorage, broadcastStore,
+);
+
 // Auth-protected API routes
 app.use(requireAuth, generationLimiter, segmentRouter);
 app.use(requireAuth, generationLimiter, voiceRouter);
 app.use(requireAuth, enrichmentLimiter, enrichmentRouter);
 app.use(requireAuth, enrichmentLimiter, musicbrainzRouter);
 app.use(requireAuth, generationLimiter, curationRouter);
+app.use(requireAuth, generationLimiter, createBroadcastRouter(broadcastOrchestrator, broadcastStore));
+
+// Static asset serving for broadcast audio (dev only — production uses signed URLs)
+app.use('/broadcast-asset', requireAuth, (req, res, next) => {
+  try {
+    const abs = broadcastStorage.getAbsolutePath(req.path.replace(/^\/+/, ''));
+    res.sendFile(abs, (err) => { if (err) next(err); });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'invalid asset path';
+    res.status(400).json({ error: msg });
+  }
+});
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Cleo server running on 0.0.0.0:${PORT}`);
