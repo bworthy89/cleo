@@ -1,9 +1,7 @@
-import type { LLMProvider } from '../../providers/llm/types';
-import type { TTSProvider } from '../../providers/tts/types';
 import type { ObjectStorage } from '../storage/ObjectStorage';
 import { buildManifest } from './ManifestBuilder';
 import { buildSegmentPrompts, type SegmentContext } from './SegmentScriptBuilder';
-import { SegmentGenerator } from './SegmentGenerator';
+import { SegmentGenerator, type LLMCaller, type TTSCaller } from './SegmentGenerator';
 import type {
   BroadcastCreateRequest, BroadcastCreateResponse, Manifest,
 } from './types';
@@ -14,8 +12,8 @@ export class BroadcastOrchestrator {
   private readonly inFlight = new Map<string, Promise<void>>();
 
   constructor(
-    llm: LLMProvider,
-    tts: TTSProvider,
+    llm: LLMCaller,
+    tts: TTSCaller,
     storage: ObjectStorage,
     private readonly store: BroadcastStore,
   ) {
