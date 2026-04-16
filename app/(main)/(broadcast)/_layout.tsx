@@ -5,6 +5,7 @@ export default function BroadcastLayout() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="player" options={{ animation: 'slide_from_bottom', gestureEnabled: false }} />
+      <Stack.Screen name="broadcast-player" options={{ animation: 'slide_from_bottom', gestureEnabled: false }} />
     </Stack>
   );
 }
