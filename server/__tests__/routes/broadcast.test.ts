@@ -51,7 +51,7 @@ describe('broadcast router', () => {
     expect(res.status).toBe(200);
     expect(res.body.manifest.broadcastId).toBeDefined();
     expect(res.body.manifest.userId).toBe('uid-123');
-    expect(res.body.firstSegmentUrls).toHaveLength(3);
+    expect(res.body.firstSegmentUrls).toHaveLength(1);
   });
 
   it('POST /broadcast/create 400s on invalid body', async () => {

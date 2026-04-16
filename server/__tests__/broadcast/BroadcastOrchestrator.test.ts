@@ -31,7 +31,7 @@ describe('BroadcastOrchestrator.create', () => {
     });
     // 5 tracks → cold_open + 4 transitions + sign_off = 6 slots
     expect(result.manifest.segmentSlots).toHaveLength(6);
-    expect(result.firstSegmentUrls).toHaveLength(3);
+    expect(result.firstSegmentUrls).toHaveLength(1);
     expect(result.firstSegmentUrls[0]).toMatch(/^https:\/\/cdn\/broadcast\/.+\/segment\/0\/v0\.mp3$/);
   });
 
@@ -46,7 +46,7 @@ describe('BroadcastOrchestrator.create', () => {
     });
     const stored = store.get(manifest.broadcastId)!;
     expect(stored.segmentSlots[0].status).toBe('ready');
-    expect(stored.segmentSlots[0].audioUrls).toHaveLength(3);
+    expect(stored.segmentSlots[0].audioUrls).toHaveLength(1);
   });
 
   it('schedules async generation of remaining slots', async () => {
@@ -66,14 +66,15 @@ describe('BroadcastOrchestrator.create', () => {
     for (const slot of final.segmentSlots) {
       expect(slot.status).toBe('ready');
     }
-    // 3 for cold_open + 1 each for 4 transitions + 1 for sign_off = 8 LLM calls
-    expect(llm.generate).toHaveBeenCalledTimes(8);
+    // 1 cold_open + 4 transitions + 1 sign_off = 6 LLM calls
+    expect(llm.generate).toHaveBeenCalledTimes(6);
   });
 
   it('marks individual slots as failed on provider errors without rejecting create()', async () => {
     const llm = makeMockLLM();
-    (llm.generate as jest.Mock).mockImplementationOnce(async () => ({ text: 'ok' }))
-      .mockImplementationOnce(async () => ({ text: 'ok' }))
+    // sequence: 1 cold_open (sync), then 4 transitions + 1 sign_off (async).
+    // fail one of the async calls.
+    (llm.generate as jest.Mock).mockImplementationOnce(async () => ({ text: 'ok' })) // cold_open
       .mockImplementationOnce(async () => ({ text: 'ok' }))
       .mockImplementationOnce(async () => ({ text: 'ok' }))
       .mockImplementationOnce(async () => { throw new Error('llm exploded'); })
