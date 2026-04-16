@@ -11,6 +11,8 @@ export interface MusicDeps {
   setUpcomingQueue: (ids: string[]) => Promise<void>;
   onTrackChanged: (cb: (e: { trackId?: string }) => void) => () => void;
   onPlaybackStateChanged: (cb: (e: { status: string; playbackTime: number }) => void) => () => void;
+  getPlaybackStatus?: () => Promise<string>;
+  getPlaybackTime?: () => Promise<number>;
 }
 
 export interface NativeDeps {
@@ -217,23 +219,44 @@ export class BroadcastPlayer {
   private waitForTrackEnd(): Promise<void> {
     return new Promise(resolve => {
       let resolved = false;
-      const done = () => {
+      const done = (reason: string) => {
         if (resolved) return;
         resolved = true;
+        console.log(`[BroadcastPlayer] track-end detected via ${reason}`);
         resolve();
       };
-      this.trackEndedResolve = done;
-      // Safety timeout: if MusicKit never emits 'stopped' (e.g., it failed
-      // to start the track), don't hang the broadcast forever. The track's
-      // duration plus a 30s buffer is our upper bound.
+      this.trackEndedResolve = () => done('event');
+
+      // Poll loop: also watch MusicKit's reported status directly because
+      // the 0.5s native-timer event can be dropped while Metro reconnects
+      // or when the app is backgrounded. Polling once per second via
+      // getPlaybackStatus is cheap and gives us a reliable fallback signal.
       const track = this.manifest?.tracks[this.currentTrackIndex];
-      const timeoutSec = (track?.duration ?? 180) + 30;
-      setTimeout(() => {
-        if (!resolved) {
-          console.warn(`[BroadcastPlayer] waitForTrackEnd timeout after ${timeoutSec}s — advancing`);
-          done();
+      const maxSec = (track?.duration ?? 180) + 30;
+      let elapsed = 0;
+      let sawPlaying = false;
+      const tick = async () => {
+        if (resolved) return;
+        elapsed += 1;
+        if (this.music.getPlaybackStatus) {
+          try {
+            const status = await this.music.getPlaybackStatus();
+            if (status === 'playing') sawPlaying = true;
+            // Only treat "stopped" as end-of-track after we've confirmed
+            // the track actually started — guards against the starting-state
+            // reporting as stopped before MusicKit gets going.
+            if (sawPlaying && (status === 'stopped' || status === 'paused')) {
+              return done(`poll(status=${status})`);
+            }
+          } catch { /* swallow, keep polling */ }
         }
-      }, timeoutSec * 1000);
+        if (elapsed >= maxSec) {
+          console.warn(`[BroadcastPlayer] waitForTrackEnd timeout after ${maxSec}s — advancing`);
+          return done('timeout');
+        }
+        setTimeout(tick, 1000);
+      };
+      setTimeout(tick, 1000);
     });
   }
 
