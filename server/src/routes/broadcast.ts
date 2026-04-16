@@ -1,4 +1,4 @@
-import { Router, type Request, type Response } from 'express';
+import { Router, type Request, type RequestHandler, type Response } from 'express';
 import { z } from 'zod';
 import type { BroadcastOrchestrator } from '../services/broadcast/BroadcastOrchestrator';
 import type { BroadcastStore } from '../services/broadcast/BroadcastStore';
@@ -44,10 +44,13 @@ interface AuthenticatedRequest extends Request {
 export function createBroadcastRouter(
   orch: BroadcastOrchestrator,
   store: BroadcastStore,
+  bakeLimiter?: RequestHandler,
 ): Router {
   const router = Router();
 
-  router.post('/broadcast/create', async (req: AuthenticatedRequest, res: Response) => {
+  const createMiddleware: RequestHandler[] = bakeLimiter ? [bakeLimiter] : [];
+
+  router.post('/broadcast/create', ...createMiddleware, async (req: AuthenticatedRequest, res: Response) => {
     const parsed = createSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ error: 'invalid request', details: parsed.error.flatten() });

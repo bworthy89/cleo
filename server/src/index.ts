@@ -100,7 +100,9 @@ app.use(requireAuth, generationLimiter, voiceRouter);
 app.use(requireAuth, enrichmentLimiter, enrichmentRouter);
 app.use(requireAuth, enrichmentLimiter, musicbrainzRouter);
 app.use(requireAuth, generationLimiter, curationRouter);
-app.use(requireAuth, generationLimiter, createBroadcastRouter(broadcastOrchestrator, broadcastStore));
+// Broadcast router: auth for all, generation limiter only on POST /broadcast/create
+// (manifest polls + segment fetches are cheap and should NOT count against the LLM budget).
+app.use(requireAuth, createBroadcastRouter(broadcastOrchestrator, broadcastStore, generationLimiter));
 
 // Static asset serving for broadcast audio (dev only — production uses signed URLs)
 app.use('/broadcast-asset', requireAuth, (req, res, next) => {
