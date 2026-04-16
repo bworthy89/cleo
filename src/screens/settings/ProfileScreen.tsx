@@ -303,6 +303,16 @@ export function ProfileScreen() {
 
           <Pressable
             style={({ pressed }) => [styles.accountRow, pressed && { opacity: 0.7 }]}
+            onPress={() => router.push('/(main)/(broadcast)/broadcast-player')}
+            accessibilityLabel="Open broadcast dev screen"
+            accessibilityRole="button"
+          >
+            <Text style={[styles.accountRowText, { color: Colors.accent }]}>Broadcast Dev</Text>
+            <Ionicons name="chevron-forward" size={18} color={Colors.accent} />
+          </Pressable>
+
+          <Pressable
+            style={({ pressed }) => [styles.accountRow, pressed && { opacity: 0.7 }]}
             onPress={handleSignOut}
             accessibilityLabel="Sign out"
             accessibilityRole="button"
