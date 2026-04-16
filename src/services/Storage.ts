@@ -1,6 +1,7 @@
 import { createMMKV, type MMKV } from 'react-native-mmkv';
 import type { Vibe } from '../cleo/fallbacks';
 import type { MusicPlaylist } from '../../modules/expo-music-kit';
+import type { Manifest } from '../engines/BroadcastPlayer.types';
 
 export const storage: MMKV = createMMKV({ id: 'cleo-storage' });
 
@@ -18,6 +19,7 @@ export const StorageKeys = {
   SESSION_MEMORY: 'session.memory',
   HOST_VOLUME_MIX: 'hostVolumeMix',
   ONAY_SUGGESTION: 'onay_suggestion',
+  CURRENT_BROADCAST: 'currentBroadcast',
 } as const;
 
 export interface UserData {
@@ -133,10 +135,24 @@ export function setOnaySuggestion(uid: string, suggestion: OnaySuggestion): void
   setObject(`${StorageKeys.ONAY_SUGGESTION}:${uid}`, suggestion);
 }
 
+// Persisted broadcast manifest — used for resume-after-terminate within the
+// in-memory 2h TTL on the server. Cleared on session end.
+export function setPersistedBroadcast(manifest: Manifest): void {
+  setObject(StorageKeys.CURRENT_BROADCAST, manifest);
+}
+
+export function getPersistedBroadcast(): Manifest | undefined {
+  return getObject<Manifest>(StorageKeys.CURRENT_BROADCAST);
+}
+
+export function clearPersistedBroadcast(): void {
+  storage.remove(StorageKeys.CURRENT_BROADCAST);
+}
+
 // Clear user-facing data on logout (preserves enrichment cache and user profile
 // so returning users are not re-routed through onboarding)
 export function clearUserData(uid?: string): void {
-  if (uid) storage.delete(`${StorageKeys.ONAY_SUGGESTION}:${uid}`);
+  if (uid) storage.remove(`${StorageKeys.ONAY_SUGGESTION}:${uid}`);
   storage.remove(StorageKeys.STATIONS);
   storage.remove(StorageKeys.RECENTLY_PLAYED);
   storage.remove(StorageKeys.SESSIONS);

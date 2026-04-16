@@ -10,10 +10,14 @@ import {
   getCachedPlaylists,
   setCachedPlaylists,
   clearUserData,
+  setPersistedBroadcast,
+  getPersistedBroadcast,
+  clearPersistedBroadcast,
   type UserData,
   type Station,
 } from '../../src/services/Storage';
 import type { MusicPlaylist } from '../../modules/expo-music-kit';
+import type { Manifest } from '../../src/engines/BroadcastPlayer.types';
 
 beforeEach(() => {
   __resetAllStores();
@@ -192,15 +196,17 @@ describe('getCachedPlaylists / setCachedPlaylists', () => {
 // ---------------------------------------------------------------------------
 
 describe('clearUserData', () => {
-  it('clears user, stations, recentlyPlayed, and playlists cache', () => {
-    setUser(makeUser({ name: 'Kari' }));
+  it('clears stations, recentlyPlayed, and playlists cache — but preserves USER', () => {
+    const user = makeUser({ name: 'Kari' });
+    setUser(user);
     addStation(makeStation('s1'));
     addRecentlyPlayedTrack('track-1');
     setCachedPlaylists([makePlaylist('p1')]);
 
     clearUserData();
 
-    expect(getUser()).toBeUndefined();
+    // USER is intentionally preserved so returning users skip onboarding
+    expect(getUser()).toEqual(user);
     expect(getStations()).toEqual([]);
     expect(getRecentlyPlayed().trackIds).toEqual([]);
     expect(getCachedPlaylists()).toBeUndefined();
@@ -208,7 +214,41 @@ describe('clearUserData', () => {
 
   it('is idempotent when storage is already empty', () => {
     expect(() => clearUserData()).not.toThrow();
-    expect(getUser()).toBeUndefined();
     expect(getStations()).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// broadcast storage
+// ---------------------------------------------------------------------------
+
+function makeManifest(id: string): Manifest {
+  return {
+    broadcastId: id,
+    userId: 'u1',
+    playlistId: 'p1',
+    vibe: 'morning',
+    length: 'quick',
+    createdAt: Date.now(),
+    tracks: [],
+    segmentSlots: [],
+  };
+}
+
+describe('broadcast storage', () => {
+  it('stores and retrieves a persisted broadcast manifest', () => {
+    const manifest = makeManifest('b1');
+    setPersistedBroadcast(manifest);
+    expect(getPersistedBroadcast()?.broadcastId).toBe('b1');
+  });
+
+  it('returns undefined when no broadcast is persisted', () => {
+    expect(getPersistedBroadcast()).toBeUndefined();
+  });
+
+  it('clears the persisted broadcast', () => {
+    setPersistedBroadcast(makeManifest('b2'));
+    clearPersistedBroadcast();
+    expect(getPersistedBroadcast()).toBeUndefined();
   });
 });
