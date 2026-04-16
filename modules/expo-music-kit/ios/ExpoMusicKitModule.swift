@@ -560,6 +560,16 @@ public class ExpoMusicKitModule: Module {
       try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
     }
 
+    // Release the audio session back to MusicKit completely — drops both
+    // mixWithOthers and duckOthers and deactivates the session so MusicKit's
+    // ApplicationMusicPlayer can reassert its own. Used by BroadcastPlayer
+    // between a TTS segment and the next track (cold_open -> track 1, etc.)
+    // where there is no music currently playing to duck under.
+    AsyncFunction("releaseAudioSession") {
+      try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
+      try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+    }
+
     // MARK: - Eject Transition
 
     AsyncFunction("playEjectTransition") { (ttsBase64: String, fadeInDelayMs: Int, promise: Promise) in
