@@ -120,8 +120,38 @@ describe('BroadcastPlayer', () => {
     );
     player.start(makeManifest(), ['https://cdn/seg0-v0.mp3']);
     await Promise.resolve();
-    // Simulate firing a state change that could throw if a listener has a bug
     expect(() => deps.fireStateChanged('playing')).not.toThrow();
     expect(() => deps.fireTrackChanged('t0')).not.toThrow();
+  });
+
+  it('polls manifest when slots start pending', async () => {
+    const deps = makeDeps();
+    const pending: Manifest = {
+      ...makeManifest(),
+      segmentSlots: [
+        { index: 0, kind: 'cold_open', beforeTrackId: 't0', variantCount: 1, status: 'ready', audioUrls: ['u0'] },
+        { index: 1, kind: 'transition', afterTrackId: 't0', beforeTrackId: 't1', variantCount: 1, status: 'pending' },
+        { index: 2, kind: 'sign_off', afterTrackId: 't1', variantCount: 1, status: 'pending' },
+      ],
+    };
+    const ready: Manifest = {
+      ...pending,
+      segmentSlots: [
+        pending.segmentSlots[0],
+        { ...pending.segmentSlots[1], status: 'ready', audioUrls: ['u1'] },
+        { ...pending.segmentSlots[2], status: 'ready', audioUrls: ['u2'] },
+      ],
+    };
+    (deps.manifestClient.fetchManifest as jest.Mock).mockResolvedValueOnce(ready);
+
+    const player = new BroadcastPlayer(
+      deps.music, deps.native, deps.manifestClient, deps.stingers,
+    );
+    player.start(pending, ['u0']);
+    await Promise.resolve();
+    await player.pollManifestOnce();
+
+    expect(deps.manifestClient.fetchManifest).toHaveBeenCalledWith('b1');
+    await player.end();
   });
 });

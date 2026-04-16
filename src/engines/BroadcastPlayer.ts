@@ -38,6 +38,8 @@ export class BroadcastPlayer {
   private currentSegmentIndex = -1;
   private subscriptions: Array<() => void> = [];
   private trackEndedResolve: (() => void) | null = null;
+  private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private readonly POLL_INTERVAL_MS = 3000;
 
   constructor(
     private readonly music: MusicDeps,
@@ -73,6 +75,7 @@ export class BroadcastPlayer {
     }
 
     this.kickBackgroundFetch();
+    this.schedulePolling();
 
     this.subscriptions.push(
       this.music.onPlaybackStateChanged(this.handlePlaybackState),
@@ -109,12 +112,36 @@ export class BroadcastPlayer {
       try { unsub(); } catch { /* ignore */ }
     });
     this.subscriptions = [];
+    if (this.pollTimer) { clearInterval(this.pollTimer); this.pollTimer = null; }
     this.cache.clear();
     this.manifest = null;
     this.currentTrackIndex = -1;
     this.currentSegmentIndex = -1;
     this.trackEndedResolve = null;
     this.state = 'idle';
+  }
+
+  private schedulePolling(): void {
+    if (!this.manifest) return;
+    if (this.pollTimer) return;
+    const anyPending = this.manifest.segmentSlots.some(s => s.status === 'pending');
+    if (!anyPending) return;
+    this.pollTimer = setInterval(() => {
+      this.pollManifestOnce().catch(() => { /* transient — retry next tick */ });
+    }, this.POLL_INTERVAL_MS);
+  }
+
+  async pollManifestOnce(): Promise<void> {
+    if (!this.manifest) return;
+    const updated = await this.manifestClient.fetchManifest(this.manifest.broadcastId);
+    this.manifest = updated;
+    // Background-fetch any slots that just flipped to ready
+    this.kickBackgroundFetch();
+    const allDone = updated.segmentSlots.every(s => s.status !== 'pending');
+    if (allDone && this.pollTimer) {
+      clearInterval(this.pollTimer);
+      this.pollTimer = null;
+    }
   }
 
   private async runSegmentAt(slotIndex: number): Promise<void> {
@@ -125,6 +152,12 @@ export class BroadcastPlayer {
     this.currentSegmentIndex = slotIndex;
     this.state = 'playing_segment';
     const vibe = this.manifest.vibe;
+
+    if (slot.status === 'failed') {
+      // Slot failed at bake time — skip silently, continue broadcast.
+      this.currentSegmentIndex = -1;
+      return;
+    }
 
     if (!this.cache.hasAny(slotIndex) && slot.status === 'ready' && slot.audioUrls) {
       for (let v = 0; v < slot.audioUrls.length; v++) {
