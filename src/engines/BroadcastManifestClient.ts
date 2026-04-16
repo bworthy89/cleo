@@ -1,6 +1,18 @@
-import { Buffer } from 'buffer';
 import { authenticatedFetch } from '../services/api';
 import type { Manifest } from './BroadcastPlayer.types';
+
+// Chunked base64 encoder that works in Node (Jest) and React Native.
+// Avoids pulling Node's `buffer` module, which Metro can't bundle.
+function arrayBufferToBase64(ab: ArrayBuffer): string {
+  const bytes = new Uint8Array(ab);
+  const CHUNK = 8192;
+  let binary = '';
+  for (let i = 0; i < bytes.byteLength; i += CHUNK) {
+    const slice = bytes.subarray(i, i + CHUNK);
+    binary += String.fromCharCode.apply(null, slice as unknown as number[]);
+  }
+  return globalThis.btoa(binary);
+}
 
 export interface CreateBroadcastRequest {
   playlistId: string;
@@ -61,6 +73,6 @@ export class BroadcastManifestClient {
     const res = await authenticatedFetch(path);
     if (!res.ok) throw new Error(`fetchSegmentAudio failed: ${res.status}`);
     const buffer = await res.arrayBuffer();
-    return Buffer.from(buffer).toString('base64');
+    return arrayBufferToBase64(buffer);
   }
 }
