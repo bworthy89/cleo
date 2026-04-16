@@ -1,7 +1,15 @@
-import type { LLMProvider } from '../../providers/llm/types';
-import type { TTSProvider } from '../../providers/tts/types';
+import type { LLMRequest, LLMResponse } from '../../providers/llm/types';
+import type { TTSRequest, TTSResponse } from '../../providers/tts/types';
 import type { ObjectStorage } from '../storage/ObjectStorage';
 import type { PromptSet } from './SegmentScriptBuilder';
+
+export interface LLMCaller {
+  generate(req: LLMRequest): Promise<LLMResponse>;
+}
+
+export interface TTSCaller {
+  synthesize(req: TTSRequest): Promise<TTSResponse>;
+}
 
 const DEFAULT_TTS_PARAMS = {
   stability: 0.35,
@@ -11,8 +19,8 @@ const DEFAULT_TTS_PARAMS = {
 
 export class SegmentGenerator {
   constructor(
-    private readonly llm: LLMProvider,
-    private readonly tts: TTSProvider,
+    private readonly llm: LLMCaller,
+    private readonly tts: TTSCaller,
     private readonly storage: ObjectStorage,
   ) {}
 
