@@ -37,7 +37,7 @@ export interface Manifest {
   segmentSlots: SegmentSlot[];
 }
 
-export type BroadcastPlayerState =
+export type PlayerState =
   | 'idle'
   | 'loading'
   | 'playing_segment'
@@ -45,3 +45,17 @@ export type BroadcastPlayerState =
   | 'paused'
   | 'ended'
   | 'error';
+
+export type BroadcastPlayerState = PlayerState;
+
+export interface PlayerStatus {
+  state: PlayerState;
+  currentTrackIndex: number;
+  currentSegmentIndex: number;
+  broadcastId: string | null;
+  nowPlaying:
+    | { segmentKind: SegmentSlotKind }
+    | { trackId: string }
+    | null;
+  progress: number;
+}
