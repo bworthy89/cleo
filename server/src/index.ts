@@ -42,13 +42,17 @@ app.use((req, _res, next) => {
 const keyByUser = (req: any) => req.uid ?? req.ip;
 
 // AI generation routes (LLM + TTS): each track needs ~4-8 requests
-// (segment + TTS + eject pre-gen + mid-song drops + retries)
+// (segment + TTS + eject pre-gen + mid-song drops + retries).
+// Scope is enforced via `skip` because the router-level app.use(mw, router)
+// pattern would otherwise run this on every request regardless of path.
+const GENERATION_PATHS = /^\/(generate-segment|synthesize-voice|curate-playlist|broadcast\/create)(\/|$)/;
 const generationLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 60,
   keyGenerator: keyByUser,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => !GENERATION_PATHS.test(req.path),
 });
 
 // Enrichment routes have their own server-side rate limiting (1100ms/req)
