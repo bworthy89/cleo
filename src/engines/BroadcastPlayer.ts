@@ -229,3 +229,4 @@ export class BroadcastPlayer {
     return Math.min(1, done / total);
   }
 }
+
