@@ -18,6 +18,7 @@ export interface NativeDeps {
   deactivateDuckingSession: () => Promise<void>;
   playAudioFromBase64: (base64: string) => Promise<void>;
   stopAudio: () => Promise<void>;
+  releaseAudioSession?: () => Promise<void>;
 }
 
 export interface ManifestDeps {
@@ -186,6 +187,12 @@ export class BroadcastPlayer {
       if (stingerOut) await this.native.playAudioFromBase64(stingerOut).catch(() => {});
     } finally {
       await this.native.deactivateDuckingSession().catch(() => {});
+      // Release the audio session fully so MusicKit's ApplicationMusicPlayer
+      // can reclaim it for the next track. Without this, TTS leaves the session
+      // in mixWithOthers mode and MusicKit silently fails to start playback.
+      if (this.native.releaseAudioSession) {
+        await this.native.releaseAudioSession().catch(() => {});
+      }
       this.currentSegmentIndex = -1;
     }
   }
@@ -195,24 +202,44 @@ export class BroadcastPlayer {
     const track = this.manifest.tracks[trackIndex];
     this.currentTrackIndex = trackIndex;
     this.state = 'playing_track';
+    console.log(`[BroadcastPlayer] runTrackAt(${trackIndex}) id=${track.id} "${track.title}"`);
     try {
       await this.music.play([track.id]);
-    } catch {
-      // Track not playable — skip and advance. Without this guard,
-      // a bad track stalls the whole broadcast in playing_track state.
+      console.log(`[BroadcastPlayer] music.play resolved for ${track.id}`);
+    } catch (err) {
+      console.warn(`[BroadcastPlayer] music.play threw for ${track.id}:`, err);
       return;
     }
     await this.waitForTrackEnd();
+    console.log(`[BroadcastPlayer] track ended: ${track.id}`);
   }
 
   private waitForTrackEnd(): Promise<void> {
     return new Promise(resolve => {
-      this.trackEndedResolve = () => resolve();
+      let resolved = false;
+      const done = () => {
+        if (resolved) return;
+        resolved = true;
+        resolve();
+      };
+      this.trackEndedResolve = done;
+      // Safety timeout: if MusicKit never emits 'stopped' (e.g., it failed
+      // to start the track), don't hang the broadcast forever. The track's
+      // duration plus a 30s buffer is our upper bound.
+      const track = this.manifest?.tracks[this.currentTrackIndex];
+      const timeoutSec = (track?.duration ?? 180) + 30;
+      setTimeout(() => {
+        if (!resolved) {
+          console.warn(`[BroadcastPlayer] waitForTrackEnd timeout after ${timeoutSec}s — advancing`);
+          done();
+        }
+      }, timeoutSec * 1000);
     });
   }
 
   private handlePlaybackState = (e: { status: string; playbackTime: number }) => {
     try {
+      console.log(`[BroadcastPlayer] playbackState: status=${e.status} time=${e.playbackTime} playerState=${this.state}`);
       if (e.status === 'stopped' && this.state === 'playing_track') {
         this.trackEndedResolve?.();
       }
