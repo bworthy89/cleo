@@ -190,6 +190,16 @@ export async function releaseAudioSession(): Promise<void> {
   return await ExpoMusicKit.releaseAudioSession();
 }
 
+/**
+ * Tell the native module a broadcast is in progress so its 0.5s playback
+ * timer keeps emitting events when the phone locks. Without this the timer
+ * is paused on background and the JS state machine can't detect track-end
+ * events, stalling the broadcast until the user unlocks the phone.
+ */
+export async function setBroadcastActive(active: boolean): Promise<void> {
+  return await ExpoMusicKit.setBroadcastActive(active);
+}
+
 // ── Event Listeners ────────────────────────────────────────────────────
 
 export function addTrackChangedListener(
