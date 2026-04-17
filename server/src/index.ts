@@ -13,16 +13,17 @@ import { createFeaturedRouter } from './routes/featured';
 import { requireAuth } from './middleware/auth';
 import { llmProvider } from './providers/llm';
 import { ttsProvider } from './providers/tts';
-import { LocalFilesystemStorage } from './services/storage/ObjectStorage';
+import { createStorage } from './services/storage/createStorage';
 import { BroadcastStore } from './services/broadcast/BroadcastStore';
 import { BroadcastOrchestrator } from './services/broadcast/BroadcastOrchestrator';
 import { FeaturedBroadcastRegistry } from './services/broadcast/FeaturedBroadcastRegistry';
 import { EnrichmentCache } from './services/enrichment/EnrichmentCache';
 import { BackgroundEnricher } from './services/enrichment/BackgroundEnricher';
 import { DefaultEnrichmentFetcher } from './services/enrichment/DefaultEnrichmentFetcher';
+import { gracefulShutdown } from './shutdown';
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = Number(process.env.PORT) || 3001;
 
 // Trust reverse proxy for rate limiting and IP detection
 app.set('trust proxy', 1);
@@ -92,12 +93,13 @@ app.get('/health', async (req, res) => {
   }
 });
 
-// Broadcast subsystem — pre-baked episode pipeline
-const broadcastCacheDir = path.resolve(__dirname, '../.broadcast-cache');
-const broadcastStorage = new LocalFilesystemStorage(
-  broadcastCacheDir,
-  `${process.env.BROADCAST_ASSET_BASE_URL ?? 'http://localhost:3001'}/broadcast-asset`,
-);
+// Broadcast subsystem — pre-baked episode pipeline.
+// STORAGE_BACKEND env selects between local filesystem (dev) and R2 (prod).
+const broadcastStorage = createStorage({
+  ...process.env,
+  BROADCAST_CACHE_DIR: process.env.BROADCAST_CACHE_DIR
+    ?? path.resolve(__dirname, '../.broadcast-cache'),
+});
 const broadcastStore = new BroadcastStore();
 
 // Enrichment cache + background worker — fills Genius/MusicBrainz metadata
@@ -134,20 +136,36 @@ async function bootstrap(): Promise<void> {
   featuredRegistry.load().catch(err => console.error('[featured] registry load failed', err));
   app.use(requireAuth, createFeaturedRouter(featuredRegistry, broadcastOrchestrator, generationLimiter));
 
-  // Static asset serving for broadcast audio (dev only — production uses signed URLs)
-  app.use('/broadcast-asset', requireAuth, (req, res, next) => {
-    try {
-      const abs = broadcastStorage.getAbsolutePath(req.path.replace(/^\/+/, ''));
-      res.sendFile(abs, (err) => { if (err) next(err); });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'invalid asset path';
-      res.status(400).json({ error: msg });
-    }
-  });
+  // Static asset serving for broadcast audio — only when the storage backend
+  // serves bytes from a local path (dev). Remote backends (R2) embed the URL
+  // directly in the manifest and skip this route.
+  if (broadcastStorage.getAbsolutePath) {
+    const getAbsolutePath = broadcastStorage.getAbsolutePath.bind(broadcastStorage);
+    app.use('/broadcast-asset', requireAuth, (req, res, next) => {
+      try {
+        const abs = getAbsolutePath(req.path.replace(/^\/+/, ''));
+        res.sendFile(abs, (err) => { if (err) next(err); });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'invalid asset path';
+        res.status(400).json({ error: msg });
+      }
+    });
+  }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`Cleo server running on 0.0.0.0:${PORT}`);
   });
+
+  // PM2 sends SIGINT on `pm2 restart`, SIGTERM on `pm2 stop`. Drain HTTP
+  // connections so in-flight bakes finish before the process exits.
+  const shutdown = async (signal: string) => {
+    console.log(`[shutdown] received ${signal}, draining...`);
+    await gracefulShutdown(server, [], { timeoutMs: 10_000 });
+    console.log('[shutdown] done');
+    process.exit(0);
+  };
+  process.once('SIGINT', () => void shutdown('SIGINT'));
+  process.once('SIGTERM', () => void shutdown('SIGTERM'));
 }
 
 bootstrap().catch((err) => {
