@@ -40,6 +40,10 @@ interface Props {
   onAskOnay?: () => void;
   onClose: () => void;
   onSubmit: (result: SetupResult) => void;
+  /** Open at a specific step. Lets Home deep-link a row tap to the relevant picker. */
+  initialStep?: 0 | 1 | 2;
+  /** Pre-seed selections from Home so reopening doesn't lose state. */
+  initialSelection?: { playlistId?: string | null; vibe?: Vibe | null; length?: Length | null };
 }
 
 const monoLabel = {
@@ -51,14 +55,24 @@ const monoLabel = {
 
 export function SetupSheet({
   visible, playlists, playlistsLoading, playlistsError, onRetryPlaylists, onAskOnay,
-  onClose, onSubmit,
+  onClose, onSubmit, initialStep, initialSelection,
 }: Props) {
-  const [step, setStep] = useState<0 | 1 | 2>(0);
-  const [playlistId, setPlaylistId] = useState<string | null>(null);
-  const [vibe, setVibe] = useState<Vibe | null>(null);
-  const [length, setLength] = useState<Length | null>(null);
+  const [step, setStep] = useState<0 | 1 | 2>(initialStep ?? 0);
+  const [playlistId, setPlaylistId] = useState<string | null>(initialSelection?.playlistId ?? null);
+  const [vibe, setVibe] = useState<Vibe | null>(initialSelection?.vibe ?? null);
+  const [length, setLength] = useState<Length | null>(initialSelection?.length ?? null);
   const stepOpacity = useRef(new Animated.Value(1)).current;
   const stepTranslate = useRef(new Animated.Value(0)).current;
+
+  // Re-seed state each time the sheet opens so Home can deep-link into a
+  // specific step and preserve prior selections.
+  useEffect(() => {
+    if (!visible) return;
+    setStep(initialStep ?? 0);
+    setPlaylistId(initialSelection?.playlistId ?? null);
+    setVibe(initialSelection?.vibe ?? null);
+    setLength(initialSelection?.length ?? null);
+  }, [visible, initialStep, initialSelection?.playlistId, initialSelection?.vibe, initialSelection?.length]);
 
   useEffect(() => {
     // Slide + fade the active step in on each change.
