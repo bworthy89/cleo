@@ -1,107 +1,88 @@
-import { useEffect, useRef, useState } from 'react';
-import { Animated, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { Animated, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { Colors, Surface, TextColors, Typography, Spacing } from '../../src/tokens/design-tokens';
+import { AM, Fonts, Space, TypeScale } from '../../src/tokens/design-tokens';
+import { BroadcastBackdrop } from '../../src/components/BroadcastBackdrop';
+import { AmberCTA } from '../../src/components/AmberCTA';
 
 export default function WelcomeScreen() {
-  const [taglineDone, setTaglineDone] = useState(false);
-  const descOpacity = useRef(new Animated.Value(0)).current;
-  const buttonOpacity = useRef(new Animated.Value(0)).current;
+  const insets = useSafeAreaInsets();
+  const opacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const timer = setTimeout(() => setTaglineDone(true), 2000);
-    return () => clearTimeout(timer);
-  }, []);
-
-  useEffect(() => {
-    if (taglineDone) {
-      Animated.sequence([
-        Animated.timing(descOpacity, { toValue: 1, duration: 600, delay: 400, useNativeDriver: true }),
-        Animated.timing(buttonOpacity, { toValue: 1, duration: 600, delay: 400, useNativeDriver: true }),
-      ]).start();
-    }
-  }, [taglineDone]);
+    Animated.timing(opacity, { toValue: 1, duration: 900, useNativeDriver: true }).start();
+  }, [opacity]);
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
-        <Text style={styles.logo}>ONAY</Text>
-        <View style={styles.accentLine} />
-        <Text style={styles.tagline}>
-          Every song has a story.{'\n'}I'm just here to tell it.
-        </Text>
-        <Animated.Text style={[styles.description, { opacity: descOpacity }]}>
-          Your personal AI radio host. I curate frequencies that match your soul's current wavelength.
-        </Animated.Text>
+    <BroadcastBackdrop>
+      <View style={[styles.root, { paddingTop: insets.top + Space.s34, paddingBottom: insets.bottom + Space.s34 }]}>
+        <Animated.View style={[styles.content, { opacity }]}>
+          <Text style={styles.wordmark}>onay</Text>
+          <View style={{ height: Space.s40 }} />
+          <Text style={styles.heroLine}>Every song,</Text>
+          <Text style={[styles.heroLine, styles.heroAmber]}>a story.</Text>
+          <Text style={styles.heroLine}>I tell it.</Text>
+          <View style={{ height: Space.s34 }} />
+          <Text style={styles.description}>
+            Your personal radio host. No skips, no shuffle{'\u2014'}just a broadcast curated for where your night is headed.
+          </Text>
+        </Animated.View>
+
+        <View style={styles.bottom}>
+          <AmberCTA
+            label="Tune in"
+            onPress={() => router.push('/(onboarding)/music-auth')}
+            accessibilityHint="Continue to the Apple Music connection step"
+          />
+          <Text style={styles.commitment}>no skips {'\u00b7'} no shuffle {'\u00b7'} sit with it</Text>
+        </View>
       </View>
-      <Animated.View style={[styles.bottom, { opacity: buttonOpacity }]}>
-        <Pressable
-          style={({ pressed }) => [styles.button, pressed && styles.pressed]}
-          onPress={() => router.push('/(onboarding)/music-auth')}
-          accessibilityLabel="Continue to setup"
-          accessibilityRole="button"
-        >
-          <Text style={styles.buttonText}>TUNE IN</Text>
-        </Pressable>
-      </Animated.View>
-    </SafeAreaView>
+    </BroadcastBackdrop>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
-    backgroundColor: Surface.base,
+    paddingHorizontal: Space.s26,
   },
   content: {
     flex: 1,
     justifyContent: 'center',
-    paddingHorizontal: Spacing.lg,
   },
-  logo: {
-    fontFamily: Typography.display.family,
-    fontSize: 56,
-    color: TextColors.primary,
-    letterSpacing: 6,
+  wordmark: {
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s10,
+    letterSpacing: 3,
+    color: AM.inkDim,
   },
-  accentLine: {
-    width: 40,
-    height: 2,
-    backgroundColor: Colors.accent,
-    marginTop: Spacing.sm,
-    marginBottom: Spacing.xl,
-  },
-  tagline: {
-    fontFamily: Typography.cleoVoice.family,
+  heroLine: {
+    fontFamily: Fonts.displayThin,
+    fontSize: TypeScale.s44,
     fontStyle: 'italic',
-    fontSize: 22,
-    color: Colors.accent,
-    lineHeight: 32,
-    marginBottom: Spacing.md,
+    lineHeight: TypeScale.s44 * 1.05,
+    letterSpacing: -0.8,
+    color: AM.ink,
+  },
+  heroAmber: {
+    color: AM.amber,
   },
   description: {
-    fontFamily: Typography.body.family,
-    fontSize: 15,
-    color: TextColors.secondary,
-    lineHeight: 22,
+    fontFamily: Fonts.display,
+    fontSize: TypeScale.s16,
+    fontStyle: 'italic',
+    color: AM.inkMid,
+    lineHeight: TypeScale.s16 * 1.5,
   },
   bottom: {
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.xxl,
+    gap: Space.s10,
   },
-  button: {
-    borderWidth: 1,
-    borderColor: Colors.accent,
-    paddingVertical: Spacing.md,
-    alignItems: 'center',
-  },
-  buttonText: {
-    fontFamily: Typography.mono.family,
-    fontSize: 12,
-    color: Colors.accent,
-    letterSpacing: 3,
-  },
-  pressed: {
-    opacity: 0.7,
+  commitment: {
+    textAlign: 'center',
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s9,
+    letterSpacing: 2,
+    color: AM.inkDim,
   },
 });
