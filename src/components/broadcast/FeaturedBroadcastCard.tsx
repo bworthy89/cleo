@@ -1,4 +1,5 @@
 import { View, Text, Pressable, Image } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors, Surface, TextColors, Spacing, Typography, Radius } from '../../tokens/design-tokens';
 import type { FeaturedBroadcast } from '../../engines/BroadcastCurationClient';
 
@@ -13,7 +14,7 @@ export function FeaturedBroadcastCard({ broadcast, onPress }: Props) {
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={`Play ${broadcast.title}`}
-      style={{
+      style={({ pressed }) => ({
         backgroundColor: Surface.container,
         borderLeftWidth: 2,
         borderLeftColor: Colors.accent,
@@ -22,7 +23,8 @@ export function FeaturedBroadcastCard({ broadcast, onPress }: Props) {
         marginBottom: Spacing.sm,
         flexDirection: 'row',
         alignItems: 'center',
-      }}
+        opacity: pressed ? 0.75 : 1,
+      })}
     >
       {broadcast.artworkUrl && (
         <Image
@@ -44,9 +46,10 @@ export function FeaturedBroadcastCard({ broadcast, onPress }: Props) {
           letterSpacing: 2,
           marginTop: Spacing.xs,
         }}>
-          {broadcast.vibe.toUpperCase()} · {broadcast.length.toUpperCase()}
+          {broadcast.vibe.toUpperCase()} \u00B7 {broadcast.length.toUpperCase()}
         </Text>
       </View>
+      <Ionicons name="chevron-forward" size={18} color={TextColors.outline} style={{ marginLeft: Spacing.sm }} />
     </Pressable>
   );
 }

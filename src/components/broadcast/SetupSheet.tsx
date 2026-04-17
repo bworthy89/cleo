@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { View, Text, Pressable, ScrollView, Modal, Image, ActivityIndicator } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors, Surface, TextColors, Spacing, Typography, Radius } from '../../tokens/design-tokens';
 import type { MusicPlaylist } from '../../../modules/expo-music-kit';
 import type { Manifest } from '../../engines/BroadcastPlayer.types';
@@ -40,6 +41,7 @@ interface Props {
   playlistsLoading?: boolean;
   playlistsError?: string | null;
   onRetryPlaylists?: () => void;
+  onAskOnay?: () => void;
   onClose: () => void;
   onSubmit: (result: SetupResult) => void;
 }
@@ -52,7 +54,7 @@ const monoLabel = {
 };
 
 export function SetupSheet({
-  visible, playlists, playlistsLoading, playlistsError, onRetryPlaylists,
+  visible, playlists, playlistsLoading, playlistsError, onRetryPlaylists, onAskOnay,
   onClose, onSubmit,
 }: Props) {
   const [step, setStep] = useState<0 | 1 | 2>(0);
@@ -99,6 +101,45 @@ export function SetupSheet({
             <Text style={{ color: TextColors.primary, fontFamily: Typography.display.family, fontSize: 26, marginBottom: Spacing.md }}>
               Pick a source
             </Text>
+
+            {onAskOnay && (
+              <Pressable
+                onPress={onAskOnay}
+                accessibilityRole="button"
+                accessibilityLabel="Let ONAY pick tracks for you"
+                style={({ pressed }) => ({
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: Spacing.sm,
+                  paddingVertical: Spacing.md,
+                  paddingHorizontal: Spacing.md,
+                  backgroundColor: Surface.container,
+                  borderRadius: Radius.sm,
+                  marginBottom: Spacing.md,
+                  borderLeftWidth: 2,
+                  borderLeftColor: Colors.accent,
+                  opacity: pressed ? 0.75 : 1,
+                })}
+              >
+                <Ionicons name="sparkles" size={18} color={Colors.accent} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{
+                    color: Colors.accent,
+                    fontFamily: Typography.mono.family,
+                    fontSize: 10,
+                    letterSpacing: 2,
+                    marginBottom: 2,
+                  }}>
+                    OR
+                  </Text>
+                  <Text style={{ color: TextColors.primary, fontFamily: Typography.display.family, fontSize: 16 }}>
+                    Let ONAY pick for you
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={TextColors.outline} />
+              </Pressable>
+            )}
+
             <ScrollView>
               {playlistsLoading ? (
                 <View style={{ padding: Spacing.lg, alignItems: 'center' }}>
@@ -139,12 +180,18 @@ export function SetupSheet({
                   onPress={() => { setPlaylistId(p.id); setStep(1); }}
                   accessibilityRole="button"
                   accessibilityLabel={`Pick playlist ${p.name}`}
-                  style={{ flexDirection: 'row', alignItems: 'center', ...rowStyle(playlistId === p.id) }}
+                  style={({ pressed }) => ({
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    ...rowStyle(playlistId === p.id),
+                    opacity: pressed ? 0.75 : 1,
+                  })}
                 >
                   {p.artworkUrl && (
                     <Image source={{ uri: p.artworkUrl }} style={{ width: 48, height: 48, marginRight: Spacing.sm, borderRadius: Radius.sm }} />
                   )}
                   <Text style={{ color: TextColors.primary, flex: 1 }} numberOfLines={1}>{p.name}</Text>
+                  <Ionicons name="chevron-forward" size={18} color={TextColors.outline} />
                 </Pressable>
               ))}
             </ScrollView>
@@ -163,9 +210,15 @@ export function SetupSheet({
                   onPress={() => { setVibe(v.id); setStep(2); }}
                   accessibilityRole="button"
                   accessibilityLabel={`Pick vibe ${v.label}`}
-                  style={rowStyle(vibe === v.id)}
+                  style={({ pressed }) => ({
+                    ...rowStyle(vibe === v.id),
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    opacity: pressed ? 0.75 : 1,
+                  })}
                 >
-                  <Text style={{ color: TextColors.primary }}>{v.label}</Text>
+                  <Text style={{ color: TextColors.primary, flex: 1 }}>{v.label}</Text>
+                  <Ionicons name="chevron-forward" size={18} color={TextColors.outline} />
                 </Pressable>
               ))}
             </ScrollView>
@@ -183,10 +236,28 @@ export function SetupSheet({
                 onPress={() => setLength(l.id)}
                 accessibilityRole="button"
                 accessibilityLabel={`Pick length ${l.label}`}
-                style={rowStyle(length === l.id)}
+                style={({ pressed }) => ({
+                  ...rowStyle(length === l.id),
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  opacity: pressed ? 0.75 : 1,
+                })}
               >
-                <Text style={{ color: TextColors.primary, fontWeight: '600', fontSize: 16 }}>{l.label}</Text>
-                <Text style={{ color: TextColors.secondary, marginTop: 2 }}>{l.subtitle}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={{
+                    color: TextColors.primary,
+                    fontFamily: Typography.body.familySemiBold,
+                    fontSize: 16,
+                  }}>
+                    {l.label}
+                  </Text>
+                  <Text style={{ color: TextColors.secondary, marginTop: 2 }}>{l.subtitle}</Text>
+                </View>
+                <Ionicons
+                  name={length === l.id ? 'radio-button-on' : 'radio-button-off'}
+                  size={20}
+                  color={length === l.id ? Colors.accent : TextColors.outline}
+                />
               </Pressable>
             ))}
             <Pressable
