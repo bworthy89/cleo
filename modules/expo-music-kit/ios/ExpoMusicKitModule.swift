@@ -241,11 +241,29 @@ public class ExpoMusicKitModule: Module {
           self.player.queue = ApplicationMusicPlayer.Queue(for: orderedTracks)
         } else {
           // Strategy 2: cached Song objects (from .entries)
-          let orderedSongs = limitedIds.compactMap { self.cachedSongs[$0] }
+          var orderedSongs = limitedIds.compactMap { self.cachedSongs[$0] }
+
+          // Strategy 3: fetch Song objects from the catalog by ID. Required for
+          // pre-baked broadcasts where the manifest supplies Apple Music IDs
+          // without anyone having called fetchPlaylistTracks/fetchPlaylists first.
+          if orderedSongs.isEmpty {
+            let missingIds = limitedIds.map { MusicItemID($0) }
+            let request = MusicCatalogResourceRequest<Song>(matching: \.id, memberOf: missingIds)
+            if let fetched = try? await request.response().items {
+              // Build an ID -> Song dictionary to preserve the caller's order.
+              var byId: [String: Song] = [:]
+              for song in fetched {
+                byId[song.id.rawValue] = song
+                self.cachedSongs[song.id.rawValue] = song
+              }
+              orderedSongs = limitedIds.compactMap { byId[$0] }
+            }
+          }
+
           if !orderedSongs.isEmpty {
             self.player.queue = ApplicationMusicPlayer.Queue(for: orderedSongs)
           } else if let playlistId = playlistId, let playlist = self.cachedPlaylists[playlistId] {
-            // Strategy 3: queue the whole playlist
+            // Strategy 4: queue the whole playlist
             self.player.queue = [playlist]
           }
         }
