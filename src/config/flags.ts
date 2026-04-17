@@ -4,5 +4,5 @@
  */
 export const FLAGS = {
   /** Use the new pre-baked broadcast home screen instead of HomeScreenRedesign. */
-  broadcastHome: false,
+  broadcastHome: true,
 } as const;
