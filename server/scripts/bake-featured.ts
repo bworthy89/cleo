@@ -5,6 +5,9 @@ import { BroadcastStore } from '../src/services/broadcast/BroadcastStore';
 import { BroadcastOrchestrator } from '../src/services/broadcast/BroadcastOrchestrator';
 import { FeaturedBroadcastRegistry } from '../src/services/broadcast/FeaturedBroadcastRegistry';
 import { bakeFeatured } from '../src/services/broadcast/bakeFeatured';
+import { EnrichmentCache } from '../src/services/enrichment/EnrichmentCache';
+import { BackgroundEnricher } from '../src/services/enrichment/BackgroundEnricher';
+import { DefaultEnrichmentFetcher } from '../src/services/enrichment/DefaultEnrichmentFetcher';
 import { llmProvider } from '../src/providers/llm';
 import { ttsProvider } from '../src/providers/tts';
 
@@ -21,7 +24,17 @@ async function main() {
     `${process.env.BROADCAST_ASSET_BASE_URL ?? 'http://localhost:3001'}/broadcast-asset`,
   );
   const store = new BroadcastStore();
-  const orch = new BroadcastOrchestrator(llmProvider, ttsProvider, storage, store);
+  const enrichmentCache = new EnrichmentCache(
+    path.resolve(__dirname, '../.enrichment-cache/tracks.json'),
+  );
+  await enrichmentCache.load();
+  const backgroundEnricher = new BackgroundEnricher(
+    enrichmentCache, new DefaultEnrichmentFetcher(),
+  );
+  const orch = new BroadcastOrchestrator(
+    llmProvider, ttsProvider, storage, store,
+    enrichmentCache, backgroundEnricher,
+  );
 
   const registry = new FeaturedBroadcastRegistry(
     path.resolve(__dirname, '../featured-broadcasts/registry.json'),

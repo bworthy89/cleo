@@ -1,8 +1,13 @@
+import { promises as fs } from 'fs';
+import * as path from 'path';
+import * as os from 'os';
 import express from 'express';
 import request from 'supertest';
 import { createBroadcastRouter } from '@/routes/broadcast';
 import { BroadcastOrchestrator } from '@/services/broadcast/BroadcastOrchestrator';
 import { BroadcastStore } from '@/services/broadcast/BroadcastStore';
+import { EnrichmentCache } from '@/services/enrichment/EnrichmentCache';
+import { BackgroundEnricher } from '@/services/enrichment/BackgroundEnricher';
 import { makeMockLLM } from '../../__mocks__/llm';
 import { makeMockTTS } from '../../__mocks__/tts';
 import type { ManifestTrack } from '@/services/broadcast/types';
@@ -18,6 +23,10 @@ const tracks = (n: number): ManifestTrack[] =>
     albumTitle: 'Album', duration: 200,
   }));
 
+const SEQUENCER_RESPONSE = JSON.stringify({
+  ordered: ['t0', 't1', 't2', 't3', 't4'],
+});
+
 const authStub = (uid: string): express.RequestHandler =>
   (req, _res, next) => { (req as any).uid = uid; next(); };
 
@@ -32,10 +41,25 @@ const buildApp = (orch: BroadcastOrchestrator, store: BroadcastStore) => {
 describe('broadcast router', () => {
   let orch: BroadcastOrchestrator;
   let store: BroadcastStore;
+  let tmpDir: string;
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'broadcast-route-'));
+    const enrichCache = new EnrichmentCache(path.join(tmpDir, 'tracks.json'));
+    await enrichCache.load();
+    const enricher = new BackgroundEnricher(enrichCache, {
+      fetchGenius: jest.fn(async () => null),
+      fetchMusicBrainz: jest.fn(async () => null),
+    });
     store = new BroadcastStore();
-    orch = new BroadcastOrchestrator(makeMockLLM(), makeMockTTS(), makeStorage(), store);
+    orch = new BroadcastOrchestrator(
+      makeMockLLM(SEQUENCER_RESPONSE), makeMockTTS(), makeStorage(),
+      store, enrichCache, enricher,
+    );
+  });
+
+  afterEach(async () => {
+    await fs.rm(tmpDir, { recursive: true, force: true });
   });
 
   it('POST /broadcast/create returns manifest + firstSegmentUrls', async () => {
