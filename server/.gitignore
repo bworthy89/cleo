@@ -4,3 +4,13 @@ dist/
 .broadcast-cache/
 featured-broadcasts/registry.json
 .enrichment-cache/
+.tts-cache/
+
+# Guardrail: this is a Node.js server directory. If `npx expo run:ios`
+# is run from here by mistake, it generates ios/ + .expo/ + app.json
+# which have no business in the server tree (once leaked 16k+ files
+# and multi-GB Pods into git). Keep them out.
+ios/
+.expo/
+app.json
+.xcode.env.local
