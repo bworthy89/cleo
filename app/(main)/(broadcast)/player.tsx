@@ -32,8 +32,9 @@ function stateCaption(status: PlayerStatus): string {
 
 function PulsingOrb({ active, accent }: { active: boolean; accent: string }) {
   const scale = useRef(new Animated.Value(1)).current;
+  const appActive = useAppActive();
   useEffect(() => {
-    if (!active) return;
+    if (!active || !appActive) return;
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(scale, { toValue: 1.06, duration: 1200, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
@@ -42,7 +43,7 @@ function PulsingOrb({ active, accent }: { active: boolean; accent: string }) {
     );
     loop.start();
     return () => loop.stop();
-  }, [active, scale]);
+  }, [active, appActive, scale]);
   return (
     <Animated.View
       style={{
@@ -51,6 +52,49 @@ function PulsingOrb({ active, accent }: { active: boolean; accent: string }) {
         transform: [{ scale }],
       }}
     />
+  );
+}
+
+/** Large pulsing ring shown while the player is spinning up a broadcast. */
+function TuningInCanvas({ accent }: { accent: string }) {
+  const active = useAppActive();
+  const ring = useRef(new Animated.Value(0.7)).current;
+  useEffect(() => {
+    if (!active) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(ring, { toValue: 1.1, duration: 1400, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(ring, { toValue: 0.7, duration: 1400, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [active, ring]);
+  return (
+    <View style={{
+      width: '100%',
+      aspectRatio: 1,
+      borderRadius: Radius.md,
+      marginBottom: Spacing.lg,
+      backgroundColor: Surface.container,
+      alignItems: 'center',
+      justifyContent: 'center',
+    }}>
+      <Animated.View style={{
+        width: 180, height: 180, borderRadius: 90,
+        borderWidth: 2, borderColor: accent,
+        transform: [{ scale: ring }],
+      }} />
+      <Text style={{
+        position: 'absolute',
+        color: accent,
+        fontFamily: Typography.mono.family,
+        fontSize: 11,
+        letterSpacing: 4,
+      }}>
+        TUNING IN
+      </Text>
+    </View>
   );
 }
 
@@ -79,6 +123,7 @@ export default function BroadcastPlayerScreen() {
   const progressPct = Math.round(status.progress * 100);
   const paused = status.state === 'paused';
   const ended = status.state === 'ended' || status.state === 'idle';
+  const warming = status.state === 'loading' || (status.state === 'idle' && status.broadcastId === null && status.totalTracks === 0);
   const accent = status.vibe ? getVibeAccent(status.vibe) : Colors.accent;
   const track = status.currentTrack;
   const segment = segmentLabel(status);
@@ -104,7 +149,9 @@ export default function BroadcastPlayerScreen() {
         )}
       </View>
 
-      {track?.artworkUrl ? (
+      {warming ? (
+        <TuningInCanvas accent={accent} />
+      ) : track?.artworkUrl ? (
         <Image
           source={{ uri: track.artworkUrl }}
           style={{
@@ -130,7 +177,16 @@ export default function BroadcastPlayerScreen() {
         </View>
       )}
 
-      {segment ? (
+      {warming ? (
+        <>
+          <Text style={{ color: TextColors.primary, fontFamily: Typography.display.family, fontSize: 24, marginBottom: 2 }}>
+            Tuning in\u2026
+          </Text>
+          <Text style={{ color: TextColors.secondary, fontFamily: Typography.cleoVoice.family, fontStyle: 'italic', fontSize: 15 }}>
+            Pulling the cold open together.
+          </Text>
+        </>
+      ) : segment ? (
         <>
           <Text style={{ color: TextColors.primary, fontFamily: Typography.display.family, fontSize: 22, marginBottom: 2 }}>
             {segment}
