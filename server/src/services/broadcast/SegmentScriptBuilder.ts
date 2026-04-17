@@ -43,8 +43,26 @@ Rules:
 - End on a beat that hands cleanly to the next track.`;
 }
 
+/**
+ * Strip adversarial input from track metadata before it enters the LLM prompt.
+ * Drops control characters + newlines (prompt-injection markers), removes
+ * known role-hijack prefixes, and hard-caps length.
+ */
+function sanitizeForPrompt(s: string, max = 120): string {
+  const cleaned = s
+    .replace(/[\x00-\x1F\x7F]/g, ' ')
+    .replace(/\r?\n/g, ' ')
+    .replace(/\b(system|assistant|user)\s*:/gi, '$1')
+    .replace(/```+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return cleaned.length > max ? cleaned.slice(0, max) + '\u2026' : cleaned;
+}
+
 function trackRef(t: ManifestTrack): string {
-  return `\u201C${t.title}\u201D by ${t.artistName}`;
+  const title = sanitizeForPrompt(t.title);
+  const artist = sanitizeForPrompt(t.artistName);
+  return `\u201C${title}\u201D by ${artist}`;
 }
 
 function findTrack(m: Manifest, id?: string): ManifestTrack | undefined {
