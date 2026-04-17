@@ -13,7 +13,6 @@ import {
   getPlaybackStatus as getPlaybackStatusNative,
   addTrackChangedListener,
   addPlaybackStateListener,
-  addEjectTrackChangedListener,
   getNextInQueue,
   type AuthResult,
   type MusicPlaylist,
@@ -22,21 +21,17 @@ import {
   type TrackChangedEvent,
   type PlaybackStateEvent,
   type PlaybackStatus,
-  type EjectTrackChangedEvent,
 } from '../../modules/expo-music-kit';
 import type { EventSubscription } from 'expo-modules-core';
 
 type TrackChangeCallback = (event: TrackChangedEvent) => void;
 type PlaybackStateCallback = (event: PlaybackStateEvent) => void;
-type EjectTrackChangeCallback = (event: EjectTrackChangedEvent) => void;
 
 class MusicKitPlayerService {
   private trackSub: EventSubscription | null = null;
   private stateSub: EventSubscription | null = null;
-  private ejectSub: EventSubscription | null = null;
   private trackListeners: TrackChangeCallback[] = [];
   private stateListeners: PlaybackStateCallback[] = [];
-  private ejectListeners: EjectTrackChangeCallback[] = [];
 
   async authorize(): Promise<AuthResult> {
     return authorize();
@@ -109,15 +104,6 @@ class MusicKitPlayerService {
     };
   }
 
-  onEjectTrackChanged(callback: EjectTrackChangeCallback): () => void {
-    this.ejectListeners.push(callback);
-    this.ensureSubscriptions();
-    return () => {
-      this.ejectListeners = this.ejectListeners.filter(cb => cb !== callback);
-      this.cleanupIfEmpty();
-    };
-  }
-
   private ensureSubscriptions() {
     if (!this.trackSub && this.trackListeners.length > 0) {
       this.trackSub = addTrackChangedListener((event) => {
@@ -133,13 +119,6 @@ class MusicKitPlayerService {
         });
       });
     }
-    if (!this.ejectSub && this.ejectListeners.length > 0) {
-      this.ejectSub = addEjectTrackChangedListener((event) => {
-        this.ejectListeners.forEach(cb => {
-          try { cb(event); } catch (e) { console.error('[MusicKitPlayer] ejectListener error:', e); }
-        });
-      });
-    }
   }
 
   private cleanupIfEmpty() {
@@ -151,22 +130,15 @@ class MusicKitPlayerService {
       this.stateSub.remove();
       this.stateSub = null;
     }
-    if (this.ejectListeners.length === 0 && this.ejectSub) {
-      this.ejectSub.remove();
-      this.ejectSub = null;
-    }
   }
 
   destroy() {
     this.trackSub?.remove();
     this.stateSub?.remove();
-    this.ejectSub?.remove();
     this.trackSub = null;
     this.stateSub = null;
-    this.ejectSub = null;
     this.trackListeners = [];
     this.stateListeners = [];
-    this.ejectListeners = [];
   }
 }
 
