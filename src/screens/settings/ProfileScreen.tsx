@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Animated, View, Text, ScrollView, StyleSheet, Pressable, Switch } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import Slider from '@react-native-community/slider';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
@@ -15,7 +14,7 @@ import { OnayCharacter } from '../../components/OnayCharacter';
 import { storage } from '../../services/Storage';
 import { signOut } from '../../services/AuthService';
 import { musicKitPlayer } from '../../services/MusicKitPlayer';
-import { setTTSVolume, authorize } from '../../../modules/expo-music-kit';
+import { authorize } from '../../../modules/expo-music-kit';
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -71,33 +70,14 @@ export function ProfileScreen() {
     () => (storage.getString('cleoPersonality') as Personality) ?? 'curator',
   );
   const [appleMusicConnected, setAppleMusicConnected] = useState(false);
-  const [hostVolume, setHostVolume] = useState<number>(
-    () => {
-      const saved = storage.getString('hostVolumeMix');
-      return saved ? parseFloat(saved) : 0.7;
-    },
-  );
 
   useEffect(() => {
     musicKitPlayer.isAuthorized().then(setAppleMusicConnected).catch(() => {});
-    setTTSVolume(hostVolume);
   }, []);
 
   const handlePersonalityChange = (personality: Personality) => {
     setSelectedPersonality(personality);
     storage.set('cleoPersonality', personality);
-  };
-
-  const handleVolumeChange = (value: number) => {
-    setHostVolume(value);
-    setTTSVolume(value);
-    storage.set('hostVolumeMix', value.toString());
-  };
-
-  const volumeToDb = (v: number): string => {
-    if (v <= 0.01) return '-∞ dB';
-    const db = 20 * Math.log10(v);
-    return `${db >= 0 ? '+' : ''}${db.toFixed(0)} dB`;
   };
 
   const handleAppleMusicToggle = async () => {
@@ -267,24 +247,7 @@ export function ProfileScreen() {
             </View>
           </View>
 
-          {/* Host Volume Mix (interactive) */}
-          <View style={styles.sliderRow}>
-            <View style={styles.sliderHeader}>
-              <Text style={styles.sliderLabel}>Host Volume Mix</Text>
-              <Text style={styles.sliderValue}>{volumeToDb(hostVolume)}</Text>
-            </View>
-            <Slider
-              style={styles.volumeSlider}
-              minimumValue={0}
-              maximumValue={1}
-              step={0.05}
-              value={hostVolume}
-              onValueChange={handleVolumeChange}
-              minimumTrackTintColor={Colors.accent}
-              maximumTrackTintColor={Surface.bright}
-              thumbTintColor={Colors.base.white}
-            />
-          </View>
+          {/* Host Volume Mix moved to the player screen (Task 6). */}
         </View>
 
         {/* ── Account ── */}
@@ -517,10 +480,6 @@ const styles = StyleSheet.create({
   sliderFill: {
     height: 4,
     borderRadius: 2,
-  },
-  volumeSlider: {
-    width: '100%',
-    height: 30,
   },
 
   // Account Rows
