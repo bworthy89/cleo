@@ -28,6 +28,17 @@ const LENGTH_TO_N: Record<BroadcastLength, number> = {
   quick: 5, standard: 9, long: 15,
 };
 
+function logResult(
+  result: SequenceResult, req: SequenceRequest, poolSize: number,
+): void {
+  const ids = result.orderedTracks.map(t => t.id);
+  const firstId = ids[0] ?? '';
+  const lastId = ids[ids.length - 1] ?? '';
+  console.log(
+    `[TrackSequencer] source=${result.source} vibe=${req.vibe} N=${ids.length} poolSize=${poolSize} firstId=${firstId} lastId=${lastId}`,
+  );
+}
+
 export interface SequenceRequest {
   pool: ManifestTrack[];
   vibe: Vibe;
@@ -73,7 +84,9 @@ export class TrackSequencer {
         .map(id => byId.get(id))
         .filter((t): t is ManifestTrack => t !== undefined);
       if (ordered.length === N) {
-        return { orderedTracks: ordered, source: 'cache' };
+        const result: SequenceResult = { orderedTracks: ordered, source: 'cache' };
+        logResult(result, req, cappedPool.length);
+        return result;
       }
     }
 
@@ -81,7 +94,9 @@ export class TrackSequencer {
       try {
         const ordered = await this.attemptSequence(cappedPool, req, N);
         this.cache.set(trackIds, req.vibe, req.length, ordered.map(t => t.id));
-        return { orderedTracks: ordered, source: 'llm' };
+        const result: SequenceResult = { orderedTracks: ordered, source: 'llm' };
+        logResult(result, req, cappedPool.length);
+        return result;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         console.warn(`[TrackSequencer] attempt ${attempt + 1} failed: ${msg}`);
@@ -89,7 +104,11 @@ export class TrackSequencer {
     }
 
     console.warn('[TrackSequencer] falling back to deterministic slice');
-    return { orderedTracks: cappedPool.slice(0, N), source: 'fallback' };
+    const result: SequenceResult = {
+      orderedTracks: cappedPool.slice(0, N), source: 'fallback',
+    };
+    logResult(result, req, cappedPool.length);
+    return result;
   }
 
   private async attemptSequence(

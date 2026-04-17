@@ -193,4 +193,55 @@ describe('TrackSequencer.sequence', () => {
     expect(call.userPrompt).toContain('Stevie Wonder');
     expect(call.userPrompt).toContain('soul');
   });
+
+  describe('observability log', () => {
+    afterEach(() => jest.restoreAllMocks());
+
+    it('logs source + vibe + N + first/last ids on LLM success', async () => {
+      const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+      const cache = new SequenceCache();
+      const enrich = await emptyEnrichmentCache();
+      const llm = mockLLM(['{"ordered":["2","4","0","6","8"]}']);
+      const seq = new TrackSequencer(llm, cache, enrich);
+
+      await seq.sequence({ pool, vibe: 'lateNight', length: 'quick', userContext: ctx });
+
+      const line = logSpy.mock.calls.map(c => c.join(' ')).find(s => s.includes('[TrackSequencer]'));
+      expect(line).toBeDefined();
+      expect(line).toContain('source=llm');
+      expect(line).toContain('vibe=lateNight');
+      expect(line).toContain('N=5');
+      expect(line).toContain('poolSize=10');
+      expect(line).toContain('firstId=2');
+      expect(line).toContain('lastId=8');
+    });
+
+    it('logs source=cache on cache hit', async () => {
+      const cache = new SequenceCache();
+      const enrich = await emptyEnrichmentCache();
+      const llm = mockLLM(['{"ordered":["0","1","2","3","4"]}']);
+      const seq = new TrackSequencer(llm, cache, enrich);
+
+      await seq.sequence({ pool, vibe: 'morning', length: 'quick', userContext: ctx });
+      const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+      await seq.sequence({ pool, vibe: 'morning', length: 'quick', userContext: ctx });
+
+      const line = logSpy.mock.calls.map(c => c.join(' ')).find(s => s.includes('[TrackSequencer]'));
+      expect(line).toContain('source=cache');
+    });
+
+    it('logs source=fallback when all LLM attempts fail', async () => {
+      const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+      jest.spyOn(console, 'warn').mockImplementation(() => {});
+      const cache = new SequenceCache();
+      const enrich = await emptyEnrichmentCache();
+      const llm = mockLLM(['not json', 'still not json']);
+      const seq = new TrackSequencer(llm, cache, enrich);
+
+      await seq.sequence({ pool, vibe: 'morning', length: 'quick', userContext: ctx });
+
+      const line = logSpy.mock.calls.map(c => c.join(' ')).find(s => s.includes('[TrackSequencer]'));
+      expect(line).toContain('source=fallback');
+    });
+  });
 });
