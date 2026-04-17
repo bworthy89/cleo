@@ -2,10 +2,33 @@ import { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, ScrollView, Image, Animated, Easing } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors, Surface, TextColors, Typography, Spacing, Radius, getVibeAccent } from '../../../src/tokens/design-tokens';
 import { broadcastPlayer } from '../../../src/engines/BroadcastPlayer.singleton';
 import type { PlayerStatus } from '../../../src/engines/BroadcastPlayer.types';
 import { useAppActive } from '../../../src/hooks/useAppActive';
+
+const TUNING_STAGES = [
+  'Curating your set…',
+  'Writing your cold open…',
+  'Finding ONAY\u2019s voice…',
+  'Almost there.',
+];
+
+function useTuningStage(active: boolean): string {
+  const [idx, setIdx] = useState(0);
+  useEffect(() => {
+    if (!active) { setIdx(0); return; }
+    let i = 0;
+    setIdx(0);
+    const t = setInterval(() => {
+      i = Math.min(i + 1, TUNING_STAGES.length - 1);
+      setIdx(i);
+    }, 1800);
+    return () => clearInterval(t);
+  }, [active]);
+  return TUNING_STAGES[idx];
+}
 
 const monoLabel = {
   fontFamily: Typography.mono.family,
@@ -105,6 +128,8 @@ export default function BroadcastPlayerScreen() {
   const active = useAppActive();
   const [status, setStatus] = useState<PlayerStatus>(broadcastPlayer.getStatus());
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const warmingNow = status.state === 'loading' || (status.state === 'idle' && status.broadcastId === null && status.totalTracks === 0);
+  const tuningStage = useTuningStage(warmingNow);
 
   useEffect(() => {
     if (!active) {
@@ -125,11 +150,13 @@ export default function BroadcastPlayerScreen() {
   const progressPct = Math.round(status.progress * 100);
   const paused = status.state === 'paused';
   const ended = status.state === 'ended' || status.state === 'idle';
-  const warming = status.state === 'loading' || (status.state === 'idle' && status.broadcastId === null && status.totalTracks === 0);
+  const warming = warmingNow;
   const accent = status.vibe ? getVibeAccent(status.vibe) : Colors.accent;
   const track = status.currentTrack;
   const segment = segmentLabel(status);
   const live = status.state === 'playing_track' || status.state === 'playing_segment';
+  const trackNumber = Math.max(status.currentTrackIndex, 0) + 1;
+  const totalTracks = Math.max(status.totalTracks, 1);
 
   return (
     <ScrollView
@@ -140,19 +167,30 @@ export default function BroadcastPlayerScreen() {
         paddingBottom: insets.bottom + Spacing.xxl,
       }}
     >
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.md }}>
-        <PulsingOrb active={live} accent={accent} />
-        <Text style={{ ...monoLabel, color: accent }}>
-          {stateCaption(status).toUpperCase()}
-        </Text>
-        {status.vibe && (
-          <>
-            <Text style={{ ...monoLabel, color: TextColors.outline }}>·</Text>
-            <Text style={{ ...monoLabel, color: TextColors.secondary }}>
-              {status.vibe.toUpperCase()}
-            </Text>
-          </>
-        )}
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.md }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flex: 1 }}>
+          <PulsingOrb active={live} accent={accent} />
+          <Text style={{ ...monoLabel, color: accent }}>
+            {stateCaption(status).toUpperCase()}
+          </Text>
+          {status.vibe && (
+            <>
+              <Text style={{ ...monoLabel, color: TextColors.outline }}>·</Text>
+              <Text style={{ ...monoLabel, color: TextColors.secondary }}>
+                {status.vibe.toUpperCase()}
+              </Text>
+            </>
+          )}
+        </View>
+        <Pressable
+          onPress={handleEnd}
+          accessibilityRole="button"
+          accessibilityLabel="End broadcast"
+          hitSlop={12}
+          style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+        >
+          <Ionicons name="close" size={22} color={TextColors.secondary} />
+        </Pressable>
       </View>
 
       {warming ? (
@@ -186,10 +224,10 @@ export default function BroadcastPlayerScreen() {
       {warming ? (
         <>
           <Text style={{ color: TextColors.primary, fontFamily: Typography.display.family, fontSize: 24, marginBottom: 2 }}>
-            Tuning in…
+            Tuning in
           </Text>
           <Text style={{ color: TextColors.secondary, fontFamily: Typography.cleoVoice.family, fontStyle: 'italic', fontSize: 15 }}>
-            Pulling the cold open together.
+            {tuningStage}
           </Text>
         </>
       ) : segment ? (
@@ -217,11 +255,28 @@ export default function BroadcastPlayerScreen() {
       )}
 
       <View style={{ marginTop: Spacing.lg, marginBottom: Spacing.lg }}>
-        <Text style={{ ...monoLabel, color: TextColors.secondary, marginBottom: Spacing.xs }}>
-          TRACK {Math.max(status.currentTrackIndex, 0) + 1} OF {Math.max(status.totalTracks, 1)}
+        <Text style={{
+          color: TextColors.primary,
+          fontFamily: Typography.mono.family,
+          fontSize: 12,
+          letterSpacing: 2.5,
+          marginBottom: Spacing.sm,
+        }}>
+          TRACK {trackNumber} OF {totalTracks}
         </Text>
-        <View style={{ height: 4, backgroundColor: Surface.high, borderRadius: 2, overflow: 'hidden' }}>
-          <View style={{ height: '100%', width: `${progressPct}%`, backgroundColor: accent }} />
+        <View style={{ flexDirection: 'row', gap: 4 }}>
+          {Array.from({ length: totalTracks }).map((_, i) => (
+            <View
+              key={i}
+              style={{
+                flex: 1,
+                height: 3,
+                borderRadius: 2,
+                backgroundColor: i < trackNumber ? accent : Surface.high,
+                opacity: i < trackNumber - 1 ? 0.5 : 1,
+              }}
+            />
+          ))}
         </View>
         <Text style={{ color: TextColors.outline, fontSize: 11, marginTop: Spacing.xs }}>
           {progressPct}% of the broadcast
@@ -235,12 +290,22 @@ export default function BroadcastPlayerScreen() {
             accessibilityRole="button"
             accessibilityLabel="Pause broadcast"
             disabled={ended}
-            style={{ flex: 1, padding: Spacing.md, backgroundColor: Surface.container, borderRadius: Radius.sm }}
+            style={({ pressed }) => ({
+              flex: 1,
+              padding: Spacing.md,
+              backgroundColor: Surface.container,
+              borderRadius: Radius.sm,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: Spacing.sm,
+              opacity: pressed ? 0.75 : 1,
+            })}
           >
+            <Ionicons name="pause" size={18} color={ended ? TextColors.outline : TextColors.primary} />
             <Text style={{
               color: ended ? TextColors.outline : TextColors.primary,
               fontFamily: Typography.mono.family,
-              textAlign: 'center',
               letterSpacing: 2,
             }}>
               PAUSE
@@ -251,33 +316,28 @@ export default function BroadcastPlayerScreen() {
             onPress={() => { broadcastPlayer.resume().catch(() => {}); }}
             accessibilityRole="button"
             accessibilityLabel="Resume broadcast"
-            style={{ flex: 1, padding: Spacing.md, backgroundColor: accent, borderRadius: Radius.sm }}
+            style={({ pressed }) => ({
+              flex: 1,
+              padding: Spacing.md,
+              backgroundColor: accent,
+              borderRadius: Radius.sm,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: Spacing.sm,
+              opacity: pressed ? 0.85 : 1,
+            })}
           >
+            <Ionicons name="play" size={18} color={Colors.base.black} />
             <Text style={{
               color: Colors.base.black,
               fontFamily: Typography.mono.family,
-              textAlign: 'center',
               letterSpacing: 2,
             }}>
               RESUME
             </Text>
           </Pressable>
         )}
-        <Pressable
-          onPress={handleEnd}
-          accessibilityRole="button"
-          accessibilityLabel="End broadcast"
-          style={{ flex: 1, padding: Spacing.md, backgroundColor: Surface.container, borderRadius: Radius.sm }}
-        >
-          <Text style={{
-            color: Colors.error,
-            fontFamily: Typography.mono.family,
-            textAlign: 'center',
-            letterSpacing: 2,
-          }}>
-            END
-          </Text>
-        </Pressable>
       </View>
     </ScrollView>
   );
