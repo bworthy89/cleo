@@ -39,7 +39,7 @@ describe('getUser / setUser', () => {
   });
 
   it('roundtrips a user object', () => {
-    const user = makeUser({ name: 'Kari', defaultVibe: 'morning' });
+    const user = makeUser({ name: 'Kari' });
     setUser(user);
     expect(getUser()).toEqual(user);
   });
