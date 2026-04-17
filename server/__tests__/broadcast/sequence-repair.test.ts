@@ -49,6 +49,17 @@ describe('repairSequence', () => {
     expect(result.repairCount).toBeGreaterThan(0);
   });
 
+  it('resolves adjacency by swapping with the immediate neighbor (3-track boundary)', () => {
+    // Regression: the only valid swap partner is at idx+1, not further down.
+    const pool = [track('a', 'X'), track('b', 'X'), track('c', 'Y')];
+    const ordered = [pool[0], pool[1], pool[2]];
+    const result = repairSequence({ ordered, pool });
+    const artists = result.ordered.map(t => t.artistName);
+    expect(artists[0]).not.toBe(artists[1]);
+    expect(artists[1]).not.toBe(artists[2]);
+    expect(result.repairCount).toBeGreaterThan(0);
+  });
+
   it('swaps to resolve same-album adjacency', () => {
     const pool = [
       track('a', 'X', 'Album1'), track('b', 'Y', 'Album1'),
