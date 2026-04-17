@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import {
   Colors, Surface, TextColors, Spacing, Typography, Radius, Gradient, Glow,
 } from '../../tokens/design-tokens';
@@ -24,7 +25,10 @@ export function YourBroadcastSetup({
   return (
     <>
       <Pressable
-        onPress={() => setOpen(true)}
+        onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+          setOpen(true);
+        }}
         accessibilityRole="button"
         accessibilityLabel="Start your broadcast"
         style={({ pressed }) => ({
@@ -107,9 +111,13 @@ export function YourBroadcastSetup({
  */
 interface AskOnayButtonProps { onPress: () => void }
 export function AskOnayButton({ onPress }: AskOnayButtonProps) {
+  const handlePress = () => {
+    Haptics.selectionAsync().catch(() => {});
+    onPress();
+  };
   return (
     <Pressable
-      onPress={onPress}
+      onPress={handlePress}
       accessibilityRole="button"
       accessibilityLabel="Ask ONAY to curate a playlist"
       style={({ pressed }) => ({

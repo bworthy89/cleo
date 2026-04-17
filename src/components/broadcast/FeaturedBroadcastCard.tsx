@@ -1,5 +1,6 @@
 import { View, Text, Pressable, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { Colors, Surface, TextColors, Spacing, Typography, Radius } from '../../tokens/design-tokens';
 import type { FeaturedBroadcast } from '../../engines/BroadcastCurationClient';
 
@@ -20,9 +21,13 @@ function freshness(createdAt: number): string {
 }
 
 export function FeaturedBroadcastCard({ broadcast, onPress }: Props) {
+  const handlePress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    onPress();
+  };
   return (
     <Pressable
-      onPress={onPress}
+      onPress={handlePress}
       accessibilityRole="button"
       accessibilityLabel={`Play ${broadcast.title}`}
       style={({ pressed }) => ({
