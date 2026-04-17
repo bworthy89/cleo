@@ -1,5 +1,5 @@
 import { createMMKV, type MMKV } from 'react-native-mmkv';
-import type { Vibe } from '../cleo/fallbacks';
+import type { Vibe } from '../engines/BroadcastPlayer.types';
 import type { MusicPlaylist } from '../../modules/expo-music-kit';
 import type { Manifest } from '../engines/BroadcastPlayer.types';
 
