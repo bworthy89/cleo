@@ -69,7 +69,8 @@ export class DefaultEnrichmentFetcher implements EnrichmentFetcher {
         out.producer = song.producer_artists.map(p => p.name).join(', ');
       }
       if (song.release_date_for_display) {
-        out.releaseYear = song.release_date_for_display;
+        const yearMatch = song.release_date_for_display.match(/\b(\d{4})\b/);
+        if (yearMatch) out.releaseYear = yearMatch[1];
       }
       const samples = song.song_relationships?.find(r => r.relationship_type === 'samples');
       const sampled = samples?.songs?.[0];
