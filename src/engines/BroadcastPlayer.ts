@@ -42,6 +42,10 @@ export class BroadcastPlayer {
   private currentSegmentIndex = -1;
   private subscriptions: Array<() => void> = [];
   private trackEndedResolve: (() => void) | null = null;
+  /** Reset at each runTrackAt; gates end-of-track detection so brief
+   *  pre-playback 'paused'/'stopped' events during audio session handoff
+   *  don't trigger a false track-end. */
+  private sawPlayingForCurrentTrack = false;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private readonly POLL_INTERVAL_MS = 3000;
   private isPaused = false;
@@ -276,6 +280,9 @@ export class BroadcastPlayer {
   }
 
   private waitForTrackEnd(): Promise<void> {
+    // Reset per-track signals so positional detection in handlePlaybackState
+    // starts from a clean slate when this track begins.
+    this.sawPlayingForCurrentTrack = false;
     return new Promise(resolve => {
       let resolved = false;
       const done = (reason: string) => {
@@ -286,29 +293,43 @@ export class BroadcastPlayer {
       };
       this.trackEndedResolve = () => done('event');
 
-      // Poll loop: also watch MusicKit's reported status directly because
-      // the 0.5s native-timer event can be dropped while Metro reconnects
-      // or when the app is backgrounded. Polling once per second via
-      // getPlaybackStatus is cheap and gives us a reliable fallback signal.
+      // Poll loop: checks both status and playback position every second.
+      // Events via onPlaybackStateChanged can drop during Metro reconnects
+      // or when backgrounded, and MusicKit's single-track queue doesn't
+      // reliably transition to .stopped at end-of-track — so the positional
+      // check (playbackTime reaching duration) is the primary end signal.
       const track = this.manifest?.tracks[this.currentTrackIndex];
-      const maxSec = (track?.duration ?? 180) + 30;
+      const duration = track?.duration ?? 180;
+      const maxSec = duration + 30;
       let elapsed = 0;
-      let sawPlaying = false;
       const tick = async () => {
         if (resolved) return;
         elapsed += 1;
-        if (this.music.getPlaybackStatus) {
-          try {
-            const status = await this.music.getPlaybackStatus();
-            if (status === 'playing') sawPlaying = true;
-            // Only treat "stopped" as end-of-track after we've confirmed
-            // the track actually started. "paused" is explicitly excluded:
-            // a user pause must not advance to the next segment.
-            if (sawPlaying && status === 'stopped') {
-              return done(`poll(status=${status})`);
-            }
-          } catch { /* swallow, keep polling */ }
-        }
+        try {
+          const status = this.music.getPlaybackStatus
+            ? await this.music.getPlaybackStatus()
+            : null;
+          const time = this.music.getPlaybackTime
+            ? await this.music.getPlaybackTime()
+            : null;
+          if (status === 'playing') this.sawPlayingForCurrentTrack = true;
+
+          // End detection, in order of preference:
+          //  1. Positional: playbackTime reaches (duration - 0.5s) after we've
+          //     seen the track start — catches the common case where MusicKit
+          //     keeps reporting 'playing' or flips to 'paused' at track end
+          //     rather than the cleaner 'stopped'.
+          //  2. Status-based: saw 'stopped' after saw 'playing'.
+          // 'paused' is explicitly NOT end-of-track — a user pause must not
+          // advance to the next segment.
+          if (this.sawPlayingForCurrentTrack && time !== null && time >= duration - 0.5) {
+            return done(`poll(position ${time.toFixed(1)}/${duration})`);
+          }
+          if (this.sawPlayingForCurrentTrack && status === 'stopped') {
+            return done(`poll(status=${status})`);
+          }
+        } catch { /* swallow, keep polling */ }
+
         if (elapsed >= maxSec) {
           console.warn(`[BroadcastPlayer] waitForTrackEnd timeout after ${maxSec}s — advancing`);
           return done('timeout');
@@ -322,7 +343,23 @@ export class BroadcastPlayer {
   private handlePlaybackState = (e: { status: string; playbackTime: number }) => {
     try {
       console.log(`[BroadcastPlayer] playbackState: status=${e.status} time=${e.playbackTime} playerState=${this.state}`);
-      if (e.status === 'stopped' && this.state === 'playing_track') {
+      if (this.state !== 'playing_track') return;
+      if (e.status === 'playing') this.sawPlayingForCurrentTrack = true;
+
+      const track = this.manifest?.tracks[this.currentTrackIndex];
+      const duration = track?.duration ?? 0;
+      // Positional end detection via the event stream: MusicKit emits
+      // playbackTime every 0.5s. When we cross (duration - 0.5), the track
+      // is done even if the .stopped status never fires.
+      if (
+        this.sawPlayingForCurrentTrack &&
+        duration > 0 &&
+        e.playbackTime >= duration - 0.5
+      ) {
+        this.trackEndedResolve?.();
+        return;
+      }
+      if (this.sawPlayingForCurrentTrack && e.status === 'stopped') {
         this.trackEndedResolve?.();
       }
     } catch {
