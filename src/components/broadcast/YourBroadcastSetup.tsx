@@ -6,10 +6,15 @@ import { SetupSheet, type SetupResult } from './SetupSheet';
 
 interface Props {
   playlists: MusicPlaylist[];
+  playlistsLoading?: boolean;
+  playlistsError?: string | null;
+  onRetryPlaylists?: () => void;
   onSubmit: (result: SetupResult) => void;
 }
 
-export function YourBroadcastSetup({ playlists, onSubmit }: Props) {
+export function YourBroadcastSetup({
+  playlists, playlistsLoading, playlistsError, onRetryPlaylists, onSubmit,
+}: Props) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -45,6 +50,9 @@ export function YourBroadcastSetup({ playlists, onSubmit }: Props) {
       <SetupSheet
         visible={open}
         playlists={playlists}
+        playlistsLoading={playlistsLoading}
+        playlistsError={playlistsError}
+        onRetryPlaylists={onRetryPlaylists}
         onClose={() => setOpen(false)}
         onSubmit={(r) => { setOpen(false); onSubmit(r); }}
       />

@@ -27,23 +27,38 @@ export default function HomeBroadcastScreen() {
   const router = useRouter();
   const [featured, setFeatured] = useState<FeaturedBroadcast[]>([]);
   const [playlists, setPlaylists] = useState<MusicPlaylist[]>([]);
+  const [playlistsLoading, setPlaylistsLoading] = useState(false);
+  const [playlistsError, setPlaylistsError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [tuning, setTuning] = useState(false);
+
+  const loadPlaylists = useCallback(async () => {
+    setPlaylistsLoading(true);
+    setPlaylistsError(null);
+    try {
+      const pls = await musicKitPlayer.fetchPlaylists();
+      setPlaylists(pls);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Couldn\u2019t reach Apple Music.';
+      console.warn('[HomeBroadcast] fetchPlaylists failed:', err);
+      setPlaylistsError(msg);
+      setPlaylists([]);
+    } finally {
+      setPlaylistsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        const [feats, pls] = await Promise.all([
-          new BroadcastCurationClient().listFeatured(),
-          musicKitPlayer.fetchPlaylists().catch(() => [] as MusicPlaylist[]),
-        ]);
+        const feats = await new BroadcastCurationClient().listFeatured();
         if (!mounted) return;
         setFeatured(feats);
-        setPlaylists(pls);
       } finally {
         if (mounted) setLoading(false);
       }
+      await loadPlaylists();
 
       // Resume-after-terminate: if a broadcast was persisted within the last
       // 2 hours, offer to resume it.
@@ -70,22 +85,19 @@ export default function HomeBroadcastScreen() {
       );
     })();
     return () => { mounted = false; };
-  }, [router]);
+  }, [router, loadPlaylists]);
 
-  const playFeatured = useCallback(async (fb: FeaturedBroadcast) => {
-    setTuning(true);
-    try {
-      const firstSlot = fb.manifest.segmentSlots[0];
-      const firstUrls = firstSlot?.audioUrls ?? [];
-      router.push('/(main)/(broadcast)/player');
-      // fire-and-forget — player runs for the lifetime of the session
-      broadcastPlayer.start(fb.manifest, firstUrls).catch((err: unknown) => {
-        const msg = err instanceof Error ? err.message : 'Playback failed';
-        Alert.alert('Broadcast error', msg);
-      });
-    } finally {
-      setTuning(false);
-    }
+  const playFeatured = useCallback((fb: FeaturedBroadcast) => {
+    const firstSlot = fb.manifest.segmentSlots[0];
+    const firstUrls = firstSlot?.audioUrls ?? [];
+    // Navigate first — the player screen shows its own "Tuning in" UI while
+    // the first segment is fetched. Don't set the home-screen overlay here;
+    // there's nothing to await on this path.
+    router.push('/(main)/(broadcast)/player');
+    broadcastPlayer.start(fb.manifest, firstUrls).catch((err: unknown) => {
+      const msg = err instanceof Error ? err.message : 'Playback failed';
+      Alert.alert('Broadcast error', msg);
+    });
   }, [router]);
 
   const playUserSourced = useCallback(async (result: SetupResult) => {
@@ -164,7 +176,13 @@ export default function HomeBroadcastScreen() {
         <Text style={{ ...monoLabel, marginBottom: Spacing.xs }}>YOUR BROADCAST</Text>
         <View style={{ height: 2, width: 40, backgroundColor: Colors.accent, marginBottom: Spacing.md }} />
 
-        <YourBroadcastSetup playlists={playlists} onSubmit={playUserSourced} />
+        <YourBroadcastSetup
+          playlists={playlists}
+          playlistsLoading={playlistsLoading}
+          playlistsError={playlistsError}
+          onRetryPlaylists={loadPlaylists}
+          onSubmit={playUserSourced}
+        />
 
         <Pressable
           onPress={() => router.push('/(main)/(broadcast)/ask-onay')}

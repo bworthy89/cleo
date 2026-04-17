@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, Pressable, ScrollView, Modal, Image } from 'react-native';
+import { View, Text, Pressable, ScrollView, Modal, Image, ActivityIndicator } from 'react-native';
 import { Colors, Surface, TextColors, Spacing, Typography, Radius } from '../../tokens/design-tokens';
 import type { MusicPlaylist } from '../../../modules/expo-music-kit';
 import type { Manifest } from '../../engines/BroadcastPlayer.types';
@@ -37,6 +37,9 @@ export interface SetupResult {
 interface Props {
   visible: boolean;
   playlists: MusicPlaylist[];
+  playlistsLoading?: boolean;
+  playlistsError?: string | null;
+  onRetryPlaylists?: () => void;
   onClose: () => void;
   onSubmit: (result: SetupResult) => void;
 }
@@ -48,7 +51,10 @@ const monoLabel = {
   letterSpacing: 2,
 };
 
-export function SetupSheet({ visible, playlists, onClose, onSubmit }: Props) {
+export function SetupSheet({
+  visible, playlists, playlistsLoading, playlistsError, onRetryPlaylists,
+  onClose, onSubmit,
+}: Props) {
   const [step, setStep] = useState<0 | 1 | 2>(0);
   const [playlistId, setPlaylistId] = useState<string | null>(null);
   const [vibe, setVibe] = useState<Vibe | null>(null);
@@ -94,9 +100,39 @@ export function SetupSheet({ visible, playlists, onClose, onSubmit }: Props) {
               Pick a source
             </Text>
             <ScrollView>
-              {playlists.length === 0 && (
-                <Text style={{ color: TextColors.secondary }}>No playlists available.</Text>
-              )}
+              {playlistsLoading ? (
+                <View style={{ padding: Spacing.lg, alignItems: 'center' }}>
+                  <ActivityIndicator color={Colors.accent} />
+                  <Text style={{ color: TextColors.secondary, marginTop: Spacing.sm }}>
+                    Loading your Apple Music playlists\u2026
+                  </Text>
+                </View>
+              ) : playlistsError ? (
+                <View style={{ padding: Spacing.md, backgroundColor: Surface.container, borderRadius: Radius.sm, borderLeftWidth: 2, borderLeftColor: Colors.error }}>
+                  <Text style={{ color: TextColors.primary, marginBottom: Spacing.sm }}>
+                    Couldn\u2019t load your playlists.
+                  </Text>
+                  <Text style={{ color: TextColors.secondary, fontSize: 12, marginBottom: Spacing.sm }}>
+                    {playlistsError}
+                  </Text>
+                  {onRetryPlaylists && (
+                    <Pressable
+                      onPress={onRetryPlaylists}
+                      accessibilityRole="button"
+                      accessibilityLabel="Retry loading playlists"
+                      style={{ alignSelf: 'flex-start', paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, backgroundColor: Surface.high, borderRadius: Radius.sm }}
+                    >
+                      <Text style={{ color: Colors.accent, fontFamily: Typography.mono.family, fontSize: 11, letterSpacing: 2 }}>
+                        RETRY
+                      </Text>
+                    </Pressable>
+                  )}
+                </View>
+              ) : playlists.length === 0 ? (
+                <Text style={{ color: TextColors.secondary }}>
+                  No playlists in your Apple Music library. Create one in the Music app and come back.
+                </Text>
+              ) : null}
               {playlists.map(p => (
                 <Pressable
                   key={p.id}
