@@ -19,7 +19,7 @@ import {
   Radius,
   withAlpha,
 } from '../tokens/design-tokens';
-import type { Vibe } from '../cleo/fallbacks';
+import type { Vibe } from '../engines/BroadcastPlayer.types';
 
 const VIBES: { key: Vibe; label: string }[] = [
   { key: 'morning', label: 'Morning' },

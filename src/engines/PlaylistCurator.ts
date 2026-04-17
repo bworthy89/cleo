@@ -1,7 +1,7 @@
 import { authenticatedFetch } from '../services/api';
 import { searchCatalog, CatalogSearchResult } from '../../modules/expo-music-kit';
 import { TrackProfile } from '../services/TrackEnrichmentService';
-import type { Vibe } from '../cleo/fallbacks';
+import type { Vibe } from '../engines/BroadcastPlayer.types';
 
 export interface CurationRequest {
   prompt: string;
