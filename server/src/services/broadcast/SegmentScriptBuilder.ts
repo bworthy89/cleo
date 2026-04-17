@@ -63,8 +63,16 @@ export function buildSegmentPrompts(
     const first = findTrack(manifest, slot.beforeTrackId)!;
     const variants: string[] = [];
 
+    const timeLine =
+      ctx.dayOfWeek && ctx.timeOfDay
+        ? `It's ${ctx.dayOfWeek}, ${ctx.timeOfDay}.`
+        : ctx.timeOfDay
+          ? `It's ${ctx.timeOfDay}.`
+          : ctx.dayOfWeek
+            ? `It's ${ctx.dayOfWeek}.`
+            : '';
     const base = [
-      `It's ${ctx.dayOfWeek}, ${ctx.timeOfDay}.`,
+      timeLine,
       ctx.listenerName ? `Your listener's name is ${ctx.listenerName}.` : '',
       ctx.firstTimeUser
         ? 'This is their very first broadcast — welcome them without being saccharine.'

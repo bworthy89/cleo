@@ -2,3 +2,4 @@ node_modules/
 dist/
 .env
 .broadcast-cache/
+featured-broadcasts/registry.json

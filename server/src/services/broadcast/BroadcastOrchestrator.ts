@@ -59,6 +59,11 @@ export class BroadcastOrchestrator {
     return this.inFlight.has(broadcastId);
   }
 
+  /** Read the current manifest state (slots include their latest status + urls). */
+  getManifest(broadcastId: string): Manifest | undefined {
+    return this.store.get(broadcastId);
+  }
+
   private async generateSlot(
     manifest: Manifest,
     slotIndex: number,
