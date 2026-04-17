@@ -68,6 +68,7 @@ export function buildSegmentPrompts(
   slot: SegmentSlot,
   manifest: Manifest,
   ctx: SegmentContext,
+  enrichmentCache?: { get(title: string, artist: string): { producer?: string; sample?: string } | null },
 ): PromptSet[] {
   const vibe = manifest.vibe;
   const sys = systemPrompt(vibe);
@@ -88,17 +89,17 @@ export function buildSegmentPrompts(
       timeLine,
       ctx.listenerName ? `Your listener's name is ${ctx.listenerName}.` : '',
       ctx.firstTimeUser
-        ? 'This is their very first broadcast — welcome them without being saccharine.'
+        ? 'This is their very first broadcast \u2014 welcome them without being saccharine.'
         : ctx.lastSessionSummary
-          ? `They're coming back — last time: ${ctx.lastSessionSummary}.`
+          ? `They're coming back \u2014 last time: ${ctx.lastSessionSummary}.`
           : 'They are a returning listener.',
       `Opening the broadcast with ${trackRef(first)}.`,
     ].filter(Boolean).join(' ');
 
     const angles = [
-      'Lead with the time — paint the vibe, then name the track.',
-      'Lead with a question or observation about the mood — then slide into the first track.',
-      'Lead with a story fragment or a line you just couldn\'t shake today — then hand to the track.',
+      'Lead with the time \u2014 paint the vibe, then name the track.',
+      'Lead with a question or observation about the mood \u2014 then slide into the first track.',
+      'Lead with a story fragment or a line you just couldn\'t shake today \u2014 then hand to the track.',
     ];
 
     for (const angle of angles.slice(0, slot.variantCount)) {
@@ -115,10 +116,26 @@ export function buildSegmentPrompts(
   if (slot.kind === 'transition') {
     const outgoing = findTrack(manifest, slot.afterTrackId)!;
     const incoming = findTrack(manifest, slot.beforeTrackId)!;
+
+    const enrichmentLines: string[] = [];
+    if (enrichmentCache) {
+      const incomingEnr = enrichmentCache.get(incoming.title, incoming.artistName);
+      if (incomingEnr?.producer) {
+        enrichmentLines.push(`Produced by ${sanitizeForPrompt(incomingEnr.producer, 80)}.`);
+      }
+      if (incomingEnr?.sample) {
+        enrichmentLines.push(sanitizeForPrompt(incomingEnr.sample, 160) + '.');
+      }
+    }
+    const enrichmentBlock = enrichmentLines.length
+      ? `\n\nFlavor you may use (don't have to): ${enrichmentLines.join(' ')}`
+      : '';
+
     const userPrompt =
       `Transitioning out of ${trackRef(outgoing)} into ${trackRef(incoming)}. ` +
-      `Write ONAY's bridge. 25-40 words. A connection — a musical reference, a mood link, a memory, a counterpoint. ` +
-      `End by naming the incoming track so the music can come in.`;
+      `Write ONAY's bridge. 25-40 words. A connection \u2014 a musical reference, a mood link, a memory, a counterpoint. ` +
+      `End by naming the incoming track so the music can come in.` +
+      enrichmentBlock;
     return [{ systemPrompt: sys, userPrompt, maxTokens: 384 }];
   }
 

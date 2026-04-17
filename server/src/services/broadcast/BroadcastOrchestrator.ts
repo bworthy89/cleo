@@ -95,7 +95,7 @@ export class BroadcastOrchestrator {
   ): Promise<string[]> {
     const slot = manifest.segmentSlots[slotIndex];
     try {
-      const prompts = buildSegmentPrompts(slot, manifest, ctx);
+      const prompts = buildSegmentPrompts(slot, manifest, ctx, this.enrichmentCache);
       const urls = await this.generator.generateVariants({
         broadcastId: manifest.broadcastId,
         slotIndex,
