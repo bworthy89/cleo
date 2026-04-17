@@ -1,7 +1,5 @@
 import { authenticatedFetch } from '../services/api';
 import { searchCatalog, CatalogSearchResult } from '../../modules/expo-music-kit';
-import { planQueue } from './QueuePlanner';
-import { enforceRules } from './RulesEngine';
 import { TrackProfile } from '../services/TrackEnrichmentService';
 import type { Vibe } from '../cleo/fallbacks';
 
@@ -172,28 +170,19 @@ export async function curatePlaylist(
     }
   }
 
-  // Step 4: Build TrackProfiles
-  const trackProfiles = Array.from(finalMatched.values()).map(catalogResultToTrackProfile);
+  // Step 4: Build TrackProfiles in the LLM-provided order
+  const orderedIndexes = Array.from(finalMatched.keys()).sort((a, b) => a - b);
+  const trackProfiles = orderedIndexes
+    .map(idx => finalMatched.get(idx)!)
+    .map(catalogResultToTrackProfile);
 
   if (trackProfiles.length < 5) {
     throw new Error('Too few tracks matched. Try a different prompt.');
   }
 
-  // Step 5: Sequence via QueuePlanner
-  const plan = await planQueue(trackProfiles, llmResponse.suggestedVibe);
-
-  // Step 6: Enforce rules
-  const enforcedPlan = enforceRules(plan, trackProfiles);
-
-  // Step 7: Build ordered result
-  const orderedTracks = enforcedPlan.queue.map(entry => {
-    const profile = trackProfiles.find(t => t.id === entry.trackId);
-    return profile!;
-  }).filter(Boolean);
-
   return {
-    tracks: orderedTracks,
-    trackIds: orderedTracks.map(t => t.id),
+    tracks: trackProfiles,
+    trackIds: trackProfiles.map(t => t.id),
     suggestedVibe: llmResponse.suggestedVibe,
     playlistTitle: llmResponse.playlistTitle,
     playlistDescription: llmResponse.playlistDescription,
@@ -215,27 +204,20 @@ export async function refinePlaylist(
     userFeedback: request.userFeedback,
   });
 
-  // Step 2: Search catalog for any new tracks
+  // Step 2: Search catalog for any new tracks, preserving LLM order
   const { matched } = await searchBatch(llmResponse.tracks);
-
-  // Step 3: Build TrackProfiles
-  const trackProfiles = Array.from(matched.values()).map(catalogResultToTrackProfile);
+  const orderedIndexes = Array.from(matched.keys()).sort((a, b) => a - b);
+  const trackProfiles = orderedIndexes
+    .map(idx => matched.get(idx)!)
+    .map(catalogResultToTrackProfile);
 
   if (trackProfiles.length < 5) {
     throw new Error('Too few tracks matched after refinement.');
   }
 
-  // Step 4: Re-sequence
-  const plan = await planQueue(trackProfiles, currentVibe);
-  const enforcedPlan = enforceRules(plan, trackProfiles);
-
-  const orderedTracks = enforcedPlan.queue
-    .map(entry => trackProfiles.find(t => t.id === entry.trackId))
-    .filter((t): t is TrackProfile => t !== undefined);
-
   return {
-    tracks: orderedTracks,
-    trackIds: orderedTracks.map(t => t.id),
+    tracks: trackProfiles,
+    trackIds: trackProfiles.map(t => t.id),
     suggestedVibe: llmResponse.suggestedVibe || currentVibe,
     playlistTitle: llmResponse.playlistTitle,
     playlistDescription: llmResponse.playlistDescription,
