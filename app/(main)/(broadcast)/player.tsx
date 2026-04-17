@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, ScrollView, Image, Animated, Easing } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Colors, Surface, TextColors, Typography, Spacing, Radius, getVibeAccent } from '../../../src/tokens/design-tokens';
 import { broadcastPlayer } from '../../../src/engines/BroadcastPlayer.singleton';
@@ -100,6 +101,7 @@ function TuningInCanvas({ accent }: { accent: string }) {
 
 export default function BroadcastPlayerScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const active = useAppActive();
   const [status, setStatus] = useState<PlayerStatus>(broadcastPlayer.getStatus());
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -132,7 +134,11 @@ export default function BroadcastPlayerScreen() {
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: Colors.base.black }}
-      contentContainerStyle={{ padding: Spacing.lg, paddingBottom: Spacing.xxl }}
+      contentContainerStyle={{
+        paddingHorizontal: Spacing.lg,
+        paddingTop: insets.top + Spacing.lg,
+        paddingBottom: insets.bottom + Spacing.xxl,
+      }}
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.md }}>
         <PulsingOrb active={live} accent={accent} />
@@ -141,7 +147,7 @@ export default function BroadcastPlayerScreen() {
         </Text>
         {status.vibe && (
           <>
-            <Text style={{ ...monoLabel, color: TextColors.outline }}>\u00B7</Text>
+            <Text style={{ ...monoLabel, color: TextColors.outline }}>·</Text>
             <Text style={{ ...monoLabel, color: TextColors.secondary }}>
               {status.vibe.toUpperCase()}
             </Text>
@@ -180,7 +186,7 @@ export default function BroadcastPlayerScreen() {
       {warming ? (
         <>
           <Text style={{ color: TextColors.primary, fontFamily: Typography.display.family, fontSize: 24, marginBottom: 2 }}>
-            Tuning in\u2026
+            Tuning in…
           </Text>
           <Text style={{ color: TextColors.secondary, fontFamily: Typography.cleoVoice.family, fontStyle: 'italic', fontSize: 15 }}>
             Pulling the cold open together.
@@ -192,7 +198,7 @@ export default function BroadcastPlayerScreen() {
             {segment}
           </Text>
           <Text style={{ color: TextColors.secondary, fontFamily: Typography.cleoVoice.family, fontStyle: 'italic', fontSize: 15 }}>
-            Between the tracks\u2026
+            Between the tracks…
           </Text>
         </>
       ) : track ? (
