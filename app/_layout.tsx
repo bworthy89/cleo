@@ -12,6 +12,12 @@ SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
+    // Analog Midnight — primary families
+    Fraunces_300Light_Italic: require('@expo-google-fonts/fraunces/300Light_Italic/Fraunces_300Light_Italic.ttf'),
+    Fraunces_400Regular_Italic: require('@expo-google-fonts/fraunces/400Regular_Italic/Fraunces_400Regular_Italic.ttf'),
+    JetBrainsMono_400Regular: require('@expo-google-fonts/jetbrains-mono/400Regular/JetBrainsMono_400Regular.ttf'),
+    JetBrainsMono_500Medium: require('@expo-google-fonts/jetbrains-mono/500Medium/JetBrainsMono_500Medium.ttf'),
+    // Legacy families — retained during migration, removed in Task 11
     PlayfairDisplay_400Regular: require('@expo-google-fonts/playfair-display/400Regular/PlayfairDisplay_400Regular.ttf'),
     Inter_400Regular: require('@expo-google-fonts/inter/400Regular/Inter_400Regular.ttf'),
     Inter_500Medium: require('@expo-google-fonts/inter/500Medium/Inter_500Medium.ttf'),
