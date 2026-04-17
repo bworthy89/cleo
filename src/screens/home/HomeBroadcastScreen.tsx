@@ -1,7 +1,7 @@
-import { useEffect, useState, useCallback } from 'react';
-import { View, Text, ScrollView, ActivityIndicator, Alert, Pressable } from 'react-native';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { View, Text, ScrollView, ActivityIndicator, Alert, Animated, Easing } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Colors, Surface, TextColors, Spacing, Typography, Radius } from '../../tokens/design-tokens';
+import { Colors, Surface, TextColors, Spacing, Typography } from '../../tokens/design-tokens';
 import { musicKitPlayer } from '../../services/MusicKitPlayer';
 import type { MusicPlaylist } from '../../../modules/expo-music-kit';
 import {
@@ -12,9 +12,10 @@ import { BroadcastManifestClient } from '../../engines/BroadcastManifestClient';
 import { broadcastPlayer } from '../../engines/BroadcastPlayer.singleton';
 import { BroadcastResumer } from '../../engines/BroadcastResumer';
 import { FeaturedBroadcastCard } from '../../components/broadcast/FeaturedBroadcastCard';
-import { YourBroadcastSetup } from '../../components/broadcast/YourBroadcastSetup';
+import { YourBroadcastSetup, AskOnayButton } from '../../components/broadcast/YourBroadcastSetup';
 import { TuningInOverlay } from '../../components/broadcast/TuningInOverlay';
 import type { SetupResult } from '../../components/broadcast/SetupSheet';
+import { useAppActive } from '../../hooks/useAppActive';
 
 const monoLabel = {
   color: Colors.accent,
@@ -22,6 +23,53 @@ const monoLabel = {
   fontSize: 10,
   letterSpacing: 3,
 };
+
+/** Small pulsing dot that anchors the "live" editorial label. */
+function LiveDot() {
+  const active = useAppActive();
+  const scale = useRef(new Animated.Value(0.7)).current;
+  const opacity = useRef(new Animated.Value(0.5)).current;
+  useEffect(() => {
+    if (!active) return;
+    const loop = Animated.loop(
+      Animated.parallel([
+        Animated.sequence([
+          Animated.timing(scale, { toValue: 1.4, duration: 1100, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+          Animated.timing(scale, { toValue: 0.7, duration: 1100, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        ]),
+        Animated.sequence([
+          Animated.timing(opacity, { toValue: 1, duration: 1100, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+          Animated.timing(opacity, { toValue: 0.5, duration: 1100, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        ]),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [active, scale, opacity]);
+  return (
+    <Animated.View
+      style={{
+        width: 8, height: 8, borderRadius: 4,
+        backgroundColor: Colors.accent,
+        marginRight: Spacing.xs,
+        transform: [{ scale }],
+        opacity,
+      }}
+    />
+  );
+}
+
+function SectionLabel({ text, live }: { text: string; live?: boolean }) {
+  return (
+    <>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.xs }}>
+        {live && <LiveDot />}
+        <Text style={monoLabel}>{text}</Text>
+      </View>
+      <View style={{ height: 2, width: 40, backgroundColor: Colors.accent, marginBottom: Spacing.md }} />
+    </>
+  );
+}
 
 export default function HomeBroadcastScreen() {
   const router = useRouter();
@@ -150,19 +198,29 @@ export default function HomeBroadcastScreen() {
         style={{ flex: 1, backgroundColor: Colors.base.black }}
         contentContainerStyle={{ padding: Spacing.lg, paddingBottom: Spacing.xxl }}
       >
-        <Text style={{ ...monoLabel, marginBottom: Spacing.xs }}>TONIGHT ON ONAY</Text>
-        <View style={{ height: 2, width: 40, backgroundColor: Colors.accent, marginBottom: Spacing.md }} />
+        <SectionLabel text="YOUR BROADCAST" />
+        <YourBroadcastSetup
+          playlists={playlists}
+          playlistsLoading={playlistsLoading}
+          playlistsError={playlistsError}
+          onRetryPlaylists={loadPlaylists}
+          onOpenAskOnay={() => router.push('/(main)/(broadcast)/ask-onay')}
+          onSubmit={playUserSourced}
+        />
+        <AskOnayButton onPress={() => router.push('/(main)/(broadcast)/ask-onay')} />
+
+        <View style={{ height: Spacing.xl }} />
+
+        <SectionLabel text="TONIGHT ON ONAY" live />
 
         {featured.length === 0 ? (
           <View style={{
-            backgroundColor: Surface.container,
-            borderLeftWidth: 2,
-            borderLeftColor: Colors.accent,
-            padding: Spacing.md,
-            marginBottom: Spacing.xl,
+            paddingVertical: Spacing.xl,
+            paddingHorizontal: Spacing.md,
+            alignItems: 'center',
           }}>
-            <Text style={{ color: TextColors.secondary }}>
-              New broadcasts coming soon.
+            <Text style={{ color: TextColors.secondary, textAlign: 'center' }}>
+              Fresh broadcasts baking. Check back soon.
             </Text>
           </View>
         ) : (
@@ -170,46 +228,6 @@ export default function HomeBroadcastScreen() {
             <FeaturedBroadcastCard key={fb.id} broadcast={fb} onPress={() => playFeatured(fb)} />
           ))
         )}
-
-        <View style={{ height: Spacing.xl }} />
-
-        <Text style={{ ...monoLabel, marginBottom: Spacing.xs }}>YOUR BROADCAST</Text>
-        <View style={{ height: 2, width: 40, backgroundColor: Colors.accent, marginBottom: Spacing.md }} />
-
-        <YourBroadcastSetup
-          playlists={playlists}
-          playlistsLoading={playlistsLoading}
-          playlistsError={playlistsError}
-          onRetryPlaylists={loadPlaylists}
-          onSubmit={playUserSourced}
-        />
-
-        <Pressable
-          onPress={() => router.push('/(main)/(broadcast)/ask-onay')}
-          accessibilityRole="button"
-          accessibilityLabel="Ask ONAY to curate a playlist"
-          style={{
-            marginTop: Spacing.md,
-            padding: Spacing.md,
-            backgroundColor: Surface.container,
-            borderRadius: Radius.sm,
-            borderLeftWidth: 2,
-            borderLeftColor: Colors.accent,
-          }}
-        >
-          <Text style={{
-            color: Colors.accent,
-            fontFamily: Typography.mono.family,
-            fontSize: 10,
-            letterSpacing: 2,
-            marginBottom: Spacing.xs,
-          }}>
-            ASK ONAY
-          </Text>
-          <Text style={{ color: TextColors.primary, fontFamily: Typography.display.family, fontSize: 18 }}>
-            Don\u2019t have a playlist? Tell ONAY what you\u2019re in the mood for.
-          </Text>
-        </Pressable>
       </ScrollView>
 
       <TuningInOverlay visible={tuning} />
