@@ -10,7 +10,8 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "test": "jest",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "bake-featured": "tsx scripts/bake-featured.ts"
   },
   "dependencies": {
     "cors": "^2.8.5",

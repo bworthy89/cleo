@@ -41,7 +41,8 @@ export interface Manifest {
 }
 
 export interface BroadcastCreateRequest {
-  playlistId: string;
+  /** null allowed for curator-driven broadcasts where no source playlist exists */
+  playlistId: string | null;
   vibe: Vibe;
   length: BroadcastLength;
   userContext: {
