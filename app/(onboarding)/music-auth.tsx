@@ -18,7 +18,6 @@ export default function MusicAuthScreen() {
         const existing = getUser();
         setUser({
           name: existing?.name,
-          defaultVibe: existing?.defaultVibe,
           appleMusicAuthorized: true,
           createdAt: existing?.createdAt ?? new Date().toISOString(),
         });
@@ -40,7 +39,6 @@ export default function MusicAuthScreen() {
     const existing = getUser();
     setUser({
       name: existing?.name,
-      defaultVibe: existing?.defaultVibe,
       appleMusicAuthorized: false,
       createdAt: existing?.createdAt ?? new Date().toISOString(),
     });

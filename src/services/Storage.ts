@@ -1,6 +1,6 @@
 import { createMMKV, type MMKV } from 'react-native-mmkv';
 import type { MusicPlaylist } from '../../modules/expo-music-kit';
-import type { Manifest, Vibe } from '../engines/BroadcastPlayer.types';
+import type { Manifest } from '../engines/BroadcastPlayer.types';
 
 export const storage: MMKV = createMMKV({ id: 'cleo-storage' });
 
@@ -20,7 +20,6 @@ export interface UserData {
   name?: string;
   appleMusicAuthorized: boolean;
   createdAt: string;
-  defaultVibe?: Vibe;
 }
 
 export function getObject<T>(key: string): T | undefined {
