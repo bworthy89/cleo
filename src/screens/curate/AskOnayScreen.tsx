@@ -17,10 +17,9 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Colors, Typography, Spacing, Radius, Surface, TextColors } from '../../tokens/design-tokens';
 import { curatePlaylist, refinePlaylist, CuratedPlaylist } from '../../engines/PlaylistCurator';
 import { createPlaylist, authorize } from '../../../modules/expo-music-kit';
-import { queueManager } from '../../engines/QueueManager';
-import { addStation } from '../../services/Storage';
-import { sessionEngine } from '../../engines/SessionEngine';
 import { BroadcastCurationClient } from '../../engines/BroadcastCurationClient';
+import { BroadcastManifestClient } from '../../engines/BroadcastManifestClient';
+import { broadcastPlayer } from '../../engines/BroadcastPlayer.singleton';
 import { isCurator } from '../../config/curators';
 import auth from '@react-native-firebase/auth';
 
@@ -136,8 +135,8 @@ export function AskOnayScreen() {
 
   // Shared guard: checks broadcast and subscription before curation
   const checkGuards = useCallback(async (): Promise<boolean> => {
-    const activeSession = sessionEngine.getSession();
-    if (activeSession) {
+    const playerState = broadcastPlayer.getStatus().state;
+    if (playerState !== 'idle' && playerState !== 'ended') {
       addMessage({
         role: 'error',
         text: 'Playlist curation is unavailable during an active broadcast. End your session first.',
@@ -377,38 +376,39 @@ export function AskOnayScreen() {
 
   const handleTakeLive = useCallback(async (playlist: CuratedPlaylist) => {
     try {
-      // Save first
-      const description = `${playlist.playlistDescription} \u2014 Curated by ONAY`;
-      const playlistId = await createPlaylist(playlist.playlistTitle, description, playlist.trackIds);
+      // Bake a one-off user broadcast from ONAY's curated tracklist and play it.
+      const client = new BroadcastManifestClient();
+      const now = new Date();
+      const count = playlist.trackIds.length;
+      const length: 'quick' | 'standard' | 'long' =
+        count >= 15 ? 'long' : count >= 9 ? 'standard' : 'quick';
 
-      // Create station
-      const stationId = `curated-${Date.now()}`;
-      const station = {
-        id: stationId,
-        name: playlist.playlistTitle,
-        playlistId,
-        defaultVibe: playlist.suggestedVibe,
-        artworkUrl: playlist.tracks[0]?.artworkUrl,
-        createdAt: new Date().toISOString(),
-      };
-      addStation(station);
-
-      // Start broadcast with pre-sequenced queue (skip AI upgrade)
-      await queueManager.initializeSession(playlistId, playlist.suggestedVibe, stationId, {
-        skipAIUpgrade: true,
-      });
-
-      router.push({
-        pathname: '/(main)/(broadcast)/player',
-        params: {
-          stationId,
-          stationName: playlist.playlistTitle,
-          vibe: playlist.suggestedVibe,
-          playlistId,
+      const { manifest, firstSegmentUrls } = await client.createBroadcast({
+        playlistId: `curated-${Date.now()}`,
+        vibe: playlist.suggestedVibe,
+        length,
+        userContext: {
+          timeOfDay: now.toTimeString().slice(0, 5),
+          dayOfWeek: now.toLocaleDateString(undefined, { weekday: 'long' }),
+          firstTimeUser: false,
         },
+        tracks: playlist.tracks.slice(0, 20).map(t => ({
+          id: t.id,
+          title: t.title,
+          artistName: t.artistName,
+          albumTitle: t.albumTitle ?? '',
+          duration: t.duration ?? 180,
+          artworkUrl: t.artworkUrl,
+        })),
       });
-    } catch (error: any) {
-      Alert.alert('Error', 'Failed to start broadcast. Please try again.');
+
+      router.push('/(main)/(broadcast)/broadcast-player');
+      broadcastPlayer.start(manifest, firstSegmentUrls).catch((e: unknown) => {
+        console.warn('[AskOnay] take-live playback failed', e);
+      });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Failed to start broadcast. Please try again.';
+      Alert.alert('Broadcast unavailable', msg);
     }
   }, [router]);
 
