@@ -303,7 +303,7 @@ export function ProfileScreen() {
 
           <Pressable
             style={({ pressed }) => [styles.accountRow, pressed && { opacity: 0.7 }]}
-            onPress={() => router.push('/(main)/(broadcast)/broadcast-player')}
+            onPress={() => router.push('/(main)/(broadcast)/player')}
             accessibilityLabel="Open broadcast dev screen"
             accessibilityRole="button"
           >
