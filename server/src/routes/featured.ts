@@ -5,9 +5,8 @@ import type { BroadcastOrchestrator } from '../services/broadcast/BroadcastOrche
 import { requireCurator, type AuthenticatedRequest } from '../middleware/auth';
 
 const vibeSchema = z.enum([
-  'morning', 'chill', 'workout', 'lateNight', 'party',
-  'general', 'focus', 'feelGood', 'throwback', 'elevated',
-  'melancholy', 'sunday',
+  'morning', 'focus', 'workout', 'feelGood',
+  'lateNight', 'melancholy', 'party',
 ]);
 
 const lengthSchema = z.enum(['quick', 'standard', 'long']);

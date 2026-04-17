@@ -23,17 +23,12 @@ import type { Vibe } from '../engines/BroadcastPlayer.types';
 
 const VIBES: { key: Vibe; label: string }[] = [
   { key: 'morning', label: 'Morning' },
-  { key: 'chill', label: 'Chill' },
   { key: 'focus', label: 'Focus' },
   { key: 'feelGood', label: 'Feel Good' },
   { key: 'workout', label: 'Workout' },
   { key: 'party', label: 'Party' },
   { key: 'lateNight', label: 'Late Night' },
-  { key: 'elevated', label: 'Elevated' },
-  { key: 'throwback', label: 'Throwback' },
   { key: 'melancholy', label: 'Melancholy' },
-  { key: 'sunday', label: 'Sunday' },
-  { key: 'general', label: 'General' },
 ];
 
 interface VibePickerProps {

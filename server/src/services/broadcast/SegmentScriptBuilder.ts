@@ -17,17 +17,12 @@ export interface PromptSet {
 
 const VIBE_DESCRIPTIONS: Record<Vibe, string> = {
   morning: 'morning, warm, bright, gently energizing',
-  chill: 'chill, relaxed, unhurried, easygoing',
-  workout: 'workout, pumped, driving, high-energy',
-  lateNight: 'late-night, intimate, moody, introspective',
-  party: 'party, celebratory, high-spirited, dance-floor energy',
-  general: 'balanced, conversational, eclectic',
   focus: 'focus, minimal, calm, concentration-friendly',
+  workout: 'workout, pumped, driving, high-energy',
   feelGood: 'feel-good, uplifting, affirming',
-  throwback: 'throwback, nostalgic, warm, era-evoking',
-  elevated: 'elevated, sophisticated, refined',
+  lateNight: 'late-night, intimate, moody, introspective',
   melancholy: 'melancholy, bittersweet, reflective',
-  sunday: 'Sunday, laid-back, slow-burn, unhurried',
+  party: 'party, celebratory, high-spirited, dance-floor energy',
 };
 
 function systemPrompt(vibe: Vibe): string {

@@ -5,8 +5,8 @@ import { validate, curatePlaylistSchema } from '../middleware/validate.js';
 export const curationRouter = Router();
 
 const VIBES = [
-  'morning', 'chill', 'workout', 'lateNight', 'party', 'general',
-  'focus', 'feelGood', 'throwback', 'elevated', 'melancholy', 'sunday',
+  'morning', 'focus', 'workout', 'feelGood',
+  'lateNight', 'melancholy', 'party',
 ] as const;
 
 function buildSystemPrompt(round: string): string {
@@ -123,7 +123,7 @@ curationRouter.post('/curate-playlist', validate(curatePlaylistSchema), async (r
 
     // Ensure suggestedVibe is valid
     if (!VIBES.includes(parsed.suggestedVibe)) {
-      parsed.suggestedVibe = 'general';
+      parsed.suggestedVibe = 'feelGood';
     }
 
     res.json({

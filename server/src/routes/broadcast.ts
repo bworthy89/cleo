@@ -4,9 +4,8 @@ import type { BroadcastOrchestrator } from '../services/broadcast/BroadcastOrche
 import type { BroadcastStore } from '../services/broadcast/BroadcastStore';
 
 const vibeSchema = z.enum([
-  'morning', 'chill', 'workout', 'lateNight', 'party',
-  'general', 'focus', 'feelGood', 'throwback', 'elevated',
-  'melancholy', 'sunday',
+  'morning', 'focus', 'workout', 'feelGood',
+  'lateNight', 'melancholy', 'party',
 ]);
 
 const lengthSchema = z.enum(['quick', 'standard', 'long']);
