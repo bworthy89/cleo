@@ -3,6 +3,7 @@ import type {
   Manifest, PlayerState, PlayerStatus, Vibe,
 } from './BroadcastPlayer.types';
 import type { StingerKind } from './BroadcastStingers';
+import { setPersistedBroadcast, clearPersistedBroadcast } from '../services/Storage';
 
 export interface MusicDeps {
   play: (ids?: string[]) => Promise<void>;
@@ -64,6 +65,7 @@ export class BroadcastPlayer {
 
   async start(manifest: Manifest, firstSegmentUrls: string[]): Promise<void> {
     this.manifest = manifest;
+    setPersistedBroadcast(manifest);
     this.cache.clear();
     this.state = 'loading';
     await this.stingers.preloadStingers();
@@ -94,6 +96,7 @@ export class BroadcastPlayer {
       if (!this.manifest) return;
     }
     this.state = 'ended';
+    clearPersistedBroadcast();
   }
 
   async pause(): Promise<void> {
@@ -122,6 +125,7 @@ export class BroadcastPlayer {
     this.currentSegmentIndex = -1;
     this.trackEndedResolve = null;
     this.state = 'idle';
+    clearPersistedBroadcast();
   }
 
   private schedulePolling(): void {
