@@ -1,0 +1,196 @@
+import { promises as fs } from 'fs';
+import * as path from 'path';
+import * as os from 'os';
+import { TrackSequencer } from '@/services/broadcast/TrackSequencer';
+import { SequenceCache } from '@/services/broadcast/SequenceCache';
+import { EnrichmentCache } from '@/services/enrichment/EnrichmentCache';
+import type { ManifestTrack } from '@/services/broadcast/types';
+import type { LLMCaller } from '@/services/broadcast/SegmentGenerator';
+import type { LLMRequest, LLMResponse } from '@/providers/llm/types';
+
+const track = (id: string, artist = `A-${id}`): ManifestTrack => ({
+  id, title: `t-${id}`, artistName: artist, albumTitle: `al-${id}`, duration: 200,
+});
+
+function mockLLM(responses: string[]): jest.Mocked<LLMCaller> {
+  let i = 0;
+  return {
+    generate: jest.fn<Promise<LLMResponse>, [LLMRequest]>(
+      async () => ({ text: responses[Math.min(i++, responses.length - 1)] }),
+    ),
+  };
+}
+
+async function emptyEnrichmentCache(): Promise<EnrichmentCache> {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'seq-test-'));
+  const c = new EnrichmentCache(path.join(dir, 'tracks.json'));
+  await c.load();
+  return c;
+}
+
+describe('TrackSequencer.sequence', () => {
+  const pool = Array.from({ length: 10 }, (_, i) => track(String(i), `Artist${i}`));
+  const ctx = { timeOfDay: '20:00', dayOfWeek: 'Thursday' };
+
+  it('returns cached order on cache hit', async () => {
+    const cache = new SequenceCache();
+    const enrich = await emptyEnrichmentCache();
+    const llm = mockLLM(['{"ordered":["0","1","2","3","4"]}']);
+    const seq = new TrackSequencer(llm, cache, enrich);
+
+    const first = await seq.sequence({
+      pool, vibe: 'morning', length: 'quick', userContext: ctx,
+    });
+    expect(first.source).toBe('llm');
+
+    const second = await seq.sequence({
+      pool, vibe: 'morning', length: 'quick', userContext: ctx,
+    });
+    expect(second.source).toBe('cache');
+    expect(second.orderedTracks.map(t => t.id)).toEqual(first.orderedTracks.map(t => t.id));
+    expect(llm.generate).toHaveBeenCalledTimes(1); // cache hit avoided LLM
+  });
+
+  it('calls LLM on cache miss and returns ordered tracks', async () => {
+    const cache = new SequenceCache();
+    const enrich = await emptyEnrichmentCache();
+    const llm = mockLLM(['{"ordered":["2","4","0","6","8"]}']);
+    const seq = new TrackSequencer(llm, cache, enrich);
+
+    const result = await seq.sequence({
+      pool, vibe: 'morning', length: 'quick', userContext: ctx,
+    });
+    expect(result.source).toBe('llm');
+    expect(result.orderedTracks.map(t => t.id)).toEqual(['2', '4', '0', '6', '8']);
+    expect(llm.generate).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries once on invalid JSON, then falls back', async () => {
+    const cache = new SequenceCache();
+    const enrich = await emptyEnrichmentCache();
+    const llm = mockLLM(['not json', 'also not json']);
+    const seq = new TrackSequencer(llm, cache, enrich);
+
+    const result = await seq.sequence({
+      pool, vibe: 'morning', length: 'quick', userContext: ctx,
+    });
+    expect(result.source).toBe('fallback');
+    expect(result.orderedTracks).toHaveLength(5);
+    expect(llm.generate).toHaveBeenCalledTimes(2);
+  });
+
+  it('retries once on hallucinated IDs', async () => {
+    const cache = new SequenceCache();
+    const enrich = await emptyEnrichmentCache();
+    const llm = mockLLM([
+      '{"ordered":["99","88","77","66","55"]}', // all hallucinated
+      '{"ordered":["0","1","2","3","4"]}',       // valid on retry
+    ]);
+    const seq = new TrackSequencer(llm, cache, enrich);
+
+    const result = await seq.sequence({
+      pool, vibe: 'morning', length: 'quick', userContext: ctx,
+    });
+    expect(result.source).toBe('llm');
+    expect(result.orderedTracks.map(t => t.id)).toEqual(['0', '1', '2', '3', '4']);
+    expect(llm.generate).toHaveBeenCalledTimes(2);
+  });
+
+  it('retries on wrong-length output', async () => {
+    const cache = new SequenceCache();
+    const enrich = await emptyEnrichmentCache();
+    const llm = mockLLM([
+      '{"ordered":["0","1","2"]}',              // too short
+      '{"ordered":["0","1","2","3","4"]}',       // correct length
+    ]);
+    const seq = new TrackSequencer(llm, cache, enrich);
+
+    const result = await seq.sequence({
+      pool, vibe: 'morning', length: 'quick', userContext: ctx,
+    });
+    expect(result.source).toBe('llm');
+    expect(result.orderedTracks).toHaveLength(5);
+    expect(llm.generate).toHaveBeenCalledTimes(2);
+  });
+
+  it('caps pool at 40 tracks when input is larger', async () => {
+    const largePool = Array.from({ length: 100 }, (_, i) => track(String(i), `Artist${i}`));
+    const cache = new SequenceCache();
+    const enrich = await emptyEnrichmentCache();
+    const llm = mockLLM(['{"ordered":["0","1","2","3","4"]}']);
+    const seq = new TrackSequencer(llm, cache, enrich);
+
+    await seq.sequence({
+      pool: largePool, vibe: 'morning', length: 'quick', userContext: ctx,
+    });
+
+    const userPrompt = (llm.generate as jest.Mock).mock.calls[0][0].userPrompt as string;
+    // Track 50 should not appear (beyond cap), track 0 should
+    expect(userPrompt).toContain('t-0');
+    expect(userPrompt).not.toContain('t-50');
+  });
+
+  it('throws fast when pool < N', async () => {
+    const cache = new SequenceCache();
+    const enrich = await emptyEnrichmentCache();
+    const llm = mockLLM(['{"ordered":[]}']);
+    const seq = new TrackSequencer(llm, cache, enrich);
+
+    await expect(seq.sequence({
+      pool: pool.slice(0, 3), vibe: 'morning', length: 'quick', userContext: ctx,
+    })).rejects.toThrow(/insufficient tracks/);
+  });
+
+  it('includes arc prose, preferred, avoid, and soft-signal framing in prompt', async () => {
+    const cache = new SequenceCache();
+    const enrich = await emptyEnrichmentCache();
+    const llm = mockLLM(['{"ordered":["0","1","2","3","4"]}']);
+    const seq = new TrackSequencer(llm, cache, enrich);
+
+    await seq.sequence({
+      pool, vibe: 'lateNight', length: 'quick', userContext: ctx,
+    });
+
+    const call = (llm.generate as jest.Mock).mock.calls[0][0];
+    expect(call.systemPrompt).toContain('Preferred and avoid');
+    expect(call.systemPrompt).toContain('aesthetic hints');
+    expect(call.systemPrompt).toContain('Never refuse');
+    expect(call.userPrompt).toContain('lateNight');
+    expect(call.userPrompt).toContain('neo-soul');
+    expect(call.userPrompt).toContain('four-on-the-floor');
+  });
+
+  it('runs repair after LLM (duplicate removed)', async () => {
+    const cache = new SequenceCache();
+    const enrich = await emptyEnrichmentCache();
+    // LLM duplicates track "0"
+    const llm = mockLLM(['{"ordered":["0","0","1","2","3"]}']);
+    const seq = new TrackSequencer(llm, cache, enrich);
+
+    const result = await seq.sequence({
+      pool, vibe: 'morning', length: 'quick', userContext: ctx,
+    });
+    expect(result.source).toBe('llm');
+    const ids = result.orderedTracks.map(t => t.id);
+    expect(new Set(ids).size).toBe(ids.length); // all unique
+  });
+
+  it('passes enrichment to the LLM when cache has records', async () => {
+    const cache = new SequenceCache();
+    const enrich = await emptyEnrichmentCache();
+    await enrich.set('t-0', 'Artist0', {
+      genre: 'soul', producer: 'Stevie Wonder',
+      lastEnrichedAt: Date.now(), source: 'hybrid',
+    });
+    const llm = mockLLM(['{"ordered":["0","1","2","3","4"]}']);
+    const seq = new TrackSequencer(llm, cache, enrich);
+
+    await seq.sequence({
+      pool, vibe: 'morning', length: 'quick', userContext: ctx,
+    });
+
+    const call = (llm.generate as jest.Mock).mock.calls[0][0];
+    expect(call.userPrompt).toContain('Stevie Wonder');
+    expect(call.userPrompt).toContain('soul');
+  });
+});
