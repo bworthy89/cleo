@@ -44,6 +44,9 @@ export class BroadcastPlayer {
   private trackEndedResolve: (() => void) | null = null;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private readonly POLL_INTERVAL_MS = 3000;
+  private isPaused = false;
+  private resumePromise: Promise<void> | null = null;
+  private resumeResolver: (() => void) | null = null;
 
   constructor(
     private readonly music: MusicDeps,
@@ -96,29 +99,74 @@ export class BroadcastPlayer {
 
     await this.runSegmentAt(0);
     if (!this.manifest) return;
+    await this.waitIfPaused();
+    if (!this.manifest) return;
     for (let i = 0; i < this.manifest.tracks.length; i++) {
       await this.runTrackAt(i);
       if (!this.manifest) return;
+      await this.waitIfPaused();
+      if (!this.manifest) return;
       await this.runSegmentAt(i + 1);
+      if (!this.manifest) return;
+      await this.waitIfPaused();
       if (!this.manifest) return;
     }
     this.state = 'ended';
     clearPersistedBroadcast();
   }
 
+  /**
+   * Pause the broadcast. Behavior is deliberately kind to in-flight segments:
+   * if ONAY is mid-sentence we let her finish (AVAudioPlayer doesn't have a
+   * gapless pause) and then park the loop before the next track. Tracks
+   * themselves pause immediately via MusicKit.
+   */
   async pause(): Promise<void> {
-    await this.native.stopAudio().catch(() => {});
-    await this.music.pause().catch(() => {});
+    if (this.state === 'idle' || this.state === 'ended') return;
+    const wasPlayingTrack = this.state === 'playing_track';
+    this.isPaused = true;
+    if (wasPlayingTrack) {
+      await this.music.pause().catch(() => {});
+    }
     this.state = 'paused';
   }
 
   async resume(): Promise<void> {
-    if (this.state !== 'paused') return;
-    this.state = 'playing_track';
-    await this.music.play().catch(() => {});
+    if (!this.isPaused) return;
+    this.isPaused = false;
+    // Restore state + restart music if we paused mid-track.
+    if (this.currentTrackIndex >= 0 && this.currentSegmentIndex < 0) {
+      this.state = 'playing_track';
+      await this.music.play().catch(() => {});
+    } else if (this.currentSegmentIndex >= 0) {
+      this.state = 'playing_segment';
+    } else {
+      this.state = 'loading';
+    }
+    this.wakePausedLoop();
+  }
+
+  private async waitIfPaused(): Promise<void> {
+    while (this.isPaused) {
+      if (!this.resumePromise) {
+        this.resumePromise = new Promise(res => { this.resumeResolver = res; });
+      }
+      await this.resumePromise;
+    }
+  }
+
+  private wakePausedLoop(): void {
+    const resolver = this.resumeResolver;
+    this.resumePromise = null;
+    this.resumeResolver = null;
+    resolver?.();
   }
 
   async end(): Promise<void> {
+    // Unblock the main loop if it's parked on waitIfPaused, then clear
+    // manifest so it exits cleanly on the next iteration check.
+    this.isPaused = false;
+    this.wakePausedLoop();
     await this.native.stopAudio().catch(() => {});
     await this.music.pause().catch(() => {});
     this.subscriptions.forEach(unsub => {

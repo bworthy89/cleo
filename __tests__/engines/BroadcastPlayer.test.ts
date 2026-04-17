@@ -89,17 +89,39 @@ describe('BroadcastPlayer', () => {
     expect(deps.logs.some(l => l.startsWith('tts:BASE64_seg0'))).toBe(true);
   });
 
-  it('pause() stops segment audio and pauses MusicKit', async () => {
+  it('pause() during a segment lets ONAY finish speaking (no stopAudio) and parks the loop', async () => {
     const deps = makeDeps();
     const player = new BroadcastPlayer(
       deps.music, deps.native, deps.manifestClient, deps.stingers,
     );
     player.start(makeManifest(), ['https://cdn/seg0-v0.mp3']);
-    await Promise.resolve();
+    for (let i = 0; i < 20; i++) await Promise.resolve();
     await player.pause();
-    expect(deps.native.stopAudio).toHaveBeenCalled();
-    expect(deps.music.pause).toHaveBeenCalled();
+    expect(deps.native.stopAudio).not.toHaveBeenCalled();
     expect(player.getStatus().state).toBe('paused');
+  });
+
+  it('pause() during loading still marks the player paused and blocks progression', async () => {
+    const deps = makeDeps();
+    const player = new BroadcastPlayer(
+      deps.music, deps.native, deps.manifestClient, deps.stingers,
+    );
+    player.start(makeManifest(), ['https://cdn/seg0-v0.mp3']);
+    await player.pause();
+    expect(player.getStatus().state).toBe('paused');
+  });
+
+  it('resume() wakes the main loop so advancement resumes', async () => {
+    const deps = makeDeps();
+    const player = new BroadcastPlayer(
+      deps.music, deps.native, deps.manifestClient, deps.stingers,
+    );
+    player.start(makeManifest(), ['https://cdn/seg0-v0.mp3']);
+    for (let i = 0; i < 20; i++) await Promise.resolve();
+    await player.pause();
+    expect(player.getStatus().state).toBe('paused');
+    await player.resume();
+    expect(player.getStatus().state).not.toBe('paused');
   });
 
   it('end() cleans up and returns to idle', async () => {
