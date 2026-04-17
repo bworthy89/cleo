@@ -57,18 +57,20 @@ function tryResolveAt(
   idx: number,
 ): ManifestTrack[] | null {
   // Look forward for a track that, if swapped in at idx, removes the violation
+  const moving = ordered[idx];
   for (let j = idx + 1; j < ordered.length; j++) {
     const a = ordered[j];
     const prev = ordered[idx - 1];
-    const next = ordered[idx + 1];
+    // After swap, ordered[idx+1] is `moving` when j === idx+1 (adjacent swap),
+    // otherwise the original ordered[idx+1] is unchanged by the swap.
+    const nextAfter = j === idx + 1 ? moving : ordered[idx + 1];
     const viol1 = a.artistName === prev.artistName || a.albumTitle === prev.albumTitle;
-    const viol2 = next
-      ? a.artistName === next.artistName || a.albumTitle === next.albumTitle
+    const viol2 = nextAfter
+      ? a.artistName === nextAfter.artistName || a.albumTitle === nextAfter.albumTitle
       : false;
     if (viol1 || viol2) continue;
     // Check that moving ordered[idx] into j's position doesn't create violation there
-    const moving = ordered[idx];
-    const jPrev = j - 1 === idx ? a : ordered[j - 1]; // after swap, j-1 is what was at j-1
+    const jPrev = j - 1 === idx ? a : ordered[j - 1]; // after swap, j-1 is a when adjacent
     const jNext = ordered[j + 1];
     const violAtJ1 = moving.artistName === jPrev.artistName || moving.albumTitle === jPrev.albumTitle;
     const violAtJ2 = jNext
