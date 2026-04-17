@@ -8,6 +8,7 @@ import {
   playAudioFromBase64,
   stopAudio,
   releaseAudioSession,
+  setBroadcastActive,
 } from '../../modules/expo-music-kit';
 
 export const broadcastPlayer = new BroadcastPlayer(
@@ -21,7 +22,10 @@ export const broadcastPlayer = new BroadcastPlayer(
     getPlaybackStatus: () => musicKitPlayer.getPlaybackStatus(),
     getPlaybackTime: () => musicKitPlayer.getPlaybackTime(),
   },
-  { activateDuckingSession, deactivateDuckingSession, playAudioFromBase64, stopAudio, releaseAudioSession },
+  {
+    activateDuckingSession, deactivateDuckingSession, playAudioFromBase64,
+    stopAudio, releaseAudioSession, setBroadcastActive,
+  },
   new BroadcastManifestClient(),
   { getStinger, preloadStingers },
 );

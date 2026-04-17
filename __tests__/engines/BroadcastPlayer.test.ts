@@ -176,4 +176,86 @@ describe('BroadcastPlayer', () => {
     expect(deps.manifestClient.fetchManifest).toHaveBeenCalledWith('b1');
     await player.end();
   });
+
+  describe('background keepalive', () => {
+    it('signals native module to keep timer alive when broadcast starts', async () => {
+      const deps = makeDeps();
+      const setBroadcastActive = jest.fn(async (_a: boolean) => {});
+      const native = { ...deps.native, setBroadcastActive };
+      const player = new BroadcastPlayer(
+        deps.music, native, deps.manifestClient, deps.stingers,
+      );
+
+      player.start(makeManifest(), ['https://cdn/seg0-v0.mp3']);
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+
+      expect(setBroadcastActive).toHaveBeenCalledWith(true);
+
+      await player.end();
+      expect(setBroadcastActive).toHaveBeenCalledWith(false);
+    });
+
+    it('does not crash if native module lacks setBroadcastActive', async () => {
+      const deps = makeDeps();
+      const player = new BroadcastPlayer(
+        deps.music, deps.native, deps.manifestClient, deps.stingers,
+      );
+      // deps.native intentionally has no setBroadcastActive — must be safe to omit.
+      // start() is fire-and-forget (the broadcast loop); end() is what we await.
+      player.start(makeManifest(), ['https://cdn/seg0-v0.mp3']);
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+      await expect(player.end()).resolves.not.toThrow();
+    });
+  });
+
+  describe('track-end detection', () => {
+    it('advances when MusicKit resets position to 0 after track ends (single-track queue)', async () => {
+      const deps = makeDeps();
+      const player = new BroadcastPlayer(
+        deps.music, deps.native, deps.manifestClient, deps.stingers,
+      );
+      player.start(makeManifest(), ['https://cdn/seg0-v0.mp3']);
+      // Flush cold_open segment and transition into runTrackAt(0)
+      for (let i = 0; i < 40; i++) await Promise.resolve();
+      expect(deps.logs).toContain('play:t0');
+
+      // Simulate MusicKit streaming playback events, then track end + position reset
+      deps.listeners.state?.({ status: 'playing', playbackTime: 10 });
+      deps.listeners.state?.({ status: 'playing', playbackTime: 90 });
+      deps.listeners.state?.({ status: 'playing', playbackTime: 179 });
+      // Track ends: ApplicationMusicPlayer with single-track queue transitions
+      // to paused with playbackTime=0 (position reset). This is the bug: the
+      // direct positional check never saw time >= duration-0.5 (it hopped to 0),
+      // and status is 'paused' not 'stopped'.
+      deps.listeners.state?.({ status: 'paused', playbackTime: 0 });
+
+      for (let i = 0; i < 40; i++) await Promise.resolve();
+      // If end was detected, the next segment (transition) has started ducking + TTS
+      expect(deps.logs.some(l => l.startsWith('tts:BASE64_seg1'))).toBe(true);
+
+      await player.end();
+    });
+
+    it('does NOT advance on user pause (time does not reset to 0)', async () => {
+      const deps = makeDeps();
+      const player = new BroadcastPlayer(
+        deps.music, deps.native, deps.manifestClient, deps.stingers,
+      );
+      player.start(makeManifest(), ['https://cdn/seg0-v0.mp3']);
+      for (let i = 0; i < 40; i++) await Promise.resolve();
+      expect(deps.logs).toContain('play:t0');
+
+      // Playing normally
+      deps.listeners.state?.({ status: 'playing', playbackTime: 10 });
+      deps.listeners.state?.({ status: 'playing', playbackTime: 45 });
+      // User pauses mid-track — MusicKit keeps position, doesn't reset to 0
+      deps.listeners.state?.({ status: 'paused', playbackTime: 45 });
+
+      for (let i = 0; i < 20; i++) await Promise.resolve();
+      // Transition segment must NOT have started
+      expect(deps.logs.some(l => l.startsWith('tts:BASE64_seg1'))).toBe(false);
+
+      await player.end();
+    });
+  });
 });
