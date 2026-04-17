@@ -115,7 +115,7 @@ const featuredRegistry = new FeaturedBroadcastRegistry(
   path.resolve(__dirname, '../featured-broadcasts/registry.json'),
 );
 featuredRegistry.load().catch(err => console.error('[featured] registry load failed', err));
-app.use(requireAuth, createFeaturedRouter(featuredRegistry));
+app.use(requireAuth, createFeaturedRouter(featuredRegistry, broadcastOrchestrator, generationLimiter));
 
 // Static asset serving for broadcast audio (dev only — production uses signed URLs)
 app.use('/broadcast-asset', requireAuth, (req, res, next) => {

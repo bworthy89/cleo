@@ -38,10 +38,34 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
         resolve(decoded as jwt.JwtPayload);
       });
     });
-    (req as any).uid = decoded.sub;
+    (req as AuthenticatedRequest).uid = decoded.sub;
+    (req as AuthenticatedRequest).email = typeof decoded.email === 'string' ? decoded.email : undefined;
     next();
   } catch (error) {
     console.error('[Auth] Token verification failed:', error);
     res.status(401).json({ error: 'Invalid or expired token' });
   }
+}
+
+export interface AuthenticatedRequest extends Request {
+  uid?: string;
+  email?: string;
+}
+
+/**
+ * Gate a route to a small allowlist of curator emails. Comma-separated
+ * list in CURATOR_EMAILS env var. Empty/unset means no one is a curator.
+ * Run after requireAuth so req.email is populated.
+ */
+export function requireCurator(req: Request, res: Response, next: NextFunction) {
+  const allowlist = (process.env.CURATOR_EMAILS ?? '')
+    .split(',')
+    .map(s => s.trim().toLowerCase())
+    .filter(Boolean);
+  const email = (req as AuthenticatedRequest).email?.toLowerCase();
+  if (!email || !allowlist.includes(email)) {
+    res.status(403).json({ error: 'curator access required' });
+    return;
+  }
+  next();
 }
