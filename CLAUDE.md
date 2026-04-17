@@ -232,21 +232,47 @@ cleo-app/
    track plays via `musicKitPlayer.play([trackId])`.
 9. Between `playAudioFromBase64` and `musicKitPlayer.play`, the player calls
    `releaseAudioSession` natively so MusicKit can reclaim exclusive session control.
-10. `waitForTrackEnd` polls `getPlaybackStatus()` once per second and advances when the
-    status transitions to `stopped` (after seeing `playing` at least once).
+10. `waitForTrackEnd` watches both `getPlaybackStatus()` and `getPlaybackTime()` once
+    per second (and via the 0.5s `onPlaybackStateChanged` event). Ends the wait when
+    `playbackTime >= duration - 0.5` OR `status === 'stopped'` — but only after
+    `status === 'playing'` has been observed at least once for the current track
+    (gates out pre-playback flicker during TTS→MusicKit session handoff). `paused` is
+    explicitly excluded so user pauses don't advance to the next segment. Positional
+    detection is the primary signal; `ApplicationMusicPlayer` with a single-track queue
+    doesn't reliably emit `stopped` at track end.
 
 ### Server flow — BroadcastOrchestrator
 ```
 create(input):
-  1. ManifestBuilder.buildManifest(input) → pick first N tracks + lay out slots
-     (cold_open, transition×(N-1), sign_off; variantCount=1 for all)
-  2. store.put(manifest)
-  3. SYNC: generateSlot(0) — SegmentScriptBuilder → LLM → TTS → ObjectStorage
-  4. ASYNC (fire-and-forget, Promise.allSettled):
+  1. TrackSequencer.sequence({ pool, vibe, length, userContext })
+     → cache hit? return cached order (24h TTL, keyed on sorted trackIds+vibe+length)
+     → otherwise LLM call with VIBE_ARCS[vibe] prose + preferred/avoid + enrichment
+       hints; JSON output validated (shape, length, ids exist, no dupes); local
+       repair pass for same-artist/same-album adjacency (≤5 passes)
+     → one retry on failure; silent fallback to pool.slice(0, N) on second failure
+  2. ManifestBuilder.buildManifest(input.tracks = seq.orderedTracks)
+     → cold_open, transition×(N-1), sign_off; variantCount=1 for all
+  3. store.put(manifest)
+  4. SYNC: generateSlot(0) — SegmentScriptBuilder → LLM → TTS → ObjectStorage
+  5. ASYNC (fire-and-forget, Promise.allSettled):
        generateSlot(1..N) — each in parallel, failures mark slot 'failed'
        .finally(() => inFlight.delete(manifest.broadcastId))
-  5. Return { manifest: store.get(id), firstSegmentUrls: slot0Urls }
+  6. ASYNC: backgroundEnricher.enqueue(seq.orderedTracks) — Genius + MusicBrainz,
+     serialized per-API at 1.1s, writes EnrichmentCache; does not block the response
+  7. Return { manifest: store.get(id), firstSegmentUrls: slot0Urls }
 ```
+
+### Curation sequencer (TrackSequencer)
+- Arcs live in `server/src/services/broadcast/vibe-arcs.ts` — 7 vibes (morning, focus,
+  workout, feelGood, lateNight, melancholy, party), each with `descriptor`, prose
+  `arc`, `preferred[]`, `avoid[]`. Preferred/avoid are **soft signals**, not filters —
+  the LLM is told to adapt when the pool doesn't match.
+- Pool cap: 40 tracks. Larger playlists take first 40 in input order.
+- Fails fast (`/insufficient tracks/`) when pool.length < N.
+- Enrichment hints passed to the LLM are length-capped and sanitized via `sanitizeHint`
+  (mirrors `sanitizeForPrompt`) since third-party APIs (Genius/MB) are not trusted
+  input surfaces.
+- Fallback path logs via `console.warn`; background enrichment errors log per-track.
 
 ### Featured (editorial) flow
 - `bakeFeatured(config)` reads a config JSON with `{ id, title, description, vibe,
@@ -265,6 +291,15 @@ create(input):
   indefinitely; gitignored. No automatic cleanup yet.
 - **`server/.tts-cache/`** — pre-existing `CachingTTSProvider` hashes text + voice
   params; dedupes identical TTS calls across bakes.
+- **`server/.enrichment-cache/tracks.json`** — persistent `EnrichmentCache`, keyed on
+  normalized `title|artist` (strips `(feat. X)` / `(Remastered YYYY)` / `- Deluxe`),
+  values are `EnrichmentRecord { genre, moodTags, releaseYear, producer, sample,
+  lastEnrichedAt, source }`. Atomic tmp+rename writes, malformed-JSON tolerant, 30-day
+  re-enrichment threshold. Used by `TrackSequencer` prompt and `SegmentScriptBuilder`
+  for producer/sample commentary flavor on repeat listens.
+- **`SequenceCache`** — in-memory LRU, 24h TTL, max 500 entries. Keyed on
+  `sha256(sortedTrackIds)|vibe|length` so key is stable if Apple Music returns tracks
+  in a different order. Same-day re-bakes skip the LLM entirely.
 - **`server/featured-broadcasts/registry.json`** — gitignored; holds baked featured
   records. Atomic write via `.tmp` + rename.
 - **`BroadcastStore`** — in-memory, 2h TTL, lazy eviction on access.
@@ -374,6 +409,20 @@ EXPO_PUBLIC_SENTRY_DSN
   (`—`, `…`, `·`) or wrap in braces.
 - **Safe-area insets** required on all root screens — the tab bar + status bar don't
   provide them automatically for ScrollView content.
+- **Host voice is female.** `SegmentScriptBuilder.systemPrompt` explicitly sets ONAY as
+  a woman using she/her pronouns and forbids masculine DJ phrasing ("your boy", "my
+  man", "the homie", "this guy"). When tuning voice or prompts, don't remove these
+  guards.
+- **Host name phonetic substitution.** `SegmentGenerator.phoneticizeHostName` rewrites
+  `\bONAY\b → Oh-nay` on the LLM script text before handing it to TTS, so Cartesia /
+  ElevenLabs pronounce it correctly. Word-bounded so `BALONAY` / `ONAYS` aren't
+  touched. If we ever rename the host again, update both the regex and the system
+  prompt in lockstep.
+- **TrackSequencer prompt hints are sanitized.** Enrichment fields (`genre`,
+  `moodTags`, `producer`) come from third-party APIs — always run through
+  `sanitizeHint` before interpolation, mirroring `sanitizeForPrompt`'s control-char /
+  role-hijack / backtick stripping. Never embed raw Genius/MB strings into the
+  sequencer prompt.
 
 ---
 
@@ -461,9 +510,6 @@ EXPO_PUBLIC_SENTRY_DSN
   the VPS or port to Fastify.
 - **S3 / signed-URL storage adapter** — `LocalFilesystemStorage` works for dev; prod
   needs real object storage with signed URLs + TTL.
-- **Server-side AI track reordering** — `ManifestBuilder` slices first-N deterministically.
-  The old `QueuePlanner` (AI-sequenced by vibe/energy) is gone client-side and hasn't
-  been lifted server-side.
 - **Bake abort endpoint** — no `DELETE /broadcast/:id`. User canceling mid-bake still
   pays for all remaining LLM + TTS calls.
 - **Scheduled/autonomous featured bakes** (cron "Monday Reset" etc.) — requires server
@@ -476,6 +522,8 @@ EXPO_PUBLIC_SENTRY_DSN
 ## Full Documentation
 
 Spec: `docs/superpowers/specs/2026-04-12-pre-baked-broadcast-design.md`
+Curation spec (2026-04-16): `docs/superpowers/specs/2026-04-16-curation-design.md`
 Plans: `docs/superpowers/plans/2026-04-12-pre-baked-broadcast-plan-{1..4}-*.md`
+Curation plan: `docs/superpowers/plans/2026-04-16-curation-implementation.md`
 Legacy PRD: `cleo-prd.md` at repo root — predates the pre-baked pivot; reference only
 for vibe/fallback library content that still informs `SegmentScriptBuilder`.
