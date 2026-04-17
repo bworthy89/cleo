@@ -127,4 +127,44 @@ describe('SegmentGenerator.generateVariants', () => {
       prompts: [{ systemPrompt: 's', userPrompt: 'u', maxTokens: 256 }],
     })).rejects.toThrow('tts down');
   });
+
+  it('phoneticizes ONAY to Oh-nay before TTS synthesis', async () => {
+    const llm = makeMockLLM('Hey, this is ONAY. You\u2019re locked in.');
+    const tts = makeMockTTS();
+    const storage = makeStorage();
+    const gen = new SegmentGenerator(llm, tts, storage);
+
+    await gen.generateVariants({
+      broadcastId: 'b', slotIndex: 0,
+      prompts: [{ systemPrompt: 's', userPrompt: 'u', maxTokens: 256 }],
+    });
+
+    const ttsArg = (tts.synthesize as jest.Mock).mock.calls[0][0];
+    expect(ttsArg.text).toContain('Oh-nay');
+    expect(ttsArg.text).not.toContain('ONAY');
+  });
+});
+
+describe('phoneticizeHostName', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { phoneticizeHostName } = require('@/services/broadcast/SegmentGenerator');
+
+  it('replaces standalone ONAY with Oh-nay', () => {
+    expect(phoneticizeHostName('Hey, this is ONAY.'))
+      .toBe('Hey, this is Oh-nay.');
+  });
+
+  it('handles multiple occurrences', () => {
+    expect(phoneticizeHostName('ONAY here, and that was ONAY signing off.'))
+      .toBe('Oh-nay here, and that was Oh-nay signing off.');
+  });
+
+  it('does not match substrings like BALONAY or ONAYS', () => {
+    expect(phoneticizeHostName('BALONAY sandwich')).toBe('BALONAY sandwich');
+    expect(phoneticizeHostName('ONAYS plural form')).toBe('ONAYS plural form');
+  });
+
+  it('returns text unchanged when ONAY is absent', () => {
+    expect(phoneticizeHostName('just a vibe check')).toBe('just a vibe check');
+  });
 });
