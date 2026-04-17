@@ -60,7 +60,7 @@ export default function HomeBroadcastScreen() {
           {
             text: 'Resume',
             onPress: () => {
-              router.push('/(main)/(broadcast)/broadcast-player');
+              router.push('/(main)/(broadcast)/player');
               broadcastPlayer.start(persisted, urls).catch((e: unknown) =>
                 console.warn('[HomeBroadcast] resume failed', e),
               );
@@ -77,7 +77,7 @@ export default function HomeBroadcastScreen() {
     try {
       const firstSlot = fb.manifest.segmentSlots[0];
       const firstUrls = firstSlot?.audioUrls ?? [];
-      router.push('/(main)/(broadcast)/broadcast-player');
+      router.push('/(main)/(broadcast)/player');
       // fire-and-forget — player runs for the lifetime of the session
       broadcastPlayer.start(fb.manifest, firstUrls).catch((err: unknown) => {
         const msg = err instanceof Error ? err.message : 'Playback failed';
@@ -111,7 +111,7 @@ export default function HomeBroadcastScreen() {
           artworkUrl: t.artworkUrl,
         })),
       });
-      router.push('/(main)/(broadcast)/broadcast-player');
+      router.push('/(main)/(broadcast)/player');
       broadcastPlayer.start(manifest, firstSegmentUrls).catch((err: unknown) => {
         const msg = err instanceof Error ? err.message : 'Playback failed';
         Alert.alert('Broadcast error', msg);
