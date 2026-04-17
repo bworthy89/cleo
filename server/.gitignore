@@ -3,3 +3,4 @@ dist/
 .env
 .broadcast-cache/
 featured-broadcasts/registry.json
+.enrichment-cache/
