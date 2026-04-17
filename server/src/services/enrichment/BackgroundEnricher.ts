@@ -24,7 +24,10 @@ export class BackgroundEnricher {
   enqueue(tracks: ManifestTrack[]): void {
     for (const track of tracks) {
       this.queue = this.queue.then(() =>
-        this.enrichOne(track).catch(() => {}),
+        this.enrichOne(track).catch(err => {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.warn(`[BackgroundEnricher] "${track.title}" by ${track.artistName} failed: ${msg}`);
+        }),
       );
     }
   }
