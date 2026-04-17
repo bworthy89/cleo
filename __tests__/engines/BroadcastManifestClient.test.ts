@@ -60,22 +60,36 @@ describe('BroadcastManifestClient', () => {
     expect(path).toBe('/broadcast/b1/manifest');
   });
 
-  it('fetchSegmentAudio passes a relative path to authenticatedFetch (strips origin)', async () => {
-    (authenticatedFetch as jest.Mock).mockResolvedValue(makeResponse('hello'));
+  it('fetchSegmentAudio fetches full URLs directly (e.g. R2 presigned)', async () => {
+    const fetchMock = jest.fn().mockResolvedValue(makeResponse('hello'));
+    (globalThis as unknown as { fetch: typeof fetch }).fetch = fetchMock as unknown as typeof fetch;
     const client = new BroadcastManifestClient();
-    const base64 = await client.fetchSegmentAudio('http://cdn.example.com/broadcast-asset/b/segment/0/v0.mp3');
+
+    const presignedUrl = 'https://bucket.abc.r2.cloudflarestorage.com/broadcast/b/segment/0/v0.mp3?X-Amz-Signature=abc';
+    const base64 = await client.fetchSegmentAudio(presignedUrl);
+
     // "hello" base64 = "aGVsbG8="
     expect(base64).toBe('aGVsbG8=');
-    const [path] = (authenticatedFetch as jest.Mock).mock.calls[0];
-    expect(path).toBe('/broadcast-asset/b/segment/0/v0.mp3');
-    expect(path).not.toContain('http://');
+    expect(fetchMock).toHaveBeenCalledWith(presignedUrl);
+    expect(authenticatedFetch).not.toHaveBeenCalled();
   });
 
-  it('fetchSegmentAudio accepts relative paths as-is', async () => {
+  it('fetchSegmentAudio sends relative paths through authenticatedFetch (local dev)', async () => {
     (authenticatedFetch as jest.Mock).mockResolvedValue(makeResponse('x'));
     const client = new BroadcastManifestClient();
+
     await client.fetchSegmentAudio('/broadcast-asset/rel/seg.mp3');
+
     const [path] = (authenticatedFetch as jest.Mock).mock.calls[0];
     expect(path).toBe('/broadcast-asset/rel/seg.mp3');
+  });
+
+  it('fetchSegmentAudio throws with status on non-ok fetch', async () => {
+    const fetchMock = jest.fn().mockResolvedValue(makeResponse('nope', false, 403));
+    (globalThis as unknown as { fetch: typeof fetch }).fetch = fetchMock as unknown as typeof fetch;
+    const client = new BroadcastManifestClient();
+
+    await expect(client.fetchSegmentAudio('https://r2.example/x.mp3'))
+      .rejects.toThrow(/403/);
   });
 });
