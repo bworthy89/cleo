@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
-import { View, Text, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, ScrollView, ActivityIndicator, Alert, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Colors, Surface, TextColors, Spacing, Typography } from '../../tokens/design-tokens';
+import { Colors, Surface, TextColors, Spacing, Typography, Radius } from '../../tokens/design-tokens';
 import { musicKitPlayer } from '../../services/MusicKitPlayer';
 import type { MusicPlaylist } from '../../../modules/expo-music-kit';
 import {
@@ -165,6 +165,33 @@ export default function HomeBroadcastScreen() {
         <View style={{ height: 2, width: 40, backgroundColor: Colors.accent, marginBottom: Spacing.md }} />
 
         <YourBroadcastSetup playlists={playlists} onSubmit={playUserSourced} />
+
+        <Pressable
+          onPress={() => router.push('/(main)/(broadcast)/ask-onay')}
+          accessibilityRole="button"
+          accessibilityLabel="Ask ONAY to curate a playlist"
+          style={{
+            marginTop: Spacing.md,
+            padding: Spacing.md,
+            backgroundColor: Surface.container,
+            borderRadius: Radius.sm,
+            borderLeftWidth: 2,
+            borderLeftColor: Colors.accent,
+          }}
+        >
+          <Text style={{
+            color: Colors.accent,
+            fontFamily: Typography.mono.family,
+            fontSize: 10,
+            letterSpacing: 2,
+            marginBottom: Spacing.xs,
+          }}>
+            ASK ONAY
+          </Text>
+          <Text style={{ color: TextColors.primary, fontFamily: Typography.display.family, fontSize: 18 }}>
+            Don\u2019t have a playlist? Tell ONAY what you\u2019re in the mood for.
+          </Text>
+        </Pressable>
       </ScrollView>
 
       <TuningInOverlay visible={tuning} />
