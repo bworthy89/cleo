@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { View, Text, ScrollView, ActivityIndicator, Alert, Animated, Easing } from 'react-native';
+import { View, Text, ScrollView, ActivityIndicator, Alert, Animated, Easing, Pressable, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { Colors, Surface, TextColors, Spacing, Typography } from '../../tokens/design-tokens';
+import { useRouter, useFocusEffect } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import { Colors, Surface, TextColors, Spacing, Typography, Radius } from '../../tokens/design-tokens';
 import { musicKitPlayer } from '../../services/MusicKitPlayer';
 import type { MusicPlaylist } from '../../../modules/expo-music-kit';
 import {
@@ -17,6 +19,10 @@ import { YourBroadcastSetup, AskOnayButton } from '../../components/broadcast/Yo
 import { TuningInOverlay } from '../../components/broadcast/TuningInOverlay';
 import type { SetupResult } from '../../components/broadcast/SetupSheet';
 import { useAppActive } from '../../hooks/useAppActive';
+import {
+  getBroadcastHistory,
+  type BroadcastHistoryEntry,
+} from '../../services/Storage';
 
 const monoLabel = {
   color: Colors.accent,
@@ -99,6 +105,82 @@ function LiveDot() {
   );
 }
 
+function freshness(createdAt: number): string {
+  const ms = Date.now() - createdAt;
+  const hours = ms / (1000 * 60 * 60);
+  if (hours < 1) return 'Just now';
+  if (hours < 24) return `${Math.round(hours)}h ago`;
+  return 'Yesterday';
+}
+
+function RecentBroadcastRow({
+  entry, onPress,
+}: { entry: BroadcastHistoryEntry; onPress: () => void }) {
+  const { manifest } = entry;
+  const firstTrack = manifest.tracks[0];
+  const handlePress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    onPress();
+  };
+  return (
+    <Pressable
+      onPress={handlePress}
+      accessibilityRole="button"
+      accessibilityLabel={`Replay ${manifest.vibe} broadcast with ${manifest.tracks.length} tracks`}
+      style={({ pressed }) => ({
+        backgroundColor: Surface.container,
+        borderLeftWidth: 2,
+        borderLeftColor: Colors.accent,
+        padding: Spacing.md,
+        borderRadius: Radius.sm,
+        marginBottom: Spacing.sm,
+        flexDirection: 'row',
+        alignItems: 'center',
+        opacity: pressed ? 0.75 : 1,
+      })}
+    >
+      {firstTrack?.artworkUrl ? (
+        <Image
+          source={{ uri: firstTrack.artworkUrl }}
+          style={{ width: 56, height: 56, borderRadius: Radius.sm, marginRight: Spacing.md }}
+        />
+      ) : (
+        <View style={{
+          width: 56, height: 56, borderRadius: Radius.sm,
+          marginRight: Spacing.md, backgroundColor: Surface.high,
+          alignItems: 'center', justifyContent: 'center',
+        }}>
+          <Ionicons name="radio" size={22} color={Colors.accent} />
+        </View>
+      )}
+      <View style={{ flex: 1 }}>
+        <Text
+          style={{ color: TextColors.primary, fontFamily: Typography.display.family, fontSize: 16 }}
+          numberOfLines={1}
+        >
+          Your {manifest.vibe} broadcast
+        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2, gap: Spacing.sm }}>
+          <Text style={{
+            color: Colors.accent, fontFamily: Typography.mono.family,
+            fontSize: 10, letterSpacing: 2,
+          }}>
+            {manifest.length.toUpperCase()} · {manifest.tracks.length} TRACKS
+          </Text>
+          <Text style={{ color: TextColors.outline, fontSize: 10 }}>·</Text>
+          <Text style={{
+            color: TextColors.outline, fontFamily: Typography.mono.family,
+            fontSize: 10, letterSpacing: 1.5,
+          }}>
+            {freshness(entry.createdAt).toUpperCase()}
+          </Text>
+        </View>
+      </View>
+      <Ionicons name="chevron-forward" size={18} color={TextColors.outline} style={{ marginLeft: Spacing.sm }} />
+    </Pressable>
+  );
+}
+
 function SectionLabel({ text, live }: { text: string; live?: boolean }) {
   return (
     <>
@@ -120,6 +202,13 @@ export default function HomeBroadcastScreen() {
   const [playlistsError, setPlaylistsError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [tuning, setTuning] = useState(false);
+  const [recent, setRecent] = useState<BroadcastHistoryEntry[]>([]);
+
+  // Recompute on every focus so the list reflects new bakes that happened
+  // on the /player screen and prunes anything that aged out of retention.
+  const refreshRecent = useCallback(() => {
+    setRecent(getBroadcastHistory());
+  }, []);
 
   const loadPlaylists = useCallback(async () => {
     setPlaylistsLoading(true);
@@ -136,6 +225,10 @@ export default function HomeBroadcastScreen() {
       setPlaylistsLoading(false);
     }
   }, []);
+
+  useFocusEffect(useCallback(() => {
+    refreshRecent();
+  }, [refreshRecent]));
 
   useEffect(() => {
     let mounted = true;
@@ -175,6 +268,16 @@ export default function HomeBroadcastScreen() {
     })();
     return () => { mounted = false; };
   }, [router, loadPlaylists]);
+
+  const playRecent = useCallback((entry: BroadcastHistoryEntry) => {
+    router.push('/(main)/(broadcast)/player');
+    // Zero-cost replay: reuses stored manifest + R2 URLs from the original
+    // bake. No LLM/TTS calls, no /broadcast/create roundtrip.
+    broadcastPlayer.start(entry.manifest, entry.firstSegmentUrls).catch((err: unknown) => {
+      const msg = err instanceof Error ? err.message : 'Playback failed';
+      Alert.alert('Broadcast error', msg);
+    });
+  }, [router]);
 
   const playFeatured = useCallback((fb: FeaturedBroadcast) => {
     const firstSlot = fb.manifest.segmentSlots[0];
@@ -253,6 +356,29 @@ export default function HomeBroadcastScreen() {
           onSubmit={playUserSourced}
         />
         <AskOnayButton onPress={() => router.push('/(main)/(broadcast)/ask-onay')} />
+
+        {recent.length > 0 && (
+          <>
+            <View style={{ height: Spacing.xl }} />
+            <SectionLabel text="RECENT BROADCASTS" />
+            {recent.map(entry => (
+              <RecentBroadcastRow
+                key={entry.manifest.broadcastId}
+                entry={entry}
+                onPress={() => playRecent(entry)}
+              />
+            ))}
+            <Text style={{
+              color: TextColors.outline,
+              fontFamily: Typography.mono.family,
+              fontSize: 10,
+              letterSpacing: 1.5,
+              marginTop: Spacing.xs,
+            }}>
+              SAVED FOR 24 HOURS
+            </Text>
+          </>
+        )}
 
         <View style={{ height: Spacing.xl }} />
 

@@ -3,7 +3,9 @@ import type {
   Manifest, PlayerState, PlayerStatus, Vibe,
 } from './BroadcastPlayer.types';
 import type { StingerKind } from './BroadcastStingers';
-import { setPersistedBroadcast, clearPersistedBroadcast } from '../services/Storage';
+import {
+  setPersistedBroadcast, clearPersistedBroadcast, addBroadcastToHistory,
+} from '../services/Storage';
 
 export interface MusicDeps {
   play: (ids?: string[]) => Promise<void>;
@@ -90,6 +92,10 @@ export class BroadcastPlayer {
   async start(manifest: Manifest, firstSegmentUrls: string[]): Promise<void> {
     this.manifest = manifest;
     setPersistedBroadcast(manifest);
+    // Save to history at start (option A): the user sees the broadcast
+    // in their list as soon as it begins, and it persists through manual
+    // or natural end so they can re-listen within the retention window.
+    addBroadcastToHistory(manifest, firstSegmentUrls);
     this.cache.clear();
     this.state = 'loading';
     if (this.native.setBroadcastActive) {
