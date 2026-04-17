@@ -9,12 +9,14 @@ import { enrichmentRouter } from './routes/enrichment';
 import { musicbrainzRouter } from './routes/musicbrainz';
 import { curationRouter } from './routes/curation';
 import { createBroadcastRouter } from './routes/broadcast';
+import { createFeaturedRouter } from './routes/featured';
 import { requireAuth } from './middleware/auth';
 import { llmProvider } from './providers/llm';
 import { ttsProvider } from './providers/tts';
 import { LocalFilesystemStorage } from './services/storage/ObjectStorage';
 import { BroadcastStore } from './services/broadcast/BroadcastStore';
 import { BroadcastOrchestrator } from './services/broadcast/BroadcastOrchestrator';
+import { FeaturedBroadcastRegistry } from './services/broadcast/FeaturedBroadcastRegistry';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -107,6 +109,13 @@ app.use(requireAuth, generationLimiter, curationRouter);
 // Broadcast router: auth for all, generation limiter only on POST /broadcast/create
 // (manifest polls + segment fetches are cheap and should NOT count against the LLM budget).
 app.use(requireAuth, createBroadcastRouter(broadcastOrchestrator, broadcastStore, generationLimiter));
+
+// Featured broadcasts (ONAY-curated, shared across users)
+const featuredRegistry = new FeaturedBroadcastRegistry(
+  path.resolve(__dirname, '../featured-broadcasts/registry.json'),
+);
+featuredRegistry.load().catch(err => console.error('[featured] registry load failed', err));
+app.use(requireAuth, createFeaturedRouter(featuredRegistry));
 
 // Static asset serving for broadcast audio (dev only — production uses signed URLs)
 app.use('/broadcast-asset', requireAuth, (req, res, next) => {
