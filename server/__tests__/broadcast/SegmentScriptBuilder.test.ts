@@ -163,4 +163,28 @@ describe('buildSegmentPrompts', () => {
       expect(prompts[0].userPrompt.length).toBeGreaterThan(0);
     });
   });
+
+  describe('host voice guidance', () => {
+    it('establishes ONAY as a woman with she/her pronouns', () => {
+      const m = makeManifest();
+      const prompts = buildSegmentPrompts(m.segmentSlots[0], m, ctx);
+      const sys = prompts[0].systemPrompt;
+      expect(sys).toMatch(/she\/her/i);
+      expect(sys).toMatch(/woman/i);
+    });
+
+    it('forbids masculine DJ phrasing', () => {
+      const m = makeManifest();
+      const prompts = buildSegmentPrompts(m.segmentSlots[0], m, ctx);
+      const sys = prompts[0].systemPrompt;
+      expect(sys).toContain('your boy');
+      expect(sys).toContain('my man');
+    });
+
+    it('surfaces the Oh-nay pronunciation hint', () => {
+      const m = makeManifest();
+      const prompts = buildSegmentPrompts(m.segmentSlots[0], m, ctx);
+      expect(prompts[0].systemPrompt).toContain('Oh-nay');
+    });
+  });
 });

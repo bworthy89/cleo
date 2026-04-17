@@ -17,6 +17,15 @@ const DEFAULT_TTS_PARAMS = {
   speed: 1.0,
 };
 
+/**
+ * Replace the stylized name "ONAY" with a phonetic spelling so Cartesia /
+ * ElevenLabs pronounce it "Oh-nay" rather than spelling or misreading it.
+ * Uses a word-boundary regex so it won't hit unrelated substrings.
+ */
+export function phoneticizeHostName(script: string): string {
+  return script.replace(/\bONAY\b/g, 'Oh-nay');
+}
+
 export class SegmentGenerator {
   constructor(
     private readonly llm: LLMCaller,
@@ -47,7 +56,7 @@ export class SegmentGenerator {
       maxTokens: prompt.maxTokens,
     });
     const ttsResult = await this.tts.synthesize({
-      text: scriptResult.text,
+      text: phoneticizeHostName(scriptResult.text),
       ...DEFAULT_TTS_PARAMS,
     });
     const key = `broadcast/${broadcastId}/segment/${slotIndex}/v${variant}.mp3`;
