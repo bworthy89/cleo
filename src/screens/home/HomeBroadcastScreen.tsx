@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { View, Text, ScrollView, ActivityIndicator, Alert, Animated, Easing } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Colors, Surface, TextColors, Spacing, Typography } from '../../tokens/design-tokens';
 import { musicKitPlayer } from '../../services/MusicKitPlayer';
@@ -73,6 +74,7 @@ function SectionLabel({ text, live }: { text: string; live?: boolean }) {
 
 export default function HomeBroadcastScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [featured, setFeatured] = useState<FeaturedBroadcast[]>([]);
   const [playlists, setPlaylists] = useState<MusicPlaylist[]>([]);
   const [playlistsLoading, setPlaylistsLoading] = useState(false);
@@ -196,7 +198,11 @@ export default function HomeBroadcastScreen() {
     <>
       <ScrollView
         style={{ flex: 1, backgroundColor: Colors.base.black }}
-        contentContainerStyle={{ padding: Spacing.lg, paddingBottom: Spacing.xxl }}
+        contentContainerStyle={{
+          paddingHorizontal: Spacing.lg,
+          paddingTop: insets.top + Spacing.lg,
+          paddingBottom: insets.bottom + Spacing.xxl,
+        }}
       >
         <SectionLabel text="YOUR BROADCAST" />
         <YourBroadcastSetup

@@ -145,13 +145,13 @@ export function SetupSheet({
                 <View style={{ padding: Spacing.lg, alignItems: 'center' }}>
                   <ActivityIndicator color={Colors.accent} />
                   <Text style={{ color: TextColors.secondary, marginTop: Spacing.sm }}>
-                    Loading your Apple Music playlists\u2026
+                    Loading your Apple Music playlists…
                   </Text>
                 </View>
               ) : playlistsError ? (
                 <View style={{ padding: Spacing.md, backgroundColor: Surface.container, borderRadius: Radius.sm, borderLeftWidth: 2, borderLeftColor: Colors.error }}>
                   <Text style={{ color: TextColors.primary, marginBottom: Spacing.sm }}>
-                    Couldn\u2019t load your playlists.
+                    Couldn’t load your playlists.
                   </Text>
                   <Text style={{ color: TextColors.secondary, fontSize: 12, marginBottom: Spacing.sm }}>
                     {playlistsError}

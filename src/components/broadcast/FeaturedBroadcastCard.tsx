@@ -46,7 +46,7 @@ export function FeaturedBroadcastCard({ broadcast, onPress }: Props) {
           letterSpacing: 2,
           marginTop: Spacing.xs,
         }}>
-          {broadcast.vibe.toUpperCase()} \u00B7 {broadcast.length.toUpperCase()}
+          {broadcast.vibe.toUpperCase()} · {broadcast.length.toUpperCase()}
         </Text>
       </View>
       <Ionicons name="chevron-forward" size={18} color={TextColors.outline} style={{ marginLeft: Spacing.sm }} />
