@@ -182,15 +182,6 @@ export default function BroadcastPlayerScreen() {
             </>
           )}
         </View>
-        <Pressable
-          onPress={handleEnd}
-          accessibilityRole="button"
-          accessibilityLabel="End broadcast"
-          hitSlop={12}
-          style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
-        >
-          <Ionicons name="close" size={22} color={TextColors.secondary} />
-        </Pressable>
       </View>
 
       {warming ? (
@@ -283,62 +274,86 @@ export default function BroadcastPlayerScreen() {
         </Text>
       </View>
 
-      <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
-        {!paused ? (
-          <Pressable
-            onPress={() => { broadcastPlayer.pause().catch(() => {}); }}
-            accessibilityRole="button"
-            accessibilityLabel="Pause broadcast"
-            disabled={ended}
-            style={({ pressed }) => ({
-              flex: 1,
-              padding: Spacing.md,
-              backgroundColor: Surface.container,
-              borderRadius: Radius.sm,
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: Spacing.sm,
-              opacity: pressed ? 0.75 : 1,
-            })}
-          >
-            <Ionicons name="pause" size={18} color={ended ? TextColors.outline : TextColors.primary} />
-            <Text style={{
-              color: ended ? TextColors.outline : TextColors.primary,
-              fontFamily: Typography.mono.family,
-              letterSpacing: 2,
-            }}>
-              PAUSE
-            </Text>
-          </Pressable>
-        ) : (
-          <Pressable
-            onPress={() => { broadcastPlayer.resume().catch(() => {}); }}
-            accessibilityRole="button"
-            accessibilityLabel="Resume broadcast"
-            style={({ pressed }) => ({
-              flex: 1,
-              padding: Spacing.md,
-              backgroundColor: accent,
-              borderRadius: Radius.sm,
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: Spacing.sm,
-              opacity: pressed ? 0.85 : 1,
-            })}
-          >
-            <Ionicons name="play" size={18} color={Colors.base.black} />
-            <Text style={{
-              color: Colors.base.black,
-              fontFamily: Typography.mono.family,
-              letterSpacing: 2,
-            }}>
-              RESUME
-            </Text>
-          </Pressable>
-        )}
-      </View>
+      {!paused ? (
+        <Pressable
+          onPress={() => { broadcastPlayer.pause().catch(() => {}); }}
+          accessibilityRole="button"
+          accessibilityLabel="Pause broadcast"
+          disabled={ended}
+          style={({ pressed }) => ({
+            padding: Spacing.md,
+            backgroundColor: Surface.container,
+            borderRadius: Radius.sm,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: Spacing.sm,
+            marginBottom: Spacing.sm,
+            opacity: pressed ? 0.75 : 1,
+          })}
+        >
+          <Ionicons name="pause" size={20} color={ended ? TextColors.outline : TextColors.primary} />
+          <Text style={{
+            color: ended ? TextColors.outline : TextColors.primary,
+            fontFamily: Typography.mono.family,
+            fontSize: 13,
+            letterSpacing: 2,
+          }}>
+            PAUSE
+          </Text>
+        </Pressable>
+      ) : (
+        <Pressable
+          onPress={() => { broadcastPlayer.resume().catch(() => {}); }}
+          accessibilityRole="button"
+          accessibilityLabel="Resume broadcast"
+          style={({ pressed }) => ({
+            padding: Spacing.md,
+            backgroundColor: accent,
+            borderRadius: Radius.sm,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: Spacing.sm,
+            marginBottom: Spacing.sm,
+            opacity: pressed ? 0.85 : 1,
+          })}
+        >
+          <Ionicons name="play" size={20} color={Colors.base.black} />
+          <Text style={{
+            color: Colors.base.black,
+            fontFamily: Typography.mono.family,
+            fontSize: 13,
+            letterSpacing: 2,
+          }}>
+            RESUME
+          </Text>
+        </Pressable>
+      )}
+
+      <Pressable
+        onPress={handleEnd}
+        accessibilityRole="button"
+        accessibilityLabel="End broadcast"
+        style={({ pressed }) => ({
+          paddingVertical: Spacing.sm,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 6,
+          opacity: pressed ? 0.6 : 1,
+        })}
+      >
+        <Ionicons name="close" size={14} color={TextColors.outline} />
+        <Text style={{
+          color: TextColors.outline,
+          fontFamily: Typography.mono.family,
+          fontSize: 11,
+          letterSpacing: 2,
+        }}>
+          END BROADCAST
+        </Text>
+      </Pressable>
     </ScrollView>
   );
 }
