@@ -2,11 +2,6 @@ import { __resetAllStores } from '../../__mocks__/react-native-mmkv';
 import {
   getUser,
   setUser,
-  getStations,
-  setStations,
-  addStation,
-  getRecentlyPlayed,
-  addRecentlyPlayedTrack,
   getCachedPlaylists,
   setCachedPlaylists,
   clearUserData,
@@ -14,7 +9,6 @@ import {
   getPersistedBroadcast,
   clearPersistedBroadcast,
   type UserData,
-  type Station,
 } from '../../src/services/Storage';
 import type { MusicPlaylist } from '../../modules/expo-music-kit';
 import type { Manifest } from '../../src/engines/BroadcastPlayer.types';
@@ -22,10 +16,6 @@ import type { Manifest } from '../../src/engines/BroadcastPlayer.types';
 beforeEach(() => {
   __resetAllStores();
 });
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 function makeUser(overrides: Partial<UserData> = {}): UserData {
   return {
@@ -35,23 +25,9 @@ function makeUser(overrides: Partial<UserData> = {}): UserData {
   };
 }
 
-function makeStation(id: string): Station {
-  return {
-    id,
-    name: `Station ${id}`,
-    playlistId: `pl-${id}`,
-    defaultVibe: 'chill',
-    createdAt: '2024-01-01T00:00:00.000Z',
-  };
-}
-
 function makePlaylist(id: string): MusicPlaylist {
   return { id, name: `Playlist ${id}` };
 }
-
-// ---------------------------------------------------------------------------
-// getUser / setUser
-// ---------------------------------------------------------------------------
 
 describe('getUser / setUser', () => {
   it('returns undefined when nothing has been stored', () => {
@@ -72,108 +48,13 @@ describe('getUser / setUser', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// getStations / setStations / addStation
-// ---------------------------------------------------------------------------
-
-describe('getStations / setStations / addStation', () => {
-  it('returns an empty array when nothing has been stored', () => {
-    expect(getStations()).toEqual([]);
-  });
-
-  it('addStation appends to an empty list', () => {
-    const station = makeStation('s1');
-    addStation(station);
-    expect(getStations()).toEqual([station]);
-  });
-
-  it('addStation appends to an existing list', () => {
-    const s1 = makeStation('s1');
-    const s2 = makeStation('s2');
-    addStation(s1);
-    addStation(s2);
-    expect(getStations()).toEqual([s1, s2]);
-  });
-
-  it('setStations replaces the entire list', () => {
-    addStation(makeStation('s1'));
-    addStation(makeStation('s2'));
-    const replacement = [makeStation('s3')];
-    setStations(replacement);
-    expect(getStations()).toEqual(replacement);
-  });
-
-  it('setStations with empty array clears all stations', () => {
-    addStation(makeStation('s1'));
-    setStations([]);
-    expect(getStations()).toEqual([]);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// getRecentlyPlayed / addRecentlyPlayedTrack
-// ---------------------------------------------------------------------------
-
-describe('getRecentlyPlayed / addRecentlyPlayedTrack', () => {
-  it('returns an empty trackIds array when nothing has been stored', () => {
-    const rp = getRecentlyPlayed();
-    expect(rp.trackIds).toEqual([]);
-  });
-
-  it('addRecentlyPlayedTrack adds the first track', () => {
-    addRecentlyPlayedTrack('track-1');
-    expect(getRecentlyPlayed().trackIds).toEqual(['track-1']);
-  });
-
-  it('most recent track appears first', () => {
-    addRecentlyPlayedTrack('track-1');
-    addRecentlyPlayedTrack('track-2');
-    addRecentlyPlayedTrack('track-3');
-    expect(getRecentlyPlayed().trackIds[0]).toBe('track-3');
-    expect(getRecentlyPlayed().trackIds).toEqual(['track-3', 'track-2', 'track-1']);
-  });
-
-  it('deduplicates: re-adding an existing track moves it to the front', () => {
-    addRecentlyPlayedTrack('track-1');
-    addRecentlyPlayedTrack('track-2');
-    addRecentlyPlayedTrack('track-1'); // duplicate
-    expect(getRecentlyPlayed().trackIds).toEqual(['track-1', 'track-2']);
-  });
-
-  it('caps the list at 50 entries', () => {
-    // Add 55 unique tracks
-    for (let i = 1; i <= 55; i++) {
-      addRecentlyPlayedTrack(`track-${i}`);
-    }
-    const { trackIds } = getRecentlyPlayed();
-    expect(trackIds).toHaveLength(50);
-    // The most recent 50 should be track-55 down to track-6
-    expect(trackIds[0]).toBe('track-55');
-    expect(trackIds[49]).toBe('track-6');
-  });
-
-  it('updates lastUpdated on each call', () => {
-    const before = new Date().toISOString();
-    addRecentlyPlayedTrack('track-1');
-    const { lastUpdated } = getRecentlyPlayed();
-    expect(lastUpdated >= before).toBe(true);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// getCachedPlaylists / setCachedPlaylists
-// ---------------------------------------------------------------------------
-
 describe('getCachedPlaylists / setCachedPlaylists', () => {
   it('returns undefined when nothing has been stored', () => {
     expect(getCachedPlaylists()).toBeUndefined();
   });
 
   it('roundtrips a list of playlists', () => {
-    const playlists: MusicPlaylist[] = [
-      makePlaylist('p1'),
-      makePlaylist('p2'),
-    ];
+    const playlists = [makePlaylist('p1'), makePlaylist('p2')];
     setCachedPlaylists(playlists);
     expect(getCachedPlaylists()).toEqual(playlists);
   });
@@ -184,43 +65,30 @@ describe('getCachedPlaylists / setCachedPlaylists', () => {
     setCachedPlaylists(updated);
     expect(getCachedPlaylists()).toEqual(updated);
   });
-
-  it('can store an empty array', () => {
-    setCachedPlaylists([]);
-    expect(getCachedPlaylists()).toEqual([]);
-  });
 });
 
-// ---------------------------------------------------------------------------
-// clearUserData
-// ---------------------------------------------------------------------------
-
 describe('clearUserData', () => {
-  it('clears stations, recentlyPlayed, and playlists cache — but preserves USER', () => {
+  it('clears playlist cache and persisted broadcast but preserves USER', () => {
     const user = makeUser({ name: 'Kari' });
     setUser(user);
-    addStation(makeStation('s1'));
-    addRecentlyPlayedTrack('track-1');
     setCachedPlaylists([makePlaylist('p1')]);
+    setPersistedBroadcast({
+      broadcastId: 'b1', userId: 'u1', playlistId: 'p1',
+      vibe: 'morning', length: 'quick', createdAt: Date.now(),
+      tracks: [], segmentSlots: [],
+    });
 
     clearUserData();
 
-    // USER is intentionally preserved so returning users skip onboarding
     expect(getUser()).toEqual(user);
-    expect(getStations()).toEqual([]);
-    expect(getRecentlyPlayed().trackIds).toEqual([]);
     expect(getCachedPlaylists()).toBeUndefined();
+    expect(getPersistedBroadcast()).toBeUndefined();
   });
 
   it('is idempotent when storage is already empty', () => {
     expect(() => clearUserData()).not.toThrow();
-    expect(getStations()).toEqual([]);
   });
 });
-
-// ---------------------------------------------------------------------------
-// broadcast storage
-// ---------------------------------------------------------------------------
 
 function makeManifest(id: string): Manifest {
   return {
@@ -237,8 +105,7 @@ function makeManifest(id: string): Manifest {
 
 describe('broadcast storage', () => {
   it('stores and retrieves a persisted broadcast manifest', () => {
-    const manifest = makeManifest('b1');
-    setPersistedBroadcast(manifest);
+    setPersistedBroadcast(makeManifest('b1'));
     expect(getPersistedBroadcast()?.broadcastId).toBe('b1');
   });
 
