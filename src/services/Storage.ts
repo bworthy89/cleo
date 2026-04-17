@@ -1,22 +1,12 @@
 import { createMMKV, type MMKV } from 'react-native-mmkv';
-import type { Vibe } from '../engines/BroadcastPlayer.types';
 import type { MusicPlaylist } from '../../modules/expo-music-kit';
-import type { Manifest } from '../engines/BroadcastPlayer.types';
+import type { Manifest, Vibe } from '../engines/BroadcastPlayer.types';
 
 export const storage: MMKV = createMMKV({ id: 'cleo-storage' });
 
 export const StorageKeys = {
   USER: 'user',
-  STATIONS: 'stations',
-  RECENTLY_PLAYED: 'recentlyPlayed',
-  SESSIONS: 'sessions',
-  COLD_OPEN_HISTORY: 'coldOpenHistory',
-  CLEO_VIDEO_CACHE: 'cleoVideoCache',
-  ENRICHMENT_CACHE: 'enrichmentCache',
   PLAYLISTS_CACHE: 'playlistsCache',
-  SESSION_HISTORY: 'sessionHistory',
-  CURRENT_SESSION: 'currentSession',
-  SESSION_MEMORY: 'session.memory',
   HOST_VOLUME_MIX: 'hostVolumeMix',
   ONAY_SUGGESTION: 'onay_suggestion',
   CURRENT_BROADCAST: 'currentBroadcast',
@@ -27,23 +17,6 @@ export interface UserData {
   appleMusicAuthorized: boolean;
   createdAt: string;
   defaultVibe?: Vibe;
-  onboardingMood?: 'focused' | 'energetic' | 'mellow';
-  onboardingGoal?: 'discovery' | 'relaxation' | 'work';
-  onboardingGenres?: string[];
-}
-
-export interface Station {
-  id: string;
-  name: string;
-  playlistId: string;
-  defaultVibe: Vibe;
-  artworkUrl?: string;
-  createdAt: string;
-}
-
-export interface RecentlyPlayed {
-  trackIds: string[];
-  lastUpdated: string;
 }
 
 export function getObject<T>(key: string): T | undefined {
@@ -71,37 +44,6 @@ export function setUser(user: UserData): void {
   setObject(StorageKeys.USER, user);
 }
 
-// Stations
-export function getStations(): Station[] {
-  return getObject<Station[]>(StorageKeys.STATIONS) ?? [];
-}
-
-export function setStations(stations: Station[]): void {
-  setObject(StorageKeys.STATIONS, stations);
-}
-
-export function addStation(station: Station): void {
-  const existing = getStations();
-  setStations([...existing, station]);
-}
-
-// Recently Played
-export function getRecentlyPlayed(): RecentlyPlayed {
-  return getObject<RecentlyPlayed>(StorageKeys.RECENTLY_PLAYED) ?? {
-    trackIds: [],
-    lastUpdated: new Date().toISOString(),
-  };
-}
-
-export function addRecentlyPlayedTrack(trackId: string): void {
-  const rp = getRecentlyPlayed();
-  const updated = [trackId, ...rp.trackIds.filter(id => id !== trackId)].slice(0, 50);
-  setObject<RecentlyPlayed>(StorageKeys.RECENTLY_PLAYED, {
-    trackIds: updated,
-    lastUpdated: new Date().toISOString(),
-  });
-}
-
 // Playlists Cache
 export function getCachedPlaylists(): MusicPlaylist[] | undefined {
   return getObject<MusicPlaylist[]>(StorageKeys.PLAYLISTS_CACHE);
@@ -125,7 +67,6 @@ export interface OnaySuggestion {
 export function getOnaySuggestion(uid: string): OnaySuggestion | undefined {
   const suggestion = getObject<OnaySuggestion>(`${StorageKeys.ONAY_SUGGESTION}:${uid}`);
   if (!suggestion) return undefined;
-  // 6-hour TTL
   const SIX_HOURS = 6 * 60 * 60 * 1000;
   if (Date.now() - suggestion.generatedAt > SIX_HOURS) return undefined;
   return suggestion;
@@ -149,13 +90,12 @@ export function clearPersistedBroadcast(): void {
   storage.remove(StorageKeys.CURRENT_BROADCAST);
 }
 
-// Clear user-facing data on logout (preserves enrichment cache and user profile
-// so returning users are not re-routed through onboarding)
+/**
+ * Clear user-facing data on logout. Preserves USER so returning users
+ * are not re-routed through onboarding.
+ */
 export function clearUserData(uid?: string): void {
   if (uid) storage.remove(`${StorageKeys.ONAY_SUGGESTION}:${uid}`);
-  storage.remove(StorageKeys.STATIONS);
-  storage.remove(StorageKeys.RECENTLY_PLAYED);
-  storage.remove(StorageKeys.SESSIONS);
-  storage.remove(StorageKeys.COLD_OPEN_HISTORY);
   storage.remove(StorageKeys.PLAYLISTS_CACHE);
+  clearPersistedBroadcast();
 }
