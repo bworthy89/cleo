@@ -3,7 +3,9 @@ import * as path from 'path';
 
 export interface ObjectStorage {
   put(key: string, bytes: Buffer): Promise<string>;
-  getAbsolutePath(key: string): string;
+  // Only backends that serve bytes from a local path expose this. Remote
+  // backends (e.g. R2) return the URL from put() and have no local file.
+  getAbsolutePath?(key: string): string;
 }
 
 export class LocalFilesystemStorage implements ObjectStorage {
