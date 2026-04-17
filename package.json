@@ -14,12 +14,8 @@
     "test": "jest --runInBand"
   },
   "dependencies": {
-    "@expo-google-fonts/dm-mono": "^0.4.2",
-    "@expo-google-fonts/eb-garamond": "^0.4.2",
     "@expo-google-fonts/fraunces": "^0.4.1",
-    "@expo-google-fonts/inter": "^0.4.2",
     "@expo-google-fonts/jetbrains-mono": "^0.4.1",
-    "@expo-google-fonts/playfair-display": "^0.4.2",
     "@expo/vector-icons": "^15.1.1",
     "@react-native-community/netinfo": "11.5.2",
     "@react-native-community/slider": "^5.1.2",
