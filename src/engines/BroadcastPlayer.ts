@@ -247,9 +247,9 @@ export class BroadcastPlayer {
             const status = await this.music.getPlaybackStatus();
             if (status === 'playing') sawPlaying = true;
             // Only treat "stopped" as end-of-track after we've confirmed
-            // the track actually started — guards against the starting-state
-            // reporting as stopped before MusicKit gets going.
-            if (sawPlaying && (status === 'stopped' || status === 'paused')) {
+            // the track actually started. "paused" is explicitly excluded:
+            // a user pause must not advance to the next segment.
+            if (sawPlaying && status === 'stopped') {
               return done(`poll(status=${status})`);
             }
           } catch { /* swallow, keep polling */ }
