@@ -53,7 +53,7 @@ export const enrichMusicBrainzSchema = z.object({
 
 export const curatePlaylistSchema = z.object({
   prompt: z.string().min(1).max(500),
-  trackCount: z.number().int().min(10).max(50).optional().default(20),
+  trackCount: z.number().int().min(1).max(50).optional().default(20),
   round: z.enum(['initial', 'gap-fill', 'refinement']),
   existingTracks: z.array(z.object({
     title: z.string(),
