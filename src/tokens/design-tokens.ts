@@ -68,15 +68,6 @@ export const Colors = {
   accent:     AM.amber,
   accentDark: AM.amber,
   error:      '#ff6e84',
-  vibe: {
-    morning:    { accent: AM.amber },
-    focus:      { accent: AM.amber },
-    workout:    { accent: AM.amber },
-    feelGood:   { accent: AM.amber },
-    lateNight:  { accent: AM.amber },
-    melancholy: { accent: AM.amber },
-    party:      { accent: AM.amber },
-  },
 };
 
 /** @deprecated Use `AM.bg` or `AM.amberFaint` for surface separation. */
@@ -190,9 +181,4 @@ export function withAlpha(hex: string, alpha: number): string {
   const g = parseInt(hex.slice(3, 5), 16);
   const b = parseInt(hex.slice(5, 7), 16);
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
-
-/** @deprecated Vibe colors have been unified to amber. Returns `AM.amber` for every vibe. */
-export function getVibeAccent(_vibe: string): string {
-  return AM.amber;
 }
