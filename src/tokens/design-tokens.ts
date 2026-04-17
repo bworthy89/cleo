@@ -7,17 +7,12 @@ export const Colors = {
   error: '#ff6e84',
   vibe: {
     morning:    { accent: '#C8832A' },
-    chill:      { accent: '#5B7FA6' },
-    lateNight:  { accent: '#7B5EA7' },
-    workout:    { accent: '#FF4D3D' },
-    party:      { accent: '#FF8C42' },
-    general:    { accent: '#C8832A' },
     focus:      { accent: '#4A7A5B' },
+    workout:    { accent: '#FF4D3D' },
     feelGood:   { accent: '#E8923A' },
-    throwback:  { accent: '#B87A3A' },
-    elevated:   { accent: '#8B7BA8' },
+    lateNight:  { accent: '#7B5EA7' },
     melancholy: { accent: '#5B6A8A' },
-    sunday:     { accent: '#A88B6A' },
+    party:      { accent: '#FF8C42' },
   },
 };
 
