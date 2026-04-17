@@ -8,6 +8,17 @@ interface Props {
   onPress: () => void;
 }
 
+function freshness(createdAt: number): string {
+  const ms = Date.now() - createdAt;
+  const hours = ms / (1000 * 60 * 60);
+  if (hours < 1) return 'Just now';
+  if (hours < 24) return `${Math.round(hours)}h ago`;
+  const days = Math.round(hours / 24);
+  if (days === 1) return 'Yesterday';
+  if (days < 7) return `${days}d ago`;
+  return 'Earlier';
+}
+
 export function FeaturedBroadcastCard({ broadcast, onPress }: Props) {
   return (
     <Pressable
@@ -39,15 +50,25 @@ export function FeaturedBroadcastCard({ broadcast, onPress }: Props) {
         <Text style={{ color: TextColors.secondary, marginTop: 2 }} numberOfLines={2}>
           {broadcast.description}
         </Text>
-        <Text style={{
-          color: Colors.accent,
-          fontFamily: Typography.mono.family,
-          fontSize: 10,
-          letterSpacing: 2,
-          marginTop: Spacing.xs,
-        }}>
-          {broadcast.vibe.toUpperCase()} · {broadcast.length.toUpperCase()}
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: Spacing.xs, gap: Spacing.sm }}>
+          <Text style={{
+            color: Colors.accent,
+            fontFamily: Typography.mono.family,
+            fontSize: 10,
+            letterSpacing: 2,
+          }}>
+            {broadcast.vibe.toUpperCase()} · {broadcast.length.toUpperCase()}
+          </Text>
+          <Text style={{ color: TextColors.outline, fontSize: 10 }}>·</Text>
+          <Text style={{
+            color: TextColors.outline,
+            fontFamily: Typography.mono.family,
+            fontSize: 10,
+            letterSpacing: 1.5,
+          }}>
+            {freshness(broadcast.createdAt).toUpperCase()}
+          </Text>
+        </View>
       </View>
       <Ionicons name="chevron-forward" size={18} color={TextColors.outline} style={{ marginLeft: Spacing.sm }} />
     </Pressable>
