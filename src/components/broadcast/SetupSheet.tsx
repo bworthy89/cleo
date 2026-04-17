@@ -10,18 +10,13 @@ type Vibe = Manifest['vibe'];
 type Length = Manifest['length'];
 
 const VIBES: { id: Vibe; label: string; subtitle: string }[] = [
-  { id: 'morning',    label: 'Morning',    subtitle: 'Warm, bright, gently energizing' },
-  { id: 'chill',      label: 'Chill',      subtitle: 'Relaxed, unhurried, easygoing' },
-  { id: 'workout',    label: 'Workout',    subtitle: 'Pumped, driving, high-energy' },
-  { id: 'lateNight',  label: 'Late Night', subtitle: 'Intimate, moody, introspective' },
-  { id: 'party',      label: 'Party',      subtitle: 'Celebratory, dance-floor energy' },
-  { id: 'focus',      label: 'Focus',      subtitle: 'Minimal, calm, concentration-friendly' },
-  { id: 'feelGood',   label: 'Feel Good',  subtitle: 'Uplifting, affirming' },
-  { id: 'throwback',  label: 'Throwback',  subtitle: 'Nostalgic, warm, era-evoking' },
-  { id: 'elevated',   label: 'Elevated',   subtitle: 'Sophisticated, refined' },
-  { id: 'melancholy', label: 'Melancholy', subtitle: 'Bittersweet, reflective' },
-  { id: 'sunday',     label: 'Sunday',     subtitle: 'Laid-back, slow-burn, unhurried' },
-  { id: 'general',    label: 'General',    subtitle: 'Balanced, conversational, eclectic' },
+  { id: 'morning',    label: 'Morning',    subtitle: 'Sun\u2019s up, gentle forward motion' },
+  { id: 'focus',      label: 'Focus',      subtitle: 'Head-down, unobtrusive momentum' },
+  { id: 'workout',    label: 'Workout',    subtitle: 'Sustained drive, no breathers' },
+  { id: 'feelGood',   label: 'Feel Good',  subtitle: 'Warm, uplifting, communal' },
+  { id: 'lateNight',  label: 'Late Night', subtitle: 'Hushed, warm, drifting' },
+  { id: 'melancholy', label: 'Melancholy', subtitle: 'Reflective, sad in a good way' },
+  { id: 'party',      label: 'Party',      subtitle: 'Saturday night, builds and releases' },
 ];
 
 const LENGTHS: { id: Length; label: string; subtitle: string }[] = [

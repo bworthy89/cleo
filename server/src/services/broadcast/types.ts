@@ -1,7 +1,6 @@
 export type Vibe =
-  | 'morning' | 'chill' | 'workout' | 'lateNight' | 'party'
-  | 'general' | 'focus' | 'feelGood' | 'throwback' | 'elevated'
-  | 'melancholy' | 'sunday';
+  | 'morning' | 'focus' | 'workout' | 'feelGood'
+  | 'lateNight' | 'melancholy' | 'party';
 
 export type BroadcastLength = 'quick' | 'standard' | 'long';
 

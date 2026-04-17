@@ -42,7 +42,7 @@ const PERSONALITIES: PersonalityOption[] = [
     label: 'Companion',
     description: 'Warm & Empathetic. Focuses on emotional resonance and mood matching.',
     icon: 'heart-outline',
-    iconColor: Colors.vibe.chill.accent,
+    iconColor: Colors.vibe.lateNight.accent,
   },
   {
     key: 'oracle',
@@ -259,7 +259,7 @@ export function ProfileScreen() {
             </View>
             <View style={styles.sliderTrack}>
               <LinearGradient
-                colors={[Colors.accent, Colors.vibe.chill.accent]}
+                colors={[Colors.accent, Colors.vibe.lateNight.accent]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={[styles.sliderFill, { width: '85%' }]}
