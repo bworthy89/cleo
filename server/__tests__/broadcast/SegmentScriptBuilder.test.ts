@@ -1,5 +1,9 @@
 import { buildSegmentPrompts } from '@/services/broadcast/SegmentScriptBuilder';
 import type { Manifest } from '@/services/broadcast/types';
+import { promises as fs } from 'fs';
+import * as path from 'path';
+import * as os from 'os';
+import { EnrichmentCache } from '@/services/enrichment/EnrichmentCache';
 
 const makeManifest = (): Manifest => ({
   broadcastId: 'b1', userId: 'u1', playlistId: 'p1',
@@ -101,5 +105,62 @@ describe('buildSegmentPrompts', () => {
     const titleSection = prompt.userPrompt.match(/\u201C([^\u201D]+)\u201D/);
     expect(titleSection).not.toBeNull();
     expect(titleSection![1].length).toBeLessThanOrEqual(121);
+  });
+
+  describe('buildSegmentPrompts with enrichment', () => {
+    async function enrichCacheWith(entries: Array<{
+      title: string; artist: string; producer?: string; sample?: string;
+    }>): Promise<EnrichmentCache> {
+      const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'ssb-test-'));
+      const cache = new EnrichmentCache(path.join(dir, 'tracks.json'));
+      await cache.load();
+      for (const e of entries) {
+        await cache.set(e.title, e.artist, {
+          producer: e.producer,
+          sample: e.sample,
+          lastEnrichedAt: Date.now(),
+          source: 'genius',
+        });
+      }
+      return cache;
+    }
+
+    it('injects producer name into transition prompts when available', async () => {
+      const manifest = makeManifest();
+      const enrichCache = await enrichCacheWith([
+        { title: manifest.tracks[1].title, artist: manifest.tracks[1].artistName, producer: 'Madlib' },
+      ]);
+      const transitionSlot = manifest.segmentSlots.find(s => s.kind === 'transition')!;
+      const prompts = buildSegmentPrompts(transitionSlot, manifest, ctx, enrichCache);
+      const prompt = prompts[0].userPrompt;
+      expect(prompt).toContain('Madlib');
+    });
+
+    it('injects sample line into transition prompts when available', async () => {
+      const manifest = makeManifest();
+      const enrichCache = await enrichCacheWith([
+        { title: manifest.tracks[1].title, artist: manifest.tracks[1].artistName,
+          sample: 'Samples "Across 110th Street" by Bobby Womack' },
+      ]);
+      const transitionSlot = manifest.segmentSlots.find(s => s.kind === 'transition')!;
+      const prompts = buildSegmentPrompts(transitionSlot, manifest, ctx, enrichCache);
+      expect(prompts[0].userPrompt).toContain('Bobby Womack');
+    });
+
+    it('omits enrichment lines when cache has no record', async () => {
+      const manifest = makeManifest();
+      const enrichCache = await enrichCacheWith([]);
+      const transitionSlot = manifest.segmentSlots.find(s => s.kind === 'transition')!;
+      const prompts = buildSegmentPrompts(transitionSlot, manifest, ctx, enrichCache);
+      expect(prompts[0].userPrompt).not.toContain('Produced by');
+      expect(prompts[0].userPrompt).not.toContain('Samples');
+    });
+
+    it('works without an enrichment cache argument (backwards compat)', () => {
+      const manifest = makeManifest();
+      const transitionSlot = manifest.segmentSlots.find(s => s.kind === 'transition')!;
+      const prompts = buildSegmentPrompts(transitionSlot, manifest, ctx);
+      expect(prompts[0].userPrompt.length).toBeGreaterThan(0);
+    });
   });
 });
