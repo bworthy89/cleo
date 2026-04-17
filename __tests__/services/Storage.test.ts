@@ -8,6 +8,10 @@ import {
   setPersistedBroadcast,
   getPersistedBroadcast,
   clearPersistedBroadcast,
+  addBroadcastToHistory,
+  getBroadcastHistory,
+  BROADCAST_HISTORY_RETENTION_MS,
+  BROADCAST_HISTORY_MAX_ENTRIES,
   type UserData,
 } from '../../src/services/Storage';
 import type { MusicPlaylist } from '../../modules/expo-music-kit';
@@ -117,5 +121,73 @@ describe('broadcast storage', () => {
     setPersistedBroadcast(makeManifest('b2'));
     clearPersistedBroadcast();
     expect(getPersistedBroadcast()).toBeUndefined();
+  });
+});
+
+describe('broadcast history', () => {
+  it('returns an empty list when nothing has been added', () => {
+    expect(getBroadcastHistory()).toEqual([]);
+  });
+
+  it('adds a broadcast and round-trips the manifest + firstSegmentUrls', () => {
+    const manifest = makeManifest('b1');
+    const urls = ['https://r2/seg/0/v0.mp3'];
+    addBroadcastToHistory(manifest, urls);
+
+    const history = getBroadcastHistory();
+    expect(history).toHaveLength(1);
+    expect(history[0].manifest.broadcastId).toBe('b1');
+    expect(history[0].firstSegmentUrls).toEqual(urls);
+    expect(typeof history[0].createdAt).toBe('number');
+  });
+
+  it('orders newest first', () => {
+    addBroadcastToHistory(makeManifest('b1'), []);
+    addBroadcastToHistory(makeManifest('b2'), []);
+    addBroadcastToHistory(makeManifest('b3'), []);
+    expect(getBroadcastHistory().map(e => e.manifest.broadcastId))
+      .toEqual(['b3', 'b2', 'b1']);
+  });
+
+  it('dedupes by broadcastId — adding the same id twice does not duplicate the entry', () => {
+    const m = makeManifest('b1');
+    addBroadcastToHistory(m, ['url-v1']);
+    addBroadcastToHistory(m, ['url-v2']);
+
+    const history = getBroadcastHistory();
+    expect(history).toHaveLength(1);
+    // Most recent add wins so the UI sees the latest firstSegmentUrls
+    expect(history[0].firstSegmentUrls).toEqual(['url-v2']);
+  });
+
+  it(`caps the list at ${BROADCAST_HISTORY_MAX_ENTRIES} entries (oldest drop off)`, () => {
+    for (let i = 0; i < BROADCAST_HISTORY_MAX_ENTRIES + 3; i++) {
+      addBroadcastToHistory(makeManifest(`b${i}`), []);
+    }
+    const history = getBroadcastHistory();
+    expect(history).toHaveLength(BROADCAST_HISTORY_MAX_ENTRIES);
+    // The first three we added should have been dropped
+    const ids = history.map(e => e.manifest.broadcastId);
+    expect(ids).not.toContain('b0');
+    expect(ids).not.toContain('b1');
+    expect(ids).not.toContain('b2');
+    expect(ids[0]).toBe(`b${BROADCAST_HISTORY_MAX_ENTRIES + 2}`);
+  });
+
+  it('filters out entries older than the retention window', () => {
+    // Add an entry "yesterday" by advancing Date.now()
+    const realNow = Date.now();
+    const nowSpy = jest.spyOn(Date, 'now');
+    nowSpy.mockReturnValue(realNow - BROADCAST_HISTORY_RETENTION_MS - 1000);
+    addBroadcastToHistory(makeManifest('stale'), []);
+
+    // Add a fresh entry "now"
+    nowSpy.mockReturnValue(realNow);
+    addBroadcastToHistory(makeManifest('fresh'), []);
+
+    const history = getBroadcastHistory();
+    expect(history.map(e => e.manifest.broadcastId)).toEqual(['fresh']);
+
+    nowSpy.mockRestore();
   });
 });

@@ -10,7 +10,11 @@ export const StorageKeys = {
   HOST_VOLUME_MIX: 'hostVolumeMix',
   ONAY_SUGGESTION: 'onay_suggestion',
   CURRENT_BROADCAST: 'currentBroadcast',
+  BROADCAST_HISTORY: 'broadcast_history',
 } as const;
+
+export const BROADCAST_HISTORY_RETENTION_MS = 24 * 60 * 60 * 1000; // 24h
+export const BROADCAST_HISTORY_MAX_ENTRIES = 10;
 
 export interface UserData {
   name?: string;
@@ -98,4 +102,50 @@ export function clearUserData(uid?: string): void {
   if (uid) storage.remove(`${StorageKeys.ONAY_SUGGESTION}:${uid}`);
   storage.remove(StorageKeys.PLAYLISTS_CACHE);
   clearPersistedBroadcast();
+  storage.remove(StorageKeys.BROADCAST_HISTORY);
+}
+
+// Broadcast history — last N completed/in-flight broadcasts the user kicked
+// off, so they can see and replay them from the home screen. Replay is free
+// (zero LLM/TTS cost) because we reuse the stored manifest and R2 URLs.
+export interface BroadcastHistoryEntry {
+  manifest: Manifest;
+  firstSegmentUrls: string[];
+  createdAt: number; // ms since epoch
+}
+
+/**
+ * Prepend a broadcast to the history list. Dedupes by broadcastId so
+ * re-calling with the same manifest (e.g. on re-start) updates in place
+ * rather than creating a duplicate. Caps the list at MAX_ENTRIES; oldest
+ * entries drop off the tail.
+ */
+export function addBroadcastToHistory(
+  manifest: Manifest,
+  firstSegmentUrls: string[],
+): void {
+  const existing = getObject<BroadcastHistoryEntry[]>(StorageKeys.BROADCAST_HISTORY) ?? [];
+  const withoutDupe = existing.filter(
+    e => e.manifest.broadcastId !== manifest.broadcastId,
+  );
+  const entry: BroadcastHistoryEntry = {
+    manifest, firstSegmentUrls, createdAt: Date.now(),
+  };
+  const next = [entry, ...withoutDupe].slice(0, BROADCAST_HISTORY_MAX_ENTRIES);
+  setObject(StorageKeys.BROADCAST_HISTORY, next);
+}
+
+/**
+ * Return history entries newer than the retention window, newest first.
+ * Expired entries are pruned from storage as a side effect so the list
+ * stays small over time.
+ */
+export function getBroadcastHistory(): BroadcastHistoryEntry[] {
+  const existing = getObject<BroadcastHistoryEntry[]>(StorageKeys.BROADCAST_HISTORY) ?? [];
+  const cutoff = Date.now() - BROADCAST_HISTORY_RETENTION_MS;
+  const live = existing.filter(e => e.createdAt >= cutoff);
+  if (live.length !== existing.length) {
+    setObject(StorageKeys.BROADCAST_HISTORY, live);
+  }
+  return live;
 }
