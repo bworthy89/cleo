@@ -17,6 +17,9 @@ import { LocalFilesystemStorage } from './services/storage/ObjectStorage';
 import { BroadcastStore } from './services/broadcast/BroadcastStore';
 import { BroadcastOrchestrator } from './services/broadcast/BroadcastOrchestrator';
 import { FeaturedBroadcastRegistry } from './services/broadcast/FeaturedBroadcastRegistry';
+import { EnrichmentCache } from './services/enrichment/EnrichmentCache';
+import { BackgroundEnricher } from './services/enrichment/BackgroundEnricher';
+import { DefaultEnrichmentFetcher } from './services/enrichment/DefaultEnrichmentFetcher';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -96,38 +99,58 @@ const broadcastStorage = new LocalFilesystemStorage(
   `${process.env.BROADCAST_ASSET_BASE_URL ?? 'http://localhost:3001'}/broadcast-asset`,
 );
 const broadcastStore = new BroadcastStore();
-const broadcastOrchestrator = new BroadcastOrchestrator(
-  llmProvider, ttsProvider, broadcastStorage, broadcastStore,
+
+// Enrichment cache + background worker — fills Genius/MusicBrainz metadata
+// for tracks seen during bakes so future sequencer calls have richer context.
+const enrichmentCache = new EnrichmentCache(
+  path.resolve(__dirname, '../.enrichment-cache/tracks.json'),
+);
+const backgroundEnricher = new BackgroundEnricher(
+  enrichmentCache, new DefaultEnrichmentFetcher(),
 );
 
-// Auth-protected API routes
-app.use(requireAuth, generationLimiter, segmentRouter);
-app.use(requireAuth, generationLimiter, voiceRouter);
-app.use(requireAuth, enrichmentLimiter, enrichmentRouter);
-app.use(requireAuth, enrichmentLimiter, musicbrainzRouter);
-app.use(requireAuth, generationLimiter, curationRouter);
-// Broadcast router: auth for all, generation limiter only on POST /broadcast/create
-// (manifest polls + segment fetches are cheap and should NOT count against the LLM budget).
-app.use(requireAuth, createBroadcastRouter(broadcastOrchestrator, broadcastStore, generationLimiter));
+async function bootstrap(): Promise<void> {
+  await enrichmentCache.load();
 
-// Featured broadcasts (ONAY-curated, shared across users)
-const featuredRegistry = new FeaturedBroadcastRegistry(
-  path.resolve(__dirname, '../featured-broadcasts/registry.json'),
-);
-featuredRegistry.load().catch(err => console.error('[featured] registry load failed', err));
-app.use(requireAuth, createFeaturedRouter(featuredRegistry, broadcastOrchestrator, generationLimiter));
+  const broadcastOrchestrator = new BroadcastOrchestrator(
+    llmProvider, ttsProvider, broadcastStorage, broadcastStore,
+    enrichmentCache, backgroundEnricher,
+  );
 
-// Static asset serving for broadcast audio (dev only — production uses signed URLs)
-app.use('/broadcast-asset', requireAuth, (req, res, next) => {
-  try {
-    const abs = broadcastStorage.getAbsolutePath(req.path.replace(/^\/+/, ''));
-    res.sendFile(abs, (err) => { if (err) next(err); });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : 'invalid asset path';
-    res.status(400).json({ error: msg });
-  }
-});
+  // Auth-protected API routes
+  app.use(requireAuth, generationLimiter, segmentRouter);
+  app.use(requireAuth, generationLimiter, voiceRouter);
+  app.use(requireAuth, enrichmentLimiter, enrichmentRouter);
+  app.use(requireAuth, enrichmentLimiter, musicbrainzRouter);
+  app.use(requireAuth, generationLimiter, curationRouter);
+  // Broadcast router: auth for all, generation limiter only on POST /broadcast/create
+  // (manifest polls + segment fetches are cheap and should NOT count against the LLM budget).
+  app.use(requireAuth, createBroadcastRouter(broadcastOrchestrator, broadcastStore, generationLimiter));
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Cleo server running on 0.0.0.0:${PORT}`);
+  // Featured broadcasts (ONAY-curated, shared across users)
+  const featuredRegistry = new FeaturedBroadcastRegistry(
+    path.resolve(__dirname, '../featured-broadcasts/registry.json'),
+  );
+  featuredRegistry.load().catch(err => console.error('[featured] registry load failed', err));
+  app.use(requireAuth, createFeaturedRouter(featuredRegistry, broadcastOrchestrator, generationLimiter));
+
+  // Static asset serving for broadcast audio (dev only — production uses signed URLs)
+  app.use('/broadcast-asset', requireAuth, (req, res, next) => {
+    try {
+      const abs = broadcastStorage.getAbsolutePath(req.path.replace(/^\/+/, ''));
+      res.sendFile(abs, (err) => { if (err) next(err); });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'invalid asset path';
+      res.status(400).json({ error: msg });
+    }
+  });
+
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Cleo server running on 0.0.0.0:${PORT}`);
+  });
+}
+
+bootstrap().catch((err) => {
+  console.error('[bootstrap] failed to start server', err);
+  process.exit(1);
 });
