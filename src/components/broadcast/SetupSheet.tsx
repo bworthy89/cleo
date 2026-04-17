@@ -1,8 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
-import { View, Text, Pressable, ScrollView, Modal, Image, ActivityIndicator, Animated, Easing } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import {
+  Animated,
+  Easing,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { Colors, Surface, TextColors, Spacing, Typography, Radius, getVibeAccent } from '../../tokens/design-tokens';
+import { AM, Fonts, Space, TypeScale } from '../../tokens/design-tokens';
+import { AmberCTA } from '../AmberCTA';
+import { BroadcastBackdrop } from '../BroadcastBackdrop';
+import { HairlineRow } from '../HairlineRow';
 import type { MusicPlaylist } from '../../../modules/expo-music-kit';
 import type { Manifest } from '../../engines/BroadcastPlayer.types';
 
@@ -20,9 +31,9 @@ const VIBES: { id: Vibe; label: string; subtitle: string }[] = [
 ];
 
 const LENGTHS: { id: Length; label: string; subtitle: string }[] = [
-  { id: 'quick', label: 'Quick Set', subtitle: '~15 min · 5 tracks' },
-  { id: 'standard', label: 'Standard', subtitle: '~30 min · 9 tracks' },
-  { id: 'long', label: 'Long Drive', subtitle: '~60 min · 15 tracks' },
+  { id: 'quick',    label: 'Quick',      subtitle: '5 tracks \u00b7 15 min' },
+  { id: 'standard', label: 'Standard',   subtitle: '9 tracks \u00b7 30 min' },
+  { id: 'long',     label: 'Long Drive', subtitle: '15 tracks \u00b7 60 min' },
 ];
 
 export interface SetupResult {
@@ -40,54 +51,60 @@ interface Props {
   onAskOnay?: () => void;
   onClose: () => void;
   onSubmit: (result: SetupResult) => void;
-  /** Open at a specific step. Lets Home deep-link a row tap to the relevant picker. */
   initialStep?: 0 | 1 | 2;
-  /** Pre-seed selections from Home so reopening doesn't lose state. */
   initialSelection?: { playlistId?: string | null; vibe?: Vibe | null; length?: Length | null };
 }
 
-const monoLabel = {
-  color: TextColors.secondary,
-  fontFamily: Typography.mono.family,
-  fontSize: 10,
-  letterSpacing: 2,
-};
-
 export function SetupSheet({
-  visible, playlists, playlistsLoading, playlistsError, onRetryPlaylists, onAskOnay,
-  onClose, onSubmit, initialStep, initialSelection,
+  visible,
+  playlists,
+  playlistsLoading,
+  playlistsError,
+  onRetryPlaylists,
+  onAskOnay,
+  onClose,
+  onSubmit,
+  initialStep,
+  initialSelection,
 }: Props) {
   const [step, setStep] = useState<0 | 1 | 2>(initialStep ?? 0);
   const [playlistId, setPlaylistId] = useState<string | null>(initialSelection?.playlistId ?? null);
   const [vibe, setVibe] = useState<Vibe | null>(initialSelection?.vibe ?? null);
   const [length, setLength] = useState<Length | null>(initialSelection?.length ?? null);
+
   const stepOpacity = useRef(new Animated.Value(1)).current;
   const stepTranslate = useRef(new Animated.Value(0)).current;
 
-  // Re-seed state each time the sheet opens so Home can deep-link into a
-  // specific step and preserve prior selections.
   useEffect(() => {
     if (!visible) return;
     setStep(initialStep ?? 0);
     setPlaylistId(initialSelection?.playlistId ?? null);
     setVibe(initialSelection?.vibe ?? null);
     setLength(initialSelection?.length ?? null);
-  }, [visible, initialStep, initialSelection?.playlistId, initialSelection?.vibe, initialSelection?.length]);
+  }, [
+    visible,
+    initialStep,
+    initialSelection?.playlistId,
+    initialSelection?.vibe,
+    initialSelection?.length,
+  ]);
 
   useEffect(() => {
-    // Slide + fade the active step in on each change.
     stepOpacity.setValue(0);
-    stepTranslate.setValue(20);
+    stepTranslate.setValue(12);
     Animated.parallel([
-      Animated.timing(stepOpacity, { toValue: 1, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(stepOpacity,   { toValue: 1, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
       Animated.timing(stepTranslate, { toValue: 0, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
     ]).start();
   }, [step, stepOpacity, stepTranslate]);
 
-  const reset = () => { setStep(0); setPlaylistId(null); setVibe(null); setLength(null); };
-  const close = () => { reset(); onClose(); };
+  const close = () => {
+    // Don't wipe selection on close — Home owns it and may re-open with
+    // the same values.
+    onClose();
+  };
 
-  const advanceStep = (next: 0 | 1 | 2) => {
+  const goStep = (next: 0 | 1 | 2) => {
     Haptics.selectionAsync().catch(() => {});
     setStep(next);
   };
@@ -96,256 +113,409 @@ export function SetupSheet({
     if (!playlistId || !vibe || !length) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     onSubmit({ playlistId, vibe, length });
-    reset();
   };
 
-  const rowStyle = (selected: boolean) => ({
-    padding: Spacing.md,
-    backgroundColor: Surface.container,
-    borderRadius: Radius.sm,
-    marginBottom: Spacing.sm,
-    borderLeftWidth: 2,
-    borderLeftColor: selected ? Colors.accent : 'transparent',
-  });
-
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="formSheet" onRequestClose={close}>
-      <View style={{ flex: 1, backgroundColor: Colors.base.black, padding: Spacing.lg }}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.lg }}>
-          <Pressable
-            onPress={step === 0 ? close : () => setStep((step - 1) as 0 | 1 | 2)}
-            accessibilityRole="button"
-            accessibilityLabel={step === 0 ? 'Cancel' : 'Back'}
-          >
-            <Text style={{ color: Colors.accent, fontFamily: Typography.mono.family, letterSpacing: 2 }}>
-              {step === 0 ? 'CANCEL' : 'BACK'}
-            </Text>
-          </Pressable>
-          <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
-            {[0, 1, 2].map(i => (
-              <View
-                key={i}
-                style={{
-                  width: i === step ? 20 : 6,
-                  height: 6,
-                  borderRadius: 3,
-                  backgroundColor: i <= step ? Colors.accent : Surface.high,
-                }}
-              />
-            ))}
-          </View>
+    <Modal
+      visible={visible}
+      animationType="slide"
+      presentationStyle="formSheet"
+      onRequestClose={close}
+    >
+      <BroadcastBackdrop>
+        <View style={styles.handleRow}>
+          <View style={styles.handle} />
         </View>
 
-        <Animated.View style={{ flex: 1, opacity: stepOpacity, transform: [{ translateX: stepTranslate }] }}>
+        <View style={styles.chrome}>
+          <Pressable
+            onPress={step === 0 ? close : () => goStep((step - 1) as 0 | 1 | 2)}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel={step === 0 ? 'Close' : 'Back'}
+          >
+            <Text style={styles.chromeMono}>{step === 0 ? 'close' : 'back'}</Text>
+          </Pressable>
+          <Text style={styles.stepIndicator}>
+            {`0${step + 1}`} <Text style={styles.stepIndicatorSlash}>/</Text> 03
+          </Text>
+        </View>
 
-        {step === 0 && (
-          <>
-            <Text style={{ color: TextColors.primary, fontFamily: Typography.display.family, fontSize: 26, marginBottom: Spacing.md }}>
-              Pick a source
-            </Text>
+        <Animated.View
+          style={[
+            styles.body,
+            { opacity: stepOpacity, transform: [{ translateX: stepTranslate }] },
+          ]}
+        >
+          {step === 0 && (
+            <PlaylistStep
+              playlists={playlists}
+              playlistsLoading={playlistsLoading}
+              playlistsError={playlistsError}
+              onRetryPlaylists={onRetryPlaylists}
+              onAskOnay={onAskOnay}
+              playlistId={playlistId}
+              onPick={(id) => { setPlaylistId(id); goStep(1); }}
+            />
+          )}
 
-            {onAskOnay && (
-              <Pressable
-                onPress={onAskOnay}
-                accessibilityRole="button"
-                accessibilityLabel="Let ONAY pick tracks for you"
-                style={({ pressed }) => ({
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: Spacing.sm,
-                  paddingVertical: Spacing.md,
-                  paddingHorizontal: Spacing.md,
-                  backgroundColor: Surface.container,
-                  borderRadius: Radius.sm,
-                  marginBottom: Spacing.md,
-                  borderLeftWidth: 2,
-                  borderLeftColor: Colors.accent,
-                  opacity: pressed ? 0.75 : 1,
-                })}
-              >
-                <Ionicons name="sparkles" size={18} color={Colors.accent} />
-                <View style={{ flex: 1 }}>
-                  <Text style={{
-                    color: Colors.accent,
-                    fontFamily: Typography.mono.family,
-                    fontSize: 10,
-                    letterSpacing: 2,
-                    marginBottom: 2,
-                  }}>
-                    OR
-                  </Text>
-                  <Text style={{ color: TextColors.primary, fontFamily: Typography.display.family, fontSize: 16 }}>
-                    Let ONAY pick for you
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={TextColors.outline} />
-              </Pressable>
-            )}
+          {step === 1 && (
+            <VibeStep
+              vibe={vibe}
+              onPick={(v) => { setVibe(v); goStep(2); }}
+            />
+          )}
 
-            <ScrollView>
-              {playlistsLoading ? (
-                <View style={{ padding: Spacing.lg, alignItems: 'center' }}>
-                  <ActivityIndicator color={Colors.accent} />
-                  <Text style={{ color: TextColors.secondary, marginTop: Spacing.sm }}>
-                    Loading your Apple Music playlists…
-                  </Text>
-                </View>
-              ) : playlistsError ? (
-                <View style={{ padding: Spacing.md, backgroundColor: Surface.container, borderRadius: Radius.sm, borderLeftWidth: 2, borderLeftColor: Colors.error }}>
-                  <Text style={{ color: TextColors.primary, marginBottom: Spacing.sm }}>
-                    Couldn’t load your playlists.
-                  </Text>
-                  <Text style={{ color: TextColors.secondary, fontSize: 12, marginBottom: Spacing.sm }}>
-                    {playlistsError}
-                  </Text>
-                  {onRetryPlaylists && (
-                    <Pressable
-                      onPress={onRetryPlaylists}
-                      accessibilityRole="button"
-                      accessibilityLabel="Retry loading playlists"
-                      style={{ alignSelf: 'flex-start', paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, backgroundColor: Surface.high, borderRadius: Radius.sm }}
-                    >
-                      <Text style={{ color: Colors.accent, fontFamily: Typography.mono.family, fontSize: 11, letterSpacing: 2 }}>
-                        RETRY
-                      </Text>
-                    </Pressable>
-                  )}
-                </View>
-              ) : playlists.length === 0 ? (
-                <Text style={{ color: TextColors.secondary }}>
-                  No playlists in your Apple Music library. Create one in the Music app and come back.
-                </Text>
-              ) : null}
-              {playlists.map(p => (
-                <Pressable
-                  key={p.id}
-                  onPress={() => { setPlaylistId(p.id); advanceStep(1); }}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Pick playlist ${p.name}`}
-                  style={({ pressed }) => ({
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    ...rowStyle(playlistId === p.id),
-                    opacity: pressed ? 0.75 : 1,
-                  })}
-                >
-                  {p.artworkUrl && (
-                    <Image source={{ uri: p.artworkUrl }} style={{ width: 48, height: 48, marginRight: Spacing.sm, borderRadius: Radius.sm }} />
-                  )}
-                  <Text style={{ color: TextColors.primary, flex: 1 }} numberOfLines={1}>{p.name}</Text>
-                  <Ionicons name="chevron-forward" size={18} color={TextColors.outline} />
-                </Pressable>
-              ))}
-            </ScrollView>
-          </>
-        )}
-
-        {step === 1 && (
-          <>
-            <Text style={{ color: TextColors.primary, fontFamily: Typography.display.family, fontSize: 26, marginBottom: Spacing.md }}>
-              Pick a vibe
-            </Text>
-            <ScrollView>
-              {VIBES.map(v => (
-                <Pressable
-                  key={v.id}
-                  onPress={() => { setVibe(v.id); advanceStep(2); }}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Pick vibe ${v.label}: ${v.subtitle}`}
-                  style={({ pressed }) => ({
-                    ...rowStyle(vibe === v.id),
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: Spacing.md,
-                    opacity: pressed ? 0.75 : 1,
-                  })}
-                >
-                  <View style={{
-                    width: 12, height: 12, borderRadius: 6,
-                    backgroundColor: getVibeAccent(v.id),
-                  }} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={{
-                      color: TextColors.primary,
-                      fontFamily: Typography.body.familyMedium,
-                      fontSize: 15,
-                    }}>
-                      {v.label}
-                    </Text>
-                    <Text style={{ color: TextColors.secondary, fontSize: 12, marginTop: 2 }}>
-                      {v.subtitle}
-                    </Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={18} color={TextColors.outline} />
-                </Pressable>
-              ))}
-            </ScrollView>
-          </>
-        )}
-
-        {step === 2 && (
-          <>
-            <Text style={{ color: TextColors.primary, fontFamily: Typography.display.family, fontSize: 26, marginBottom: Spacing.md }}>
-              Pick a length
-            </Text>
-            {LENGTHS.map(l => (
-              <Pressable
-                key={l.id}
-                onPress={() => {
-                  Haptics.selectionAsync().catch(() => {});
-                  setLength(l.id);
-                }}
-                accessibilityRole="button"
-                accessibilityLabel={`Pick length ${l.label}`}
-                style={({ pressed }) => ({
-                  ...rowStyle(length === l.id),
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  opacity: pressed ? 0.75 : 1,
-                })}
-              >
-                <View style={{ flex: 1 }}>
-                  <Text style={{
-                    color: TextColors.primary,
-                    fontFamily: Typography.body.familySemiBold,
-                    fontSize: 16,
-                  }}>
-                    {l.label}
-                  </Text>
-                  <Text style={{ color: TextColors.secondary, marginTop: 2 }}>{l.subtitle}</Text>
-                </View>
-                <Ionicons
-                  name={length === l.id ? 'radio-button-on' : 'radio-button-off'}
-                  size={20}
-                  color={length === l.id ? Colors.accent : TextColors.outline}
-                />
-              </Pressable>
-            ))}
-            <Pressable
-              onPress={submit}
-              disabled={!length}
-              accessibilityRole="button"
-              accessibilityLabel="Start broadcast"
-              style={{
-                padding: Spacing.md,
-                backgroundColor: length ? Colors.accent : Surface.high,
-                borderRadius: Radius.sm,
-                marginTop: Spacing.lg,
-                alignItems: 'center',
-              }}
-            >
-              <Text style={{
-                color: length ? Colors.base.black : TextColors.secondary,
-                fontFamily: Typography.mono.family,
-                letterSpacing: 2,
-              }}>
-                START BROADCAST
-              </Text>
-            </Pressable>
-          </>
-        )}
+          {step === 2 && (
+            <LengthStep
+              length={length}
+              canSubmit={!!(playlistId && vibe && length)}
+              onPick={(l) => { Haptics.selectionAsync().catch(() => {}); setLength(l); }}
+              onSubmit={submit}
+            />
+          )}
         </Animated.View>
-      </View>
+      </BroadcastBackdrop>
     </Modal>
   );
 }
+
+// ───────────────────────── Steps ─────────────────────────
+
+function StepTitle({ label, title }: { label: string; title: string }) {
+  return (
+    <View style={styles.titleBlock}>
+      <Text style={styles.stepLabel}>{label}</Text>
+      <Text style={styles.stepTitle}>{title}</Text>
+    </View>
+  );
+}
+
+function PlaylistStep({
+  playlists,
+  playlistsLoading,
+  playlistsError,
+  onRetryPlaylists,
+  onAskOnay,
+  playlistId,
+  onPick,
+}: {
+  playlists: MusicPlaylist[];
+  playlistsLoading?: boolean;
+  playlistsError?: string | null;
+  onRetryPlaylists?: () => void;
+  onAskOnay?: () => void;
+  playlistId: string | null;
+  onPick: (id: string) => void;
+}) {
+  return (
+    <>
+      <StepTitle label="SOURCE" title="Pick a source" />
+      <ScrollView showsVerticalScrollIndicator={false}>
+        {onAskOnay && (
+          <HairlineRow
+            topRule
+            verticalPadding={Space.s16}
+            leading={<Text style={styles.askLabel}>ONAY</Text>}
+            leadingWidth={54}
+            value={<Text style={styles.askValue}>Let me pick for you</Text>}
+            trailing={<Text style={styles.chev}>{'\u203A'}</Text>}
+            onPress={onAskOnay}
+            accessibilityLabel="Let ONAY pick tracks"
+          />
+        )}
+
+        {playlistsLoading && (
+          <Text style={styles.note}>Loading your Apple Music playlists{'\u2026'}</Text>
+        )}
+
+        {playlistsError && !playlistsLoading && (
+          <View style={styles.errorBlock}>
+            <Text style={styles.errorText}>Couldn{'\u2019'}t load your playlists.</Text>
+            <Text style={styles.note}>{playlistsError}</Text>
+            {onRetryPlaylists && (
+              <Pressable
+                onPress={onRetryPlaylists}
+                accessibilityRole="button"
+                accessibilityLabel="Retry loading playlists"
+                style={({ pressed }) => [styles.retry, pressed && { opacity: 0.6 }]}
+              >
+                <Text style={styles.retryText}>retry</Text>
+              </Pressable>
+            )}
+          </View>
+        )}
+
+        {!playlistsLoading && !playlistsError && playlists.length === 0 && (
+          <Text style={styles.note}>
+            No playlists in your Apple Music library. Create one in the Music app and come back.
+          </Text>
+        )}
+
+        {playlists.map((p, idx) => {
+          const selected = p.id === playlistId;
+          return (
+            <HairlineRow
+              key={p.id}
+              topRule={idx === 0 && !onAskOnay}
+              verticalPadding={Space.s16}
+              value={
+                <Text
+                  style={[styles.playlistName, selected && styles.playlistNameSelected]}
+                  numberOfLines={1}
+                >
+                  {p.name}
+                </Text>
+              }
+              trailing={
+                selected ? (
+                  <Text style={styles.selectDot}>{'\u2022'}</Text>
+                ) : (
+                  <Text style={styles.chev}>{'\u203A'}</Text>
+                )
+              }
+              onPress={() => onPick(p.id)}
+              accessibilityLabel={`Pick playlist ${p.name}`}
+            />
+          );
+        })}
+      </ScrollView>
+    </>
+  );
+}
+
+function VibeStep({
+  vibe,
+  onPick,
+}: {
+  vibe: Vibe | null;
+  onPick: (v: Vibe) => void;
+}) {
+  return (
+    <>
+      <StepTitle label="VIBE" title="Pick a vibe" />
+      <ScrollView showsVerticalScrollIndicator={false}>
+        {VIBES.map((v, idx) => {
+          const selected = v.id === vibe;
+          return (
+            <HairlineRow
+              key={v.id}
+              topRule={idx === 0}
+              verticalPadding={Space.s16}
+              value={
+                <View>
+                  <Text style={[styles.vibeLabel, selected && styles.vibeLabelSelected]}>
+                    {v.label}
+                  </Text>
+                  <Text style={styles.vibeSubtitle}>{v.subtitle}</Text>
+                </View>
+              }
+              trailing={
+                selected ? <Text style={styles.selectDot}>{'\u2022'}</Text> : null
+              }
+              onPress={() => onPick(v.id)}
+              accessibilityLabel={`Pick vibe ${v.label}: ${v.subtitle}`}
+            />
+          );
+        })}
+      </ScrollView>
+    </>
+  );
+}
+
+function LengthStep({
+  length,
+  canSubmit,
+  onPick,
+  onSubmit,
+}: {
+  length: Length | null;
+  canSubmit: boolean;
+  onPick: (l: Length) => void;
+  onSubmit: () => void;
+}) {
+  return (
+    <>
+      <StepTitle label="LENGTH" title="Pick a length" />
+      <View>
+        {LENGTHS.map((l, idx) => {
+          const selected = l.id === length;
+          return (
+            <HairlineRow
+              key={l.id}
+              topRule={idx === 0}
+              verticalPadding={Space.s16}
+              value={
+                <View>
+                  <Text style={[styles.vibeLabel, selected && styles.vibeLabelSelected]}>
+                    {l.label}
+                  </Text>
+                  <Text style={styles.vibeSubtitle}>{l.subtitle}</Text>
+                </View>
+              }
+              trailing={
+                selected ? <Text style={styles.selectDot}>{'\u2022'}</Text> : null
+              }
+              onPress={() => onPick(l.id)}
+              accessibilityLabel={`Pick length ${l.label}, ${l.subtitle}`}
+            />
+          );
+        })}
+      </View>
+      <View style={{ height: Space.s34 }} />
+      <AmberCTA
+        label="Begin broadcast"
+        onPress={onSubmit}
+        disabled={!canSubmit}
+        accessibilityHint={canSubmit ? 'Starts your broadcast' : 'Finish picking a length first'}
+      />
+    </>
+  );
+}
+
+// ───────────────────────── Styles ─────────────────────────
+
+const styles = StyleSheet.create({
+  handleRow: {
+    alignItems: 'center',
+    paddingTop: Space.s10,
+    paddingBottom: Space.s6,
+  },
+  handle: {
+    width: 36,
+    height: 3,
+    backgroundColor: AM.amberFaint,
+    borderRadius: 1.5,
+  },
+  chrome: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: Space.s26,
+    paddingTop: Space.s10,
+    paddingBottom: Space.s22,
+    borderBottomWidth: 1,
+    borderBottomColor: AM.amberFaint,
+  },
+  chromeMono: {
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s10,
+    letterSpacing: 2,
+    color: AM.amber,
+  },
+  stepIndicator: {
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s10,
+    letterSpacing: 2,
+    color: AM.amberDim,
+  },
+  stepIndicatorSlash: {
+    color: AM.amberFaint,
+  },
+  body: {
+    flex: 1,
+    paddingHorizontal: Space.s26,
+    paddingTop: Space.s22,
+  },
+
+  titleBlock: {
+    marginBottom: Space.s22,
+  },
+  stepLabel: {
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s10,
+    letterSpacing: 2,
+    color: AM.inkDim,
+    marginBottom: Space.s6,
+  },
+  stepTitle: {
+    fontFamily: Fonts.display,
+    fontSize: TypeScale.s22,
+    fontStyle: 'italic',
+    color: AM.ink,
+  },
+
+  // Playlist step
+  askLabel: {
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s10,
+    letterSpacing: 2,
+    color: AM.amberDim,
+  },
+  askValue: {
+    fontFamily: Fonts.display,
+    fontSize: TypeScale.s18,
+    fontStyle: 'italic',
+    color: AM.amber,
+  },
+  playlistName: {
+    fontFamily: Fonts.display,
+    fontSize: TypeScale.s16,
+    fontStyle: 'italic',
+    color: AM.ink,
+  },
+  playlistNameSelected: {
+    color: AM.amber,
+  },
+
+  // Vibe / length list items
+  vibeLabel: {
+    fontFamily: Fonts.display,
+    fontSize: TypeScale.s18,
+    fontStyle: 'italic',
+    color: AM.inkMid,
+  },
+  vibeLabelSelected: {
+    color: AM.amber,
+  },
+  vibeSubtitle: {
+    marginTop: Space.s4,
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s10,
+    letterSpacing: 1.5,
+    color: AM.inkDim,
+  },
+
+  // Shared
+  chev: {
+    fontFamily: Fonts.display,
+    fontSize: TypeScale.s16,
+    color: AM.inkDim,
+  },
+  selectDot: {
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s18,
+    color: AM.amber,
+    lineHeight: TypeScale.s18,
+  },
+
+  // Status / error
+  note: {
+    paddingVertical: Space.s16,
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s10,
+    letterSpacing: 1.5,
+    color: AM.inkDim,
+    textAlign: 'center',
+  },
+  errorBlock: {
+    paddingVertical: Space.s22,
+    gap: Space.s8,
+  },
+  errorText: {
+    fontFamily: Fonts.display,
+    fontSize: TypeScale.s16,
+    fontStyle: 'italic',
+    color: AM.ink,
+  },
+  retry: {
+    alignSelf: 'flex-start',
+    paddingVertical: Space.s8,
+  },
+  retryText: {
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s10,
+    letterSpacing: 2,
+    color: AM.amber,
+  },
+});
