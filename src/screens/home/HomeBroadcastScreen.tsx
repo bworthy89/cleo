@@ -1,12 +1,16 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { View, Text, ScrollView, ActivityIndicator, Alert, Animated, Easing, Pressable, Image } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View, type TextStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
-import { Colors, Surface, TextColors, Spacing, Typography, Radius } from '../../tokens/design-tokens';
+import { AM, Fonts, Space, TypeScale } from '../../tokens/design-tokens';
+import { BroadcastBackdrop } from '../../components/BroadcastBackdrop';
+import { AmberCTA } from '../../components/AmberCTA';
+import { HairlineRow } from '../../components/HairlineRow';
+import { OnAirIndicator } from '../../components/OnAirIndicator';
+import { TuningInOverlay } from '../../components/broadcast/TuningInOverlay';
+import { SetupSheet, type SetupResult } from '../../components/broadcast/SetupSheet';
+import { FeaturedBroadcastCard } from '../../components/broadcast/FeaturedBroadcastCard';
 import { musicKitPlayer } from '../../services/MusicKitPlayer';
-import type { MusicPlaylist } from '../../../modules/expo-music-kit';
 import {
   BroadcastCurationClient,
   type FeaturedBroadcast,
@@ -14,201 +18,144 @@ import {
 import { BroadcastManifestClient } from '../../engines/BroadcastManifestClient';
 import { broadcastPlayer } from '../../engines/BroadcastPlayer.singleton';
 import { BroadcastResumer } from '../../engines/BroadcastResumer';
-import { FeaturedBroadcastCard } from '../../components/broadcast/FeaturedBroadcastCard';
-import { YourBroadcastSetup, AskOnayButton } from '../../components/broadcast/YourBroadcastSetup';
-import { TuningInOverlay } from '../../components/broadcast/TuningInOverlay';
-import type { SetupResult } from '../../components/broadcast/SetupSheet';
-import { useAppActive } from '../../hooks/useAppActive';
+import type { MusicPlaylist } from '../../../modules/expo-music-kit';
+import type { Manifest } from '../../engines/BroadcastPlayer.types';
 import {
   getBroadcastHistory,
+  getCachedPlaylists,
   type BroadcastHistoryEntry,
 } from '../../services/Storage';
+import { useAppActive } from '../../hooks/useAppActive';
 
-const monoLabel = {
-  color: Colors.accent,
-  fontFamily: Typography.mono.family,
-  fontSize: 10,
-  letterSpacing: 3,
+type Vibe   = Manifest['vibe'];
+type Length = Manifest['length'];
+
+const VIBE_LABEL: Record<Vibe, string> = {
+  morning:    'Morning',
+  focus:      'Focus',
+  workout:    'Workout',
+  feelGood:   'Feel Good',
+  lateNight:  'Late Night',
+  melancholy: 'Melancholy',
+  party:      'Party',
 };
 
-function FeaturedEmptyState() {
-  const active = useAppActive();
-  const ring = useRef(new Animated.Value(0.7)).current;
+/** Phrase used in the hero's amber middle line: "Tonight, / a late-night / broadcast." */
+const VIBE_HERO: Record<Vibe, string> = {
+  morning:    'a morning',
+  focus:      'a focused',
+  workout:    'a workout',
+  feelGood:   'a feel-good',
+  lateNight:  'a late-night',
+  melancholy: 'a slow',
+  party:      'a party',
+};
+
+const LENGTH_LABEL: Record<Length, string> = {
+  quick:    'Quick \u2014 5 tracks \u00b7 15 min',
+  standard: 'Standard \u2014 9 tracks \u00b7 30 min',
+  long:     'Long Drive \u2014 15 tracks \u00b7 60 min',
+};
+
+const ACTIVE_STATES = new Set(['loading', 'playing_segment', 'playing_track', 'paused']);
+
+// ───────────────────────── Helpers ─────────────────────────
+
+function formatClock(d: Date): string {
+  const h24 = d.getHours();
+  const m = d.getMinutes().toString().padStart(2, '0');
+  const suffix = h24 >= 12 ? 'pm' : 'am';
+  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+  return `${h12}:${m} ${suffix}`;
+}
+
+function titleFor(entry: BroadcastHistoryEntry, playlists: MusicPlaylist[]): string {
+  const { manifest } = entry;
+  if (manifest.playlistId) {
+    const match = playlists.find(p => p.id === manifest.playlistId);
+    if (match?.name) return match.name;
+  }
+  return `${VIBE_LABEL[manifest.vibe]} \u00b7 ${manifest.tracks.length} tracks`;
+}
+
+function durationFor(entry: BroadcastHistoryEntry): string {
+  const total = entry.manifest.tracks.reduce((acc, t) => acc + (t.duration ?? 180), 0);
+  const m = Math.round(total / 60);
+  return `${m}:00`;
+}
+
+function padIndex(i: number): string {
+  return i.toString().padStart(3, '0');
+}
+
+// ───────────────────────── Section label ─────────────────────────
+
+function SectionLabel({ text, style }: { text: string; style?: TextStyle }) {
+  return <Text style={[styles.sectionLabel, style]}>{text}</Text>;
+}
+
+// ───────────────────────── Status strip ─────────────────────────
+
+function StatusStrip({ broadcastActive }: { broadcastActive: boolean }) {
+  const appActive = useAppActive();
+  const [clock, setClock] = useState(() => formatClock(new Date()));
   useEffect(() => {
-    if (!active) return;
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(ring, { toValue: 1.0, duration: 1400, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        Animated.timing(ring, { toValue: 0.7, duration: 1400, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [active, ring]);
+    if (!appActive) return;
+    setClock(formatClock(new Date()));
+    const id = setInterval(() => setClock(formatClock(new Date())), 30_000);
+    return () => clearInterval(id);
+  }, [appActive]);
+
   return (
-    <View style={{ alignItems: 'center', paddingVertical: Spacing.xl }}>
-      <Animated.View style={{
-        width: 80, height: 80, borderRadius: 40,
-        borderWidth: 1.5, borderColor: Colors.accent,
-        opacity: 0.4,
-        marginBottom: Spacing.md,
-        transform: [{ scale: ring }],
-      }} />
-      <Text style={{
-        color: TextColors.primary,
-        fontFamily: Typography.display.family,
-        fontSize: 18,
-        textAlign: 'center',
-        marginBottom: Spacing.xs,
-      }}>
-        Fresh broadcasts baking.
-      </Text>
-      <Text style={{ color: TextColors.secondary, fontSize: 13, textAlign: 'center' }}>
-        Check back soon — or build your own above.
-      </Text>
+    <View style={styles.status}>
+      <Text style={styles.statusMono}>onay</Text>
+      <View style={styles.statusRight}>
+        <OnAirIndicator active={broadcastActive} />
+        <Text style={styles.statusMono}>{broadcastActive ? 'on air' : 'off air'}</Text>
+        <Text style={styles.statusMono}>{'\u00b7'}</Text>
+        <Text style={styles.statusMono}>{clock}</Text>
+      </View>
     </View>
   );
 }
 
-/** Small pulsing dot that anchors the "live" editorial label. */
-function LiveDot() {
-  const active = useAppActive();
-  const scale = useRef(new Animated.Value(0.7)).current;
-  const opacity = useRef(new Animated.Value(0.5)).current;
-  useEffect(() => {
-    if (!active) return;
-    const loop = Animated.loop(
-      Animated.parallel([
-        Animated.sequence([
-          Animated.timing(scale, { toValue: 1.4, duration: 1100, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-          Animated.timing(scale, { toValue: 0.7, duration: 1100, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        ]),
-        Animated.sequence([
-          Animated.timing(opacity, { toValue: 1, duration: 1100, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-          Animated.timing(opacity, { toValue: 0.5, duration: 1100, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        ]),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [active, scale, opacity]);
-  return (
-    <Animated.View
-      style={{
-        width: 8, height: 8, borderRadius: 4,
-        backgroundColor: Colors.accent,
-        marginRight: Spacing.xs,
-        transform: [{ scale }],
-        opacity,
-      }}
-    />
-  );
-}
-
-function freshness(createdAt: number): string {
-  const ms = Date.now() - createdAt;
-  const hours = ms / (1000 * 60 * 60);
-  if (hours < 1) return 'Just now';
-  if (hours < 24) return `${Math.round(hours)}h ago`;
-  return 'Yesterday';
-}
-
-function RecentBroadcastRow({
-  entry, onPress,
-}: { entry: BroadcastHistoryEntry; onPress: () => void }) {
-  const { manifest } = entry;
-  const firstTrack = manifest.tracks[0];
-  const handlePress = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-    onPress();
-  };
-  return (
-    <Pressable
-      onPress={handlePress}
-      accessibilityRole="button"
-      accessibilityLabel={`Replay ${manifest.vibe} broadcast with ${manifest.tracks.length} tracks`}
-      style={({ pressed }) => ({
-        backgroundColor: Surface.container,
-        borderLeftWidth: 2,
-        borderLeftColor: Colors.accent,
-        padding: Spacing.md,
-        borderRadius: Radius.sm,
-        marginBottom: Spacing.sm,
-        flexDirection: 'row',
-        alignItems: 'center',
-        opacity: pressed ? 0.75 : 1,
-      })}
-    >
-      {firstTrack?.artworkUrl ? (
-        <Image
-          source={{ uri: firstTrack.artworkUrl }}
-          style={{ width: 56, height: 56, borderRadius: Radius.sm, marginRight: Spacing.md }}
-        />
-      ) : (
-        <View style={{
-          width: 56, height: 56, borderRadius: Radius.sm,
-          marginRight: Spacing.md, backgroundColor: Surface.high,
-          alignItems: 'center', justifyContent: 'center',
-        }}>
-          <Ionicons name="radio" size={22} color={Colors.accent} />
-        </View>
-      )}
-      <View style={{ flex: 1 }}>
-        <Text
-          style={{ color: TextColors.primary, fontFamily: Typography.display.family, fontSize: 16 }}
-          numberOfLines={1}
-        >
-          Your {manifest.vibe} broadcast
-        </Text>
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2, gap: Spacing.sm }}>
-          <Text style={{
-            color: Colors.accent, fontFamily: Typography.mono.family,
-            fontSize: 10, letterSpacing: 2,
-          }}>
-            {manifest.length.toUpperCase()} · {manifest.tracks.length} TRACKS
-          </Text>
-          <Text style={{ color: TextColors.outline, fontSize: 10 }}>·</Text>
-          <Text style={{
-            color: TextColors.outline, fontFamily: Typography.mono.family,
-            fontSize: 10, letterSpacing: 1.5,
-          }}>
-            {freshness(entry.createdAt).toUpperCase()}
-          </Text>
-        </View>
-      </View>
-      <Ionicons name="chevron-forward" size={18} color={TextColors.outline} style={{ marginLeft: Spacing.sm }} />
-    </Pressable>
-  );
-}
-
-function SectionLabel({ text, live }: { text: string; live?: boolean }) {
-  return (
-    <>
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.xs }}>
-        {live && <LiveDot />}
-        <Text style={monoLabel}>{text}</Text>
-      </View>
-      <View style={{ height: 2, width: 40, backgroundColor: Colors.accent, marginBottom: Spacing.md }} />
-    </>
-  );
-}
+// ───────────────────────── Main screen ─────────────────────────
 
 export default function HomeBroadcastScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const appActive = useAppActive();
+
+  // Selection state — lives only on this screen; no MMKV persistence.
+  const [playlistId, setPlaylistId] = useState<string | null>(null);
+  const [vibe, setVibe] = useState<Vibe | null>(null);
+  const [length, setLength] = useState<Length | null>(null);
+
+  // Sheet control
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [sheetInitialStep, setSheetInitialStep] = useState<0 | 1 | 2>(0);
+
+  // Data
   const [featured, setFeatured] = useState<FeaturedBroadcast[]>([]);
-  const [playlists, setPlaylists] = useState<MusicPlaylist[]>([]);
+  const [playlists, setPlaylists] = useState<MusicPlaylist[]>(() => getCachedPlaylists() ?? []);
   const [playlistsLoading, setPlaylistsLoading] = useState(false);
   const [playlistsError, setPlaylistsError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [tuning, setTuning] = useState(false);
   const [recent, setRecent] = useState<BroadcastHistoryEntry[]>([]);
 
-  // Recompute on every focus so the list reflects new bakes that happened
-  // on the /player screen and prunes anything that aged out of retention.
-  const refreshRecent = useCallback(() => {
-    setRecent(getBroadcastHistory());
-  }, []);
+  // Broadcast active state for status strip
+  const [broadcastActive, setBroadcastActive] = useState(false);
+  useEffect(() => {
+    if (!appActive) return;
+    const tick = () => setBroadcastActive(ACTIVE_STATES.has(broadcastPlayer.getStatus().state));
+    tick();
+    const id = setInterval(tick, 2000);
+    return () => clearInterval(id);
+  }, [appActive]);
+
+  const refreshRecent = useCallback(() => setRecent(getBroadcastHistory()), []);
+  useFocusEffect(useCallback(() => refreshRecent(), [refreshRecent]));
 
   const loadPlaylists = useCallback(async () => {
     setPlaylistsLoading(true);
@@ -220,15 +167,10 @@ export default function HomeBroadcastScreen() {
       const msg = err instanceof Error ? err.message : 'Couldn\u2019t reach Apple Music.';
       console.warn('[HomeBroadcast] fetchPlaylists failed:', err);
       setPlaylistsError(msg);
-      setPlaylists([]);
     } finally {
       setPlaylistsLoading(false);
     }
   }, []);
-
-  useFocusEffect(useCallback(() => {
-    refreshRecent();
-  }, [refreshRecent]));
 
   useEffect(() => {
     let mounted = true;
@@ -242,8 +184,7 @@ export default function HomeBroadcastScreen() {
       }
       await loadPlaylists();
 
-      // Resume-after-terminate: if a broadcast was persisted within the last
-      // 2 hours, offer to resume it.
+      // Resume-after-terminate
       const resumer = new BroadcastResumer();
       const persisted = await resumer.check();
       if (!mounted || !persisted) return;
@@ -269,28 +210,27 @@ export default function HomeBroadcastScreen() {
     return () => { mounted = false; };
   }, [router, loadPlaylists]);
 
-  const playRecent = useCallback((entry: BroadcastHistoryEntry) => {
-    router.push('/(main)/(broadcast)/player');
-    // Zero-cost replay: reuses stored manifest + R2 URLs from the original
-    // bake. No LLM/TTS calls, no /broadcast/create roundtrip.
-    broadcastPlayer.start(entry.manifest, entry.firstSegmentUrls).catch((err: unknown) => {
-      const msg = err instanceof Error ? err.message : 'Playback failed';
-      Alert.alert('Broadcast error', msg);
-    });
-  }, [router]);
+  // Selected playlist name (for FROM row)
+  const playlistName = useMemo(() => {
+    if (!playlistId) return null;
+    return playlists.find(p => p.id === playlistId)?.name ?? null;
+  }, [playlistId, playlists]);
 
-  const playFeatured = useCallback((fb: FeaturedBroadcast) => {
-    const firstSlot = fb.manifest.segmentSlots[0];
-    const firstUrls = firstSlot?.audioUrls ?? [];
-    // Navigate first — the player screen shows its own "Tuning in" UI while
-    // the first segment is fetched. Don't set the home-screen overlay here;
-    // there's nothing to await on this path.
-    router.push('/(main)/(broadcast)/player');
-    broadcastPlayer.start(fb.manifest, firstUrls).catch((err: unknown) => {
-      const msg = err instanceof Error ? err.message : 'Playback failed';
-      Alert.alert('Broadcast error', msg);
-    });
-  }, [router]);
+  // Pick row taps open the sheet at the relevant step.
+  const openSheetAt = useCallback((step: 0 | 1 | 2) => {
+    setSheetInitialStep(step);
+    setSheetOpen(true);
+  }, []);
+
+  // Begin-broadcast tap: if fully configured, run it; else deep-link to the
+  // first missing step.
+  const onBegin = useCallback(() => {
+    if (!playlistId) return openSheetAt(0);
+    if (!vibe)       return openSheetAt(1);
+    if (!length)     return openSheetAt(2);
+    // Fully configured — kick off the bake.
+    void playUserSourced({ playlistId, vibe, length });
+  }, [playlistId, vibe, length, openSheetAt]);
 
   const playUserSourced = useCallback(async (result: SetupResult) => {
     setTuning(true);
@@ -328,72 +268,347 @@ export default function HomeBroadcastScreen() {
     }
   }, [router]);
 
+  const onSheetSubmit = useCallback((r: SetupResult) => {
+    setSheetOpen(false);
+    setPlaylistId(r.playlistId);
+    setVibe(r.vibe);
+    setLength(r.length);
+    void playUserSourced(r);
+  }, [playUserSourced]);
+
+  const playRecent = useCallback((entry: BroadcastHistoryEntry) => {
+    router.push('/(main)/(broadcast)/player');
+    broadcastPlayer.start(entry.manifest, entry.firstSegmentUrls).catch((err: unknown) => {
+      const msg = err instanceof Error ? err.message : 'Playback failed';
+      Alert.alert('Broadcast error', msg);
+    });
+  }, [router]);
+
+  const playFeatured = useCallback((fb: FeaturedBroadcast) => {
+    const firstSlot = fb.manifest.segmentSlots[0];
+    const firstUrls = firstSlot?.audioUrls ?? [];
+    router.push('/(main)/(broadcast)/player');
+    broadcastPlayer.start(fb.manifest, firstUrls).catch((err: unknown) => {
+      const msg = err instanceof Error ? err.message : 'Playback failed';
+      Alert.alert('Broadcast error', msg);
+    });
+  }, [router]);
+
   if (loading) {
     return (
-      <View style={{ flex: 1, backgroundColor: Colors.base.black, alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator color={Colors.accent} />
-      </View>
+      <BroadcastBackdrop>
+        <View style={styles.loading}>
+          <ActivityIndicator color={AM.amber} />
+        </View>
+      </BroadcastBackdrop>
     );
   }
 
-  return (
-    <>
-      <ScrollView
-        style={{ flex: 1, backgroundColor: Colors.base.black }}
-        contentContainerStyle={{
-          paddingHorizontal: Spacing.lg,
-          paddingTop: insets.top + Spacing.lg,
-          paddingBottom: insets.bottom + Spacing.xxl,
-        }}
-      >
-        <SectionLabel text="YOUR BROADCAST" />
-        <YourBroadcastSetup
-          playlists={playlists}
-          playlistsLoading={playlistsLoading}
-          playlistsError={playlistsError}
-          onRetryPlaylists={loadPlaylists}
-          onOpenAskOnay={() => router.push('/(main)/(broadcast)/ask-onay')}
-          onSubmit={playUserSourced}
-        />
-        <AskOnayButton onPress={() => router.push('/(main)/(broadcast)/ask-onay')} />
+  // Hero renders 3 lines; the middle amber line is only present once a vibe
+  // is selected. Before that, "Tonight, / a / broadcast." with amber empty
+  // middle reads weird — collapse to "Tonight, / a broadcast." (2 lines).
+  const heroMiddle = vibe ? VIBE_HERO[vibe] : null;
 
+  return (
+    <BroadcastBackdrop>
+      <ScrollView
+        style={styles.flex}
+        contentContainerStyle={[
+          styles.scrollContent,
+          {
+            paddingTop: insets.top + Space.s18,
+            paddingBottom: insets.bottom + 80 /* above tab bar */,
+          },
+        ]}
+      >
+        <StatusStrip broadcastActive={broadcastActive} />
+
+        <View style={styles.heroBlock}>
+          <Text style={styles.heroLine}>Tonight,</Text>
+          {heroMiddle ? (
+            <>
+              <Text style={[styles.heroLine, styles.heroAmber]}>{heroMiddle}</Text>
+              <Text style={styles.heroLine}>broadcast.</Text>
+            </>
+          ) : (
+            <Text style={styles.heroLine}>a broadcast.</Text>
+          )}
+        </View>
+
+        {/* Pick rows */}
+        <HairlineRow
+          leading={<Text style={styles.pickLabel}>FROM</Text>}
+          leadingWidth={54}
+          value={
+            <Text style={styles.pickValue} numberOfLines={1}>
+              {playlistName ?? 'Pick a playlist'}
+            </Text>
+          }
+          trailing={<Text style={styles.chev}>{'\u203A'}</Text>}
+          onPress={() => openSheetAt(0)}
+          accessibilityLabel={`From ${playlistName ?? 'not set'}`}
+        />
+        <HairlineRow
+          leading={<Text style={styles.pickLabel}>VIBE</Text>}
+          leadingWidth={54}
+          value={
+            <Text style={styles.pickValue} numberOfLines={1}>
+              {vibe ? VIBE_LABEL[vibe] : 'Pick a vibe'}
+            </Text>
+          }
+          trailing={<Text style={styles.chev}>{'\u203A'}</Text>}
+          onPress={() => openSheetAt(1)}
+          accessibilityLabel={`Vibe ${vibe ? VIBE_LABEL[vibe] : 'not set'}`}
+        />
+        <HairlineRow
+          leading={<Text style={styles.pickLabel}>LENGTH</Text>}
+          leadingWidth={54}
+          value={
+            <Text style={styles.pickValue} numberOfLines={1}>
+              {length ? LENGTH_LABEL[length] : 'Pick a length'}
+            </Text>
+          }
+          trailing={<Text style={styles.chev}>{'\u203A'}</Text>}
+          onPress={() => openSheetAt(2)}
+          accessibilityLabel={`Length ${length ?? 'not set'}`}
+        />
+
+        <View style={{ height: Space.s34 }} />
+
+        <AmberCTA
+          label="Begin broadcast"
+          onPress={onBegin}
+          accessibilityHint={
+            playlistId && vibe && length
+              ? 'Starts your broadcast'
+              : 'Opens the setup sheet to finish choosing'
+          }
+        />
+        <Text style={styles.commitment}>
+          no skips {'\u00b7'} no shuffle {'\u00b7'} sit with it
+        </Text>
+
+        {/* Earlier · 24h */}
         {recent.length > 0 && (
           <>
-            <View style={{ height: Spacing.xl }} />
-            <SectionLabel text="RECENT BROADCASTS" />
-            {recent.map(entry => (
-              <RecentBroadcastRow
+            <View style={{ height: Space.s52 }} />
+            <SectionLabel text={'earlier \u00b7 24h'} />
+            <View style={{ height: Space.s6 }} />
+            {recent.map((entry, i) => (
+              <HairlineRow
                 key={entry.manifest.broadcastId}
-                entry={entry}
+                topRule
+                verticalPadding={Space.s14}
+                leading={<Text style={styles.reelNum}>{padIndex(recent.length - i)}</Text>}
+                leadingWidth={32}
+                value={
+                  <Text style={styles.reelTitle} numberOfLines={1}>
+                    {titleFor(entry, playlists)}
+                  </Text>
+                }
+                trailing={<Text style={styles.reelDuration}>{durationFor(entry)}</Text>}
                 onPress={() => playRecent(entry)}
+                accessibilityLabel={`Replay ${titleFor(entry, playlists)}`}
               />
             ))}
-            <Text style={{
-              color: TextColors.outline,
-              fontFamily: Typography.mono.family,
-              fontSize: 10,
-              letterSpacing: 1.5,
-              marginTop: Spacing.xs,
-            }}>
-              SAVED FOR 24 HOURS
-            </Text>
           </>
         )}
 
-        <View style={{ height: Spacing.xl }} />
+        {/* Tonight on onay */}
+        {featured.length > 0 && (
+          <>
+            <View style={{ height: Space.s52 }} />
+            <SectionLabel text="tonight on onay" />
+            <View style={{ height: Space.s6 }} />
+            {featured.map((fb, i) => (
+              <FeaturedBroadcastCard
+                key={fb.id}
+                broadcast={fb}
+                index={i + 1}
+                onPress={() => playFeatured(fb)}
+              />
+            ))}
+          </>
+        )}
 
-        <SectionLabel text="TONIGHT ON ONAY" live />
+        {/* Ask ONAY peer block */}
+        <View style={{ height: Space.s52 }} />
+        <HairlineRow
+          topRule
+          verticalPadding={Space.s22}
+          value={
+            <View>
+              <Text style={styles.askLabel}>ONAY</Text>
+              <Text style={styles.askLine}>Want something different tonight? Ask me.</Text>
+            </View>
+          }
+          trailing={<Text style={styles.chev}>{'\u203A'}</Text>}
+          onPress={() => router.push('/(main)/(broadcast)/ask-onay')}
+          accessibilityLabel="Ask ONAY to curate"
+        />
 
-        {featured.length === 0 ? (
-          <FeaturedEmptyState />
-        ) : (
-          featured.map(fb => (
-            <FeaturedBroadcastCard key={fb.id} broadcast={fb} onPress={() => playFeatured(fb)} />
-          ))
+        {playlistsError && (
+          <Text style={styles.errorNote}>
+            {playlistsError} — pull to retry.
+          </Text>
+        )}
+        {playlistsLoading && (
+          <Text style={styles.loadingNote}>{'Loading your Apple Music playlists\u2026'}</Text>
         )}
       </ScrollView>
 
+      <SetupSheet
+        visible={sheetOpen}
+        playlists={playlists}
+        playlistsLoading={playlistsLoading}
+        playlistsError={playlistsError}
+        onRetryPlaylists={loadPlaylists}
+        initialStep={sheetInitialStep}
+        initialSelection={{ playlistId, vibe, length }}
+        onAskOnay={() => {
+          setSheetOpen(false);
+          router.push('/(main)/(broadcast)/ask-onay');
+        }}
+        onClose={() => setSheetOpen(false)}
+        onSubmit={onSheetSubmit}
+      />
+
       <TuningInOverlay visible={tuning} />
-    </>
+    </BroadcastBackdrop>
   );
 }
+
+// ───────────────────────── Styles ─────────────────────────
+
+const styles = StyleSheet.create({
+  flex: { flex: 1 },
+  scrollContent: {
+    paddingHorizontal: Space.s26,
+  },
+  loading: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  status: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  statusRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Space.s6,
+  },
+  statusMono: {
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s9,
+    color: AM.inkDim,
+    letterSpacing: 3,
+  },
+
+  // Hero
+  heroBlock: {
+    marginTop: Space.s34,
+    marginBottom: Space.s32,
+  },
+  heroLine: {
+    fontFamily: Fonts.displayThin,
+    fontSize: TypeScale.s44,
+    lineHeight: TypeScale.s44 * 1.05,
+    letterSpacing: -0.8,
+    color: AM.ink,
+    fontStyle: 'italic',
+  },
+  heroAmber: {
+    color: AM.amber,
+  },
+
+  // Pick rows
+  pickLabel: {
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s10,
+    letterSpacing: 2,
+    color: AM.inkDim,
+  },
+  pickValue: {
+    fontFamily: Fonts.display,
+    fontSize: TypeScale.s18,
+    fontStyle: 'italic',
+    color: AM.ink,
+  },
+  chev: {
+    fontFamily: Fonts.display,
+    fontSize: TypeScale.s16,
+    color: AM.inkDim,
+  },
+
+  commitment: {
+    marginTop: Space.s10,
+    textAlign: 'center',
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s9,
+    letterSpacing: 2,
+    color: AM.inkDim,
+  },
+
+  sectionLabel: {
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s10,
+    letterSpacing: 2.5,
+    color: AM.inkDim,
+  },
+
+  // Recent rows
+  reelNum: {
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s10,
+    letterSpacing: 1,
+    color: AM.amberDim,
+  },
+  reelTitle: {
+    fontFamily: Fonts.display,
+    fontSize: TypeScale.s16,
+    fontStyle: 'italic',
+    color: AM.ink,
+  },
+  reelDuration: {
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s10,
+    letterSpacing: 1,
+    color: AM.inkDim,
+  },
+
+  // Ask ONAY block
+  askLabel: {
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s10,
+    letterSpacing: 2.5,
+    color: AM.amberDim,
+    marginBottom: Space.s6,
+  },
+  askLine: {
+    fontFamily: Fonts.display,
+    fontSize: TypeScale.s18,
+    fontStyle: 'italic',
+    color: AM.ink,
+    lineHeight: TypeScale.s18 * 1.4,
+  },
+
+  errorNote: {
+    marginTop: Space.s16,
+    textAlign: 'center',
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s10,
+    letterSpacing: 1,
+    color: AM.inkDim,
+  },
+  loadingNote: {
+    marginTop: Space.s16,
+    textAlign: 'center',
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s10,
+    letterSpacing: 1,
+    color: AM.inkDim,
+  },
+});
