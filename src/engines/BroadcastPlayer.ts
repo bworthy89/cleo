@@ -53,11 +53,18 @@ export class BroadcastPlayer {
   ) {}
 
   getStatus(): PlayerStatus {
+    const track =
+      this.manifest && this.currentTrackIndex >= 0
+        ? this.manifest.tracks[this.currentTrackIndex]
+        : null;
     return {
       state: this.state,
       currentTrackIndex: this.currentTrackIndex,
       currentSegmentIndex: this.currentSegmentIndex,
       broadcastId: this.manifest?.broadcastId ?? null,
+      vibe: this.manifest?.vibe ?? null,
+      totalTracks: this.manifest?.tracks.length ?? 0,
+      currentTrack: track ?? null,
       nowPlaying: this.describeNowPlaying(),
       progress: this.computeProgress(),
     };
