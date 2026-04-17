@@ -37,14 +37,8 @@ export interface CreateBroadcastResponse {
   firstSegmentUrls: string[];
 }
 
-function toRelativePath(urlOrPath: string): string {
-  if (urlOrPath.startsWith('/')) return urlOrPath;
-  try {
-    const parsed = new URL(urlOrPath);
-    return `${parsed.pathname}${parsed.search}`;
-  } catch {
-    return urlOrPath.startsWith('/') ? urlOrPath : `/${urlOrPath}`;
-  }
+function isAbsoluteUrl(s: string): boolean {
+  return /^https?:\/\//i.test(s);
 }
 
 export class BroadcastManifestClient {
@@ -69,8 +63,12 @@ export class BroadcastManifestClient {
   }
 
   async fetchSegmentAudio(urlOrPath: string): Promise<string> {
-    const path = toRelativePath(urlOrPath);
-    const res = await authenticatedFetch(path);
+    // R2 presigned URLs (and any other absolute URL) carry their own auth in
+    // the query string — fetch them directly. Relative paths point at the
+    // API server's local-FS asset mount (dev) and need our JWT.
+    const res = isAbsoluteUrl(urlOrPath)
+      ? await fetch(urlOrPath)
+      : await authenticatedFetch(urlOrPath);
     if (!res.ok) throw new Error(`fetchSegmentAudio failed: ${res.status}`);
     const buffer = await res.arrayBuffer();
     return arrayBufferToBase64(buffer);
