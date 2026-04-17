@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import * as path from 'path';
-import { LocalFilesystemStorage } from '../src/services/storage/ObjectStorage';
+import { createStorage } from '../src/services/storage/createStorage';
 import { BroadcastStore } from '../src/services/broadcast/BroadcastStore';
 import { BroadcastOrchestrator } from '../src/services/broadcast/BroadcastOrchestrator';
 import { FeaturedBroadcastRegistry } from '../src/services/broadcast/FeaturedBroadcastRegistry';
@@ -19,10 +19,11 @@ async function main() {
   }
   const resolvedConfig = path.resolve(configPath);
 
-  const storage = new LocalFilesystemStorage(
-    path.resolve(__dirname, '../.broadcast-cache'),
-    `${process.env.BROADCAST_ASSET_BASE_URL ?? 'http://localhost:3001'}/broadcast-asset`,
-  );
+  const storage = createStorage({
+    ...process.env,
+    BROADCAST_CACHE_DIR: process.env.BROADCAST_CACHE_DIR
+      ?? path.resolve(__dirname, '../.broadcast-cache'),
+  });
   const store = new BroadcastStore();
   const enrichmentCache = new EnrichmentCache(
     path.resolve(__dirname, '../.enrichment-cache/tracks.json'),
