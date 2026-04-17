@@ -25,6 +25,12 @@ public class ExpoMusicKitModule: Module {
   private var backgroundTaskId: UIBackgroundTaskIdentifier = .invalid
   private var lifecycleObservers: [Any] = []
   private var silencePlayer: AVAudioPlayer?
+  /// True while a BroadcastPlayer broadcast is in progress. When true, the
+  /// 0.5s playback timer keeps running in background so end-of-track events
+  /// reach the JS state machine and the broadcast can advance even when the
+  /// phone is locked. When false, the timer is paused on background to save
+  /// CPU (matches the original behavior).
+  private var broadcastActive: Bool = false
 
   public func definition() -> ModuleDefinition {
     Name("ExpoMusicKit")
@@ -588,6 +594,19 @@ public class ExpoMusicKitModule: Module {
       try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
+    // BroadcastPlayer marks a broadcast as active so the playback timer keeps
+    // running when the phone locks. Without this, the bg observer invalidates
+    // the timer, no events reach JS, and the broadcast stalls until the user
+    // unlocks the phone. Idempotent — JS can call it repeatedly.
+    AsyncFunction("setBroadcastActive") { (active: Bool) in
+      self.broadcastActive = active
+      // If we're going active and we're currently in background, restart the
+      // timer immediately rather than waiting for foreground.
+      if active && self.playbackTimer == nil {
+        DispatchQueue.main.async { self.startPlaybackTimer() }
+      }
+    }
+
     // MARK: - Eject Transition
 
     AsyncFunction("playEjectTransition") { (ttsBase64: String, fadeInDelayMs: Int, promise: Promise) in
@@ -970,9 +989,16 @@ public class ExpoMusicKitModule: Module {
     let bgObserver = NotificationCenter.default.addObserver(
       forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main
     ) { [weak self] _ in
-      self?.playbackTimer?.invalidate()
-      self?.playbackTimer = nil
-      self?.trimCachesForBackground()
+      guard let self = self else { return }
+      // Only pause the timer when no broadcast is active. During a broadcast
+      // the JS state machine needs end-of-track events to advance segments.
+      // 0.5s timer cost is negligible (~2 Hz) — well under iOS's 48s/60s
+      // background CPU budget.
+      if !self.broadcastActive {
+        self.playbackTimer?.invalidate()
+        self.playbackTimer = nil
+      }
+      self.trimCachesForBackground()
     }
     let fgObserver = NotificationCenter.default.addObserver(
       forName: UIApplication.willEnterForegroundNotification, object: nil, queue: .main

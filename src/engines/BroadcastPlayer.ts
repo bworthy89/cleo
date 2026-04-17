@@ -22,6 +22,10 @@ export interface NativeDeps {
   playAudioFromBase64: (base64: string) => Promise<void>;
   stopAudio: () => Promise<void>;
   releaseAudioSession?: () => Promise<void>;
+  /** Tells the native module a broadcast is active so it keeps the 0.5s
+   *  playback timer running in background — without this, when the phone
+   *  locks the timer is invalidated and the broadcast can't advance. */
+  setBroadcastActive?: (active: boolean) => Promise<void>;
 }
 
 export interface ManifestDeps {
@@ -46,6 +50,12 @@ export class BroadcastPlayer {
    *  pre-playback 'paused'/'stopped' events during audio session handoff
    *  don't trigger a false track-end. */
   private sawPlayingForCurrentTrack = false;
+  /** Highest playbackTime observed for the current track. Used to detect
+   *  end-of-track when MusicKit's ApplicationMusicPlayer (single-track queue)
+   *  resets position to 0 at end faster than the 0.5s event tick can catch
+   *  `time >= duration - 0.5`. If we got close to duration and status is no
+   *  longer 'playing', the track ended — even if current time reports 0. */
+  private maxPlaybackTimeSeen = 0;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private readonly POLL_INTERVAL_MS = 3000;
   private isPaused = false;
@@ -82,6 +92,9 @@ export class BroadcastPlayer {
     setPersistedBroadcast(manifest);
     this.cache.clear();
     this.state = 'loading';
+    if (this.native.setBroadcastActive) {
+      await this.native.setBroadcastActive(true).catch(() => {});
+    }
     await this.stingers.preloadStingers();
 
     for (let v = 0; v < firstSegmentUrls.length; v++) {
@@ -171,6 +184,9 @@ export class BroadcastPlayer {
     // manifest so it exits cleanly on the next iteration check.
     this.isPaused = false;
     this.wakePausedLoop();
+    if (this.native.setBroadcastActive) {
+      await this.native.setBroadcastActive(false).catch(() => {});
+    }
     await this.native.stopAudio().catch(() => {});
     await this.music.pause().catch(() => {});
     this.subscriptions.forEach(unsub => {
@@ -182,6 +198,10 @@ export class BroadcastPlayer {
     this.manifest = null;
     this.currentTrackIndex = -1;
     this.currentSegmentIndex = -1;
+    // Resolve any in-flight waitForTrackEnd so the start() main loop unblocks
+    // and observes manifest=null on the next iteration check (otherwise the
+    // loop and its Promise leak indefinitely).
+    this.trackEndedResolve?.();
     this.trackEndedResolve = null;
     this.state = 'idle';
     clearPersistedBroadcast();
@@ -283,6 +303,7 @@ export class BroadcastPlayer {
     // Reset per-track signals so positional detection in handlePlaybackState
     // starts from a clean slate when this track begins.
     this.sawPlayingForCurrentTrack = false;
+    this.maxPlaybackTimeSeen = 0;
     return new Promise(resolve => {
       let resolved = false;
       const done = (reason: string) => {
@@ -313,17 +334,30 @@ export class BroadcastPlayer {
             ? await this.music.getPlaybackTime()
             : null;
           if (status === 'playing') this.sawPlayingForCurrentTrack = true;
+          if (time !== null && time > this.maxPlaybackTimeSeen) {
+            this.maxPlaybackTimeSeen = time;
+          }
 
           // End detection, in order of preference:
           //  1. Positional: playbackTime reaches (duration - 0.5s) after we've
           //     seen the track start — catches the common case where MusicKit
           //     keeps reporting 'playing' or flips to 'paused' at track end
           //     rather than the cleaner 'stopped'.
-          //  2. Status-based: saw 'stopped' after saw 'playing'.
-          // 'paused' is explicitly NOT end-of-track — a user pause must not
-          // advance to the next segment.
+          //  2. Reset-to-0: MusicKit's single-track queue resets position to
+          //     0 at end-of-track. If maxTime got near duration and status is
+          //     no longer 'playing', the track ended.
+          //  3. Status-based: saw 'stopped' after saw 'playing'.
+          // 'paused' mid-track is explicitly NOT end-of-track — a user pause
+          // must not advance to the next segment.
           if (this.sawPlayingForCurrentTrack && time !== null && time >= duration - 0.5) {
             return done(`poll(position ${time.toFixed(1)}/${duration})`);
+          }
+          if (
+            this.sawPlayingForCurrentTrack &&
+            this.maxPlaybackTimeSeen >= duration - 2 &&
+            status !== null && status !== 'playing'
+          ) {
+            return done(`poll(reset maxTime=${this.maxPlaybackTimeSeen.toFixed(1)}/${duration} status=${status})`);
           }
           if (this.sawPlayingForCurrentTrack && status === 'stopped') {
             return done(`poll(status=${status})`);
@@ -345,6 +379,9 @@ export class BroadcastPlayer {
       console.log(`[BroadcastPlayer] playbackState: status=${e.status} time=${e.playbackTime} playerState=${this.state}`);
       if (this.state !== 'playing_track') return;
       if (e.status === 'playing') this.sawPlayingForCurrentTrack = true;
+      if (e.playbackTime > this.maxPlaybackTimeSeen) {
+        this.maxPlaybackTimeSeen = e.playbackTime;
+      }
 
       const track = this.manifest?.tracks[this.currentTrackIndex];
       const duration = track?.duration ?? 0;
@@ -355,6 +392,19 @@ export class BroadcastPlayer {
         this.sawPlayingForCurrentTrack &&
         duration > 0 &&
         e.playbackTime >= duration - 0.5
+      ) {
+        this.trackEndedResolve?.();
+        return;
+      }
+      // Reset-to-0 detection: ApplicationMusicPlayer with a single-track queue
+      // transitions to `paused` with playbackTime=0 at end-of-track faster
+      // than the 0.5s tick can catch time >= duration. If we saw the track
+      // get close to duration and now status is not 'playing', it ended.
+      if (
+        this.sawPlayingForCurrentTrack &&
+        duration > 0 &&
+        this.maxPlaybackTimeSeen >= duration - 2 &&
+        e.status !== 'playing'
       ) {
         this.trackEndedResolve?.();
         return;
