@@ -7,81 +7,53 @@ const t = (id: string): ManifestTrack => ({
 });
 
 describe('buildManifest', () => {
-  const tracks = Array.from({ length: 20 }, (_, i) => t(String(i)));
-
-  it('picks 5 tracks for quick length', () => {
+  it('produces N+1 slots for N tracks', () => {
+    const tracks = Array.from({ length: 5 }, (_, i) => t(String(i)));
     const m = buildManifest({
       userId: 'u1', playlistId: 'p1', vibe: 'morning',
       length: 'quick', tracks,
     });
+    // cold_open + 4 transitions + sign_off = 6
+    expect(m.segmentSlots).toHaveLength(6);
     expect(m.tracks).toHaveLength(5);
   });
 
-  it('picks 9 tracks for standard length', () => {
-    const m = buildManifest({
-      userId: 'u1', playlistId: 'p1', vibe: 'morning',
-      length: 'standard', tracks,
-    });
-    expect(m.tracks).toHaveLength(9);
-  });
-
-  it('picks 15 tracks for long length', () => {
-    const m = buildManifest({
-      userId: 'u1', playlistId: 'p1', vibe: 'morning',
-      length: 'long', tracks,
-    });
-    expect(m.tracks).toHaveLength(15);
-  });
-
-  it('produces N+1 segment slots for N tracks', () => {
+  it('preserves input track order', () => {
+    const tracks = [t('a'), t('b'), t('c')];
     const m = buildManifest({
       userId: 'u1', playlistId: 'p1', vibe: 'morning',
       length: 'quick', tracks,
     });
-    expect(m.segmentSlots).toHaveLength(6);
+    expect(m.tracks.map(x => x.id)).toEqual(['a', 'b', 'c']);
   });
 
-  it('produces cold_open first, sign_off last, transitions between', () => {
+  it('cold_open references first track', () => {
+    const tracks = [t('a'), t('b')];
     const m = buildManifest({
       userId: 'u1', playlistId: 'p1', vibe: 'morning',
       length: 'quick', tracks,
     });
     expect(m.segmentSlots[0].kind).toBe('cold_open');
-    expect(m.segmentSlots[m.segmentSlots.length - 1].kind).toBe('sign_off');
-    for (let i = 1; i < m.segmentSlots.length - 1; i++) {
-      expect(m.segmentSlots[i].kind).toBe('transition');
-    }
+    expect(m.segmentSlots[0].beforeTrackId).toBe('a');
   });
 
-  it('wires afterTrackId/beforeTrackId correctly', () => {
+  it('sign_off references last track', () => {
+    const tracks = [t('a'), t('b'), t('c')];
     const m = buildManifest({
       userId: 'u1', playlistId: 'p1', vibe: 'morning',
       length: 'quick', tracks,
     });
-    expect(m.segmentSlots[0].beforeTrackId).toBe('0');
-    expect(m.segmentSlots[0].afterTrackId).toBeUndefined();
-    expect(m.segmentSlots[1].afterTrackId).toBe('0');
-    expect(m.segmentSlots[1].beforeTrackId).toBe('1');
-    expect(m.segmentSlots[5].kind).toBe('sign_off');
-    expect(m.segmentSlots[5].afterTrackId).toBe('4');
-    expect(m.segmentSlots[5].beforeTrackId).toBeUndefined();
+    const last = m.segmentSlots[m.segmentSlots.length - 1];
+    expect(last.kind).toBe('sign_off');
+    expect(last.afterTrackId).toBe('c');
   });
 
-  it('all slots have variantCount 1 (MVP keeps the LLM budget tight)', () => {
-    const m = buildManifest({
-      userId: 'u1', playlistId: 'p1', vibe: 'morning',
-      length: 'quick', tracks,
-    });
-    for (let i = 0; i < m.segmentSlots.length; i++) {
-      expect(m.segmentSlots[i].variantCount).toBe(1);
-    }
-  });
-
-  it('throws if pool has fewer tracks than length requires', () => {
-    const tooFew = Array.from({ length: 4 }, (_, i) => t(String(i)));
-    expect(() => buildManifest({
-      userId: 'u1', playlistId: 'p1', vibe: 'morning',
-      length: 'quick', tracks: tooFew,
-    })).toThrow('insufficient tracks');
+  it('throws on empty track list', () => {
+    expect(() =>
+      buildManifest({
+        userId: 'u1', playlistId: 'p1', vibe: 'morning',
+        length: 'quick', tracks: [],
+      }),
+    ).toThrow(/at least one track/);
   });
 });

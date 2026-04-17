@@ -6,9 +6,14 @@ import type {
   BroadcastCreateRequest, BroadcastCreateResponse, Manifest,
 } from './types';
 import { BroadcastStore } from './BroadcastStore';
+import { TrackSequencer } from './TrackSequencer';
+import { SequenceCache } from './SequenceCache';
+import type { EnrichmentCache } from '../enrichment/EnrichmentCache';
+import type { BackgroundEnricher } from '../enrichment/BackgroundEnricher';
 
 export class BroadcastOrchestrator {
   private readonly generator: SegmentGenerator;
+  private readonly sequencer: TrackSequencer;
   private readonly inFlight = new Map<string, Promise<void>>();
 
   constructor(
@@ -16,19 +21,35 @@ export class BroadcastOrchestrator {
     tts: TTSCaller,
     storage: ObjectStorage,
     private readonly store: BroadcastStore,
+    private readonly enrichmentCache: EnrichmentCache,
+    private readonly backgroundEnricher: BackgroundEnricher,
+    sequenceCache?: SequenceCache,
   ) {
     this.generator = new SegmentGenerator(llm, tts, storage);
+    this.sequencer = new TrackSequencer(
+      llm, sequenceCache ?? new SequenceCache(), enrichmentCache,
+    );
   }
 
   async create(
     input: BroadcastCreateRequest & { userId: string },
   ): Promise<BroadcastCreateResponse> {
+    const seq = await this.sequencer.sequence({
+      pool: input.tracks,
+      vibe: input.vibe,
+      length: input.length,
+      userContext: {
+        timeOfDay: input.userContext.timeOfDay,
+        dayOfWeek: input.userContext.dayOfWeek,
+      },
+    });
+
     const manifest = buildManifest({
       userId: input.userId,
       playlistId: input.playlistId,
       vibe: input.vibe,
       length: input.length,
-      tracks: input.tracks,
+      tracks: seq.orderedTracks,
     });
     this.store.put(manifest);
 
@@ -43,6 +64,9 @@ export class BroadcastOrchestrator {
       .finally(() => this.inFlight.delete(manifest.broadcastId));
 
     this.inFlight.set(manifest.broadcastId, remaining);
+
+    // Fire-and-forget enrichment; does not delay the sync response.
+    this.backgroundEnricher.enqueue(seq.orderedTracks);
 
     return {
       manifest: this.store.get(manifest.broadcastId)!,

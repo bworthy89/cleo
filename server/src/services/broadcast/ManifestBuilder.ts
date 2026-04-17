@@ -3,12 +3,6 @@ import type {
   Manifest, ManifestTrack, SegmentSlot, Vibe, BroadcastLength,
 } from './types';
 
-const LENGTH_TO_TRACK_COUNT: Record<BroadcastLength, number> = {
-  quick: 5,
-  standard: 9,
-  long: 15,
-};
-
 export function buildManifest(input: {
   userId: string;
   playlistId: string | null;
@@ -16,12 +10,11 @@ export function buildManifest(input: {
   length: BroadcastLength;
   tracks: ManifestTrack[];
 }): Manifest {
-  const trackCount = LENGTH_TO_TRACK_COUNT[input.length];
-  if (input.tracks.length < trackCount) {
-    throw new Error(`insufficient tracks: need ${trackCount}, got ${input.tracks.length}`);
+  if (input.tracks.length === 0) {
+    throw new Error('buildManifest requires at least one track');
   }
 
-  const tracks = input.tracks.slice(0, trackCount);
+  const tracks = input.tracks;
   const segmentSlots: SegmentSlot[] = [];
 
   segmentSlots.push({

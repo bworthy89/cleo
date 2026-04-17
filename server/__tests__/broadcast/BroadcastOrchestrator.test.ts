@@ -1,5 +1,10 @@
+import { promises as fs } from 'fs';
+import * as path from 'path';
+import * as os from 'os';
 import { BroadcastOrchestrator } from '@/services/broadcast/BroadcastOrchestrator';
 import { BroadcastStore } from '@/services/broadcast/BroadcastStore';
+import { EnrichmentCache } from '@/services/enrichment/EnrichmentCache';
+import { BackgroundEnricher } from '@/services/enrichment/BackgroundEnricher';
 import { makeMockLLM } from '../../__mocks__/llm';
 import { makeMockTTS } from '../../__mocks__/tts';
 import type { ObjectStorage } from '@/services/storage/ObjectStorage';
@@ -20,10 +25,27 @@ const ctx = {
   timeOfDay: '20:47', dayOfWeek: 'Thursday', firstTimeUser: false,
 };
 
+const SEQUENCER_RESPONSE = JSON.stringify({
+  ordered: ['t0', 't1', 't2', 't3', 't4'],
+});
+
+async function makeDeps() {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'orch-test-'));
+  const enrichCache = new EnrichmentCache(path.join(dir, 'tracks.json'));
+  await enrichCache.load();
+  const enricher = new BackgroundEnricher(enrichCache, {
+    fetchGenius: jest.fn(async () => null),
+    fetchMusicBrainz: jest.fn(async () => null),
+  });
+  return { enrichCache, enricher };
+}
+
 describe('BroadcastOrchestrator.create', () => {
   it('returns manifest + first segment URLs synchronously', async () => {
+    const { enrichCache, enricher } = await makeDeps();
     const orch = new BroadcastOrchestrator(
-      makeMockLLM(), makeMockTTS(), makeStorage(), new BroadcastStore(),
+      makeMockLLM(SEQUENCER_RESPONSE), makeMockTTS(), makeStorage(),
+      new BroadcastStore(), enrichCache, enricher,
     );
     const result = await orch.create({
       userId: 'u1', playlistId: 'p1', vibe: 'morning',
@@ -36,9 +58,11 @@ describe('BroadcastOrchestrator.create', () => {
   });
 
   it('marks first slot ready in the store immediately', async () => {
+    const { enrichCache, enricher } = await makeDeps();
     const store = new BroadcastStore();
     const orch = new BroadcastOrchestrator(
-      makeMockLLM(), makeMockTTS(), makeStorage(), store,
+      makeMockLLM(SEQUENCER_RESPONSE), makeMockTTS(), makeStorage(),
+      store, enrichCache, enricher,
     );
     const { manifest } = await orch.create({
       userId: 'u1', playlistId: 'p1', vibe: 'morning',
@@ -50,10 +74,13 @@ describe('BroadcastOrchestrator.create', () => {
   });
 
   it('schedules async generation of remaining slots', async () => {
-    const llm = makeMockLLM();
+    const { enrichCache, enricher } = await makeDeps();
+    const llm = makeMockLLM(SEQUENCER_RESPONSE);
     const tts = makeMockTTS();
     const store = new BroadcastStore();
-    const orch = new BroadcastOrchestrator(llm, tts, makeStorage(), store);
+    const orch = new BroadcastOrchestrator(
+      llm, tts, makeStorage(), store, enrichCache, enricher,
+    );
 
     const { manifest } = await orch.create({
       userId: 'u1', playlistId: 'p1', vibe: 'morning',
@@ -66,22 +93,27 @@ describe('BroadcastOrchestrator.create', () => {
     for (const slot of final.segmentSlots) {
       expect(slot.status).toBe('ready');
     }
-    // 1 cold_open + 4 transitions + 1 sign_off = 6 LLM calls
-    expect(llm.generate).toHaveBeenCalledTimes(6);
+    // 1 sequencer call + 1 cold_open + 4 transitions + 1 sign_off = 7 LLM calls
+    expect(llm.generate).toHaveBeenCalledTimes(7);
   });
 
   it('marks individual slots as failed on provider errors without rejecting create()', async () => {
+    const { enrichCache, enricher } = await makeDeps();
     const llm = makeMockLLM();
-    // sequence: 1 cold_open (sync), then 4 transitions + 1 sign_off (async).
-    // fail one of the async calls.
-    (llm.generate as jest.Mock).mockImplementationOnce(async () => ({ text: 'ok' })) // cold_open
+    // Sequence of calls: sequencer (JSON), cold_open (sync), 4 transitions + 1
+    // sign_off (async). Fail one of the async segment calls.
+    (llm.generate as jest.Mock)
+      .mockImplementationOnce(async () => ({ text: SEQUENCER_RESPONSE })) // sequencer
+      .mockImplementationOnce(async () => ({ text: 'ok' })) // cold_open
       .mockImplementationOnce(async () => ({ text: 'ok' }))
       .mockImplementationOnce(async () => ({ text: 'ok' }))
       .mockImplementationOnce(async () => { throw new Error('llm exploded'); })
       .mockImplementation(async () => ({ text: 'ok' }));
 
     const store = new BroadcastStore();
-    const orch = new BroadcastOrchestrator(llm, makeMockTTS(), makeStorage(), store);
+    const orch = new BroadcastOrchestrator(
+      llm, makeMockTTS(), makeStorage(), store, enrichCache, enricher,
+    );
     const { manifest } = await orch.create({
       userId: 'u1', playlistId: 'p1', vibe: 'morning',
       length: 'quick', userContext: ctx, tracks: tracks(10),
@@ -96,8 +128,10 @@ describe('BroadcastOrchestrator.create', () => {
   });
 
   it('cleans up inFlight map after completion', async () => {
+    const { enrichCache, enricher } = await makeDeps();
     const orch = new BroadcastOrchestrator(
-      makeMockLLM(), makeMockTTS(), makeStorage(), new BroadcastStore(),
+      makeMockLLM(SEQUENCER_RESPONSE), makeMockTTS(), makeStorage(),
+      new BroadcastStore(), enrichCache, enricher,
     );
     const { manifest } = await orch.create({
       userId: 'u1', playlistId: 'p1', vibe: 'morning',

@@ -2,12 +2,18 @@ import { bakeFeatured } from '@/services/broadcast/bakeFeatured';
 import { FeaturedBroadcastRegistry } from '@/services/broadcast/FeaturedBroadcastRegistry';
 import { BroadcastOrchestrator } from '@/services/broadcast/BroadcastOrchestrator';
 import { BroadcastStore } from '@/services/broadcast/BroadcastStore';
+import { EnrichmentCache } from '@/services/enrichment/EnrichmentCache';
+import { BackgroundEnricher } from '@/services/enrichment/BackgroundEnricher';
 import { makeMockLLM } from '../../__mocks__/llm';
 import { makeMockTTS } from '../../__mocks__/tts';
 import type { ObjectStorage } from '@/services/storage/ObjectStorage';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
+
+const SEQUENCER_RESPONSE = JSON.stringify({
+  ordered: ['t0', 't1', 't2', 't3', 't4'],
+});
 
 const makeStorage = (): ObjectStorage => ({
   put: jest.fn(async (k: string) => `https://cdn/${k}`),
@@ -38,8 +44,15 @@ describe('bakeFeatured', () => {
 
     const reg = new FeaturedBroadcastRegistry(regPath);
     await reg.load();
+    const enrichCache = new EnrichmentCache(path.join(tmp, 'tracks.json'));
+    await enrichCache.load();
+    const enricher = new BackgroundEnricher(enrichCache, {
+      fetchGenius: jest.fn(async () => null),
+      fetchMusicBrainz: jest.fn(async () => null),
+    });
     const orch = new BroadcastOrchestrator(
-      makeMockLLM(), makeMockTTS(), makeStorage(), new BroadcastStore(),
+      makeMockLLM(SEQUENCER_RESPONSE), makeMockTTS(), makeStorage(),
+      new BroadcastStore(), enrichCache, enricher,
     );
 
     await bakeFeatured({ configPath, orchestrator: orch, registry: reg });
