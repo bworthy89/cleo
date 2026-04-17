@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { View, Text, Pressable, ScrollView, Image, Animated, Easing } from 'react-native';
+import { View, Text, Pressable, ScrollView, Image, Animated, Easing, StyleSheet } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { Colors, Surface, TextColors, Typography, Spacing, Radius, getVibeAccent } from '../../../src/tokens/design-tokens';
 import { broadcastPlayer } from '../../../src/engines/BroadcastPlayer.singleton';
 import type { PlayerStatus } from '../../../src/engines/BroadcastPlayer.types';
@@ -54,26 +56,87 @@ function stateCaption(status: PlayerStatus): string {
   return 'Live';
 }
 
-function PulsingOrb({ active, accent }: { active: boolean; accent: string }) {
+/** Italic ONAY-voice caption that reflects player state. */
+function voiceCaptionFor(status: PlayerStatus, tuningStage: string): string | null {
+  if (status.state === 'loading') return tuningStage;
+  if (status.state === 'paused') return 'Your move.';
+  if (status.state === 'ended') return 'That\u2019s all for tonight.';
+  const np = status.nowPlaying;
+  if (np && 'segmentKind' in np) return 'Between the tracks\u2026';
+  return null;
+}
+
+type OrbMode = 'tuning' | 'live-track' | 'live-segment' | 'paused' | 'ended';
+
+function orbModeFor(status: PlayerStatus): OrbMode {
+  if (status.state === 'loading') return 'tuning';
+  if (status.state === 'paused') return 'paused';
+  if (status.state === 'ended' || status.state === 'idle') return 'ended';
+  if (status.state === 'playing_segment') return 'live-segment';
+  return 'live-track';
+}
+
+const ORB_CONFIG: Record<OrbMode, { duration: number; amplitude: number; opacity: number }> = {
+  tuning:         { duration: 900, amplitude: 1.25, opacity: 1 },
+  'live-segment': { duration: 700, amplitude: 1.18, opacity: 1 },
+  'live-track':   { duration: 1400, amplitude: 1.08, opacity: 1 },
+  paused:         { duration: 0, amplitude: 1, opacity: 0.45 },
+  ended:          { duration: 0, amplitude: 1, opacity: 0.25 },
+};
+
+function PulsingOrb({ mode, accent }: { mode: OrbMode; accent: string }) {
   const scale = useRef(new Animated.Value(1)).current;
   const appActive = useAppActive();
+  const cfg = ORB_CONFIG[mode];
   useEffect(() => {
-    if (!active || !appActive) return;
+    scale.setValue(1);
+    if (cfg.duration === 0 || !appActive) return;
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(scale, { toValue: 1.06, duration: 1200, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        Animated.timing(scale, { toValue: 1.0, duration: 1200, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(scale, { toValue: cfg.amplitude, duration: cfg.duration, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(scale, { toValue: 1.0, duration: cfg.duration, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
       ]),
     );
     loop.start();
     return () => loop.stop();
-  }, [active, appActive, scale]);
+  }, [cfg.duration, cfg.amplitude, appActive, scale]);
   return (
     <Animated.View
       style={{
         width: 14, height: 14, borderRadius: 7,
         backgroundColor: accent,
+        opacity: cfg.opacity,
         transform: [{ scale }],
+      }}
+    />
+  );
+}
+
+/** A pip in the track-progress strip. Pulses subtly for upcoming tracks. */
+function TrackPip({ state, accent }: { state: 'past' | 'current' | 'upcoming'; accent: string }) {
+  const appActive = useAppActive();
+  const alpha = useRef(new Animated.Value(state === 'upcoming' ? 0.5 : 1)).current;
+  useEffect(() => {
+    if (state !== 'upcoming' || !appActive) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(alpha, { toValue: 0.85, duration: 1600, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(alpha, { toValue: 0.4, duration: 1600, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [state, appActive, alpha]);
+
+  const bg = state === 'upcoming' ? Surface.high : accent;
+  return (
+    <Animated.View
+      style={{
+        flex: 1,
+        height: state === 'current' ? 4 : 3,
+        borderRadius: 2,
+        backgroundColor: bg,
+        opacity: state === 'past' ? 0.6 : state === 'upcoming' ? alpha : 1,
       }}
     />
   );
@@ -143,8 +206,19 @@ export default function BroadcastPlayerScreen() {
   }, [active]);
 
   const handleEnd = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     await broadcastPlayer.end().catch(() => {});
     router.back();
+  };
+
+  const handlePause = () => {
+    Haptics.selectionAsync().catch(() => {});
+    broadcastPlayer.pause().catch(() => {});
+  };
+
+  const handleResume = () => {
+    Haptics.selectionAsync().catch(() => {});
+    broadcastPlayer.resume().catch(() => {});
   };
 
   const progressPct = Math.round(status.progress * 100);
@@ -157,6 +231,8 @@ export default function BroadcastPlayerScreen() {
   const live = status.state === 'playing_track' || status.state === 'playing_segment';
   const trackNumber = Math.max(status.currentTrackIndex, 0) + 1;
   const totalTracks = Math.max(status.totalTracks, 1);
+  const orbMode = orbModeFor(status);
+  const voiceCaption = voiceCaptionFor(status, tuningStage);
 
   return (
     <ScrollView
@@ -169,7 +245,7 @@ export default function BroadcastPlayerScreen() {
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.md }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flex: 1 }}>
-          <PulsingOrb active={live} accent={accent} />
+          <PulsingOrb mode={orbMode} accent={accent} />
           <Text style={{ ...monoLabel, color: accent }}>
             {stateCaption(status).toUpperCase()}
           </Text>
@@ -187,17 +263,35 @@ export default function BroadcastPlayerScreen() {
       {warming ? (
         <TuningInCanvas accent={accent} />
       ) : track?.artworkUrl ? (
-        <Image
-          source={{ uri: track.artworkUrl }}
-          style={{
-            width: '100%',
-            aspectRatio: 1,
-            borderRadius: Radius.md,
-            marginBottom: Spacing.lg,
-            backgroundColor: Surface.container,
-          }}
-          resizeMode="cover"
-        />
+        <View style={{
+          width: '100%',
+          aspectRatio: 1,
+          borderRadius: Radius.md,
+          marginBottom: Spacing.lg,
+          backgroundColor: Surface.container,
+          overflow: 'hidden',
+        }}>
+          {/* Blurred backdrop: same art, scaled up, softly diffused */}
+          <Image
+            source={{ uri: track.artworkUrl }}
+            style={[StyleSheet.absoluteFillObject, { transform: [{ scale: 1.6 }] }]}
+            blurRadius={30}
+            resizeMode="cover"
+          />
+          <BlurView intensity={24} tint="dark" style={StyleSheet.absoluteFillObject} />
+          <View style={{
+            ...StyleSheet.absoluteFillObject,
+            backgroundColor: 'rgba(13, 13, 13, 0.28)',
+          }} />
+          <Image
+            source={{ uri: track.artworkUrl }}
+            style={{
+              width: '100%',
+              height: '100%',
+            }}
+            resizeMode="cover"
+          />
+        </View>
       ) : (
         <View style={{
           width: '100%',
@@ -213,23 +307,13 @@ export default function BroadcastPlayerScreen() {
       )}
 
       {warming ? (
-        <>
-          <Text style={{ color: TextColors.primary, fontFamily: Typography.display.family, fontSize: 24, marginBottom: 2 }}>
-            Tuning in
-          </Text>
-          <Text style={{ color: TextColors.secondary, fontFamily: Typography.cleoVoice.family, fontStyle: 'italic', fontSize: 15 }}>
-            {tuningStage}
-          </Text>
-        </>
+        <Text style={{ color: TextColors.primary, fontFamily: Typography.display.family, fontSize: 24, marginBottom: 2 }}>
+          Tuning in
+        </Text>
       ) : segment ? (
-        <>
-          <Text style={{ color: TextColors.primary, fontFamily: Typography.display.family, fontSize: 22, marginBottom: 2 }}>
-            {segment}
-          </Text>
-          <Text style={{ color: TextColors.secondary, fontFamily: Typography.cleoVoice.family, fontStyle: 'italic', fontSize: 15 }}>
-            Between the tracks…
-          </Text>
-        </>
+        <Text style={{ color: TextColors.primary, fontFamily: Typography.display.family, fontSize: 22, marginBottom: 2 }}>
+          {segment}
+        </Text>
       ) : track ? (
         <>
           <Text style={{ color: TextColors.primary, fontFamily: Typography.display.family, fontSize: 24, marginBottom: 2 }} numberOfLines={2}>
@@ -245,6 +329,18 @@ export default function BroadcastPlayerScreen() {
         </Text>
       )}
 
+      {voiceCaption && (
+        <Text style={{
+          color: TextColors.secondary,
+          fontFamily: Typography.cleoVoice.family,
+          fontStyle: 'italic',
+          fontSize: 15,
+          marginTop: 4,
+        }}>
+          {voiceCaption}
+        </Text>
+      )}
+
       <View style={{ marginTop: Spacing.lg, marginBottom: Spacing.lg }}>
         <Text style={{
           color: TextColors.primary,
@@ -255,19 +351,12 @@ export default function BroadcastPlayerScreen() {
         }}>
           TRACK {trackNumber} OF {totalTracks}
         </Text>
-        <View style={{ flexDirection: 'row', gap: 4 }}>
-          {Array.from({ length: totalTracks }).map((_, i) => (
-            <View
-              key={i}
-              style={{
-                flex: 1,
-                height: 3,
-                borderRadius: 2,
-                backgroundColor: i < trackNumber ? accent : Surface.high,
-                opacity: i < trackNumber - 1 ? 0.5 : 1,
-              }}
-            />
-          ))}
+        <View style={{ flexDirection: 'row', gap: 4, alignItems: 'center' }}>
+          {Array.from({ length: totalTracks }).map((_, i) => {
+            const pipState: 'past' | 'current' | 'upcoming' =
+              i < trackNumber - 1 ? 'past' : i === trackNumber - 1 ? 'current' : 'upcoming';
+            return <TrackPip key={i} state={pipState} accent={accent} />;
+          })}
         </View>
         <Text style={{ color: TextColors.outline, fontSize: 11, marginTop: Spacing.xs }}>
           {progressPct}% of the broadcast
@@ -276,7 +365,7 @@ export default function BroadcastPlayerScreen() {
 
       {!paused ? (
         <Pressable
-          onPress={() => { broadcastPlayer.pause().catch(() => {}); }}
+          onPress={handlePause}
           accessibilityRole="button"
           accessibilityLabel="Pause broadcast"
           disabled={ended}
@@ -304,7 +393,7 @@ export default function BroadcastPlayerScreen() {
         </Pressable>
       ) : (
         <Pressable
-          onPress={() => { broadcastPlayer.resume().catch(() => {}); }}
+          onPress={handleResume}
           accessibilityRole="button"
           accessibilityLabel="Resume broadcast"
           style={({ pressed }) => ({

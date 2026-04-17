@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, ScrollView, Modal, Image, ActivityIndicator, Animated, Easing } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { Colors, Surface, TextColors, Spacing, Typography, Radius, getVibeAccent } from '../../tokens/design-tokens';
 import type { MusicPlaylist } from '../../../modules/expo-music-kit';
 import type { Manifest } from '../../engines/BroadcastPlayer.types';
@@ -77,8 +78,14 @@ export function SetupSheet({
   const reset = () => { setStep(0); setPlaylistId(null); setVibe(null); setLength(null); };
   const close = () => { reset(); onClose(); };
 
+  const advanceStep = (next: 0 | 1 | 2) => {
+    Haptics.selectionAsync().catch(() => {});
+    setStep(next);
+  };
+
   const submit = () => {
     if (!playlistId || !vibe || !length) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     onSubmit({ playlistId, vibe, length });
     reset();
   };
@@ -203,7 +210,7 @@ export function SetupSheet({
               {playlists.map(p => (
                 <Pressable
                   key={p.id}
-                  onPress={() => { setPlaylistId(p.id); setStep(1); }}
+                  onPress={() => { setPlaylistId(p.id); advanceStep(1); }}
                   accessibilityRole="button"
                   accessibilityLabel={`Pick playlist ${p.name}`}
                   style={({ pressed }) => ({
@@ -233,7 +240,7 @@ export function SetupSheet({
               {VIBES.map(v => (
                 <Pressable
                   key={v.id}
-                  onPress={() => { setVibe(v.id); setStep(2); }}
+                  onPress={() => { setVibe(v.id); advanceStep(2); }}
                   accessibilityRole="button"
                   accessibilityLabel={`Pick vibe ${v.label}: ${v.subtitle}`}
                   style={({ pressed }) => ({
@@ -275,7 +282,10 @@ export function SetupSheet({
             {LENGTHS.map(l => (
               <Pressable
                 key={l.id}
-                onPress={() => setLength(l.id)}
+                onPress={() => {
+                  Haptics.selectionAsync().catch(() => {});
+                  setLength(l.id);
+                }}
                 accessibilityRole="button"
                 accessibilityLabel={`Pick length ${l.label}`}
                 style={({ pressed }) => ({
