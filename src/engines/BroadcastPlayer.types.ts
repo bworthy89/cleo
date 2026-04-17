@@ -53,6 +53,9 @@ export interface PlayerStatus {
   currentTrackIndex: number;
   currentSegmentIndex: number;
   broadcastId: string | null;
+  vibe: Vibe | null;
+  totalTracks: number;
+  currentTrack: ManifestTrack | null;
   nowPlaying:
     | { segmentKind: SegmentSlotKind }
     | { trackId: string }
