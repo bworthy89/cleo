@@ -20,6 +20,9 @@ import { createPlaylist, authorize } from '../../../modules/expo-music-kit';
 import { queueManager } from '../../engines/QueueManager';
 import { addStation } from '../../services/Storage';
 import { sessionEngine } from '../../engines/SessionEngine';
+import { BroadcastCurationClient } from '../../engines/BroadcastCurationClient';
+import { isCurator } from '../../config/curators';
+import auth from '@react-native-firebase/auth';
 
 type MessageRole = 'user' | 'onay' | 'playlist' | 'loading' | 'error';
 
@@ -113,8 +116,10 @@ export function AskOnayScreen() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [currentPlaylist, setCurrentPlaylist] = useState<CuratedPlaylist | null>(null);
   const [originalPrompt, setOriginalPrompt] = useState('');
+  const [publishing, setPublishing] = useState(false);
   const flatListRef = useRef<FlatList>(null);
   const messageIdCounter = useRef(1);
+  const canCurate = isCurator(auth().currentUser?.email);
 
   // Handle pre-filled suggestion from home screen "ONAY SUGGESTS" card
   const pendingSuggestionRef = useRef<string | null>(null);
@@ -261,6 +266,60 @@ export function AskOnayScreen() {
       setIsGenerating(false);
     }
   }, [inputText, isGenerating, currentPlaylist, originalPrompt, addMessage, removeMessage]);
+
+  const handlePublishFeatured = useCallback(async (playlist: CuratedPlaylist) => {
+    if (publishing) return;
+
+    // Propose a reasonable length based on track count
+    const count = playlist.trackIds.length;
+    const length: 'quick' | 'standard' | 'long' =
+      count >= 15 ? 'long' : count >= 9 ? 'standard' : 'quick';
+
+    Alert.prompt?.(
+      'Publish as Tonight on ONAY',
+      'This will bake the broadcast and show it on every user\u2019s home screen. Confirm the title:',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Publish',
+          onPress: async (titleOverride?: string) => {
+            const title = (titleOverride && titleOverride.trim().length > 0)
+              ? titleOverride.trim()
+              : playlist.playlistTitle;
+            setPublishing(true);
+            try {
+              const client = new BroadcastCurationClient();
+              const slug = `${Date.now()}-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40)}`;
+              await client.publishFeatured({
+                id: slug,
+                title,
+                description: playlist.playlistDescription,
+                vibe: playlist.suggestedVibe,
+                length,
+                artworkUrl: playlist.tracks[0]?.artworkUrl,
+                tracks: playlist.tracks.map(t => ({
+                  id: t.id,
+                  title: t.title,
+                  artistName: t.artistName,
+                  albumTitle: t.albumTitle ?? '',
+                  duration: t.duration ?? 180,
+                  artworkUrl: t.artworkUrl,
+                })),
+              });
+              Alert.alert('Published', `"${title}" is now on Tonight on ONAY.`);
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : 'Publish failed.';
+              Alert.alert('Publish failed', msg);
+            } finally {
+              setPublishing(false);
+            }
+          },
+        },
+      ],
+      'plain-text',
+      playlist.playlistTitle,
+    );
+  }, [publishing]);
 
   const handleSave = useCallback(async (playlist: CuratedPlaylist) => {
     try {
@@ -439,6 +498,19 @@ export function AskOnayScreen() {
                 </Text>
               </Pressable>
             </View>
+            {canCurate && (
+              <Pressable
+                style={[styles.actionButton, styles.publishButton]}
+                onPress={() => handlePublishFeatured(item.playlist!)}
+                disabled={publishing}
+                accessibilityLabel="Publish as Tonight on ONAY"
+                accessibilityRole="button"
+              >
+                <Text style={styles.publishButtonText}>
+                  {publishing ? 'PUBLISHING\u2026' : 'PUBLISH AS TONIGHT ON ONAY'}
+                </Text>
+              </Pressable>
+            )}
             <View style={styles.refineSection}>
               <Text style={styles.refineSectionLabel}>REFINE THIS</Text>
               <View style={styles.refineChips}>
@@ -703,6 +775,18 @@ const styles = StyleSheet.create({
   },
   actionButtonPrimaryText: {
     color: Surface.base,
+  },
+  publishButton: {
+    marginTop: Spacing.sm,
+    borderColor: TextColors.outlineVariant,
+    borderWidth: 1,
+    backgroundColor: Surface.container,
+  },
+  publishButtonText: {
+    fontFamily: Typography.mono.family,
+    fontSize: 10,
+    letterSpacing: 1.5,
+    color: TextColors.secondary,
   },
   retryButton: {
     marginTop: Spacing.sm,
