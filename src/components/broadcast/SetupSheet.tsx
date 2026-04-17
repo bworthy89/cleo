@@ -1,26 +1,26 @@
-import { useState } from 'react';
-import { View, Text, Pressable, ScrollView, Modal, Image, ActivityIndicator } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { View, Text, Pressable, ScrollView, Modal, Image, ActivityIndicator, Animated, Easing } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Surface, TextColors, Spacing, Typography, Radius } from '../../tokens/design-tokens';
+import { Colors, Surface, TextColors, Spacing, Typography, Radius, getVibeAccent } from '../../tokens/design-tokens';
 import type { MusicPlaylist } from '../../../modules/expo-music-kit';
 import type { Manifest } from '../../engines/BroadcastPlayer.types';
 
 type Vibe = Manifest['vibe'];
 type Length = Manifest['length'];
 
-const VIBES: { id: Vibe; label: string }[] = [
-  { id: 'morning', label: 'Morning' },
-  { id: 'chill', label: 'Chill' },
-  { id: 'workout', label: 'Workout' },
-  { id: 'lateNight', label: 'Late Night' },
-  { id: 'party', label: 'Party' },
-  { id: 'focus', label: 'Focus' },
-  { id: 'feelGood', label: 'Feel Good' },
-  { id: 'throwback', label: 'Throwback' },
-  { id: 'elevated', label: 'Elevated' },
-  { id: 'melancholy', label: 'Melancholy' },
-  { id: 'sunday', label: 'Sunday' },
-  { id: 'general', label: 'General' },
+const VIBES: { id: Vibe; label: string; subtitle: string }[] = [
+  { id: 'morning',    label: 'Morning',    subtitle: 'Warm, bright, gently energizing' },
+  { id: 'chill',      label: 'Chill',      subtitle: 'Relaxed, unhurried, easygoing' },
+  { id: 'workout',    label: 'Workout',    subtitle: 'Pumped, driving, high-energy' },
+  { id: 'lateNight',  label: 'Late Night', subtitle: 'Intimate, moody, introspective' },
+  { id: 'party',      label: 'Party',      subtitle: 'Celebratory, dance-floor energy' },
+  { id: 'focus',      label: 'Focus',      subtitle: 'Minimal, calm, concentration-friendly' },
+  { id: 'feelGood',   label: 'Feel Good',  subtitle: 'Uplifting, affirming' },
+  { id: 'throwback',  label: 'Throwback',  subtitle: 'Nostalgic, warm, era-evoking' },
+  { id: 'elevated',   label: 'Elevated',   subtitle: 'Sophisticated, refined' },
+  { id: 'melancholy', label: 'Melancholy', subtitle: 'Bittersweet, reflective' },
+  { id: 'sunday',     label: 'Sunday',     subtitle: 'Laid-back, slow-burn, unhurried' },
+  { id: 'general',    label: 'General',    subtitle: 'Balanced, conversational, eclectic' },
 ];
 
 const LENGTHS: { id: Length; label: string; subtitle: string }[] = [
@@ -61,6 +61,18 @@ export function SetupSheet({
   const [playlistId, setPlaylistId] = useState<string | null>(null);
   const [vibe, setVibe] = useState<Vibe | null>(null);
   const [length, setLength] = useState<Length | null>(null);
+  const stepOpacity = useRef(new Animated.Value(1)).current;
+  const stepTranslate = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Slide + fade the active step in on each change.
+    stepOpacity.setValue(0);
+    stepTranslate.setValue(20);
+    Animated.parallel([
+      Animated.timing(stepOpacity, { toValue: 1, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(stepTranslate, { toValue: 0, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+    ]).start();
+  }, [step, stepOpacity, stepTranslate]);
 
   const reset = () => { setStep(0); setPlaylistId(null); setVibe(null); setLength(null); };
   const close = () => { reset(); onClose(); };
@@ -93,8 +105,22 @@ export function SetupSheet({
               {step === 0 ? 'CANCEL' : 'BACK'}
             </Text>
           </Pressable>
-          <Text style={monoLabel}>STEP {step + 1} / 3</Text>
+          <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+            {[0, 1, 2].map(i => (
+              <View
+                key={i}
+                style={{
+                  width: i === step ? 20 : 6,
+                  height: 6,
+                  borderRadius: 3,
+                  backgroundColor: i <= step ? Colors.accent : Surface.high,
+                }}
+              />
+            ))}
+          </View>
         </View>
+
+        <Animated.View style={{ flex: 1, opacity: stepOpacity, transform: [{ translateX: stepTranslate }] }}>
 
         {step === 0 && (
           <>
@@ -209,15 +235,31 @@ export function SetupSheet({
                   key={v.id}
                   onPress={() => { setVibe(v.id); setStep(2); }}
                   accessibilityRole="button"
-                  accessibilityLabel={`Pick vibe ${v.label}`}
+                  accessibilityLabel={`Pick vibe ${v.label}: ${v.subtitle}`}
                   style={({ pressed }) => ({
                     ...rowStyle(vibe === v.id),
                     flexDirection: 'row',
                     alignItems: 'center',
+                    gap: Spacing.md,
                     opacity: pressed ? 0.75 : 1,
                   })}
                 >
-                  <Text style={{ color: TextColors.primary, flex: 1 }}>{v.label}</Text>
+                  <View style={{
+                    width: 12, height: 12, borderRadius: 6,
+                    backgroundColor: getVibeAccent(v.id),
+                  }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{
+                      color: TextColors.primary,
+                      fontFamily: Typography.body.familyMedium,
+                      fontSize: 15,
+                    }}>
+                      {v.label}
+                    </Text>
+                    <Text style={{ color: TextColors.secondary, fontSize: 12, marginTop: 2 }}>
+                      {v.subtitle}
+                    </Text>
+                  </View>
                   <Ionicons name="chevron-forward" size={18} color={TextColors.outline} />
                 </Pressable>
               ))}
@@ -283,6 +325,7 @@ export function SetupSheet({
             </Pressable>
           </>
         )}
+        </Animated.View>
       </View>
     </Modal>
   );

@@ -25,6 +25,45 @@ const monoLabel = {
   letterSpacing: 3,
 };
 
+function FeaturedEmptyState() {
+  const active = useAppActive();
+  const ring = useRef(new Animated.Value(0.7)).current;
+  useEffect(() => {
+    if (!active) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(ring, { toValue: 1.0, duration: 1400, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(ring, { toValue: 0.7, duration: 1400, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [active, ring]);
+  return (
+    <View style={{ alignItems: 'center', paddingVertical: Spacing.xl }}>
+      <Animated.View style={{
+        width: 80, height: 80, borderRadius: 40,
+        borderWidth: 1.5, borderColor: Colors.accent,
+        opacity: 0.4,
+        marginBottom: Spacing.md,
+        transform: [{ scale: ring }],
+      }} />
+      <Text style={{
+        color: TextColors.primary,
+        fontFamily: Typography.display.family,
+        fontSize: 18,
+        textAlign: 'center',
+        marginBottom: Spacing.xs,
+      }}>
+        Fresh broadcasts baking.
+      </Text>
+      <Text style={{ color: TextColors.secondary, fontSize: 13, textAlign: 'center' }}>
+        Check back soon — or build your own above.
+      </Text>
+    </View>
+  );
+}
+
 /** Small pulsing dot that anchors the "live" editorial label. */
 function LiveDot() {
   const active = useAppActive();
@@ -220,15 +259,7 @@ export default function HomeBroadcastScreen() {
         <SectionLabel text="TONIGHT ON ONAY" live />
 
         {featured.length === 0 ? (
-          <View style={{
-            paddingVertical: Spacing.xl,
-            paddingHorizontal: Spacing.md,
-            alignItems: 'center',
-          }}>
-            <Text style={{ color: TextColors.secondary, textAlign: 'center' }}>
-              Fresh broadcasts baking. Check back soon.
-            </Text>
-          </View>
+          <FeaturedEmptyState />
         ) : (
           featured.map(fb => (
             <FeaturedBroadcastCard key={fb.id} broadcast={fb} onPress={() => playFeatured(fb)} />
