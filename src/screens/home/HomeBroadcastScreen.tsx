@@ -10,6 +10,7 @@ import {
 } from '../../engines/BroadcastCurationClient';
 import { BroadcastManifestClient } from '../../engines/BroadcastManifestClient';
 import { broadcastPlayer } from '../../engines/BroadcastPlayer.singleton';
+import { BroadcastResumer } from '../../engines/BroadcastResumer';
 import { FeaturedBroadcastCard } from '../../components/broadcast/FeaturedBroadcastCard';
 import { YourBroadcastSetup } from '../../components/broadcast/YourBroadcastSetup';
 import { TuningInOverlay } from '../../components/broadcast/TuningInOverlay';
@@ -43,9 +44,33 @@ export default function HomeBroadcastScreen() {
       } finally {
         if (mounted) setLoading(false);
       }
+
+      // Resume-after-terminate: if a broadcast was persisted within the last
+      // 2 hours, offer to resume it.
+      const resumer = new BroadcastResumer();
+      const persisted = await resumer.check();
+      if (!mounted || !persisted) return;
+      const firstReadySlot = persisted.segmentSlots.find(s => s.status === 'ready');
+      const urls = firstReadySlot?.audioUrls ?? [];
+      Alert.alert(
+        'Resume broadcast?',
+        `${persisted.tracks.length} tracks left in your session.`,
+        [
+          { text: 'Start fresh', style: 'cancel', onPress: () => { resumer.decline(); } },
+          {
+            text: 'Resume',
+            onPress: () => {
+              router.push('/(main)/(broadcast)/broadcast-player');
+              broadcastPlayer.start(persisted, urls).catch((e: unknown) =>
+                console.warn('[HomeBroadcast] resume failed', e),
+              );
+            },
+          },
+        ],
+      );
     })();
     return () => { mounted = false; };
-  }, []);
+  }, [router]);
 
   const playFeatured = useCallback(async (fb: FeaturedBroadcast) => {
     setTuning(true);
