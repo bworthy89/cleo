@@ -8,6 +8,22 @@ import { repairSequence, removeDuplicates } from './sequence-repair';
 const POOL_CAP = 40;
 const MAX_LLM_ATTEMPTS = 2;
 
+/**
+ * Strip control chars, newlines, role-hijack markers, and backticks from
+ * third-party enrichment strings before they flow into the LLM prompt.
+ * Mirrors sanitizeForPrompt in SegmentScriptBuilder.
+ */
+function sanitizeHint(s: string, max: number): string {
+  const cleaned = s
+    .replace(/[\x00-\x1F\x7F]/g, ' ')
+    .replace(/\r?\n/g, ' ')
+    .replace(/\b(system|assistant|user)\s*:/gi, '$1')
+    .replace(/```+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return cleaned.length > max ? cleaned.slice(0, max) + '\u2026' : cleaned;
+}
+
 const LENGTH_TO_N: Record<BroadcastLength, number> = {
   quick: 5, standard: 9, long: 15,
 };
@@ -66,11 +82,13 @@ export class TrackSequencer {
         const ordered = await this.attemptSequence(cappedPool, req, N);
         this.cache.set(trackIds, req.vibe, req.length, ordered.map(t => t.id));
         return { orderedTracks: ordered, source: 'llm' };
-      } catch {
-        // retry or fall through
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn(`[TrackSequencer] attempt ${attempt + 1} failed: ${msg}`);
       }
     }
 
+    console.warn('[TrackSequencer] falling back to deterministic slice');
     return { orderedTracks: cappedPool.slice(0, N), source: 'fallback' };
   }
 
@@ -120,15 +138,25 @@ export class TrackSequencer {
     const arc = VIBE_ARCS[req.vibe];
     const enrichedPool = pool.map(t => {
       const enrichment = this.enrichmentCache.get(t.title, t.artistName);
-      const enrichmentStr = enrichment
-        ? ` [${[
-            enrichment.genre,
-            enrichment.releaseYear,
-            enrichment.producer ? `prod: ${enrichment.producer}` : null,
-            enrichment.moodTags?.length ? `mood: ${enrichment.moodTags.join(',')}` : null,
-          ].filter(Boolean).join(' | ')}]`
-        : '';
-      return `  { "id": "${t.id}", "title": ${JSON.stringify(t.title)}, "artist": ${JSON.stringify(t.artistName)}${enrichmentStr ? `,${enrichmentStr}` : ''} }`;
+      const parts: string[] = [
+        `"id": "${t.id}"`,
+        `"title": ${JSON.stringify(t.title)}`,
+        `"artist": ${JSON.stringify(t.artistName)}`,
+      ];
+      if (enrichment) {
+        const hints = [
+          enrichment.genre ? sanitizeHint(enrichment.genre, 40) : null,
+          enrichment.releaseYear ? sanitizeHint(enrichment.releaseYear, 20) : null,
+          enrichment.producer ? `prod: ${sanitizeHint(enrichment.producer, 80)}` : null,
+          enrichment.moodTags?.length
+            ? `mood: ${sanitizeHint(enrichment.moodTags.join(','), 80)}`
+            : null,
+        ].filter((x): x is string => !!x);
+        if (hints.length) {
+          parts.push(`"enrichment": ${JSON.stringify(hints.join(' | '))}`);
+        }
+      }
+      return `  { ${parts.join(', ')} }`;
     }).join(',\n');
 
     const userPrompt = [
