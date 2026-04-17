@@ -1,403 +1,481 @@
 # CLAUDE.md — ONAY AI Radio App
 
 ## Project Overview
-React Native / Expo SDK 55 iOS app. AI radio host named **ONAY** (pronounced "Oh-Nay")
-plays Apple Music playlists with dynamic host commentary between tracks. Every session
-feels like a personalized radio broadcast — not a playlist shuffler.
+React Native / Expo SDK 55 iOS app. AI radio host named **ONAY** (pronounced "Oh-Nay"). The
+product model is a **pre-baked broadcast episode**: user picks a playlist + vibe + length,
+the server generates the entire broadcast (track order + host commentary audio) before
+playback begins, and the client plays the locked episode beginning to end — no skips, no
+live reactions. This architecture replaces the prior live-generation model, which failed
+the iOS 48s/60s background CPU budget when LLM + TTS ran between tracks.
 
-**Branding note:** The AI host was renamed from "Cleo" to "ONAY" on 2026-03-20.
-Internal code names (CleoOrb, CleoVoiceEngine, `src/cleo/`, etc.) remain unchanged —
-only user-facing text, the system prompt, and dialogue content were renamed. The bundle
-ID (`com.worthymedia.cleo`) and git repo (`cleo-app`) also remain unchanged.
+**Branding note:** The host was renamed from "Cleo" to "ONAY" on 2026-03-20. Bundle ID
+(`com.worthymedia.cleo`) and git repo name remain unchanged.
+
+**Current plan state:** Plans 1–4 (server bake pipeline → client player → home + curation
+pipeline → cleanup/migration) are all tagged as complete on the `pre-baked-broadcast`
+branch. Production deployment to the Fastify VPS is NOT done — the app runs against a
+local Express server only.
 
 ---
 
 ## Tech Stack
 
 ### Mobile
-- React Native 0.83 + Expo SDK 55
-- TypeScript throughout
-- Custom `expo-music-kit` native module — wraps Apple MusicKit (auth, playlists, playback, track detection, audio ducking, TTS playback, crossfade, eject transitions, queue inspection)
-- react-native-video — video playback (installed, not yet used)
-- react-native-mmkv — local storage
-- @expo-google-fonts — Playfair Display, Inter, EB Garamond, DM Mono
-- expo-font — custom font loading
+- React Native 0.83 + Expo SDK 55, TypeScript strict mode
+- Custom `expo-music-kit` native module — wraps Apple MusicKit (auth, playlists, playback,
+  track detection, catalog search, catalog lookup by ID, audio session control, TTS
+  playback via AVAudioPlayer)
+- `react-native-mmkv` — local storage (persisted manifest, user profile, host volume)
+- `expo-blur`, `expo-linear-gradient`, `expo-haptics` — UI primitives
+- `@expo-google-fonts` — Playfair Display, Inter, EB Garamond, DM Mono
 
-### AI & Voice
-- Gemini 2.5 Flash API — host script generation (maxOutputTokens: 8192 — thinking tokens consume budget)
-- Cartesia TTS (`sonic-3`) — primary voice synthesis
-- ElevenLabs TTS (`eleven_turbo_v2_5`, custom Cleo voice) — voice synthesis (fallback)
-- Orpheus TTS (self-hosted via Pangolin tunnel) — tertiary voice synthesis
-- Ollama (self-hosted via Pangolin tunnel) — primary LLM, Gemini as fallback
-
-### Data & Enrichment
-- MusicBrainz API — producer/songwriter/recording data (no key needed)
-- Genius API — song annotations, behind-the-scenes context
+### AI & Voice (server-side only)
+- Ollama (self-hosted via Pangolin tunnel at `ollama.worthymedia.online`) — primary LLM
+- Gemini 2.5 Flash — fallback LLM
+- Cartesia (`sonic-3`) — primary TTS
+- ElevenLabs (`eleven_turbo_v2_5`) — fallback TTS
+- Orpheus (self-hosted) — tertiary TTS
+- Filesystem TTS cache dedupes identical text across bakes
 
 ### Backend
-- **Local dev:** Node.js + Express (`server/`) — proxy server on port 3001
-- **Production:** Fastify server at `/home/cleo/cleo-api/` on Hostinger VPS (187.124.69.95) — port 3100 behind Caddy reverse proxy → `api.worthymedia.tech`
-- All routes protected by Firebase JWT auth middleware (`requireAuth`)
-- Rate limiting via Redis cache (200 req/min per IP, configured in `.env`)
-- Hostinger VPS managed via Hostinger MCP tools; self-hosted providers (Ollama, Orpheus) via Pangolin tunnel
+- **Local dev:** Node.js + Express (`server/`) on port 3001. Jest + ts-jest test suite.
+- **Production:** Fastify at `api.worthymedia.tech` (Hostinger VPS). Does NOT yet host
+  the broadcast routes — shipping to TestFlight still requires porting/deploying the
+  Express broadcast subsystem there.
+- Firebase JWT auth middleware (`requireAuth`) gates all routes.
+- Curator-only publish route (`POST /broadcast/featured/publish`) gated by
+  `requireCurator` middleware against `CURATOR_EMAILS` env allowlist.
 
 ---
 
 ## Project Structure
 
 ```
-cleo/
+cleo-app/
 ├── CLAUDE.md
 ├── app.json                      ← Expo config, iOS 16+ deployment target
 ├── app/
 │   ├── _layout.tsx               ← Root Stack, font loading, splash screen
-│   ├── index.tsx                 ← Auth routing gateway (Firebase → login/onboarding/main)
-│   ├── (auth)/
-│   │   ├── _layout.tsx           ← Stack
-│   │   └── login.tsx             ← "Enter the Frequency" editorial login
-│   ├── (onboarding)/
-│   │   ├── _layout.tsx           ← Stack with slide_from_right
-│   │   ├── welcome.tsx           ← Tagline + CTA
-│   │   ├── music-auth.tsx        ← Apple Music authorization + skip option
-│   │   └── cleo-setup.tsx        ← Mood/Goal/Genre onboarding (→ CleoOnboarding)
+│   ├── index.tsx                 ← Auth routing gateway
+│   ├── (auth)/login.tsx
+│   ├── (onboarding)/             ← welcome → music-auth → cleo-setup
 │   └── (main)/
-│       ├── _layout.tsx           ← Tabs with CustomTabBar
+│       ├── _layout.tsx           ← Tabs with CustomTabBar (2 tabs: Broadcast + ONAY)
 │       ├── (broadcast)/
-│       │   ├── _layout.tsx       ← Stack
-│       │   ├── index.tsx         ← HomeScreenRedesign
-│       │   └── player.tsx        ← BroadcastScreen (slide_from_bottom)
-│       ├── (arc)/
-│       │   ├── _layout.tsx       ← Stack
-│       │   └── index.tsx         ← SessionArcScreen
-│       ├── (archive)/
-│       │   ├── _layout.tsx       ← Stack
-│       │   └── index.tsx         ← ArchiveScreen
+│       │   ├── _layout.tsx
+│       │   ├── index.tsx         ← HomeBroadcastScreen entry
+│       │   ├── player.tsx        ← Now Playing screen (artwork + progress + controls)
+│       │   └── ask-onay.tsx      ← Ask ONAY curation chat
 │       └── (cleo)/
-│           ├── _layout.tsx       ← Stack
-│           └── index.tsx         ← ProfileScreen
+│           ├── _layout.tsx
+│           └── index.tsx         ← ProfileScreen (settings)
 ├── docs/
-│   ├── cleo-prd.md               ← full PRD
-│   ├── stitch/                   ← Stitch Gold Edition design HTML + screenshots
 │   └── superpowers/
-│       ├── specs/                ← design specs
-│       └── plans/                ← implementation plans
+│       ├── specs/2026-04-12-pre-baked-broadcast-design.md
+│       └── plans/2026-04-12-pre-baked-broadcast-plan-{1..4}-*.md
 ├── modules/
-│   └── expo-music-kit/           ← custom native module
-│       ├── expo-module.config.json
-│       ├── index.ts              ← TypeScript API (auth, playlists, playback, ducking, TTS audio, eject transitions, getNextInQueue)
-│       ├── src/ExpoMusicKitModule.ts
+│   └── expo-music-kit/
+│       ├── index.ts              ← TS surface (auth, playlists, playback, duck/release,
+│       │                           playAudioFromBase64, searchCatalog)
 │       └── ios/
-│           ├── ExpoMusicKitModule.swift  ← MusicKit + AVAudioSession + AVAudioPlayer + crossfade + eject transitions
-│           └── ExpoMusicKit.podspec
+│           └── ExpoMusicKitModule.swift  ← MusicKit + AVAudioSession. play() self-hydrates
+│                                           cachedSongs via MusicCatalogResourceRequest
+│                                           when cache misses. Legacy eject code still
+│                                           sits here as dead weight (Plan 4 didn't strip
+│                                           Swift — pending future native pass).
 ├── server/
 │   ├── .env                      ← API keys (gitignored)
-│   ├── package.json
+│   ├── featured-broadcasts/
+│   │   ├── late-night-soul.json  ← example config (tracked)
+│   │   └── registry.json         ← baked records (gitignored)
+│   ├── .broadcast-cache/         ← baked segment MP3s (gitignored)
+│   ├── package.json              ← scripts: dev, test, bake-featured
+│   ├── __tests__/                ← Jest suite (~53 tests across broadcast + routes)
 │   └── src/
-│       ├── index.ts              ← Express app (local dev), CORS, rate limiting, requireAuth on all routes
-│       ├── middleware/auth.ts    ← Firebase JWT verification
+│       ├── index.ts              ← Express app, rate limiter with path-scoped skip()
+│       ├── middleware/
+│       │   ├── auth.ts           ← requireAuth + requireCurator (exposes req.uid, req.email)
+│       │   └── validate.ts       ← Zod schemas for shared routes
 │       ├── providers/
-│       │   ├── llm/              ← LLM provider abstraction (Ollama primary, Gemini fallback)
-│       │   └── tts/              ← TTS provider abstraction (Orpheus primary, ElevenLabs fallback)
-│       └── routes/
-│           ├── segment.ts        ← POST /generate-segment (Ollama primary, Gemini fallback)
-│           ├── voice.ts          ← POST /synthesize-voice (Orpheus primary, ElevenLabs fallback)
-│           └── enrichment.ts     ← POST /enrich-track (Genius)
-├── assets/
-│   ├── fonts/                    ← .gitkeep (fonts loaded via @expo-google-fonts packages)
-│   └── cleo/                    ← Cleo character images
+│       │   ├── llm/              ← Ollama primary + Gemini fallback factory
+│       │   └── tts/              ← Cartesia primary + ElevenLabs fallback + Orpheus
+│       │                           tertiary factory, wrapped in CachingTTSProvider
+│       ├── routes/
+│       │   ├── broadcast.ts      ← POST /broadcast/create, GET /broadcast/:id/manifest
+│       │   ├── featured.ts       ← GET /broadcast/featured, POST /broadcast/featured/publish
+│       │   ├── segment.ts        ← legacy /generate-segment (still mounted, may be
+│       │                           dropped after production deploy)
+│       │   ├── voice.ts          ← legacy /synthesize-voice
+│       │   ├── enrichment.ts     ← /enrich-track via Genius
+│       │   ├── musicbrainz.ts    ← /enrich-mb
+│       │   └── curation.ts       ← /curate-playlist (used by Ask ONAY)
+│       ├── services/
+│       │   ├── broadcast/
+│       │   │   ├── types.ts                    ← Manifest, SegmentSlot, BroadcastCreateRequest
+│       │   │   ├── ManifestBuilder.ts          ← deterministic track slice + slot layout
+│       │   │   ├── SegmentScriptBuilder.ts     ← prompt builder per slot (cold_open /
+│       │   │   │                                 transition / sign_off), sanitizes
+│       │   │   │                                 injection-prone metadata
+│       │   │   ├── SegmentGenerator.ts         ← LLM → TTS → ObjectStorage per variant
+│       │   │   │                                 (parallel variant generation)
+│       │   │   ├── BroadcastStore.ts           ← in-memory 2h-TTL manifest state
+│       │   │   ├── BroadcastOrchestrator.ts    ← sync slot 0 + async Promise.allSettled
+│       │   │   │                                 over remaining slots; cleans up inFlight
+│       │   │   ├── FeaturedBroadcastRegistry.ts← JSON-file-backed (atomic tmp+rename),
+│       │   │   │                                 malformed-JSON tolerant
+│       │   │   └── bakeFeatured.ts             ← CLI job: config → orchestrator → registry
+│       │   └── storage/
+│       │       └── ObjectStorage.ts            ← LocalFilesystemStorage adapter
+│       └── scripts/
+│           └── bake-featured.ts  ← CLI entry point
 ├── src/
+│   ├── config/
+│   │   └── curators.ts           ← client-side curator email allowlist (UI visibility;
+│   │                               server has authoritative gate)
 │   ├── hooks/
-│   │   └── useAppActive.ts         ← shared hook: pauses animations/work when backgrounded
+│   │   └── useAppActive.ts       ← pauses animations/work when backgrounded
 │   ├── tokens/
-│   │   └── design-tokens.ts      ← single source of truth for all UI values
+│   │   └── design-tokens.ts      ← Colors, Surface, TextColors, Typography, Spacing,
+│   │                               Radius, Gradient, Glow, Animation, getVibeAccent()
 │   ├── engines/
-│   │   ├── SegmentController.ts  ← segment type rotation, delivery modes, mid-song drops, eject transitions, session memory
-│   │   ├── AudioCoordinator.ts   ← duck→speak→resume, pre/post timing, mid-song scheduling, generationId, eject preloader wiring
-│   │   ├── TransitionPreloader.ts← eject window pre-gen engine (state machine, genre-based timing, TTS caching, retry logic)
-│   │   ├── QueuePlanner.ts       ← AI-powered track sequencing via Gemini (uses authenticatedFetch)
-│   │   ├── QueueManager.ts       ← queue state, track profiles, session initialization
-│   │   └── SessionEngine.ts      ← session lifecycle, phase progression, track history
-│   ├── cleo/
-│   │   ├── static-core.ts        ← Cleo's permanent system prompt (storytelling, session awareness)
-│   │   ├── fallbacks.ts          ← pre-written fallback segment library (9 types, 12 vibes)
-│   │   └── cold-opens.ts         ← per-vibe cold open pools (6 lines each), sameDayReturn variety
+│   │   ├── BroadcastPlayer.ts           ← pure state-machine class (DI: music, native,
+│   │   │                                   manifestClient, stingers). Polls MusicKit
+│   │   │                                   status every 1s during track playback.
+│   │   │                                   Pause parks main loop; resume wakes it.
+│   │   ├── BroadcastPlayer.singleton.ts ← wires the class to real deps at module load
+│   │   │                                   (kept separate so tests don't pull Firebase)
+│   │   ├── BroadcastPlayer.types.ts     ← Manifest, SegmentSlot, PlayerStatus (mirror
+│   │   │                                   of server types)
+│   │   ├── BroadcastSegmentCache.ts     ← in-memory cache: slot → variant → base64
+│   │   ├── BroadcastManifestClient.ts   ← HTTP client; strips origin from full URLs
+│   │   │                                   before passing to authenticatedFetch
+│   │   ├── BroadcastCurationClient.ts   ← listFeatured + publishFeatured
+│   │   ├── BroadcastResumer.ts          ← 2h resume window via persisted MMKV manifest
+│   │   ├── BroadcastStingers.ts         ← stubbed (returns null); pending sound design
+│   │   └── PlaylistCurator.ts           ← Ask ONAY: LLM tracklist → on-device
+│   │                                       catalog search → resolved tracks
 │   ├── services/
-│   │   ├── api.ts                ← API_BASE_URL + authenticatedFetch (attaches Firebase JWT)
-│   │   ├── AuthService.ts        ← Firebase Auth (email, Google, Apple sign-in, getIdToken)
-│   │   ├── MusicKitPlayer.ts     ← Apple Music wrapper (singleton)
-│   │   ├── CleoScriptGenerator.ts← Gemini integration + delivery mode + session phase + creative briefs
-│   │   ├── CleoVoiceEngine.ts    ← ElevenLabs TTS + formatForSpeech post-process
-│   │   ├── SessionMemory.ts      ← MMKV persistence for cross-session continuity
-│   │   └── Storage.ts            ← MMKV typed helpers (user, stations, recently played)
+│   │   ├── api.ts                ← API_BASE_URL + authenticatedFetch (throws on null
+│   │   │                           Firebase token; prepends API_BASE_URL to the path
+│   │   │                           parameter — always pass a relative path)
+│   │   ├── AuthService.ts
+│   │   ├── MusicKitPlayer.ts     ← Apple Music wrapper singleton
+│   │   ├── Storage.ts            ← MMKV helpers: setUser/getUser, CachedPlaylists,
+│   │   │                           OnaySuggestion, PersistedBroadcast
+│   │   └── TrackEnrichmentService.ts
 │   ├── screens/
 │   │   ├── home/
-│   │   │   └── HomeScreenRedesign.tsx ← station picker, playlists, now playing, vibe picker
+│   │   │   └── HomeBroadcastScreen.tsx  ← two-stack: Your Broadcast (primary gradient
+│   │   │                                   CTA) + Tonight on ONAY (editorial cards)
+│   │   ├── curate/
+│   │   │   └── AskOnayScreen.tsx        ← LLM-curated playlist chat + Publish-as-Featured
+│   │   │                                   (curator-only) + Take-It-Live (bake as user
+│   │   │                                   broadcast)
 │   │   ├── onboarding/
-│   │   │   └── CleoOnboarding.tsx     ← mood/goal/genre picker
-│   │   ├── player/
-│   │   │   └── BroadcastScreen.tsx    ← full player with artwork, controls, editorial insight
-│   │   ├── arc/
-│   │   │   └── SessionArcScreen.tsx   ← live session visualization, upcoming manifest
-│   │   ├── archive/
-│   │   │   └── ArchiveScreen.tsx      ← broadcast history with filter tabs
+│   │   │   └── CleoOnboarding.tsx
 │   │   └── settings/
-│   │       └── ProfileScreen.tsx      ← AI personality, voice profile, account
+│   │       └── ProfileScreen.tsx
 │   └── components/
-│       ├── AppHeader.tsx          ← floating blur header with logo
-│       ├── TabBar.tsx             ← custom 4-tab bottom bar (Broadcast, Arc, Archive, Cleo)
-│       ├── VibePicker.tsx         ← bottom sheet vibe selector (12 vibes, persists to station)
-│       ├── GlassCard.tsx          ← frosted glass container (legacy, being replaced by gold-edge cards)
-│       ├── StationCard.tsx        ← 2:3 portrait card with artwork + label
-│       ├── CleoOrb.tsx            ← gradient circular avatar
-│       ├── CleoSpeakingOverlay.tsx← full-screen transmission effect with glitch animations
-│       ├── WaveformBars.tsx       ← animated audio visualization bars
-│       ├── SectionLabel.tsx       ← mono uppercase label (legacy, screens now use inline labels)
-│       ├── TabIcon.tsx            ← custom SVG icons for tab bar
-│       ├── CleoPulseDot.tsx       ← animated pulse indicator on Cleo tab
-│       └── ErrorState.tsx         ← error message + retry button
+│       ├── AppHeader.tsx
+│       ├── TabBar.tsx                    ← 2 tabs: Broadcast + ONAY
+│       ├── TabIcon.tsx
+│       ├── OnayCharacter.tsx
+│       ├── CleoOrb.tsx, CleoPulseDot.tsx
+│       ├── VibePicker.tsx
+│       ├── OfflineBanner.tsx
+│       ├── ErrorBoundary.tsx, ErrorState.tsx
+│       └── broadcast/
+│           ├── FeaturedBroadcastCard.tsx
+│           ├── YourBroadcastSetup.tsx   ← exports primary CTA + AskOnayButton
+│           ├── SetupSheet.tsx           ← 3-step modal: playlist → vibe → length
+│           ├── TuningInOverlay.tsx      ← pulsing ring + "TUNING IN"
+│           └── (player.tsx lives under app/(main)/(broadcast)/)
 ```
 
 ---
 
 ## UI Design System — "Sonic Ether" Gold Edition
 
-All screens follow the Stitch Gold Edition editorial design language:
-
-### Design Patterns
-- **Gold left-edge cards**: 2px `Colors.accent` border on left side of `Surface.container` cards — used for Now Playing, Editorial Insight, Synchronized Next, current track, Cleo suggestions
-- **Mono gold section labels**: `DM Mono`, 10px, letterSpacing 2.5, `Colors.accent` — replaces the `SectionLabel` component on all screens
-- **No glass borders**: Cards use `Surface.container` background with `Radius.sm` corners, no `Glass.borderSubtle` borders
-- **Sharp editorial corners**: `Radius.sm` (4px) throughout, not `Radius.md` or `Radius.lg`
-- **Accent line**: 40px wide, 2px tall gold bar used under headings (login, welcome, home, archive)
-- **Editorial headlines**: Playfair Display for titles, left-aligned, with gold-highlighted keywords
-
-### Typography Roles
-- **Display (Playfair Display)**: Screen titles, track names, large numbers
-- **Body (Inter 400/500/600)**: Content, descriptions, secondary info
-- **Mono (DM Mono)**: Section labels, metadata, UI chrome, button text (ALL CAPS, wide tracking)
-- **Cleo Voice (EB Garamond Italic)**: Cleo's spoken dialogue, quotes (curly quotes: \u201C \u201D)
-
-### Screen-Specific Labels
-- Home: "LIVE BROADCAST", "YOUR STATIONS", "PLAYLISTS", "CLEO SAYS"
-- Broadcast: station name label, "EDITORIAL INSIGHT", "LIVE CONNECTION", "SYNCHRONIZED NEXT"
-- Session Arc: "LIVE SESSION", "SESSION PULSE", "UPCOMING MANIFEST"
-- Archive: "BROADCAST ARCHIVES" with filter tabs (Latest, By Mood, By Date)
-- Profile: "AI PERSONALITY", "CONNECTED ECOSYSTEM", "VOICE PROFILE", "ACCOUNT"
+- **Black base** (`Colors.base.black`) + **gold accent** (`Colors.accent = #C8832A`).
+- **Typography roles:**
+  - Display (Playfair) — screen titles, track names
+  - Body (Inter 400/500/600) — descriptions, secondary
+  - Mono (DM Mono) — ALL CAPS labels, metadata, button text, wide tracking
+  - ONAY Voice (EB Garamond Italic) — spoken captions ("Between the tracks…")
+- **Gold-edge cards** (2px `Colors.accent` borderLeft on `Surface.container`) for
+  secondary cards. **Primary CTA** uses `Gradient.cta` + `Glow.ctaShadow` with an icon
+  and chevron.
+- **Vibe accents** per vibe (`Colors.vibe.lateNight.accent` etc.) — used for the player's
+  progress bar, status orb, and vibe color chips in the setup sheet. Get via
+  `getVibeAccent(vibe)`.
+- **Section labels** — DM Mono 10px letterSpacing 2.5, `Colors.accent`, with a 2×40 gold
+  bar underneath. Editorial sections add a pulsing gold `LiveDot` next to the label.
+- **Press feedback** — Pressable style callbacks returning `opacity: 0.75` (or 0.85 for
+  colored buttons). Haptic feedback on every tap via `expo-haptics`.
+- **Animations** must respect `useAppActive()` — loops pause when backgrounded.
 
 ---
 
-## What's Built
+## The Pre-Baked Broadcast Pipeline
 
-### Phases 1-5 — Foundation through Audio Coordination
-- Expo project, design tokens, Google Fonts
-- Custom `expo-music-kit` native module (MusicKit, AVAudioPlayer, ducking)
-- Node.js Express server with proxy routes (Gemini, ElevenLabs, Genius)
-- Full radio loop: track change → Cleo speaks → music resumes
+### Client flow — user-sourced broadcast
+1. User taps "Build your broadcast" on the home screen → `SetupSheet` opens
+2. 3 steps: pick playlist (from Apple Music) → pick vibe → pick length (quick/standard/long)
+3. Client calls `musicKitPlayer.fetchPlaylistTracks(playlistId)` to get track metadata
+4. Client `POST /broadcast/create` with `{ playlistId, vibe, length, userContext, tracks }`
+5. Server responds synchronously with `{ manifest, firstSegmentUrls }` — target ~5-8s
+6. Client navigates to `/player`, starts `broadcastPlayer.start(manifest, firstSegmentUrls)`
+7. `TuningInCanvas` shows on the player screen while the cold open is fetched
+8. Main loop: `runSegmentAt(0)` (cold open) → `runTrackAt(0)` → `runSegmentAt(1)` →
+   `runTrackAt(1)` → … → `runSegmentAt(N)` (sign off). Each segment plays via
+   `playAudioFromBase64` (duck MusicKit → play TTS → release audio session). Each
+   track plays via `musicKitPlayer.play([trackId])`.
+9. Between `playAudioFromBase64` and `musicKitPlayer.play`, the player calls
+   `releaseAudioSession` natively so MusicKit can reclaim exclusive session control.
+10. `waitForTrackEnd` polls `getPlaybackStatus()` once per second and advances when the
+    status transitions to `stopped` (after seeing `playing` at least once).
 
-### Cleo Polish — Voice, Timing & Storytelling
-- ElevenLabs voice tuning: `eleven_turbo_v2_5` model, stability 0.35, style 0.55
-- `formatForSpeech()` post-process (em-dashes, strip stage directions)
-- Delivery modes: `pre_song` (bridges between tracks), `post_song` (drops in 8-12s into track), and `eject_transition` (speaks over outgoing track fade-out)
-- `previousTrack` buffering in AudioCoordinator for temporal context
-- Session phase: opening (1-3) → mid (4-8) → late (9+) with tone shifts
-- `tracksReferenced` for cross-track artist callbacks
-- 12 vibes: morning, chill, workout, lateNight, party, general, focus, feelGood, throwback, elevated, melancholy, sunday
-- 9 segment types including `genre_bridge` and `post_track_reflection`
-- `generationId` system for safe track-skip cancellation
-- Cold opens: 6 per vibe, sameDayReturn with 6 variants
-
-### Radio Experience — Presence, Continuity & Crossfade
-- Mid-song Cleo drops: 40% chance on 3+ min tracks, 45-90s mark, 25 words max
-- Session memory: persists station/vibe/artists/track across app opens via MMKV
-- Music crossfade: ducking deactivates 2s before Cleo finishes, music rises under her last words
-- `previousSession` context in Gemini prompt for return acknowledgment
-
-### UI Redesign — Gold Edition (Stitch-Aligned)
-- All 8 screens restyled to match Stitch Gold Edition design
-- Login: "Enter the Frequency" editorial layout with keyboard chaining + iOS AutoFill
-- Onboarding: 3-screen flow (welcome → music-auth with skip → mood/goal/genre)
-- Home: gold-edge cards, vibe picker bottom sheet on station/playlist tap
-- Broadcast: left-aligned track info, editorial insight card, station name display
-- Speaking Overlay: chromatic aberration title, gold word highlights
-- Session Arc: gold-edge track card, session pulse, upcoming manifest
-- Archives: built from scratch with filter tabs and archive cards
-- Profile: AI personality cards, sign-out confirmation, surface containers
-- Accessibility labels on all interactive elements across all screens
-
-### Eject Window Transitions — Radio-Style Crossfade
-- `TransitionPreloader` pre-generates Cleo's transition script + TTS mid-track
-- Genre-based eject windows: electronic/ambient/jazz 22s, pop/hip-hop/r&b 13s, rock/indie 16s, default 15s
-- State machine: `idle → generating → ready → fired → done` with fallback on missed eject
-- Native `playEjectTransition()` handles three-layer crossfade (old track fading out, Cleo voice, new track fading in)
-- `getNextInQueue()` native function reads MusicKit's actual queue for accurate next-track naming
-- TTS retry with backoff (3s/6s/9s) handles ElevenLabs 429 rate limits during pre-gen
-- `onEjectTrackChanged` event suppresses `onTrackChanged` during eject; fallback path uses old timing if eject misses
-- `cancelEjectTransition()` properly resolves dangling `playEjectTransition` promise
-
----
-
-## The Audio Handoff Sequence
-
-### Primary Path — Eject Window (radio-style crossfade)
+### Server flow — BroadcastOrchestrator
 ```
-1. Track starts → TransitionPreloader.startForTrack() begins 2s polling
-2. At 25s: pre-gen triggers (if Cleo not speaking) → Gemini generates eject_transition script
-3. getNextInQueue() reads MusicKit's actual next track for accurate naming
-4. TTS synthesized and cached in memory (retry up to 3x on 429)
-5. State: ready — waiting for eject point
-6. If AI queue upgrade reorders queue → revalidateNextTrack() regenerates if next track changed
-7. At (duration - genre window): playEjectTransition() fires with cached TTS base64
-8. onSegmentReady fires at eject start → BroadcastScreen shows speaking overlay
-9. Native: old track fades out, Cleo speaks over it, new track fades in
-10. onEjectTrackChanged fires (onTrackChanged suppressed) → UI updates → overlay dismiss timer → new preloader starts
+create(input):
+  1. ManifestBuilder.buildManifest(input) → pick first N tracks + lay out slots
+     (cold_open, transition×(N-1), sign_off; variantCount=1 for all)
+  2. store.put(manifest)
+  3. SYNC: generateSlot(0) — SegmentScriptBuilder → LLM → TTS → ObjectStorage
+  4. ASYNC (fire-and-forget, Promise.allSettled):
+       generateSlot(1..N) — each in parallel, failures mark slot 'failed'
+       .finally(() => inFlight.delete(manifest.broadcastId))
+  5. Return { manifest: store.get(id), firstSegmentUrls: slot0Urls }
 ```
 
-### Fallback Path — Post-Track-Change (original timing)
-```
-1. onTrackChanged fires (eject missed or manual skip)
-2. Old preloader cancelled, cancelPendingTimer() clears timers + increments generationId
-3. sessionEngine.advanceTrack(trackId) updates queue index + tracksPlayed
-4. 3.5s natural delay (1.5s on manual skip; bail if generationId changed)
-5. SegmentController generates via Gemini (delivery mode determines framing)
-6. AVAudioSession activates with .mixWithOthers + .duckOthers
-7. AVAudioPlayer plays TTS (music ducks automatically)
-8. Crossfade: 1s before audio ends, setCategory removes duckOthers — music rises under last words
-9. Audio finishes → player.play() ensures MusicKit resumes → new preloader starts
-10. Schedule mid-song drop if track > 3.5 min (20-40% chance by vibe)
-```
+### Featured (editorial) flow
+- `bakeFeatured(config)` reads a config JSON with `{ id, title, description, vibe,
+  length, tracks[] }` where tracks have real Apple Music IDs.
+- Runs through `BroadcastOrchestrator.create(userId: 'curator', playlistId: null)`,
+  waits for completion, re-reads the final manifest via `orchestrator.getManifest(id)`,
+  and persists it to `FeaturedBroadcastRegistry` as `baked: true`.
+- In-app path: curators hit `POST /broadcast/featured/publish` via the Ask ONAY
+  Publish-as-Featured button. The LLM curates tracks, client resolves via
+  `searchCatalog`, server bakes + registers.
+- Home screen fetches `GET /broadcast/featured` and renders `FeaturedBroadcastCard`s
+  with freshness timestamps.
 
-**Delivery modes:**
-- `pre_song` (~60%): Cleo speaks right after track change, bridges from previous to current
-- `post_song` (~40%): Cleo drops in 8-12s into track, comments mid-listen
-- `eject_transition`: Cleo speaks over outgoing track's fade-out, bridges into next track
+### Caches
+- **`server/.broadcast-cache/broadcast/<id>/segment/<slot>/v<v>.mp3`** — persists on disk
+  indefinitely; gitignored. No automatic cleanup yet.
+- **`server/.tts-cache/`** — pre-existing `CachingTTSProvider` hashes text + voice
+  params; dedupes identical TTS calls across bakes.
+- **`server/featured-broadcasts/registry.json`** — gitignored; holds baked featured
+  records. Atomic write via `.tmp` + rename.
+- **`BroadcastStore`** — in-memory, 2h TTL, lazy eviction on access.
+- **Client `BroadcastSegmentCache`** — in-memory base64 cache, cleared on `start`/`end`.
+- **MMKV `CURRENT_BROADCAST`** — persisted manifest for resume-after-terminate
+  (2h window via `BroadcastResumer`).
+
+### Native audio session discipline
+- `activateDuckingSession` — `.playback + .mixWithOthers + .duckOthers`, setActive(true)
+- `deactivateDuckingSession` — removes `.duckOthers` but keeps `.mixWithOthers`
+- `releaseAudioSession` — plain `.playback`, setActive(false). Essential between a
+  segment and the next track or MusicKit can't take exclusive session control.
+- Never `setActive(false)` while AVAudioPlayer is playing — it kills the TTS.
 
 ---
 
 ## Build Environment
 
-- **Working directory**: `/Users/kari/Documents/cleo-app/` — all editing, building, and git operations happen here. No rsync workflow needed.
-- **Entitlements**: `ONAY.entitlements` must not contain `com.apple.developer.musickit` — MusicKit uses Info.plist, not entitlements. Sign in with Apple (`com.apple.developer.applesignin`) is valid.
-- **TestFlight builds**: `npx expo prebuild --platform ios --clean` → `SENTRY_DISABLE_AUTO_UPLOAD=true xcodebuild archive` → `xcodebuild -exportArchive` with `ExportOptions.plist` (method: `app-store-connect`). Bump `buildNumber` in `app.json` before each upload.
-- **Ruby**: rbenv + Ruby 3.2.4 at ~/.rbenv/ (system Ruby 2.6 too old for CocoaPods)
-- **CocoaPods**: Installed via gem under rbenv Ruby 3.2.4 (`~/.rbenv/shims/pod`)
-- **iOS deployment target**: 16.0 (MusicLibraryRequest requirement)
-- **Apple Developer Team**: 8F2VWCN5KF
-- **Signing**: Apple Development: bworthy89@gmail.com
+- **Working directory**: `/Users/kari/Documents/cleo-app/` — no rsync.
+- **Dev server**: `cd server && npm run dev` on port 3001.
+- **Laptop IP**: set `EXPO_PUBLIC_API_URL=http://<LAN-IP>:3001` in project root `.env` and
+  `BROADCAST_ASSET_BASE_URL=http://<LAN-IP>:3001` in `server/.env` so the device can
+  reach both the API and the segment MP3s.
+- **TestFlight builds**: `SENTRY_DISABLE_AUTO_UPLOAD=true npx expo run:ios --device`.
+  First-time signing must be auto-managed in Xcode (Signing & Capabilities tab) with
+  team `8F2VWCN5KF`. iOS platform SDK must match the device's iOS version.
+- **Apple Developer Team**: 8F2VWCN5KF (project sometimes shows `5MQ5ZR66YN` — fix in
+  Xcode project > target > Signing & Capabilities).
+- **iOS deployment target**: 16.0 (MusicLibraryRequest requirement).
+- **Ruby / CocoaPods**: rbenv 3.2.4; `pod` at `~/.rbenv/shims/pod`.
 
 ---
 
 ## Environment Variables
 
-All sensitive keys live in `server/.env` (gitignored). Never commit keys.
-
+`server/.env` (gitignored):
 ```
 GEMINI_API_KEY
+CARTESIA_API_KEY, CARTESIA_VOICE_ID, CARTESIA_MODEL_ID
+ELEVENLABS_API_KEY, ELEVENLABS_VOICE_ID, ELEVENLABS_PRONUNCIATION_DICT_ID/_VERSION
+OLLAMA_BASE_URL, OLLAMA_MODEL
+ORPHEUS_BASE_URL, ORPHEUS_VOICE, ORPHEUS_MAX_TOKENS
 GENIUS_ACCESS_TOKEN
-ELEVENLABS_API_KEY
-ELEVENLABS_VOICE_ID
-ELEVENLABS_PRONUNCIATION_DICT_ID
-ELEVENLABS_PRONUNCIATION_DICT_VERSION
-CARTESIA_API_KEY
-CARTESIA_VOICE_ID
-CARTESIA_MODEL_ID
-OLLAMA_BASE_URL
-OLLAMA_MODEL
-ORPHEUS_BASE_URL
-ORPHEUS_VOICE
-ORPHEUS_MAX_TOKENS
-HEALTH_CHECK_INTERVAL_MS
-HEALTH_CHECK_TIMEOUT_MS
+HEALTH_CHECK_INTERVAL_MS, HEALTH_CHECK_TIMEOUT_MS
+BROADCAST_ASSET_BASE_URL      ← dev: http://<LAN-IP>:3001
+CURATOR_EMAILS                ← comma-separated; authoritative publish gate
+```
+
+Project root `.env`:
+```
+EXPO_PUBLIC_API_URL           ← dev: http://<LAN-IP>:3001; prod: https://api.worthymedia.tech
+EXPO_PUBLIC_SENTRY_DSN
 ```
 
 ---
 
 ## Important Conventions
 
-- All components use TypeScript with strict mode
-- No inline styles — all values from design-tokens.ts
-- All API calls go through `authenticatedFetch` (in api.ts) — attaches Firebase JWT, never use raw `fetch` for backend calls
-- All API routes on the server are protected by `requireAuth` middleware
-- MusicBrainz: max 1 request/second — use a queue with 1100ms minimum interval
-- Segment generation: 10s timeout → fallback on loss
-- Gemini 2.5 Flash: maxOutputTokens must be 8192+ (thinking tokens consume budget)
-- ElevenLabs: `eleven_turbo_v2_5` model (stability 0.35, style 0.55) for natural inflection
-- MMKV for all local persistence — never AsyncStorage
-- Native builds must use no-spaces path (`/Users/kari/Documents/cleo-app/`)
-- After rsync to cleo-app, check that `Cleo.entitlements` has empty dict (no musickit key)
-- Every phase ends with a working milestone test on physical device
-- Preload buffer is disabled — prompts bake in track names, buffer would have stale context
-- All Expo Router tab groups must have a `_layout.tsx` file — without it, `navigation.navigate()` fails to find the route
-- Use `Pressable` (not `TouchableOpacity`) for all interactive elements
-- Add `accessibilityLabel` and `accessibilityRole` to all buttons and interactive elements
-- All `JSON.parse` calls on MMKV storage must be wrapped in try/catch — corrupt data from interrupted writes can crash the app
-- All `setTimeout` in React components must be stored in `useRef` and cleared in effect cleanup
-- Server routes must validate and clamp all client-supplied numeric parameters before forwarding to upstream APIs
-- TTS synthesis calls must have an `AbortController` timeout (15s) — hung calls block the eject preloader
-- External-origin strings (Genius annotations, user display names) must be sanitized before Gemini prompt injection
-- Enrichment loops must include 1100ms delay between iterations to respect MusicBrainz rate limits
-- Rate limiters: local Express server uses `req.uid` (Firebase UID); production Fastify server uses IP-based Redis rate limiting (200 req/min, configured in `.env`)
+- All components TypeScript strict mode; no inline styles (everything from `design-tokens.ts`).
+- **All API calls go through `authenticatedFetch`** — attaches Firebase JWT, prepends
+  `API_BASE_URL`. Always pass a relative path (e.g. `/broadcast/create`); passing a
+  full URL creates a malformed `${API_BASE_URL}http://...` request.
+- **`authenticatedFetch` throws on null token** — never silently sends unauthenticated
+  requests. Callers handle the auth-not-ready state.
+- **All server routes validated via Zod.** Length-cap all client-supplied strings that
+  flow into LLM prompts (`title`, `artistName`, `albumTitle` ≤ 200, URLs ≤ 2048).
+  Sanitize prompt-injection markers in `SegmentScriptBuilder.sanitizeForPrompt` before
+  interpolation.
+- **Rate limiter scoping**: `generationLimiter` in `server/src/index.ts` uses a `skip`
+  filter keyed on path (`GENERATION_PATHS` regex). Mounted via `app.use(mw, router)`
+  without a path would otherwise apply to every request — skip filter is the scoping
+  mechanism.
+- **MMKV** for all local persistence — never AsyncStorage. Method is `storage.remove(key)`,
+  not `storage.delete(key)`.
+- **`JSON.parse` on MMKV** must be try/catch-wrapped — `getObject` in Storage.ts handles
+  this for typed callers.
+- **`clearUserData` must preserve `StorageKeys.USER`** — removing it would re-route
+  returning users through onboarding.
+- **Pressable, not TouchableOpacity.** All interactive elements need `accessibilityLabel`
+  + `accessibilityRole`.
+- **`setTimeout` / `setInterval` in React components** must be stored in `useRef` and
+  cleared on unmount / before next effect.
+- **`Animated.loop` must pause when backgrounded** via `useAppActive()`. iOS background
+  CPU budget is 48s per 60s window; looping animations at 120Hz ProMotion blow it fast.
+- **Native MusicKit listeners** must be wrapped in try/catch (`MusicKitPlayer.ensureSubscriptions`)
+  so one throwing listener doesn't abort subsequent dispatches.
+- **Native `play()` self-hydrates** — if `trackIds` aren't in `cachedSongs`, it issues
+  `MusicCatalogResourceRequest<Song>` to fetch them before queueing. This is what makes
+  featured broadcasts (which never call `fetchPlaylistTracks`) playable.
+- **`releaseAudioSession` must run between every segment and the next track.** Otherwise
+  MusicKit can't reclaim exclusive session control and `music.play()` silently fails.
+- **`BroadcastPlayer.pause()` parks the main loop via `waitIfPaused`.** Don't
+  hard-stop in-flight segment TTS (AVAudioPlayer has no gapless pause). `resume()`
+  wakes the parked loop; `end()` wakes it first so the loop exits cleanly.
+- **`waitForTrackEnd` polls `getPlaybackStatus()` every 1s** and only advances on
+  `stopped` (not `paused`). Polling is more reliable than events — events drop during
+  Metro reconnects and when backgrounded.
+- **Server `BroadcastOrchestrator.inFlight` map must delete on completion** (via
+  `.finally(() => inFlight.delete(id))`) — otherwise grows unbounded.
+- **Curator gate is two-layer**: client UI hides the button unless email is in
+  `src/config/curators.ts`; server rejects non-curators with 403 via `requireCurator`.
+  UI filter is UX-only; server is authoritative.
+- **Tab group `_layout.tsx` required** — Expo Router throws "not handled by any
+  navigator" without one.
+- **Unicode escapes in JSX text**: `{'\u2014'}` inside a `{}` expression works;
+  `\u2014` in raw JSX tag children renders literally. Use literal characters
+  (`—`, `…`, `·`) or wrap in braces.
+- **Safe-area insets** required on all root screens — the tab bar + status bar don't
+  provide them automatically for ScrollView content.
 
 ---
 
 ## Known Issues & Gotchas
 
-- **Gemini token budget**: `thinkingBudget` is set to 0 (disabled) for segment generation since creative scripts don't need chain-of-thought. With thinking disabled, `maxOutputTokens` of 2048 is sufficient. For QueuePlanner (which needs reasoning), `maxOutputTokens` should remain 8192+.
-- **Crossfade audio session**: Never call `setActive(false)` while AVAudioPlayer is playing — it kills the audio. Use `setCategory` to remove `duckOthers` instead.
-- **MusicKit entitlement**: `com.apple.developer.musickit` is NOT valid in entitlements plist. Remove it if it appears — MusicKit works via Info.plist usage description.
-- **rsync overwrites**: rsync from source repo can overwrite Xcode project changes (signing, entitlements). Exclude `ios/` directory or verify after sync.
-- **Pod privacy manifests**: After rsync, may need `rm -rf ~/Library/Developer/Xcode/DerivedData/Cleo-*` then `pod install` if CpResource errors appear.
-- **Progress bar race condition**: Playback progress polling must run unconditionally on mount (`[]` dependency), not gated by `isPlaying`. When resuming a session, `isPlaying` may not be `true` yet when the effect runs, causing the polling to never start. The poll itself should check playback status each cycle.
-- **Backend auth on all fetch calls**: Every `fetch` to the backend must use `authenticatedFetch` from `api.ts`. Raw `fetch` without the Firebase JWT token will get 401 from `requireAuth` middleware. The QueuePlanner was using raw `fetch` and silently falling back to original playlist order.
-- **Tab group layouts required**: Every Expo Router tab group directory (e.g., `(arc)/`, `(archive)/`, `(cleo)/`) must contain a `_layout.tsx` exporting a Stack. Without it, `navigation.navigate("(groupName)")` throws "not handled by any navigator."
-- **Music-auth must persist authorization**: After successful Apple Music authorization, persist `appleMusicAuthorized: true` to Storage. Otherwise downstream screens read `false`.
-- **Avatar logic**: When showing user initials vs fallback icon, check `displayName !== 'Listener'` (the fallback), not `photoURL` which may be null even for named users.
-- **ElevenLabs 429 during pre-gen**: The eject preloader's TTS call can hit a 429 if Cleo's intro speech just finished. TransitionPreloader retries up to 3 times with backoff (3s/6s/9s). Don't remove the retry — it's essential for the eject system.
-- **Next track accuracy**: Never use `sessionEngine.getNextTrackId()` for content Cleo speaks aloud — the queue plan index drifts from MusicKit's actual queue. Use `getNextInQueue()` which reads MusicKit's `ApplicationMusicPlayer.Queue` directly.
-- **Eject preloader lifecycle**: On `onTrackChanged`, always cancel the old preloader and start fresh. `onTrackChanged` only fires when the eject DIDN'T happen, so the preloader is always stale. Never guard `handleTrackStart` behind `isActive()`.
-- **handleTrackStart must not overwrite previousTrack**: `handleTrackChangeWithResult` already sets it correctly. Double-writing loses the real previous track context.
-- **handleTrackStart must not schedule mid-song drops**: `handleTrackChangeWithResult` already schedules them. Duplicate scheduling causes two Cleo drops on one track.
-- **Xcode team ID mismatch**: The project file may have `DEVELOPMENT_TEAM = 5MQ5ZR66YN` instead of `8F2VWCN5KF`. Building from CLI may fail on provisioning — use `-allowProvisioningUpdates` or build from Xcode.
-- **AVAudioPlayer.stop() does not fire delegate**: Calling `ttsPlayer.stop()` does NOT trigger `audioPlayerDidFinishPlaying`. Any pending promise must be manually resolved and audio state cleaned up after programmatic `stop()`. This applies to the external-pause handler in the playback polling timer and `cancelEjectTransition`.
-- **Post_song Promise must be resolvable on cancel**: `handleTrackChangeWithResult` returns a Promise for post_song delivery. `cancelPendingTimer()` must resolve the stored `pendingPostSongResolve` callback — otherwise callers (BroadcastScreen) hang forever on skip.
-- **TransitionPreloader needs generationId**: The preloader's state machine (`idle/generating/ready/fired/done`) is not sufficient to distinguish stale vs current generations. A `generationId` counter must be checked after every async gap (sleep, network call) to detect if `reset()` + `startForTrack()` happened during the gap.
-- **Don't advance rotation in generateEjectTransition**: The eject path peeks at the rotation without advancing `rotationIndex`. It only advances after successful generation. This prevents double-advancing when the eject misses and the fallback path's `generateNext()` also runs.
-- **Eject transitions must never be suppressed by mid-song drops**: `generateEjectTransition` must NOT check `lastWasMidSongDrop` or `shouldStaySilent()`. Ejects are pre-generated radio crossfades that always fire. The `lastWasMidSongDrop` flag only suppresses the fallback `generateNext` path. Checking it in the eject path caused the first track's eject to always be suppressed (because the cold open triggers a mid-song drop which sets the flag).
-- **Never clear cachedTracks/cachedSongs during active playback**: The native module's `cachedTracks` and `cachedSongs` dictionaries are used by `play()` and `setUpcomingQueue()` to build MusicKit queues. Clearing them in `fetchPlaylistTracks` broke active sessions when `enrichExistingSession` re-fetched tracks mid-playback. Only clear caches when explicitly switching to a different playlist, not on re-fetch.
-- **clearUserData must preserve USER key**: `clearUserData()` on sign-out must NOT remove `StorageKeys.USER`. Removing it causes returning users to be re-routed through onboarding on every sign-in.
-- **authenticatedFetch must throw on null token**: Never silently send unauthenticated requests. `authenticatedFetch` throws if no Firebase token is available, forcing callers to handle the auth-not-ready state.
-- **Server must validate and clamp client inputs**: `maxTokens` clamped to 256–8192, voice `stability`/`style`/`speed` clamped to valid ranges, `text` capped at 5000 chars, `audioUrl` must be HTTPS, video IDs validated with regex. Never forward raw upstream error bodies to the client.
-- **MusicKitPlayer listeners need try/catch**: Each listener callback in `forEach` must be wrapped in try/catch. One throwing listener (e.g., unmounted component state setter) must not abort iteration and silently kill subsequent listeners like AudioCoordinator.
-- **BroadcastScreen timers must be ref-tracked**: All `setTimeout` calls for `setCleoSpeaking(false)` must be stored in a `useRef` and cleared on unmount and before each new track. Bare `setTimeout` causes state updates on unmounted components and race conditions on fast skips.
-- **initializeSession must not call advanceTrack eagerly**: The `onTrackChanged` native event is the sole source of truth for queue advancement. Calling `advanceTrack(allTrackIds[0])` in `initializeSession` double-counts the first track if `onTrackChanged` also fires.
-- **Ducking must deactivate after synthesizeAndPlay regardless of success**: `synthesizeAndPlay` never throws — it catches errors internally and returns void. So `deactivateDuckingSession()` must be called AFTER `synthesizeAndPlay`, not in a `catch` block. Putting it only in `catch` means ducking is never deactivated when TTS fails silently, leaving music permanently quiet.
-- **User-facing rename checklist**: When renaming the host, check ALL components that render the name: `AppHeader.tsx` (logo text), `HomeScreenRedesign.tsx` (loading/unauth/suggestion), `welcome.tsx` (logo), `CleoOnboarding.tsx` (greeting), `TabBar.tsx` (tab label), `CleoSpeakingOverlay.tsx` (speaking badge), `BroadcastScreen.tsx` (talking label), `SessionArcScreen.tsx` (commentary nodes), `music-auth.tsx` (descriptions), `static-core.ts` (system prompt), `cold-opens.ts` (first-ever open), `fallbacks.ts` (station_id lines), `CleoScriptGenerator.ts` (creative brief).
-- **SessionEngine.advanceTrack must be called on every track change**: Both `onTrackChanged` and `onEjectTrackChanged` handlers in BroadcastScreen must call `sessionEngine.advanceTrack(event.trackId)`. Without it, `currentQueueIndex` stays at 0, `tracksPlayed` stays empty, the AI queue upgrade re-inserts already-played tracks, and `getCurrentPhase()` always returns `'coldOpen'`.
-- **Crossfade completion must call player.play()**: Both the normal TTS and eject TTS crossfade completion handlers in the native module must call `player.play()`. The non-crossfade path already does this, but the crossfade path assumed music was still playing. If `activateDuckingSession` paused MusicKit instead of just ducking, music stayed paused permanently.
-- **External-pause handler must check crossfadeActive**: The 0.5s playback polling timer's external-pause handler must guard with `!self.crossfadeActive` in addition to `!isDucking`. During the last 2s of TTS (crossfade window), `duckOthers` is already removed but TTS is still playing — brief MusicKit status glitches would falsely trigger the handler.
-- **Eject preloader must revalidate after AI queue upgrade**: The preloader generates at ~25s but the AI queue upgrade runs at ~65s+. `QueueManager.upgradeQueueInBackground` must call `transitionPreloader.revalidateNextTrack()` after `setUpcomingQueue`. If the next track changed, the preloader regenerates script + TTS proactively. Safety net in `tryFireEject` re-verifies at fire time.
-- **Production server rate limits**: The Fastify server at `api.worthymedia.tech` has a single global rate limiter (200 req/min per IP). During session startup, enrichment fires 50+ MusicBrainz + 50+ Genius requests, plus segment + TTS + eject pre-gen. With retries on 429, request counts compound. Keep the limit generous.
-- **Crossfade window is 1s, not 2s**: The `setCategory` call that removes `.duckOthers` is instant (no gradual fade). A 2s window made music jump back to full volume while ONAY still had two sentences left. 1s means un-duck happens during her last word — much less jarring. Threshold remains 3s minimum TTS duration.
-- **Eject overlay fires at fireEject, not beginGeneration**: `onSegmentReady` must fire in `fireEject()` when ONAY starts speaking, not in `beginGeneration()` when the script is pre-generated (~25s into the track). The `onEjectTrackChanged` handler only starts the dismiss timer — the overlay is already showing. BroadcastScreen passes `onSegmentReady` through `handleTrackStart` for this.
-- **Background CPU budget — iOS kills at 48s/60s**: iOS terminates background apps that use >48 seconds of CPU in any 60-second window (RESOURCE_NOTIFY FATAL). Three critical mitigations are in place — do not remove any:
-  1. **MusicKit `objectWillChange` must be throttled**: The Combine publisher fires on every internal MusicKit state mutation (buffer updates, playback position), potentially hundreds of times/second. The `.throttle(for: .seconds(1))` in `startObserving()` reduces this to 1/sec. Without it, the observation alone causes 96% background CPU.
-  2. **Native 0.5s playback timer must stop when backgrounded**: `startObserving()` registers `didEnterBackgroundNotification` / `willEnterForegroundNotification` observers that invalidate/restart the timer. A running 0.5s timer in background burns through the CPU budget with bridge event dispatch.
-  3. **All `Animated.loop` animations must pause when backgrounded**: Components with looping animations (WaveformBars, CleoPulseDot, CleoSpeakingOverlay) use the `useAppActive()` hook from `src/hooks/useAppActive.ts` to stop loops when backgrounded and restart when foregrounded. With `UIBackgroundModes: audio`, `CADisplayLink` continues firing at 120Hz (ProMotion) — 5 looping animations = 600 callbacks/sec of wasted CPU.
-- **WaveformBars must be conditionally rendered**: In BroadcastScreen, render `{cleoSpeaking && <WaveformBars />}` — not always mounted. Even with the `useAppActive` pause, keeping 5 animated views mounted when hidden wastes resources.
-- **Session-end handler must check app active state**: The `onPlaybackStateChanged` 'stopped' handler in BroadcastScreen must guard with `appActiveRef.current`. When backgrounded, MusicKit reports transient 'stopped' states during audio session changes (ducking, eject transitions) that don't mean the queue is actually empty. Without the guard, transient states falsely end the session.
-- **Native external-pause handler must skip when backgrounded**: The 0.5s timer's external-pause detection (which stops TTS when music is paused externally) only runs when `UIApplication.shared.applicationState == .active`. Background audio session changes produce transient paused/stopped states that are not real user actions.
-- **MusicKit cache trimming on background**: The native module trims `cachedTracks`/`cachedSongs` to only active queue entries on `didEnterBackgroundNotification` and `didReceiveMemoryWarningNotification`. Large playlists (500+ tracks) can exceed iOS's lower background memory budget and cause jetsam termination.
+### Audio session & MusicKit
+- **Never `setActive(false)` while AVAudioPlayer is playing** — kills the TTS.
+- **AVAudioPlayer.stop() does not fire the delegate** — pending promises must be
+  resolved manually in the native external-pause handler and `stopAudio`.
+- **Post-segment audio session handoff**: TTS playback puts the session in
+  `mixWithOthers`; without `releaseAudioSession`, MusicKit's `play()` resolves but
+  no audio plays (no state transition events either). The fix is always call
+  `releaseAudioSession` in `BroadcastPlayer.runSegmentAt`'s finally block.
+- **MusicKit `objectWillChange` must be throttled** to 1/sec in `startObserving()` —
+  unthrottled observation causes 96% background CPU usage.
+- **Native 0.5s playback timer pauses when backgrounded** via
+  `didEnterBackgroundNotification` observer.
+- **Native cache self-hydration on `play()`**: required for featured broadcasts where
+  `fetchPlaylistTracks` was never called. Uses `MusicCatalogResourceRequest<Song>`
+  matching `\.id`. Takes ~300-500ms first time; cached after.
+
+### Broadcast pipeline
+- **Gemini free tier quota**: 20 requests/minute. A standard broadcast = ~10 LLM calls.
+  If Ollama goes down and the app falls back to Gemini, two bakes in a minute will 429.
+- **`generationLimiter` would apply globally without path scoping**. `app.use(mw, router)`
+  without a path prefix runs the middleware on every request, not just the router's
+  routes. Fix is the `skip` filter in the limiter config.
+- **Pause must not trigger the next transition**. `waitForTrackEnd`'s status poll only
+  advances on `stopped`; `paused` is explicitly excluded.
+- **Featured `publish` endpoint shares the generation rate limit with user bakes.**
+  No per-curator budget cap yet. A runaway curator account could exhaust the quota.
+- **BroadcastStore TTL is lazy-only** — entries evict on `get()` but never proactively.
+  Long-running server accumulates expired broadcasts until accessed.
+- **Featured manifest payload is full** — `GET /broadcast/featured` returns every
+  broadcast's complete manifest including all `audioUrls`. Doesn't scale past ~10
+  featured broadcasts.
+
+### Client player
+- **`listener` and `runTrackAt` must be wrapped in try/catch.** `runTrackAt` catches
+  `music.play` rejections and returns early instead of stalling the broadcast.
+- **`waitForTrackEnd` safety timeout** is `duration + 30s`. If MusicKit never
+  transitions to `playing`, the loop exits rather than hanging forever.
+- **`BroadcastPlayer.singleton.ts` is separate from the class** so tests can import the
+  pure class without pulling Firebase / native module dependencies.
+- **Persisted manifest is cleared on `end()`** so resume doesn't offer a finished
+  session.
+- **Resume manifest URLs can 404** if the server restarted or the 2h TTL evicted the
+  backing files. `BroadcastResumer.check()` doesn't verify URL freshness.
+
+### Build / deployment
+- **Xcode team ID drift**: project file sometimes shows `5MQ5ZR66YN` instead of
+  `8F2VWCN5KF`. Fix in Xcode GUI with automatic signing enabled.
+- **Sentry source-map upload fails** without org config — always build with
+  `SENTRY_DISABLE_AUTO_UPLOAD=true`.
+- **iOS platform SDK** must match the device's iOS version. New iOS releases require
+  Xcode > Settings > Platforms download (~8GB) before `expo run:ios --device` works.
+- **`react-native-feed-media-audio-player` (adaptr)** was experimented with and removed.
+  Any references in stashed git state should be discarded.
+- **Stale `cleo/` top-level directory** (nested parallel copy of the whole repo) exists
+  at the project root from an old rsync. Dead weight; safe to delete.
+
+### Prompt injection
+- **Track metadata is user-supplied and flows into LLM prompts.** `title`, `artistName`,
+  `albumTitle` capped at 200 chars by Zod. `SegmentScriptBuilder.sanitizeForPrompt`
+  strips control chars, newlines, role-hijack markers (`system:`, `assistant:`,
+  `user:`), triple-backticks, and truncates to 120 chars per span.
+
+### Deprecated / stripped (legacy warnings)
+- The old live-generation engines (`QueueManager`, `SessionEngine`,
+  `TransitionPreloader`, `SegmentController`, `AudioCoordinator`, `QueuePlanner`,
+  `LocalQueuePlanner`, `RulesEngine`), services (`CleoScriptGenerator`,
+  `CleoVoiceEngine`, `SessionMemory`), and prompt library (`src/cleo/*`) have all
+  been deleted. Features that referenced them (Session Arc tab, Archive tab, old home
+  screen, old player, "Take It Live" via queueManager) are gone or rewired.
+- Native Swift `playEjectTransition`, `cancelEjectTransition`, `onEjectTrackChanged`
+  are still compiled in but unreferenced from TS. Candidate for a native cleanup pass.
+
+---
+
+## What's Left (not yet shipped)
+
+- **Production deployment** — the Fastify server at `api.worthymedia.tech` does not
+  know any of the broadcast routes. TestFlight with `EXPO_PUBLIC_API_URL` pointed at
+  production will 404 on every bake. Either deploy the Express broadcast subsystem to
+  the VPS or port to Fastify.
+- **S3 / signed-URL storage adapter** — `LocalFilesystemStorage` works for dev; prod
+  needs real object storage with signed URLs + TTL.
+- **Server-side AI track reordering** — `ManifestBuilder` slices first-N deterministically.
+  The old `QueuePlanner` (AI-sequenced by vibe/energy) is gone client-side and hasn't
+  been lifted server-side.
+- **Bake abort endpoint** — no `DELETE /broadcast/:id`. User canceling mid-bake still
+  pays for all remaining LLM + TTS calls.
+- **Scheduled/autonomous featured bakes** (cron "Monday Reset" etc.) — requires server
+  Apple Music developer token setup.
+- **Native Swift cleanup** — eject code and `beginTTSBackgroundTask` / `silencePlayer`
+  leftovers.
 
 ---
 
 ## Full Documentation
 
-Read docs/cleo-prd.md (in parent directory `/Users/kari/Documents/DJ App/cleo-prd.md`) for:
-- Complete system prompt architecture
-- Full cold open library
-- Full fallback segment library
-- Song scoring algorithm details
-- Genre bridge system
-- Complete session arc phases
-- All screen layouts and navigation map
-
-Stitch Gold Edition designs are in `docs/stitch/` — HTML source + screenshots for all 8 screens.
+Spec: `docs/superpowers/specs/2026-04-12-pre-baked-broadcast-design.md`
+Plans: `docs/superpowers/plans/2026-04-12-pre-baked-broadcast-plan-{1..4}-*.md`
+Legacy PRD: `cleo-prd.md` at repo root — predates the pre-baked pivot; reference only
+for vibe/fallback library content that still informs `SegmentScriptBuilder`.
