@@ -402,7 +402,7 @@ export function AskOnayScreen() {
         })),
       });
 
-      router.push('/(main)/(broadcast)/broadcast-player');
+      router.push('/(main)/(broadcast)/player');
       broadcastPlayer.start(manifest, firstSegmentUrls).catch((e: unknown) => {
         console.warn('[AskOnay] take-live playback failed', e);
       });
