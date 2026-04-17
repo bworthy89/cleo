@@ -106,94 +106,98 @@ export default function BroadcastPlayerScreen() {
         {status.state} — t={status.currentTrackIndex} s={status.currentSegmentIndex} ({(status.progress * 100).toFixed(0)}%)
       </Text>
 
-      <Text style={{ ...monoStyle, marginBottom: Spacing.sm }}>VIBE</Text>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginBottom: Spacing.md }}>
-        {VIBES.map(v => (
+      {status.state === 'idle' && (
+        <>
+          <Text style={{ ...monoStyle, marginBottom: Spacing.sm }}>VIBE</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginBottom: Spacing.md }}>
+            {VIBES.map(v => (
+              <Pressable
+                key={v}
+                accessibilityRole="button"
+                accessibilityLabel={`Select vibe ${v}`}
+                onPress={() => setVibe(v)}
+                style={{
+                  paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md,
+                  backgroundColor: vibe === v ? Colors.accent : Surface.container,
+                  borderRadius: Radius.sm,
+                }}
+              >
+                <Text style={{ color: vibe === v ? Colors.base.black : TextColors.primary, fontFamily: Typography.mono.family, fontSize: 11 }}>
+                  {v.toUpperCase()}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <Text style={{ ...monoStyle, marginBottom: Spacing.sm }}>LENGTH</Text>
+          <View style={{ flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.md }}>
+            {LENGTHS.map(l => (
+              <Pressable
+                key={l}
+                accessibilityRole="button"
+                accessibilityLabel={`Select length ${l}`}
+                onPress={() => setLength(l)}
+                style={{
+                  paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md,
+                  backgroundColor: length === l ? Colors.accent : Surface.container,
+                  borderRadius: Radius.sm,
+                }}
+              >
+                <Text style={{ color: length === l ? Colors.base.black : TextColors.primary, fontFamily: Typography.mono.family, fontSize: 11 }}>
+                  {l.toUpperCase()}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <Text style={{ ...monoStyle, marginBottom: Spacing.sm }}>PLAYLIST</Text>
+          {playlists.length === 0 ? (
+            <Text style={{ color: TextColors.secondary, marginBottom: Spacing.md }}>Loading playlists...</Text>
+          ) : (
+            <View style={{ marginBottom: Spacing.md }}>
+              {playlists.map(p => (
+                <Pressable
+                  key={p.id}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Select playlist ${p.name}`}
+                  onPress={() => setSelectedPlaylist(p)}
+                  style={{
+                    paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md,
+                    backgroundColor: selectedPlaylist?.id === p.id ? Surface.high : Surface.container,
+                    borderLeftWidth: selectedPlaylist?.id === p.id ? 2 : 0,
+                    borderLeftColor: Colors.accent,
+                    marginBottom: 2,
+                  }}
+                >
+                  <Text style={{ color: TextColors.primary, fontSize: 14 }} numberOfLines={1}>{p.name}</Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
+
           <Pressable
-            key={v}
             accessibilityRole="button"
-            accessibilityLabel={`Select vibe ${v}`}
-            onPress={() => setVibe(v)}
+            accessibilityLabel="Bake and play broadcast"
+            disabled={baking || !selectedPlaylist}
+            onPress={handleBakeAndPlay}
             style={{
-              paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md,
-              backgroundColor: vibe === v ? Colors.accent : Surface.container,
+              padding: Spacing.md,
+              backgroundColor: baking || !selectedPlaylist ? Surface.high : Colors.accent,
               borderRadius: Radius.sm,
+              marginBottom: Spacing.sm,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: Spacing.sm,
             }}
           >
-            <Text style={{ color: vibe === v ? Colors.base.black : TextColors.primary, fontFamily: Typography.mono.family, fontSize: 11 }}>
-              {v.toUpperCase()}
+            {baking && <ActivityIndicator color={Colors.base.black} />}
+            <Text style={{ color: Colors.base.black, fontFamily: Typography.mono.family, fontSize: 12, letterSpacing: 2 }}>
+              {baking ? 'BAKING...' : 'BAKE & PLAY'}
             </Text>
           </Pressable>
-        ))}
-      </View>
-
-      <Text style={{ ...monoStyle, marginBottom: Spacing.sm }}>LENGTH</Text>
-      <View style={{ flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.md }}>
-        {LENGTHS.map(l => (
-          <Pressable
-            key={l}
-            accessibilityRole="button"
-            accessibilityLabel={`Select length ${l}`}
-            onPress={() => setLength(l)}
-            style={{
-              paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md,
-              backgroundColor: length === l ? Colors.accent : Surface.container,
-              borderRadius: Radius.sm,
-            }}
-          >
-            <Text style={{ color: length === l ? Colors.base.black : TextColors.primary, fontFamily: Typography.mono.family, fontSize: 11 }}>
-              {l.toUpperCase()}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-
-      <Text style={{ ...monoStyle, marginBottom: Spacing.sm }}>PLAYLIST</Text>
-      {playlists.length === 0 ? (
-        <Text style={{ color: TextColors.secondary, marginBottom: Spacing.md }}>Loading playlists...</Text>
-      ) : (
-        <View style={{ marginBottom: Spacing.md }}>
-          {playlists.map(p => (
-            <Pressable
-              key={p.id}
-              accessibilityRole="button"
-              accessibilityLabel={`Select playlist ${p.name}`}
-              onPress={() => setSelectedPlaylist(p)}
-              style={{
-                paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md,
-                backgroundColor: selectedPlaylist?.id === p.id ? Surface.high : Surface.container,
-                borderLeftWidth: selectedPlaylist?.id === p.id ? 2 : 0,
-                borderLeftColor: Colors.accent,
-                marginBottom: 2,
-              }}
-            >
-              <Text style={{ color: TextColors.primary, fontSize: 14 }} numberOfLines={1}>{p.name}</Text>
-            </Pressable>
-          ))}
-        </View>
+        </>
       )}
-
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Bake and play broadcast"
-        disabled={baking || !selectedPlaylist}
-        onPress={handleBakeAndPlay}
-        style={{
-          padding: Spacing.md,
-          backgroundColor: baking || !selectedPlaylist ? Surface.high : Colors.accent,
-          borderRadius: Radius.sm,
-          marginBottom: Spacing.sm,
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: Spacing.sm,
-        }}
-      >
-        {baking && <ActivityIndicator color={Colors.base.black} />}
-        <Text style={{ color: Colors.base.black, fontFamily: Typography.mono.family, fontSize: 12, letterSpacing: 2 }}>
-          {baking ? 'BAKING...' : 'BAKE & PLAY'}
-        </Text>
-      </Pressable>
 
       <View style={{ flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.md }}>
         <Pressable
@@ -222,7 +226,7 @@ export default function BroadcastPlayerScreen() {
         </Pressable>
       </View>
 
-      {bakeLog.length > 0 && (
+      {status.state === 'idle' && bakeLog.length > 0 && (
         <>
           <Text style={{ ...monoStyle, marginBottom: Spacing.sm }}>LOG</Text>
           <View style={{ backgroundColor: Surface.lowest, padding: Spacing.sm, borderRadius: Radius.sm }}>
