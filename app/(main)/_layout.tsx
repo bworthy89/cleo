@@ -6,8 +6,6 @@ export default function MainLayout() {
     <Tabs tabBar={(props) => <CustomTabBar {...props} />} screenOptions={{ headerShown: false }} initialRouteName="(broadcast)">
       <Tabs.Screen name="index" options={{ href: null }} />
       <Tabs.Screen name="(broadcast)" />
-      <Tabs.Screen name="(arc)" />
-      <Tabs.Screen name="(archive)" />
       <Tabs.Screen name="(cleo)" />
     </Tabs>
   );
