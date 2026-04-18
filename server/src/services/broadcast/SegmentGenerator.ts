@@ -18,15 +18,33 @@ const DEFAULT_TTS_PARAMS = {
 };
 
 /**
- * Replace the stylized name "ONAY" with a phonetic spelling so Cartesia /
- * ElevenLabs pronounce it "Oh-nay" rather than spelling or misreading it.
- * Uses a word-boundary regex so it won't hit unrelated substrings. Case
- * insensitive so "Onay" / "onay" (sentence-start or stylized) are also
- * phoneticized.
+ * Preprocess LLM-generated script text before handing to TTS.
+ *
+ * Runs in order:
+ * 1. (feat. X) / (ft. X) parenthesized features → "featuring X" (drops parens
+ *    so prose flows naturally through TTS).
+ * 2. Bare "feat." / "ft." outside parens → "featuring".
+ * 3. ONAY host name → "Oh-nay" (case-insensitive, word-bounded so "BALONAY"
+ *    and "ONAYS" aren't touched).
+ *
+ * Note: the provider-side pronunciation dictionary (Cartesia's
+ * `pronunciation_dict_id`, ElevenLabs' `pronunciation_dictionary_locators`)
+ * handles artist/word phonetic overrides; this function handles the
+ * structural patterns that dicts can't express cleanly.
  */
-export function phoneticizeHostName(script: string): string {
-  return script.replace(/\bONAY\b/gi, 'Oh-nay');
+export function preprocessForTTS(text: string): string {
+  let out = text;
+  // (feat. X) / (ft. X) / (Feat X) — drop parens, say "featuring X"
+  out = out.replace(/\(\s*(?:feat|ft)\.?\s+([^)]+?)\s*\)/gi, 'featuring $1');
+  // Bare "feat." / "ft." outside parens — turn into "featuring"
+  out = out.replace(/\b(?:feat|ft)\./gi, 'featuring');
+  // Host name phonetic
+  out = out.replace(/\bONAY\b/gi, 'Oh-nay');
+  return out;
 }
+
+/** @deprecated Use preprocessForTTS. Kept as an alias for any external callers. */
+export const phoneticizeHostName = preprocessForTTS;
 
 export class SegmentGenerator {
   constructor(
@@ -58,7 +76,7 @@ export class SegmentGenerator {
       maxTokens: prompt.maxTokens,
     });
     const ttsResult = await this.tts.synthesize({
-      text: phoneticizeHostName(scriptResult.text),
+      text: preprocessForTTS(scriptResult.text),
       ...DEFAULT_TTS_PARAMS,
     });
     const key = `broadcast/${broadcastId}/segment/${slotIndex}/v${variant}.mp3`;
