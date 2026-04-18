@@ -29,6 +29,7 @@ export interface CreateBroadcastRequest {
   tracks: Array<{
     id: string; title: string; artistName: string;
     albumTitle: string; duration: number; artworkUrl?: string;
+    genreNames?: string[];
   }>;
 }
 
