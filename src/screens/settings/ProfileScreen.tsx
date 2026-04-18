@@ -1,180 +1,294 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
 import auth from '@react-native-firebase/auth';
+import * as Haptics from 'expo-haptics';
 import { AM, Fonts, Space, TypeScale } from '../../tokens/design-tokens';
 import { BroadcastBackdrop } from '../../components/BroadcastBackdrop';
-import { AppHeader } from '../../components/AppHeader';
-import { HairlineRow } from '../../components/HairlineRow';
-import { musicKitPlayer } from '../../services/MusicKitPlayer';
-import { signOut } from '../../services/AuthService';
-import { authorize } from '../../../modules/expo-music-kit';
+import {
+  StatusStrip,
+  LinerNotes,
+  SectionMarker,
+  Halftone,
+} from '../../components/crate';
+import { useSettings } from '../../contexts/SettingsContext';
+import {
+  getBroadcastHistory,
+  type BroadcastHistoryEntry,
+} from '../../services/Storage';
+import { memberNo as formatMemberNo, memberSlot } from '../../lib/memberNo';
 
-const HEADER_HEIGHT = 44;
-
+/**
+ * ONAY tab — member lounge. Identity + recent listens + an editorial note
+ * from ONAY. Account settings live in the drawer (cog in StatusStrip), not
+ * here — this tab is the human-facing face of the app.
+ */
 export function ProfileScreen() {
   const insets = useSafeAreaInsets();
+  const settings = useSettings();
+
   const firebaseUser = auth().currentUser;
+  const email = firebaseUser?.email ?? '—';
   const displayName = firebaseUser?.displayName ?? 'Listener';
-  const email = firebaseUser?.email ?? '';
+  const memberNo = formatMemberNo(firebaseUser?.uid);
+  const memberSlotStr = memberSlot(firebaseUser?.uid);
 
-  const [appleMusicConnected, setAppleMusicConnected] = useState(false);
-
+  const [history, setHistory] = useState<BroadcastHistoryEntry[]>([]);
   useEffect(() => {
-    musicKitPlayer.isAuthorized().then(setAppleMusicConnected).catch(() => {});
+    setHistory(getBroadcastHistory());
   }, []);
 
-  const handleAppleMusicConnect = useCallback(async () => {
-    if (appleMusicConnected) return;
-    try {
-      const result = await authorize();
-      if (result.status === 'authorized') setAppleMusicConnected(true);
-    } catch (err) {
-      console.warn('[ProfileScreen] Apple Music auth failed:', err);
-    }
-  }, [appleMusicConnected]);
+  const totalMinutes = history.reduce((total, entry) => {
+    const tracks = entry.manifest.tracks ?? [];
+    const dur = tracks.reduce((a, t) => a + (t.duration ?? 180), 0);
+    return total + Math.round(dur / 60);
+  }, 0);
 
-  const handleSignOut = useCallback(() => {
-    Alert.alert(
-      'Sign Out',
-      'Are you sure you want to sign out?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Sign Out',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await musicKitPlayer.pause();
-              await signOut();
-              router.replace('/(auth)/login');
-            } catch {
-              // sign-out failed — stay on screen
-            }
-          },
-        },
-      ],
-    );
-  }, []);
+  const firstListen = history.length > 0
+    ? new Date(Math.min(...history.map(h => h.createdAt)))
+    : null;
+  const sinceLabel = firstListen
+    ? `SINCE ${firstListen.toLocaleDateString(undefined, { month: 'short', year: '2-digit' }).toUpperCase()}`
+    : "SINCE '26";
+
+  const openSettings = () => {
+    Haptics.selectionAsync().catch(() => {});
+    settings.open();
+  };
 
   return (
     <BroadcastBackdrop>
-      <AppHeader />
-
       <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={[
-          styles.content,
-          {
-            paddingTop: insets.top + HEADER_HEIGHT + Space.s34,
-            paddingBottom: insets.bottom + 80,
-          },
-        ]}
+        style={styles.flex}
+        contentContainerStyle={{
+          paddingTop: insets.top + Space.s6,
+          paddingBottom: insets.bottom + 120,
+          paddingHorizontal: 20,
+        }}
         showsVerticalScrollIndicator={false}
       >
-        {/* your account */}
-        <Text style={styles.sectionLabel}>your account</Text>
-        <View style={{ height: Space.s10 }} />
-        <HairlineRow
-          topRule
-          verticalPadding={Space.s16}
-          leading={<Text style={styles.rowLabel}>NAME</Text>}
-          leadingWidth={72}
-          value={
-            <Text style={styles.rowValue} numberOfLines={1}>{displayName}</Text>
-          }
-        />
-        {email ? (
-          <HairlineRow
-            verticalPadding={Space.s16}
-            leading={<Text style={styles.rowLabel}>EMAIL</Text>}
-            leadingWidth={72}
-            value={
-              <Text style={styles.rowValue} numberOfLines={1}>{email}</Text>
-            }
-          />
-        ) : null}
+        <StatusStrip onAir={false} num={memberSlotStr} />
 
-        {/* connections */}
-        <View style={{ height: Space.s34 }} />
-        <Text style={styles.sectionLabel}>connections</Text>
-        <View style={{ height: Space.s10 }} />
-        <HairlineRow
-          topRule
-          verticalPadding={Space.s16}
-          leading={<Text style={styles.rowLabel}>APPLE MUSIC</Text>}
-          leadingWidth={110}
-          value={
-            <Text
-              style={[
-                styles.rowValue,
-                { color: appleMusicConnected ? AM.ink : AM.inkMid },
-              ]}
-            >
-              {appleMusicConnected ? 'connected' : 'not connected'}
-            </Text>
-          }
-          trailing={
-            appleMusicConnected ? null : (
-              <Text style={styles.chev}>{'\u203A'}</Text>
-            )
-          }
-          onPress={appleMusicConnected ? undefined : handleAppleMusicConnect}
-          accessibilityLabel={
-            appleMusicConnected ? 'Apple Music connected' : 'Connect Apple Music'
-          }
-        />
+        {/* Oxblood member card masthead */}
+        <View style={styles.card}>
+          <Halftone opacity={0.3} spacing={5} />
+          <View style={{ position: 'relative' }}>
+            <View style={styles.cardTop}>
+              <Text style={styles.cardKicker}>MEMBER CARD · REG №</Text>
+              <Text style={styles.cardMemberNo}>{memberNo}</Text>
+            </View>
+            <Text style={styles.cardName}>{displayName.toUpperCase()}</Text>
+            <Text style={styles.cardSub}>{email}</Text>
+            <View style={styles.cardFooter}>
+              <Text style={styles.cardSince}>{sinceLabel}</Text>
+              <Pressable
+                onPress={openSettings}
+                accessibilityRole="button"
+                accessibilityLabel="Open settings"
+                hitSlop={6}
+                style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+              >
+                <Text style={styles.cardManage}>MANAGE →</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
 
-        {/* account */}
-        <View style={{ height: Space.s34 }} />
-        <Text style={styles.sectionLabel}>account</Text>
-        <View style={{ height: Space.s10 }} />
-        <HairlineRow
-          topRule
-          verticalPadding={Space.s16}
-          value={<Text style={styles.signOutText}>sign out</Text>}
-          trailing={<Text style={styles.chev}>{'\u203A'}</Text>}
-          onPress={handleSignOut}
-          accessibilityLabel="Sign out"
-        />
+        {/* Greeting */}
+        <View style={styles.liner}>
+          <LinerNotes>
+            Welcome back. Tonight&rsquo;s set is already being baked — I&rsquo;ll ping you
+            when the needle&rsquo;s ready to drop.
+          </LinerNotes>
+        </View>
+
+        {/* Listening stats */}
+        <SectionMarker num="D·01" title="YOUR LISTENING" side="LAST 24 HOURS" />
+        <View style={styles.stats}>
+          <View style={styles.statCell}>
+            <Text style={styles.statValue}>{history.length}</Text>
+            <Text style={styles.statLabel}>BROADCASTS</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statCell}>
+            <Text style={styles.statValue}>{totalMinutes}</Text>
+            <Text style={styles.statLabel}>MINUTES</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statCell}>
+            <Text style={styles.statValue}>{(history[0]?.manifest.tracks ?? []).length}</Text>
+            <Text style={styles.statLabel}>LAST SET</Text>
+          </View>
+        </View>
+
+        {/* Settings shortcut */}
+        <SectionMarker num="D·02" title="BACK OFFICE" side="MEMBER CARD" />
+        <Pressable
+          onPress={openSettings}
+          accessibilityRole="button"
+          accessibilityLabel="Open settings drawer"
+          style={({ pressed }) => [styles.settingsLink, pressed && { opacity: 0.7 }]}
+        >
+          <View>
+            <Text style={styles.settingsLabel}>SETTINGS</Text>
+            <Text style={styles.settingsSub}>Account · Notifications · Connections · About</Text>
+          </View>
+          <Text style={styles.settingsArrow}>→</Text>
+        </Pressable>
+
+        {/* Colophon */}
+        <View style={styles.colophon}>
+          <Text style={styles.colophonText}>ONAY RADIO · EST. 2026</Text>
+          <Text style={styles.colophonText}>NO ALGORITHMS · NO SHUFFLE · SIDE A → SIDE B</Text>
+        </View>
       </ScrollView>
     </BroadcastBackdrop>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: { flex: 1 },
-  content: {
-    paddingHorizontal: Space.s26,
+  flex: { flex: 1 },
+
+  card: {
+    marginTop: Space.s22,
+    padding: 18,
+    backgroundColor: AM.oxblood,
+    overflow: 'hidden',
+    position: 'relative',
   },
-  sectionLabel: {
+  cardTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(232,224,208,0.35)',
+    paddingBottom: 8,
+  },
+  cardKicker: {
     fontFamily: Fonts.mono,
-    fontSize: TypeScale.s10,
+    fontSize: TypeScale.s9,
+    color: AM.cream,
+    letterSpacing: 3,
+    opacity: 0.85,
+  },
+  cardMemberNo: {
+    fontFamily: Fonts.display,
+    fontSize: TypeScale.s14,
+    color: AM.cream,
+    letterSpacing: 2,
+  },
+  cardName: {
+    marginTop: 14,
+    fontFamily: Fonts.display,
+    fontSize: TypeScale.s28,
+    color: AM.cream,
+    letterSpacing: 0.5,
+    lineHeight: TypeScale.s28,
+  },
+  cardSub: {
+    marginTop: 6,
+    fontFamily: Fonts.serif,
+    fontStyle: 'italic',
+    fontSize: TypeScale.s13,
+    color: AM.cream,
+    opacity: 0.85,
+  },
+  cardFooter: {
+    marginTop: 18,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  cardSince: {
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s9,
+    color: AM.cream,
     letterSpacing: 2.5,
-    color: AM.inkDim,
+    opacity: 0.75,
   },
-  rowLabel: {
+  cardManage: {
     fontFamily: Fonts.mono,
     fontSize: TypeScale.s10,
+    color: AM.cream,
+    letterSpacing: 2,
+  },
+
+  liner: {
+    marginTop: Space.s22,
+  },
+
+  stats: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    marginTop: 4,
+  },
+  statCell: {
+    flex: 1,
+    paddingVertical: 16,
+    alignItems: 'center',
+    gap: 6,
+  },
+  statDivider: {
+    width: 0.5,
+    backgroundColor: AM.rule,
+  },
+  statValue: {
+    fontFamily: Fonts.display,
+    fontSize: TypeScale.s30,
+    color: AM.amber,
+    letterSpacing: 0.5,
+    lineHeight: TypeScale.s30,
+  },
+  statLabel: {
+    fontFamily: Fonts.mono,
+    fontSize: 8,
+    color: AM.inkDim,
+    letterSpacing: 2.5,
+  },
+
+  settingsLink: {
+    marginTop: 4,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderWidth: 0.5,
+    borderColor: AM.ruleStrong,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  settingsLabel: {
+    fontFamily: Fonts.display,
+    fontSize: TypeScale.s16,
+    color: AM.ink,
+    letterSpacing: 1.5,
+  },
+  settingsSub: {
+    marginTop: 4,
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s9,
+    color: AM.inkDim,
+    letterSpacing: 1.5,
+  },
+  settingsArrow: {
+    fontFamily: Fonts.display,
+    fontSize: TypeScale.s18,
+    color: AM.amber,
+  },
+
+  colophon: {
+    marginTop: Space.s40,
+    paddingTop: 16,
+    borderTopWidth: 0.5,
+    borderTopColor: AM.rule,
+    alignItems: 'center',
+    gap: 4,
+  },
+  colophonText: {
+    fontFamily: Fonts.mono,
+    fontSize: 8,
     letterSpacing: 2,
     color: AM.inkDim,
   },
-  rowValue: {
-    fontFamily: Fonts.display,
-    fontSize: TypeScale.s16,
-    fontStyle: 'italic',
-    color: AM.ink,
-  },
-  signOutText: {
-    fontFamily: Fonts.display,
-    fontSize: TypeScale.s18,
-    fontStyle: 'italic',
-    color: AM.amber,
-  },
-  chev: {
-    fontFamily: Fonts.display,
-    fontSize: TypeScale.s16,
-    color: AM.inkDim,
-  },
 });
+
+export default ProfileScreen;

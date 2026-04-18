@@ -88,9 +88,9 @@ const styles = StyleSheet.create({
   label: {
     fontFamily: Fonts.display,
     fontSize: TypeScale.s18,
-    fontStyle: 'italic',
     color: AM.amber,
-    letterSpacing: 0.5,
+    letterSpacing: 2,
+    textTransform: 'uppercase',
   },
   disabled: {
     opacity: 0.4,
