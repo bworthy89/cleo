@@ -168,3 +168,50 @@ describe('phoneticizeHostName', () => {
     expect(phoneticizeHostName('just a vibe check')).toBe('just a vibe check');
   });
 });
+
+describe('preprocessForTTS — feat./ft. normalization', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { preprocessForTTS } = require('@/services/broadcast/SegmentGenerator');
+
+  it('expands (feat. X) to featuring X and drops parens', () => {
+    expect(preprocessForTTS('"Track (feat. Artist)"'))
+      .toBe('"Track featuring Artist"');
+  });
+
+  it('expands (ft. X) to featuring X', () => {
+    expect(preprocessForTTS('"Song (ft. Jay)"'))
+      .toBe('"Song featuring Jay"');
+  });
+
+  it('handles multi-word artists inside parens', () => {
+    expect(preprocessForTTS('"Dreams (feat. Kendrick Lamar)"'))
+      .toBe('"Dreams featuring Kendrick Lamar"');
+  });
+
+  it('handles case variations (Feat., FEAT., Ft., FT.)', () => {
+    expect(preprocessForTTS('"A (Feat. B)"')).toBe('"A featuring B"');
+    expect(preprocessForTTS('"A (FEAT. B)"')).toBe('"A featuring B"');
+    expect(preprocessForTTS('"A (Ft. B)"')).toBe('"A featuring B"');
+    expect(preprocessForTTS('"A (FT. B)"')).toBe('"A featuring B"');
+  });
+
+  it('handles missing period after feat/ft', () => {
+    expect(preprocessForTTS('"A (feat B)"')).toBe('"A featuring B"');
+    expect(preprocessForTTS('"A (ft B)"')).toBe('"A featuring B"');
+  });
+
+  it('expands bare feat. outside parens', () => {
+    expect(preprocessForTTS('The feat. artist on this one is...'))
+      .toBe('The featuring artist on this one is...');
+  });
+
+  it('does not touch the English word "feat" (no period)', () => {
+    expect(preprocessForTTS('That was quite a feat of engineering.'))
+      .toBe('That was quite a feat of engineering.');
+  });
+
+  it('composes with host name phoneticization', () => {
+    expect(preprocessForTTS('ONAY here with "Track (feat. X)".'))
+      .toBe('Oh-nay here with "Track featuring X".');
+  });
+});
