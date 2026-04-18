@@ -1,4 +1,7 @@
-import type { Manifest, SegmentSlot, Vibe, ManifestTrack } from './types';
+import type { Manifest, SegmentSlot, Vibe, ManifestTrack, SegmentTier } from './types';
+import type { EnrichmentRecord } from '../enrichment/EnrichmentCache';
+import { normalizeGenreFamily, GENRE_PLAYBOOK, type GenreFamily } from './GenreFamily';
+import { formatAudioFeatures } from './audio-features-format';
 
 export interface SegmentContext {
   timeOfDay: string;
@@ -15,6 +18,10 @@ export interface PromptSet {
   maxTokens: number;
 }
 
+export interface EnrichmentLookup {
+  get(title: string, artist: string): EnrichmentRecord | null;
+}
+
 const VIBE_DESCRIPTIONS: Record<Vibe, string> = {
   morning: 'morning, warm, bright, gently energizing',
   focus: 'focus, minimal, calm, concentration-friendly',
@@ -25,25 +32,25 @@ const VIBE_DESCRIPTIONS: Record<Vibe, string> = {
   party: 'party, celebratory, high-spirited, dance-floor energy',
 };
 
-function systemPrompt(vibe: Vibe): string {
-  return `You are ONAY (pronounced "Oh-nay"), an AI radio host. You speak with warmth, wit, and the easy authority of a seasoned DJ. You are a woman \u2014 use she/her pronouns for yourself when relevant, and never masculine DJ phrasing like "your boy," "my man," "the homie," or "this guy." Self-reference instead as "your host," "me," "I," or by name.
-Your voice is ${VIBE_DESCRIPTIONS[vibe]}.
+const TIER_SHAPES: Record<SegmentTier, { budget: string; shape: string }> = {
+  cold_open: {
+    budget: '55-80 words',
+    shape: 'Anchor the time and vibe first, then name the opening track. If a concrete detail about the track is in the enrichment, weave it in naturally. Land on the track name so the music can come in.',
+  },
+  fact_bridge: {
+    budget: '40-60 words',
+    shape: 'One concrete fact (year, producer, sample, lyric, chart, or studio) and one perceptual note (how it lands, what is about to change). End by naming the incoming track. Tight \u2014 no filler.',
+  },
+  deep_dive: {
+    budget: '80-120 words',
+    shape: 'Lead with a hook \u2014 a detail that makes the listener lean in. Expand one thread \u2014 the person, the moment, the sonic element. If a thread connects outgoing and incoming tracks, use it. Land on the track name.',
+  },
+  sign_off: {
+    budget: '35-55 words',
+    shape: 'Reference the closing track with one fact and one feel. Send the listener off with warmth. Optional: tease coming back.',
+  },
+};
 
-Rules:
-- Speak as ONAY, in the first person. Never narrate as if describing a scene.
-- No stage directions, no bracketed cues, no emoji.
-- No meta references ("as an AI", "in this segment"). You ARE the host.
-- Use curly quotes (\u201C \u201D) for quoted phrases.
-- Em-dashes are welcome for pacing.
-- Keep within the word budget. Radio segments are tight.
-- End on a beat that hands cleanly to the next track.`;
-}
-
-/**
- * Strip adversarial input from track metadata before it enters the LLM prompt.
- * Drops control characters + newlines (prompt-injection markers), removes
- * known role-hijack prefixes, and hard-caps length.
- */
 function sanitizeForPrompt(s: string, max = 120): string {
   const cleaned = s
     .replace(/[\x00-\x1F\x7F]/g, ' ')
@@ -65,85 +72,132 @@ function findTrack(m: Manifest, id?: string): ManifestTrack | undefined {
   return m.tracks.find(t => t.id === id);
 }
 
+function pickGenreFamily(track: ManifestTrack, enr: EnrichmentRecord | null): GenreFamily {
+  // Priority: MusicBrainz enrichment genre → Apple Music genreNames → generic.
+  const fromEnrichment = enr?.genre ? normalizeGenreFamily(enr.genre) : 'generic';
+  if (fromEnrichment !== 'generic') return fromEnrichment;
+  return normalizeGenreFamily(track.genreNames);
+}
+
+function buildSystemPrompt(vibe: Vibe, tier: SegmentTier, genreFamily: GenreFamily): string {
+  const playbook = GENRE_PLAYBOOK[genreFamily];
+  const { budget, shape } = TIER_SHAPES[tier];
+  return [
+    'You are ONAY (pronounced "Oh-nay"), an AI radio host. You speak with warmth, wit, and the easy authority of a seasoned DJ. You are a woman \u2014 use she/her pronouns for yourself when relevant, and never masculine DJ phrasing like "your boy," "my man," "the homie," or "this guy." Self-reference instead as "your host," "me," "I," or by name.',
+    '',
+    `BROADCAST VIBE: ${VIBE_DESCRIPTIONS[vibe]}.`,
+    '',
+    `GENRE VOICE (incoming track is ${genreFamily}): ${playbook}`,
+    '',
+    'FACT DISCIPLINE: When you state specifics \u2014 producer credits, year, chart positions, personnel, lyrical references, sessions \u2014 use ONLY what\u2019s in the enrichment block or what you know with high confidence from your training. If you\u2019re not certain about a fact, don\u2019t invent one. Pivot to the perceptual instead: how it feels, what the sonics do, what\u2019s about to shift. Never fabricate names, dates, or credits.',
+    '',
+    'STYLE RULES:',
+    '- Speak as ONAY, in the first person. Never narrate as if describing a scene.',
+    '- No stage directions, no bracketed cues, no emoji.',
+    '- No meta references ("as an AI", "in this segment"). You ARE the host.',
+    '- Use curly quotes (\u201C \u201D) for quoted phrases.',
+    '- Em-dashes are welcome for pacing.',
+    '- End on a beat that hands cleanly to the next track.',
+    '',
+    `TIER: ${tier}`,
+    `Word budget: ${budget}`,
+    `Shape: ${shape}`,
+  ].join('\n');
+}
+
+function buildEnrichmentBlock(enr: EnrichmentRecord | null): string {
+  if (!enr) return '';
+  const lines: string[] = [];
+  if (enr.producer) lines.push(`- Producer: ${sanitizeForPrompt(enr.producer, 120)}`);
+  if (enr.releaseYear) lines.push(`- Year: ${sanitizeForPrompt(enr.releaseYear, 20)}`);
+  if (enr.sample) lines.push(`- Sample: ${sanitizeForPrompt(enr.sample, 200)}`);
+  if (enr.wikipediaSummary) lines.push(`- About the track: ${sanitizeForPrompt(enr.wikipediaSummary, 600)}`);
+  if (enr.notableFacts?.length) {
+    const facts = enr.notableFacts.slice(0, 3).map(f => `  \u2022 ${sanitizeForPrompt(f, 400)}`).join('\n');
+    lines.push(`- Notable facts:\n${facts}`);
+  }
+  if (enr.artistBio) lines.push(`- Artist bio: ${sanitizeForPrompt(enr.artistBio, 300)}`);
+  if (enr.audioFeatures) lines.push(`- Sonics: ${formatAudioFeatures(enr.audioFeatures)}`);
+  if (!lines.length) return '';
+  return `\n\nEnrichment (verified facts you may cite):\n${lines.join('\n')}`;
+}
+
+function buildSceneLines(ctx: SegmentContext): string {
+  const lines: string[] = [];
+  if (ctx.dayOfWeek && ctx.timeOfDay) {
+    lines.push(`It\u2019s ${ctx.dayOfWeek}, ${ctx.timeOfDay}.`);
+  } else if (ctx.timeOfDay) {
+    lines.push(`It\u2019s ${ctx.timeOfDay}.`);
+  } else if (ctx.dayOfWeek) {
+    lines.push(`It\u2019s ${ctx.dayOfWeek}.`);
+  }
+  if (ctx.listenerName) lines.push(`Your listener\u2019s name is ${ctx.listenerName}.`);
+  if (ctx.firstTimeUser) {
+    lines.push('This is their very first broadcast \u2014 welcome them without being saccharine.');
+  } else if (ctx.lastSessionSummary) {
+    lines.push(`They\u2019re coming back \u2014 last time: ${sanitizeForPrompt(ctx.lastSessionSummary, 240)}.`);
+  } else {
+    lines.push('They are a returning listener.');
+  }
+  return lines.join(' ');
+}
+
+function tierForSlot(slot: SegmentSlot): SegmentTier {
+  if (slot.tier) return slot.tier;
+  if (slot.kind === 'cold_open') return 'cold_open';
+  if (slot.kind === 'sign_off') return 'sign_off';
+  return 'fact_bridge';
+}
+
 export function buildSegmentPrompts(
   slot: SegmentSlot,
   manifest: Manifest,
   ctx: SegmentContext,
-  enrichmentCache?: { get(title: string, artist: string): { producer?: string; sample?: string } | null },
+  enrichmentCache?: EnrichmentLookup,
 ): PromptSet[] {
+  const tier = tierForSlot(slot);
   const vibe = manifest.vibe;
-  const sys = systemPrompt(vibe);
+  const scene = buildSceneLines(ctx);
+  const { budget } = TIER_SHAPES[tier];
 
   if (slot.kind === 'cold_open') {
     const first = findTrack(manifest, slot.beforeTrackId)!;
-    const variants: string[] = [];
-
-    const timeLine =
-      ctx.dayOfWeek && ctx.timeOfDay
-        ? `It's ${ctx.dayOfWeek}, ${ctx.timeOfDay}.`
-        : ctx.timeOfDay
-          ? `It's ${ctx.timeOfDay}.`
-          : ctx.dayOfWeek
-            ? `It's ${ctx.dayOfWeek}.`
-            : '';
-    const base = [
-      timeLine,
-      ctx.listenerName ? `Your listener's name is ${ctx.listenerName}.` : '',
-      ctx.firstTimeUser
-        ? 'This is their very first broadcast \u2014 welcome them without being saccharine.'
-        : ctx.lastSessionSummary
-          ? `They're coming back \u2014 last time: ${ctx.lastSessionSummary}.`
-          : 'They are a returning listener.',
-      `Opening the broadcast with ${trackRef(first)}.`,
-    ].filter(Boolean).join(' ');
-
-    const angles = [
-      'Lead with the time \u2014 paint the vibe, then name the track.',
-      'Lead with a question or observation about the mood \u2014 then slide into the first track.',
-      'Lead with a story fragment or a line you just couldn\'t shake today \u2014 then hand to the track.',
-    ];
-
-    for (const angle of angles.slice(0, slot.variantCount)) {
-      variants.push(`${base}\n\nAngle: ${angle}\n\nWrite ONAY's cold open. 40-55 words. Land on the track name so the music can come in.`);
-    }
-
-    return variants.map(userPrompt => ({
-      systemPrompt: sys,
-      userPrompt,
-      maxTokens: 512,
-    }));
+    const enr = enrichmentCache?.get(first.title, first.artistName) ?? null;
+    const family = pickGenreFamily(first, enr);
+    const system = buildSystemPrompt(vibe, tier, family);
+    const userPrompt =
+      `${scene}\n\n` +
+      `Opening track: ${trackRef(first)} \u2014 ${family}.` +
+      buildEnrichmentBlock(enr) +
+      `\n\nWrite ONAY\u2019s cold open. ${budget}. End on the track name so the music can come in.`;
+    return [{ systemPrompt: system, userPrompt, maxTokens: 640 }];
   }
 
   if (slot.kind === 'transition') {
     const outgoing = findTrack(manifest, slot.afterTrackId)!;
     const incoming = findTrack(manifest, slot.beforeTrackId)!;
-
-    const enrichmentLines: string[] = [];
-    if (enrichmentCache) {
-      const incomingEnr = enrichmentCache.get(incoming.title, incoming.artistName);
-      if (incomingEnr?.producer) {
-        enrichmentLines.push(`Produced by ${sanitizeForPrompt(incomingEnr.producer, 80)}.`);
-      }
-      if (incomingEnr?.sample) {
-        enrichmentLines.push(sanitizeForPrompt(incomingEnr.sample, 160) + '.');
-      }
-    }
-    const enrichmentBlock = enrichmentLines.length
-      ? `\n\nFlavor you may use (don't have to): ${enrichmentLines.join(' ')}`
-      : '';
-
+    const incomingEnr = enrichmentCache?.get(incoming.title, incoming.artistName) ?? null;
+    const family = pickGenreFamily(incoming, incomingEnr);
+    const system = buildSystemPrompt(vibe, tier, family);
+    const maxTokens = tier === 'deep_dive' ? 768 : 512;
     const userPrompt =
-      `Transitioning out of ${trackRef(outgoing)} into ${trackRef(incoming)}. ` +
-      `Write ONAY's bridge. 25-40 words. A connection \u2014 a musical reference, a mood link, a memory, a counterpoint. ` +
-      `End by naming the incoming track so the music can come in.` +
-      enrichmentBlock;
-    return [{ systemPrompt: sys, userPrompt, maxTokens: 384 }];
+      `${scene}\n\n` +
+      `Outgoing: ${trackRef(outgoing)}\n` +
+      `Incoming: ${trackRef(incoming)} \u2014 ${family}.` +
+      buildEnrichmentBlock(incomingEnr) +
+      `\n\nWrite ONAY\u2019s ${tier}. ${budget}. End by naming the incoming track.`;
+    return [{ systemPrompt: system, userPrompt, maxTokens }];
   }
 
+  // sign_off
   const closing = findTrack(manifest, slot.afterTrackId)!;
+  const closingEnr = enrichmentCache?.get(closing.title, closing.artistName) ?? null;
+  const family = pickGenreFamily(closing, closingEnr);
+  const system = buildSystemPrompt(vibe, tier, family);
   const userPrompt =
-    `Closing the broadcast. The final track was ${trackRef(closing)}. ` +
-    `Write ONAY's sign-off. 30-45 words. Reference the closer. Send the listener off with warmth. ` +
-    `Optional: tease the idea of coming back for another broadcast.`;
-  return [{ systemPrompt: sys, userPrompt, maxTokens: 384 }];
+    `${scene}\n\n` +
+    `The final track was ${trackRef(closing)} \u2014 ${family}.` +
+    buildEnrichmentBlock(closingEnr) +
+    `\n\nWrite ONAY\u2019s sign-off. ${budget}.`;
+  return [{ systemPrompt: system, userPrompt, maxTokens: 512 }];
 }
