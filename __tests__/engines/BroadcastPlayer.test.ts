@@ -236,6 +236,44 @@ describe('BroadcastPlayer', () => {
       await player.end();
     });
 
+    it('pauses MusicKit after the sign-off so the last track does not auto-resume', async () => {
+      // Regression — the final segment\'s releaseAudioSession uses
+      // .notifyOthersOnDeactivation, which tells Apple MusicKit\'s session
+      // it can resume. Because the queue still contains the last track
+      // (no follow-up music.play replaces it), MusicKit auto-resumes and
+      // the last song starts over after ONAY signs off. The fix: end the
+      // natural-completion path with an explicit music.pause() so
+      // MusicKit is marked user-paused before the release fires.
+      const deps = makeDeps();
+      const player = new BroadcastPlayer(
+        deps.music, deps.native, deps.manifestClient, deps.stingers,
+      );
+      player.start(makeManifest(), ['https://cdn/seg0-v0.mp3']);
+
+      // Cold open → runTrackAt(0)
+      for (let i = 0; i < 40; i++) await Promise.resolve();
+      expect(deps.logs).toContain('play:t0');
+      deps.listeners.state?.({ status: 'playing', playbackTime: 179 });
+      deps.listeners.state?.({ status: 'paused',  playbackTime: 0 });
+
+      // Transition → runTrackAt(1)
+      for (let i = 0; i < 40; i++) await Promise.resolve();
+      expect(deps.logs).toContain('play:t1');
+      deps.listeners.state?.({ status: 'playing', playbackTime: 179 });
+      deps.listeners.state?.({ status: 'paused',  playbackTime: 0 });
+
+      // Sign off + post-loop teardown
+      for (let i = 0; i < 40; i++) await Promise.resolve();
+
+      const signOff = deps.logs.findIndex(l => l.startsWith('tts:BASE64_seg2'));
+      const pause   = deps.logs.indexOf('music.pause');
+      expect(signOff).toBeGreaterThan(-1);
+      expect(pause).toBeGreaterThan(signOff);
+      expect(player.getStatus().state).toBe('ended');
+
+      await player.end();
+    });
+
     it('does NOT advance on user pause (time does not reset to 0)', async () => {
       const deps = makeDeps();
       const player = new BroadcastPlayer(
