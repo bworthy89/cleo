@@ -39,6 +39,14 @@ export function preprocessForTTS(text: string): string {
   // came out as "cont" in testing. Straight ASCII routes through the
   // contraction phoneme path cleanly.
   out = out.replace(/[\u2018\u2019\u02BC\u2032]/g, "'");
+  // Em-dashes (U+2014) and en-dashes (U+2013) used for pacing in prose
+  // get interpreted by TTS models as strong structural breaks — louder
+  // pauses than commas, often longer than intended. The LLM writes with
+  // them as a style choice; collapse to a simple comma so Chatterbox /
+  // Cartesia render a natural clause pause. Also normalize horizontal
+  // ellipsis (U+2026) to three dots so TTS doesn't trail off unpredictably.
+  out = out.replace(/\s*[\u2014\u2013]\s*/g, ', ');
+  out = out.replace(/\u2026/g, '...');
   // Collapse single-letter initialisms like K.R.I.T. / U.S.A. / B.I.G. so
   // TTS reads them as one word rather than spelling each letter with a
   // period-pause between. Chatterbox was truncating "K.R.I.T." to "K"
