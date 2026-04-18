@@ -15,14 +15,14 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import auth from '@react-native-firebase/auth';
 import { AM, Fonts, Space, TypeScale } from '../../tokens/design-tokens';
 import { BroadcastBackdrop } from '../../components/BroadcastBackdrop';
-import { AmberCTA } from '../../components/AmberCTA';
-import { HairlineRow } from '../../components/HairlineRow';
+import { StampButton, SectionMarker, LinerNotes, SleeveArt, Tick, SettingsCog } from '../../components/crate';
 import { curatePlaylist, refinePlaylist, CuratedPlaylist } from '../../engines/PlaylistCurator';
 import { createPlaylist, authorize } from '../../../modules/expo-music-kit';
 import { BroadcastCurationClient } from '../../engines/BroadcastCurationClient';
 import { BroadcastManifestClient } from '../../engines/BroadcastManifestClient';
 import { broadcastPlayer } from '../../engines/BroadcastPlayer.singleton';
 import { isCurator } from '../../config/curators';
+import { useAppActive } from '../../hooks/useAppActive';
 
 type MessageRole = 'user' | 'onay' | 'playlist' | 'loading' | 'error';
 
@@ -33,33 +33,36 @@ interface ChatMessage {
   playlist?: CuratedPlaylist;
 }
 
-// ─────────────────────────── Typing indicator ───────────────────────────
+// ─────────────────────── Tonearm "thinking" indicator ───────────────────────
 
-function TypingIndicator() {
-  const dots = [useRef(new Animated.Value(0.3)).current,
-                useRef(new Animated.Value(0.3)).current,
-                useRef(new Animated.Value(0.3)).current];
-
+function TonearmThinking() {
+  const sway = useRef(new Animated.Value(0)).current;
+  const appActive = useAppActive();
   useEffect(() => {
-    const animate = (dot: Animated.Value, delay: number) =>
-      Animated.loop(
-        Animated.sequence([
-          Animated.delay(delay),
-          Animated.timing(dot, { toValue: 1, duration: 300, useNativeDriver: true }),
-          Animated.timing(dot, { toValue: 0.3, duration: 300, useNativeDriver: true }),
-          Animated.delay(600 - delay),
-        ]),
-      );
-    const loops = [animate(dots[0], 0), animate(dots[1], 200), animate(dots[2], 400)];
-    loops.forEach(l => l.start());
-    return () => loops.forEach(l => l.stop());
-  }, [dots]);
+    if (!appActive) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(sway, { toValue: 1, duration: 1400, useNativeDriver: true }),
+        Animated.timing(sway, { toValue: 0, duration: 1400, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [appActive, sway]);
+  const rot = sway.interpolate({ inputRange: [0, 1], outputRange: ['-3deg', '6deg'] });
 
   return (
-    <View style={styles.typingWrap}>
-      {dots.map((dot, i) => (
-        <Animated.View key={i} style={[styles.typingDot, { opacity: dot }]} />
-      ))}
+    <View style={styles.thinkRow}>
+      <Animated.View style={{
+        width: 40, height: 18, transform: [{ rotate: rot }],
+        transformOrigin: '100% 50%',
+        flexDirection: 'row', alignItems: 'center',
+      }}>
+        <View style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: AM.amber }} />
+        <View style={{ flex: 1, height: 1.2, backgroundColor: AM.amber }} />
+        <View style={{ width: 3, height: 3, borderRadius: 1.5, backgroundColor: AM.oxblood }} />
+      </Animated.View>
+      <Text style={styles.thinkLabel}>FLIPPING THROUGH THE CRATES…</Text>
     </View>
   );
 }
@@ -74,9 +77,7 @@ export function AskOnayScreen() {
   const flatListRef = useRef<FlatList>(null);
   const messageIdCounter = useRef(1);
 
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    { id: 'welcome', role: 'onay', text: 'What kind of playlist are you in the mood for?' },
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [currentPlaylist, setCurrentPlaylist] = useState<CuratedPlaylist | null>(null);
@@ -87,7 +88,6 @@ export function AskOnayScreen() {
 
   const nextId = () => String(messageIdCounter.current++);
 
-  // Declared above first consumer so hoisting is legal for both TS and humans.
   const addMessage = useCallback((msg: Omit<ChatMessage, 'id'>) => {
     const id = nextId();
     setMessages(prev => [...prev, { ...msg, id }]);
@@ -120,22 +120,6 @@ export function AskOnayScreen() {
 
   const executeCuration = useCallback(async (prompt: string) => {
     addMessage({ role: 'user', text: prompt });
-
-    const teasers = [
-      'Let me dig in the crates for you\u2026',
-      'I know just the vibe. Give me a second\u2026',
-      'Oh, I\u2019ve been waiting for this one\u2026',
-      'Say less. I\u2019m on it\u2026',
-      'Pulling from the archives\u2026',
-      'I\u2019ve got something special in mind\u2026',
-      'This is going to be good. Hold on\u2026',
-      'Let me curate something worth your time\u2026',
-      'I see where you\u2019re going with this\u2026',
-      'Already hearing it in my head\u2026',
-    ];
-    const teaser = teasers[Math.floor(Math.random() * teasers.length)];
-    addMessage({ role: 'onay', text: teaser });
-
     setIsGenerating(true);
     const loadingId = addMessage({ role: 'loading' });
     try {
@@ -153,7 +137,6 @@ export function AskOnayScreen() {
     }
   }, [addMessage, removeMessage]);
 
-  // Pre-filled suggestion from Home's "ONAY suggests" (legacy entry point)
   const pendingSuggestionRef = useRef<string | null>(null);
   useEffect(() => {
     if (!params.suggestion) return;
@@ -181,7 +164,6 @@ export function AskOnayScreen() {
 
     setInputText('');
     addMessage({ role: 'user', text });
-
     setIsGenerating(true);
     const loadingId = addMessage({ role: 'loading' });
     try {
@@ -215,19 +197,17 @@ export function AskOnayScreen() {
     }
   }, [inputText, isGenerating, currentPlaylist, originalPrompt, addMessage, removeMessage, checkGuards]);
 
-  const handleRefineChip = useCallback(async (text: string) => {
+  const handleSteer = useCallback(async (option: string) => {
     if (isGenerating || !currentPlaylist) return;
     if (!(await checkGuards())) return;
-
     setInputText('');
-    addMessage({ role: 'user', text });
-
+    addMessage({ role: 'user', text: option });
     setIsGenerating(true);
     const loadingId = addMessage({ role: 'loading' });
     try {
       const result = await refinePlaylist(
         {
-          userFeedback: text,
+          userFeedback: option,
           existingTracks: currentPlaylist.tracks.map(t => ({
             title: t.title,
             artist: t.artistName,
@@ -250,7 +230,7 @@ export function AskOnayScreen() {
 
   const handleSave = useCallback(async (playlist: CuratedPlaylist) => {
     try {
-      const description = `${playlist.playlistDescription} \u2014 Curated by ONAY`;
+      const description = `${playlist.playlistDescription} — Curated by ONAY`;
       await createPlaylist(playlist.playlistTitle, description, playlist.trackIds);
       Alert.alert('Saved', `"${playlist.playlistTitle}" added to your Apple Music library.`);
     } catch {
@@ -303,7 +283,7 @@ export function AskOnayScreen() {
 
     Alert.prompt?.(
       'Publish as Tonight on ONAY',
-      'This will bake the broadcast and show it on every user\u2019s home screen. Confirm the title:',
+      'This will bake the broadcast and show it on every user’s home screen. Confirm the title:',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -347,59 +327,21 @@ export function AskOnayScreen() {
     );
   }, [publishing]);
 
-  // Steering: tapping a classifier-proposed option re-runs curation with
-  // the option treated as user feedback. Full regeneration for now;
-  // surgical edit (modify intent + pool) comes in a follow-up commit.
-  const handleSteer = useCallback(async (option: string) => {
-    if (isGenerating || !currentPlaylist) return;
-    if (!(await checkGuards())) return;
-
-    setInputText('');
-    addMessage({ role: 'user', text: option });
-
-    setIsGenerating(true);
-    const loadingId = addMessage({ role: 'loading' });
-    try {
-      const result = await refinePlaylist(
-        {
-          userFeedback: option,
-          existingTracks: currentPlaylist.tracks.map(t => ({
-            title: t.title,
-            artist: t.artistName,
-          })),
-        },
-        originalPrompt,
-        currentPlaylist.suggestedVibe,
-      );
-      removeMessage(loadingId);
-      setCurrentPlaylist(result);
-      addMessage({ role: 'onay', text: result.conversationalResponse });
-      addMessage({ role: 'playlist', playlist: result });
-    } catch (err: any) {
-      removeMessage(loadingId);
-      addMessage({ role: 'error', text: err?.message || 'Something went wrong. Try again.' });
-    } finally {
-      setIsGenerating(false);
-    }
-  }, [isGenerating, currentPlaylist, originalPrompt, addMessage, removeMessage, checkGuards]);
-
   const handleNewPlaylist = useCallback(() => {
     setCurrentPlaylist(null);
     setOriginalPrompt('');
-    addMessage({
-      role: 'onay',
-      text: 'Alright, clean slate. What are we building next?',
-    });
-  }, [addMessage]);
+    setMessages([]);
+  }, []);
 
   // ──────────────────────────── Render ────────────────────────────
 
   const renderMessage = useCallback(({ item }: { item: ChatMessage }) => {
-    if (item.role === 'loading') return <TypingIndicator />;
+    if (item.role === 'loading') return <TonearmThinking />;
 
     if (item.role === 'error') {
       return (
         <View style={styles.errorBlock}>
+          <Text style={styles.errorHeader}>A HITCH —</Text>
           <Text style={styles.errorText}>{item.text}</Text>
           {originalPrompt ? (
             <Pressable
@@ -411,7 +353,7 @@ export function AskOnayScreen() {
               accessibilityLabel="Retry"
               style={({ pressed }) => [styles.retryBtn, pressed && { opacity: 0.6 }]}
             >
-              <Text style={styles.retryText}>retry</Text>
+              <Text style={styles.retryText}>TRY AGAIN →</Text>
             </Pressable>
           ) : null}
         </View>
@@ -420,8 +362,9 @@ export function AskOnayScreen() {
 
     if (item.role === 'user') {
       return (
-        <View style={styles.userWrap}>
-          <Text style={styles.userText}>{item.text}</Text>
+        <View style={styles.requestBlock}>
+          <Text style={styles.requestHeader}>YOU ASKED —</Text>
+          <Text style={styles.requestText}>&ldquo;{item.text}&rdquo;</Text>
         </View>
       );
     }
@@ -429,7 +372,7 @@ export function AskOnayScreen() {
     if (item.role === 'onay') {
       return (
         <View style={styles.onayWrap}>
-          <Text style={styles.onayLabel}>ONAY</Text>
+          <Text style={styles.onayLabel}>ONAY&rsquo;S TAKE —</Text>
           <Text style={styles.onayText}>{item.text}</Text>
         </View>
       );
@@ -437,66 +380,111 @@ export function AskOnayScreen() {
 
     if (item.role === 'playlist' && item.playlist) {
       const pl = item.playlist;
-      return (
-        <View style={styles.playlistWrap}>
-          {pl.stance ? (
-            <Text style={styles.stanceText}>{pl.stance}</Text>
-          ) : null}
-          <Text style={styles.playlistTitle}>{pl.playlistTitle}</Text>
-          <Text style={styles.playlistMeta}>{pl.tracks.length} tracks</Text>
-          <View style={{ marginTop: Space.s10 }}>
-            {pl.tracks.map((track, idx) => (
-              <HairlineRow
-                key={track.id}
-                topRule={idx === 0}
-                verticalPadding={Space.s10}
-                leading={<Text style={styles.trackNum}>{String(idx + 1).padStart(2, '0')}</Text>}
-                leadingWidth={28}
-                value={
-                  <View>
-                    <Text style={styles.trackTitle} numberOfLines={1}>{track.title}</Text>
-                    <Text style={styles.trackArtist} numberOfLines={1}>{track.artistName}</Text>
-                  </View>
-                }
-              />
-            ))}
-          </View>
+      const sleeves = pl.tracks.slice(0, 5);
+      const remaining = Math.max(0, pl.tracks.length - sleeves.length);
+      const totalMin = Math.round(pl.tracks.reduce((a, t) => a + (t.duration ?? 180), 0) / 60);
 
-          {pl.options && pl.options.length > 0 ? (
-            <View style={styles.optionsBlock}>
-              <Text style={styles.optionsLabel}>STEER</Text>
-              <View style={styles.optionsChips}>
-                {pl.options.map(opt => (
-                  <Pressable
-                    key={opt}
-                    onPress={() => handleSteer(opt)}
-                    disabled={isGenerating}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Steer: ${opt}`}
-                    style={({ pressed }) => [styles.optionChip, pressed && { opacity: 0.6 }]}
-                  >
-                    <Text style={styles.optionChipText}>{opt}</Text>
-                  </Pressable>
-                ))}
-              </View>
+      return (
+        <View>
+          {/* Stance / angle */}
+          {pl.stance ? (
+            <View style={styles.stance}>
+              <Text style={styles.stanceHeader}>ONAY&rsquo;S ANGLE —</Text>
+              <Text style={styles.stanceText}>{pl.stance}</Text>
             </View>
           ) : null}
 
-          <View style={{ height: Space.s22 }} />
-          <AmberCTA
-            label="Take it live"
-            onPress={() => handleTakeLive(pl)}
-            accessibilityHint="Bake and play this as a broadcast"
-          />
+          {/* Plate */}
+          <View style={styles.plate}>
+            <Tick pos="tl" color={AM.ruleStrong} bg={AM.bg} />
+            <Tick pos="tr" color={AM.ruleStrong} bg={AM.bg} />
+            <Tick pos="bl" color={AM.ruleStrong} bg={AM.bg} />
+            <Tick pos="br" color={AM.ruleStrong} bg={AM.bg} />
 
-          <Pressable
-            onPress={() => handleSave(pl)}
-            accessibilityRole="button"
-            accessibilityLabel="Save to Apple Music"
-            style={({ pressed }) => [styles.secondary, pressed && { opacity: 0.6 }]}
-          >
-            <Text style={styles.secondaryText}>save to apple music</Text>
-          </Pressable>
+            <View style={styles.plateHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.plateKicker}>ONAY&rsquo;S PICK · DRAFT I</Text>
+                <Text style={styles.plateTitle} numberOfLines={2}>
+                  {pl.playlistTitle.toUpperCase()}
+                </Text>
+              </View>
+              <View style={{ alignItems: 'flex-end' }}>
+                <Text style={styles.plateMetaMono}>
+                  {pl.tracks.length.toString().padStart(2, '0')} TRACKS
+                </Text>
+                <Text style={styles.plateMetaMono}>{totalMin} MIN</Text>
+              </View>
+            </View>
+
+            {/* Sleeve preview row */}
+            <View style={styles.sleeveRow}>
+              {sleeves.map((t, i) => (
+                <SleeveArt
+                  key={t.id}
+                  title={t.title}
+                  artist={t.artistName}
+                  size={46}
+                  artworkUrl={t.artworkUrl}
+                />
+              ))}
+              {remaining > 0 && (
+                <View style={styles.sleeveMore}>
+                  <Text style={styles.sleeveMoreText}>+{remaining}</Text>
+                </View>
+              )}
+            </View>
+
+            {/* Track list — catalog */}
+            <View>
+              {pl.tracks.map((t, i) => (
+                <View
+                  key={t.id}
+                  style={[styles.trackRow, i < pl.tracks.length - 1 && styles.trackRowDot]}
+                >
+                  <Text style={styles.trackNum}>{String(i + 1).padStart(2, '0')}</Text>
+                  <View style={styles.trackMid}>
+                    <Text style={styles.trackTitle} numberOfLines={1}>
+                      {t.title.toUpperCase()}
+                    </Text>
+                    <Text style={styles.trackArtist} numberOfLines={1}>{t.artistName}</Text>
+                  </View>
+                  <Text style={styles.trackYear}>
+                    {(t.albumTitle || '').slice(0, 10).toUpperCase() || '—'}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </View>
+
+          {/* Take it live */}
+          <View style={{ marginTop: Space.s18 }}>
+            <StampButton
+              label="TAKE IT LIVE"
+              sub="BEGIN BROADCASTING"
+              onPress={() => handleTakeLive(pl)}
+              accessibilityHint="Bake and play this as a broadcast"
+            />
+          </View>
+
+          {/* Secondary actions */}
+          <View style={styles.secondaryGrid}>
+            <Pressable
+              onPress={() => handleSave(pl)}
+              accessibilityRole="button"
+              accessibilityLabel="Save to Apple Music"
+              style={({ pressed }) => [styles.secondary, pressed && { opacity: 0.6 }]}
+            >
+              <Text style={styles.secondaryText}>SAVE TO APPLE MUSIC</Text>
+            </Pressable>
+            <Pressable
+              onPress={handleNewPlaylist}
+              accessibilityRole="button"
+              accessibilityLabel="Another pass"
+              style={({ pressed }) => [styles.secondary, pressed && { opacity: 0.6 }]}
+            >
+              <Text style={styles.secondaryText}>ANOTHER PASS</Text>
+            </Pressable>
+          </View>
 
           {canCurate && (
             <Pressable
@@ -504,41 +492,36 @@ export function AskOnayScreen() {
               disabled={publishing}
               accessibilityRole="button"
               accessibilityLabel="Publish as Tonight on ONAY"
-              style={({ pressed }) => [styles.secondary, pressed && { opacity: 0.6 }]}
+              style={({ pressed }) => [styles.curatorBtn, pressed && { opacity: 0.6 }]}
             >
-              <Text style={styles.secondaryText}>
-                {publishing ? 'publishing\u2026' : 'publish as tonight on onay'}
+              <Text style={styles.curatorText}>
+                {publishing ? 'PUBLISHING…' : 'PUBLISH AS TONIGHT ON ONAY'}
               </Text>
-              <Text style={styles.curatorOnly}>curator only</Text>
+              <Text style={styles.curatorOnly}>CURATOR ONLY</Text>
             </Pressable>
           )}
 
-          <View style={styles.refineBlock}>
-            <Text style={styles.refineLabel}>REFINE</Text>
-            <View style={styles.refineChips}>
-              {['more upbeat', 'more chill', 'longer', 'shorter', 'more variety'].map(s => (
-                <Pressable
-                  key={s}
-                  onPress={() => handleRefineChip(s)}
-                  disabled={isGenerating}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Refine: ${s}`}
-                  style={({ pressed }) => [styles.chip, pressed && { opacity: 0.6 }]}
-                >
-                  <Text style={styles.chipText}>{s}</Text>
-                </Pressable>
-              ))}
-            </View>
-          </View>
-
-          <Pressable
-            onPress={handleNewPlaylist}
-            accessibilityRole="button"
-            accessibilityLabel="Start a new playlist"
-            style={({ pressed }) => [styles.newBtn, pressed && { opacity: 0.6 }]}
-          >
-            <Text style={styles.newBtnText}>new playlist</Text>
-          </Pressable>
+          {/* Steering */}
+          {pl.options && pl.options.length > 0 && (
+            <>
+              <SectionMarker num="B·04" title="A DIFFERENT ANGLE" side="STEER" />
+              <View style={{ gap: 2 }}>
+                {pl.options.map(opt => (
+                  <Pressable
+                    key={opt}
+                    onPress={() => handleSteer(opt)}
+                    disabled={isGenerating}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Steer: ${opt}`}
+                    style={({ pressed }) => [styles.steerRow, pressed && { opacity: 0.6 }]}
+                  >
+                    <Text style={styles.steerText}>&ldquo;{opt}&rdquo;</Text>
+                    <Text style={styles.steerArrow}>→</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </>
+          )}
         </View>
       );
     }
@@ -550,7 +533,6 @@ export function AskOnayScreen() {
     executeCuration,
     handleNewPlaylist,
     handlePublishFeatured,
-    handleRefineChip,
     handleSave,
     handleSteer,
     handleTakeLive,
@@ -558,6 +540,16 @@ export function AskOnayScreen() {
     originalPrompt,
     publishing,
   ]);
+
+  const headerComponent = (
+    <View>
+      <View style={styles.greeting}>
+        <LinerNotes>
+          Tell me a mood, a weather, a memory — or name a record and I&rsquo;ll find its neighbors.
+        </LinerNotes>
+      </View>
+    </View>
+  );
 
   return (
     <BroadcastBackdrop>
@@ -568,16 +560,23 @@ export function AskOnayScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <Pressable
-            onPress={() => router.back()}
-            accessibilityRole="button"
-            accessibilityLabel="Go back"
-            hitSlop={12}
-          >
-            <Text style={styles.backText}>{'\u2190'}</Text>
-          </Pressable>
-          <Text style={styles.headerWordmark}>ask onay</Text>
-          <View style={{ width: 20 }} />
+          <View style={styles.headerLeft}>
+            {router.canGoBack() && (
+              <Pressable
+                onPress={() => router.back()}
+                accessibilityRole="button"
+                accessibilityLabel="Go back"
+                hitSlop={12}
+                style={({ pressed }) => [pressed && { opacity: 0.6 }]}
+              >
+                <Text style={styles.backText}>← BACK</Text>
+              </Pressable>
+            )}
+          </View>
+          <Text style={styles.headerWordmark}>ASK ONAY</Text>
+          <View style={styles.headerRight}>
+            <SettingsCog />
+          </View>
         </View>
 
         <FlatList
@@ -587,18 +586,21 @@ export function AskOnayScreen() {
           keyExtractor={item => item.id}
           style={styles.list}
           contentContainerStyle={styles.listContent}
+          ListHeaderComponent={headerComponent}
           onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
           keyboardDismissMode="interactive"
           keyboardShouldPersistTaps="handled"
         />
 
+        {/* Typewriter input bar */}
         <View style={[styles.inputBar, { paddingBottom: Math.max(insets.bottom, Space.s10) }]}>
+          <Text style={styles.inputPrefix}>ASK →</Text>
           <TextInput
             ref={inputRef}
             style={styles.input}
             value={inputText}
             onChangeText={setInputText}
-            placeholder={currentPlaylist ? 'refine it\u2026' : 'what do you want to hear?'}
+            placeholder={currentPlaylist ? 'refine it…' : 'tell me a mood…'}
             placeholderTextColor={AM.inkDim}
             returnKeyType="send"
             onSubmitEditing={handleSend}
@@ -613,13 +615,14 @@ export function AskOnayScreen() {
             disabled={isGenerating || !inputText.trim()}
             accessibilityRole="button"
             accessibilityLabel="Send message"
+            hitSlop={10}
             style={({ pressed }) => [
-              styles.sendBtn,
-              (!inputText.trim() || isGenerating) && styles.sendBtnDisabled,
+              styles.pullBtn,
+              (!inputText.trim() || isGenerating) && { opacity: 0.35 },
               pressed && { opacity: 0.6 },
             ]}
           >
-            <Text style={styles.sendText}>send {'\u203A'}</Text>
+            <Text style={styles.pullText}>PULL</Text>
           </Pressable>
         </View>
       </KeyboardAvoidingView>
@@ -632,85 +635,298 @@ export function AskOnayScreen() {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
 
-  // Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: Space.s26,
+    paddingHorizontal: Space.s20,
     paddingTop: Space.s10,
-    paddingBottom: Space.s18,
-    borderBottomWidth: 1,
-    borderBottomColor: AM.amberFaint,
+    paddingBottom: Space.s14,
+    borderBottomWidth: 0.5,
+    borderBottomColor: AM.rule,
+  },
+  headerLeft: {
+    width: 72,
+    alignItems: 'flex-start',
+  },
+  headerRight: {
+    width: 72,
+    alignItems: 'flex-end',
   },
   backText: {
     color: AM.inkMid,
-    fontFamily: Fonts.display,
-    fontSize: TypeScale.s22,
-  },
-  headerWordmark: {
     fontFamily: Fonts.mono,
     fontSize: TypeScale.s10,
-    letterSpacing: 3,
-    color: AM.amberDim,
+    letterSpacing: 2,
+  },
+  headerWordmark: {
+    fontFamily: Fonts.display,
+    fontSize: TypeScale.s16,
+    color: AM.ink,
+    letterSpacing: 2,
   },
 
-  // Message list
   list: { flex: 1 },
   listContent: {
-    paddingHorizontal: Space.s26,
-    paddingTop: Space.s22,
+    paddingHorizontal: Space.s20,
+    paddingTop: Space.s14,
     paddingBottom: Space.s22,
-    gap: Space.s18,
+    gap: Space.s22,
   },
 
-  // ONAY messages — italic serif, left-aligned
+  greeting: {
+    marginBottom: Space.s10,
+  },
+
+  requestBlock: {
+    gap: Space.s8,
+  },
+  requestHeader: {
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s9,
+    color: AM.inkDim,
+    letterSpacing: 2.5,
+  },
+  requestText: {
+    fontFamily: Fonts.serif,
+    fontStyle: 'italic',
+    fontSize: TypeScale.s20,
+    color: AM.ink,
+    lineHeight: TypeScale.s20 * 1.35,
+  },
+
   onayWrap: {
-    alignSelf: 'flex-start',
-    maxWidth: '92%',
-    gap: Space.s6,
+    paddingVertical: Space.s14,
+    borderTopWidth: 0.5,
+    borderBottomWidth: 0.5,
+    borderColor: AM.rule,
+    gap: Space.s8,
   },
   onayLabel: {
     fontFamily: Fonts.mono,
-    fontSize: TypeScale.s10,
+    fontSize: TypeScale.s9,
+    color: AM.oxblood,
     letterSpacing: 2.5,
-    color: AM.amberDim,
   },
   onayText: {
-    fontFamily: Fonts.display,
-    fontSize: TypeScale.s16,
+    fontFamily: Fonts.serif,
     fontStyle: 'italic',
-    color: AM.ink,
-    lineHeight: TypeScale.s16 * 1.5,
+    fontSize: TypeScale.s15,
+    color: AM.inkMid,
+    lineHeight: TypeScale.s15 * 1.55,
   },
 
-  // User messages — mono, right-aligned, subdued
-  userWrap: {
-    alignSelf: 'flex-end',
-    maxWidth: '80%',
+  stance: {
+    marginBottom: Space.s18,
+    gap: Space.s8,
   },
-  userText: {
+  stanceHeader: {
     fontFamily: Fonts.mono,
-    fontSize: TypeScale.s13,
+    fontSize: TypeScale.s9,
+    color: AM.oxblood,
+    letterSpacing: 2.5,
+  },
+  stanceText: {
+    fontFamily: Fonts.serif,
+    fontStyle: 'italic',
+    fontSize: TypeScale.s15,
     color: AM.inkMid,
-    letterSpacing: 0.5,
+    lineHeight: TypeScale.s15 * 1.55,
+  },
+
+  plate: {
+    position: 'relative',
+    borderWidth: 1,
+    borderColor: AM.ruleStrong,
+    padding: 14,
+    backgroundColor: AM.bgDeep,
+  },
+  plateHeader: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: Space.s10,
+    borderBottomWidth: 1,
+    borderBottomColor: AM.rule,
+    paddingBottom: 10,
+    marginBottom: 10,
+  },
+  plateKicker: {
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s9,
+    color: AM.oxblood,
+    letterSpacing: 2.5,
+  },
+  plateTitle: {
+    marginTop: 4,
+    fontFamily: Fonts.display,
+    fontSize: TypeScale.s22,
+    color: AM.ink,
+    letterSpacing: 0.3,
+    lineHeight: TypeScale.s22,
+  },
+  plateMetaMono: {
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s9,
+    color: AM.inkDim,
+    letterSpacing: 2,
+  },
+  sleeveRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginBottom: 12,
+  },
+  sleeveMore: {
+    width: 46, height: 46,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 0.5,
+    borderStyle: 'dashed',
+    borderColor: AM.inkDim,
+  },
+  sleeveMoreText: {
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s10,
+    color: AM.inkDim,
+  },
+  trackRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    paddingVertical: 7,
+    gap: 10,
+  },
+  trackRowDot: {
+    borderBottomWidth: 0.5,
+    borderBottomColor: AM.rule,
+  },
+  trackNum: {
+    width: 28,
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s9,
+    color: AM.amberDim,
+    letterSpacing: 1,
+  },
+  trackMid: {
+    flex: 1,
+    minWidth: 0,
+  },
+  trackTitle: {
+    fontFamily: Fonts.display,
+    fontSize: TypeScale.s14,
+    color: AM.ink,
+    letterSpacing: 0.3,
+    lineHeight: TypeScale.s14 * 1.1,
+  },
+  trackArtist: {
+    marginTop: 2,
+    fontFamily: Fonts.serif,
+    fontStyle: 'italic',
+    fontSize: TypeScale.s11,
+    color: AM.inkMid,
+  },
+  trackYear: {
+    fontFamily: Fonts.mono,
+    fontSize: 8,
+    color: AM.inkDim,
+    letterSpacing: 1.5,
     textAlign: 'right',
-    lineHeight: TypeScale.s13 * 1.5,
+  },
+
+  secondaryGrid: {
+    marginTop: Space.s10,
+    flexDirection: 'row',
+    gap: Space.s10,
+  },
+  secondary: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    borderWidth: 0.5,
+    borderColor: AM.rule,
+    alignItems: 'center',
+  },
+  secondaryText: {
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s9,
+    letterSpacing: 2,
+    color: AM.inkMid,
+  },
+
+  curatorBtn: {
+    marginTop: Space.s10,
+    paddingVertical: 12,
+    borderWidth: 0.5,
+    borderColor: AM.oxbloodDim,
+    alignItems: 'center',
+  },
+  curatorText: {
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s9,
+    letterSpacing: 2,
+    color: AM.oxblood,
+  },
+  curatorOnly: {
+    marginTop: 4,
+    fontFamily: Fonts.mono,
+    fontSize: 8,
+    letterSpacing: 2,
+    color: AM.inkDim,
+  },
+
+  steerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    borderBottomWidth: 0.5,
+    borderBottomColor: AM.rule,
+  },
+  steerText: {
+    fontFamily: Fonts.serif,
+    fontStyle: 'italic',
+    fontSize: TypeScale.s14,
+    color: AM.amber,
+    letterSpacing: 0.2,
+    flex: 1,
+  },
+  steerArrow: {
+    fontFamily: Fonts.display,
+    fontSize: TypeScale.s16,
+    color: AM.amber,
+  },
+
+  // Thinking indicator
+  thinkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+  },
+  thinkLabel: {
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s10,
+    color: AM.amberDim,
+    letterSpacing: 2.5,
   },
 
   // Error
   errorBlock: {
-    alignSelf: 'flex-start',
-    paddingTop: Space.s10,
-    paddingBottom: Space.s10,
-    borderTopWidth: 1,
-    borderTopColor: AM.amberFaint,
+    paddingVertical: Space.s14,
+    borderTopWidth: 0.5,
+    borderBottomWidth: 0.5,
+    borderColor: AM.rule,
     gap: Space.s8,
   },
+  errorHeader: {
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s9,
+    color: AM.oxblood,
+    letterSpacing: 2.5,
+  },
   errorText: {
-    fontFamily: Fonts.display,
-    fontSize: TypeScale.s16,
+    fontFamily: Fonts.serif,
     fontStyle: 'italic',
+    fontSize: TypeScale.s16,
     color: AM.ink,
   },
   retryBtn: { alignSelf: 'flex-start' },
@@ -721,187 +937,41 @@ const styles = StyleSheet.create({
     color: AM.amber,
   },
 
-  // Typing dots
-  typingWrap: {
-    flexDirection: 'row',
-    alignSelf: 'flex-start',
-    gap: Space.s4,
-    paddingVertical: Space.s8,
-  },
-  typingDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: AM.amber,
-  },
-
-  // Playlist card — no bubble, just a sectioned block
-  playlistWrap: {
-    marginTop: Space.s10,
-  },
-  stanceText: {
-    fontFamily: Fonts.display,
-    fontSize: TypeScale.s15,
-    fontStyle: 'italic',
-    color: AM.inkMid,
-    lineHeight: TypeScale.s15 * 1.55,
-    marginBottom: Space.s18,
-    paddingBottom: Space.s14,
-    borderBottomWidth: 1,
-    borderBottomColor: AM.amberFaint,
-  },
-  playlistTitle: {
-    fontFamily: Fonts.display,
-    fontSize: TypeScale.s22,
-    fontStyle: 'italic',
-    color: AM.ink,
-  },
-  optionsBlock: {
-    marginTop: Space.s22,
-    paddingTop: Space.s14,
-    borderTopWidth: 1,
-    borderTopColor: AM.amberFaint,
-  },
-  optionsLabel: {
-    fontFamily: Fonts.mono,
-    fontSize: TypeScale.s10,
-    letterSpacing: 2,
-    color: AM.inkDim,
-    marginBottom: Space.s10,
-  },
-  optionsChips: {
-    gap: Space.s8,
-  },
-  optionChip: {
-    borderWidth: 1,
-    borderColor: AM.amberFaint,
-    paddingHorizontal: Space.s14,
-    paddingVertical: Space.s10,
-  },
-  optionChipText: {
-    fontFamily: Fonts.display,
-    fontSize: TypeScale.s14,
-    fontStyle: 'italic',
-    color: AM.amber,
-    lineHeight: TypeScale.s14 * 1.4,
-  },
-  playlistMeta: {
-    marginTop: Space.s6,
-    fontFamily: Fonts.mono,
-    fontSize: TypeScale.s10,
-    letterSpacing: 2,
-    color: AM.amberDim,
-  },
-  trackNum: {
-    fontFamily: Fonts.mono,
-    fontSize: TypeScale.s10,
-    letterSpacing: 1,
-    color: AM.amberDim,
-  },
-  trackTitle: {
-    fontFamily: Fonts.display,
-    fontSize: TypeScale.s16,
-    fontStyle: 'italic',
-    color: AM.ink,
-  },
-  trackArtist: {
-    marginTop: 2,
-    fontFamily: Fonts.mono,
-    fontSize: TypeScale.s10,
-    letterSpacing: 1,
-    color: AM.inkDim,
-  },
-
-  // Secondary action text buttons
-  secondary: {
-    alignItems: 'center',
-    paddingVertical: Space.s14,
-  },
-  secondaryText: {
-    fontFamily: Fonts.mono,
-    fontSize: TypeScale.s10,
-    letterSpacing: 2,
-    color: AM.amber,
-  },
-  curatorOnly: {
-    marginTop: Space.s4,
-    fontFamily: Fonts.mono,
-    fontSize: TypeScale.s9,
-    letterSpacing: 2,
-    color: AM.inkDim,
-  },
-
-  // Refine
-  refineBlock: {
-    marginTop: Space.s22,
-    paddingTop: Space.s14,
-    borderTopWidth: 1,
-    borderTopColor: AM.amberFaint,
-  },
-  refineLabel: {
-    fontFamily: Fonts.mono,
-    fontSize: TypeScale.s10,
-    letterSpacing: 2,
-    color: AM.inkDim,
-    marginBottom: Space.s10,
-  },
-  refineChips: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Space.s8,
-  },
-  chip: {
-    borderWidth: 1,
-    borderColor: AM.amberFaint,
-    paddingHorizontal: Space.s14,
-    paddingVertical: Space.s8,
-  },
-  chipText: {
-    fontFamily: Fonts.mono,
-    fontSize: TypeScale.s10,
-    letterSpacing: 1.5,
-    color: AM.inkMid,
-  },
-
-  newBtn: {
-    alignItems: 'center',
-    paddingVertical: Space.s14,
-  },
-  newBtnText: {
-    fontFamily: Fonts.mono,
-    fontSize: TypeScale.s10,
-    letterSpacing: 2,
-    color: AM.inkDim,
-  },
-
-  // Input bar
+  // Input bar — typewriter paper, not chat
   inputBar: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    paddingHorizontal: Space.s22,
-    paddingTop: Space.s10,
-    gap: Space.s14,
-    borderTopWidth: 1,
-    borderTopColor: AM.amberFaint,
+    paddingHorizontal: Space.s20,
+    paddingTop: Space.s12,
+    gap: Space.s10,
+    borderTopWidth: 0.5,
+    borderTopColor: AM.rule,
+    backgroundColor: AM.bg,
+  },
+  inputPrefix: {
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s10,
+    color: AM.oxblood,
+    letterSpacing: 2,
+    paddingBottom: Space.s12,
   },
   input: {
     flex: 1,
-    fontFamily: Fonts.display,
-    fontSize: TypeScale.s16,
+    fontFamily: Fonts.serif,
     fontStyle: 'italic',
+    fontSize: TypeScale.s15,
     color: AM.ink,
     paddingVertical: Space.s10,
     paddingHorizontal: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: AM.amberDim,
     minHeight: 40,
     maxHeight: 120,
   },
-  sendBtn: {
-    paddingVertical: Space.s10,
+  pullBtn: {
+    paddingBottom: Space.s12,
   },
-  sendBtnDisabled: {
-    opacity: 0.35,
-  },
-  sendText: {
+  pullText: {
     fontFamily: Fonts.mono,
     fontSize: TypeScale.s10,
     letterSpacing: 2,

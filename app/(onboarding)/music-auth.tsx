@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { AM, Fonts, Space, TypeScale } from '../../src/tokens/design-tokens';
 import { BroadcastBackdrop } from '../../src/components/BroadcastBackdrop';
-import { AmberCTA } from '../../src/components/AmberCTA';
+import { StampButton, LinerNotes, SpinningRecord } from '../../src/components/crate';
 import { musicKitPlayer } from '../../src/services/MusicKitPlayer';
 import { getUser, setUser } from '../../src/services/Storage';
 
@@ -46,33 +46,48 @@ export default function MusicAuthScreen() {
 
   return (
     <BroadcastBackdrop>
-      <View style={[styles.root, { paddingTop: insets.top + Space.s34, paddingBottom: insets.bottom + Space.s34 }]}>
+      <View style={[
+        styles.root,
+        { paddingTop: insets.top + Space.s32, paddingBottom: insets.bottom + Space.s22 },
+      ]}>
         <View style={styles.content}>
-          <Text style={styles.sectionLabel}>SIGNAL SOURCE</Text>
-          <View style={{ height: Space.s22 }} />
-          <Text style={styles.heroLine}>Connect</Text>
-          <Text style={[styles.heroLine, styles.heroAmber]}>your</Text>
-          <Text style={styles.heroLine}>library.</Text>
-          <View style={{ height: Space.s26 }} />
-          <Text style={styles.description}>
-            ONAY plays from your Apple Music library. Connect so she can pull your playlists and host between the tracks.
+          <Text style={styles.kicker}>SIGNAL SOURCE · 05 / 05</Text>
+
+          {/* Spinning vinyl above the headline — quiet brand moment */}
+          <View style={{ alignItems: 'center', marginTop: Space.s30 }}>
+            <SpinningRecord size={120} tonearm={false} period={4200} />
+          </View>
+
+          <Text style={styles.headline}>
+            Bring your{'\n'}
+            <Text style={{ color: AM.amber }}>library.</Text>
           </Text>
+
+          <View style={{ marginTop: Space.s26 }}>
+            <LinerNotes>
+              ONAY plays from your Apple Music. Connect so she can pull your playlists
+              and host between the tracks. We don&rsquo;t copy or keep any of it.
+            </LinerNotes>
+          </View>
         </View>
 
         <View style={styles.bottom}>
-          <AmberCTA
-            label={loading ? 'Connecting\u2026' : 'Connect Apple Music'}
+          <StampButton
+            label={loading ? 'CONNECTING…' : 'CONNECT APPLE MUSIC'}
+            sub="ONE-TIME · APPLE HANDLES THE PERMISSIONS"
             onPress={handleConnect}
             disabled={loading}
+            kind="amber"
             accessibilityHint="Opens Apple Music authorization"
           />
           <Pressable
             onPress={handleSkip}
             accessibilityRole="button"
             accessibilityLabel="Skip for now"
-            style={({ pressed }) => [styles.skip, pressed && { opacity: 0.6 }]}
+            hitSlop={10}
+            style={({ pressed }) => [styles.skip, pressed && { opacity: 0.5 }]}
           >
-            <Text style={styles.skipText}>skip for now</Text>
+            <Text style={styles.skipText}>skip — I&rsquo;ll connect later</Text>
           </Pressable>
         </View>
       </View>
@@ -83,47 +98,38 @@ export default function MusicAuthScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    paddingHorizontal: Space.s26,
+    paddingHorizontal: Space.s20,
   },
   content: {
     flex: 1,
-    justifyContent: 'center',
   },
-  sectionLabel: {
+  kicker: {
     fontFamily: Fonts.mono,
-    fontSize: TypeScale.s10,
-    letterSpacing: 2.5,
+    fontSize: 10,
+    letterSpacing: 3,
     color: AM.inkDim,
   },
-  heroLine: {
-    fontFamily: Fonts.displayThin,
-    fontSize: TypeScale.s44,
-    fontStyle: 'italic',
-    lineHeight: TypeScale.s44 * 1.05,
-    letterSpacing: -0.8,
-    color: AM.ink,
-  },
-  heroAmber: {
-    color: AM.amber,
-  },
-  description: {
+  headline: {
+    marginTop: Space.s26,
     fontFamily: Fonts.display,
-    fontSize: TypeScale.s16,
-    fontStyle: 'italic',
-    color: AM.inkMid,
-    lineHeight: TypeScale.s16 * 1.5,
+    fontSize: TypeScale.s42,
+    color: AM.ink,
+    letterSpacing: 0.8,
+    lineHeight: TypeScale.s42 * 0.95,
+    textAlign: 'center',
   },
   bottom: {
-    gap: Space.s10,
+    gap: Space.s14,
   },
   skip: {
     alignItems: 'center',
-    paddingVertical: Space.s14,
+    paddingVertical: Space.s10,
   },
   skipText: {
     fontFamily: Fonts.mono,
     fontSize: TypeScale.s10,
     letterSpacing: 2,
     color: AM.inkDim,
+    textDecorationLine: 'underline',
   },
 });

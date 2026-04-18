@@ -11,6 +11,8 @@ export const StorageKeys = {
   ONAY_SUGGESTION: 'onay_suggestion',
   CURRENT_BROADCAST: 'currentBroadcast',
   BROADCAST_HISTORY: 'broadcast_history',
+  NOTIF_TONIGHT_READY: 'notif_tonight_ready',
+  NOTIF_MORNING_RECAP: 'notif_morning_recap',
 } as const;
 
 export const BROADCAST_HISTORY_RETENTION_MS = 24 * 60 * 60 * 1000; // 24h

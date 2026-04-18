@@ -12,6 +12,7 @@ SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
+    Anton_400Regular: require('@expo-google-fonts/anton/400Regular/Anton_400Regular.ttf'),
     Fraunces_300Light_Italic: require('@expo-google-fonts/fraunces/300Light_Italic/Fraunces_300Light_Italic.ttf'),
     Fraunces_400Regular_Italic: require('@expo-google-fonts/fraunces/400Regular_Italic/Fraunces_400Regular_Italic.ttf'),
     JetBrainsMono_400Regular: require('@expo-google-fonts/jetbrains-mono/400Regular/JetBrainsMono_400Regular.ttf'),
