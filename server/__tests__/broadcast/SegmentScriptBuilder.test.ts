@@ -28,10 +28,10 @@ const ctx = {
 };
 
 describe('buildSegmentPrompts', () => {
-  it('returns variantCount prompt sets for cold_open', () => {
+  it('returns exactly one prompt set for cold_open (tiered design, one variant per slot)', () => {
     const m = makeManifest();
     const prompts = buildSegmentPrompts(m.segmentSlots[0], m, ctx);
-    expect(prompts).toHaveLength(3);
+    expect(prompts).toHaveLength(1);
   });
 
   it('references the first track in cold_open user prompt', () => {
@@ -186,5 +186,102 @@ describe('buildSegmentPrompts', () => {
       const prompts = buildSegmentPrompts(m.segmentSlots[0], m, ctx);
       expect(prompts[0].systemPrompt).toContain('Oh-nay');
     });
+  });
+});
+
+describe('SegmentScriptBuilder — tiered prompts', () => {
+  function makeManifest(overrides: Partial<Manifest> = {}): Manifest {
+    return {
+      broadcastId: 'b', userId: 'u', playlistId: null,
+      vibe: 'lateNight', length: 'quick',
+      createdAt: Date.now(),
+      tracks: [
+        { id: '1', title: 'Adore', artistName: 'Prince', albumTitle: '', duration: 180, genreNames: ['R&B/Soul'] },
+        { id: '2', title: 'Come Down', artistName: 'Anderson .Paak', albumTitle: '', duration: 180, genreNames: ['Hip-Hop/Rap'] },
+      ],
+      segmentSlots: [
+        { index: 0, kind: 'cold_open', beforeTrackId: '1', variantCount: 1, status: 'pending', tier: 'cold_open' },
+        { index: 1, kind: 'transition', afterTrackId: '1', beforeTrackId: '2', variantCount: 1, status: 'pending', tier: 'deep_dive' },
+        { index: 2, kind: 'sign_off', afterTrackId: '2', variantCount: 1, status: 'pending', tier: 'sign_off' },
+      ],
+      featureSlots: [1],
+      ...overrides,
+    };
+  }
+
+  it('deep_dive prompt includes 80-120 word budget', () => {
+    const m = makeManifest();
+    const [prompt] = buildSegmentPrompts(m.segmentSlots[1], m, {
+      timeOfDay: 'night', dayOfWeek: 'Sat', firstTimeUser: false,
+    });
+    expect(prompt.userPrompt).toMatch(/80-120 words/);
+  });
+
+  it('fact_bridge prompt includes 40-60 word budget', () => {
+    const m = makeManifest();
+    m.segmentSlots[1].tier = 'fact_bridge';
+    const [prompt] = buildSegmentPrompts(m.segmentSlots[1], m, {
+      timeOfDay: 'night', dayOfWeek: 'Sat', firstTimeUser: false,
+    });
+    expect(prompt.userPrompt).toMatch(/40-60 words/);
+  });
+
+  it('system prompt embeds the genre playbook when incoming is hip-hop', () => {
+    const m = makeManifest();
+    // Use a manifest where the incoming track's genreNames route to hipHop
+    const [prompt] = buildSegmentPrompts(m.segmentSlots[1], m, {
+      timeOfDay: 'night', dayOfWeek: 'Sat', firstTimeUser: false,
+    });
+    expect(prompt.systemPrompt).toMatch(/GENRE VOICE/);
+    expect(prompt.systemPrompt).toMatch(/hipHop/);
+    expect(prompt.systemPrompt.toLowerCase()).toMatch(/producers|samples|flip|bars/);
+  });
+
+  it('system prompt always includes the FACT DISCIPLINE guardrail', () => {
+    const m = makeManifest();
+    for (const slot of m.segmentSlots) {
+      const [prompt] = buildSegmentPrompts(slot, m, {
+        timeOfDay: 'night', dayOfWeek: 'Sat', firstTimeUser: false,
+      });
+      expect(prompt.systemPrompt).toMatch(/FACT DISCIPLINE/);
+      expect(prompt.systemPrompt.toLowerCase()).toMatch(/don't invent|never fabricate/);
+    }
+  });
+
+  it('user prompt includes enrichment when cache returns a record', () => {
+    const m = makeManifest();
+    const cache = {
+      get: () => ({
+        producer: 'Prince',
+        releaseYear: '1987',
+        wikipediaSummary: 'Adore is a 1987 song by Prince.',
+        lastEnrichedAt: Date.now(),
+        source: 'hybrid' as const,
+      }),
+    };
+    const [prompt] = buildSegmentPrompts(m.segmentSlots[1], m, {
+      timeOfDay: 'night', dayOfWeek: 'Sat', firstTimeUser: false,
+    }, cache);
+    expect(prompt.userPrompt).toMatch(/Producer:.*Prince/);
+    expect(prompt.userPrompt).toMatch(/1987/);
+    expect(prompt.userPrompt).toMatch(/About the track/);
+  });
+
+  it('cold_open uses 55-80 word budget and omits outgoing', () => {
+    const m = makeManifest();
+    const [prompt] = buildSegmentPrompts(m.segmentSlots[0], m, {
+      timeOfDay: 'night', dayOfWeek: 'Sat', firstTimeUser: true,
+    });
+    expect(prompt.userPrompt).toMatch(/55-80 words/);
+    expect(prompt.userPrompt).not.toMatch(/Outgoing:/);
+  });
+
+  it('sign_off uses 35-55 word budget and omits incoming', () => {
+    const m = makeManifest();
+    const [prompt] = buildSegmentPrompts(m.segmentSlots[2], m, {
+      timeOfDay: 'night', dayOfWeek: 'Sat', firstTimeUser: false,
+    });
+    expect(prompt.userPrompt).toMatch(/35-55 words/);
+    expect(prompt.userPrompt).not.toMatch(/Incoming:/);
   });
 });
