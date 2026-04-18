@@ -4,12 +4,11 @@ import { AM, AMGlow } from '../tokens/design-tokens';
 import { useAppActive } from '../hooks/useAppActive';
 
 /**
- * 5px amber dot with a 6px amber glow. Pulses gently (1.8s, opacity 1→0.65→1)
- * when `active` is true — indicating a broadcast is currently playing. Pulse
- * loop is gated on `useAppActive()` so the animation stops when the app is
- * backgrounded (iOS 48s/60s background CPU budget — CLAUDE.md).
- *
- * Caller owns `active`. For AppHeader the caller polls broadcastPlayer state.
+ * 5px oxblood dot with a 6px oxblood glow. Pulses gently (1.8s, opacity 1→0.65→1)
+ * when `active` is true — indicating a broadcast is currently playing.
+ * Oxblood matches the record-label red of the crate-digger design's
+ * TONIGHT ON ONAY stamp. Pulse loop is gated on `useAppActive()` so the
+ * animation stops when the app is backgrounded.
  */
 export function OnAirIndicator({ active }: { active: boolean }) {
   const opacity = useRef(new Animated.Value(1)).current;
@@ -46,7 +45,7 @@ const styles = StyleSheet.create({
     borderRadius: 2.5,
   },
   dotActive: {
-    backgroundColor: AM.amber,
+    backgroundColor: AM.oxblood,
     shadowColor: AMGlow.dot.shadowColor,
     shadowOffset: AMGlow.dot.shadowOffset,
     shadowOpacity: AMGlow.dot.shadowOpacity,

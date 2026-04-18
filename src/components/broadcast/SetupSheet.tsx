@@ -21,7 +21,7 @@ type Vibe = Manifest['vibe'];
 type Length = Manifest['length'];
 
 const VIBES: { id: Vibe; label: string; subtitle: string }[] = [
-  { id: 'morning',    label: 'Morning',    subtitle: 'Sun\u2019s up, gentle forward motion' },
+  { id: 'morning',    label: 'Morning',    subtitle: 'Sun’s up, gentle forward motion' },
   { id: 'focus',      label: 'Focus',      subtitle: 'Head-down, unobtrusive momentum' },
   { id: 'workout',    label: 'Workout',    subtitle: 'Sustained drive, no breathers' },
   { id: 'feelGood',   label: 'Feel Good',  subtitle: 'Warm, uplifting, communal' },
@@ -31,9 +31,9 @@ const VIBES: { id: Vibe; label: string; subtitle: string }[] = [
 ];
 
 const LENGTHS: { id: Length; label: string; subtitle: string }[] = [
-  { id: 'quick',    label: 'Quick',      subtitle: '5 tracks \u00b7 15 min' },
-  { id: 'standard', label: 'Standard',   subtitle: '9 tracks \u00b7 30 min' },
-  { id: 'long',     label: 'Long Drive', subtitle: '15 tracks \u00b7 60 min' },
+  { id: 'quick',    label: 'Quick',      subtitle: '5 tracks · 15 min' },
+  { id: 'standard', label: 'Standard',   subtitle: '9 tracks · 30 min' },
+  { id: 'long',     label: 'Long Drive', subtitle: '15 tracks · 60 min' },
 ];
 
 export interface SetupResult {
@@ -219,19 +219,19 @@ function PlaylistStep({
             leading={<Text style={styles.askLabel}>ONAY</Text>}
             leadingWidth={54}
             value={<Text style={styles.askValue}>Let me pick for you</Text>}
-            trailing={<Text style={styles.chev}>{'\u203A'}</Text>}
+            trailing={<Text style={styles.chev}>{'›'}</Text>}
             onPress={onAskOnay}
             accessibilityLabel="Let ONAY pick tracks"
           />
         )}
 
         {playlistsLoading && (
-          <Text style={styles.note}>Loading your Apple Music playlists{'\u2026'}</Text>
+          <Text style={styles.note}>Loading your Apple Music playlists{'…'}</Text>
         )}
 
         {playlistsError && !playlistsLoading && (
           <View style={styles.errorBlock}>
-            <Text style={styles.errorText}>Couldn{'\u2019'}t load your playlists.</Text>
+            <Text style={styles.errorText}>Couldn{'’'}t load your playlists.</Text>
             <Text style={styles.note}>{playlistsError}</Text>
             {onRetryPlaylists && (
               <Pressable
@@ -269,9 +269,9 @@ function PlaylistStep({
               }
               trailing={
                 selected ? (
-                  <Text style={styles.selectDot}>{'\u2022'}</Text>
+                  <Text style={styles.selectDot}>{'•'}</Text>
                 ) : (
-                  <Text style={styles.chev}>{'\u203A'}</Text>
+                  <Text style={styles.chev}>{'›'}</Text>
                 )
               }
               onPress={() => onPick(p.id)}
@@ -311,7 +311,7 @@ function VibeStep({
                 </View>
               }
               trailing={
-                selected ? <Text style={styles.selectDot}>{'\u2022'}</Text> : null
+                selected ? <Text style={styles.selectDot}>{'•'}</Text> : null
               }
               onPress={() => onPick(v.id)}
               accessibilityLabel={`Pick vibe ${v.label}: ${v.subtitle}`}
@@ -354,7 +354,7 @@ function LengthStep({
                 </View>
               }
               trailing={
-                selected ? <Text style={styles.selectDot}>{'\u2022'}</Text> : null
+                selected ? <Text style={styles.selectDot}>{'•'}</Text> : null
               }
               onPress={() => onPick(l.id)}
               accessibilityLabel={`Pick length ${l.label}, ${l.subtitle}`}
@@ -384,7 +384,7 @@ const styles = StyleSheet.create({
   handle: {
     width: 36,
     height: 3,
-    backgroundColor: AM.amberFaint,
+    backgroundColor: AM.ruleStrong,
     borderRadius: 1.5,
   },
   chrome: {
@@ -429,10 +429,11 @@ const styles = StyleSheet.create({
     marginBottom: Space.s6,
   },
   stepTitle: {
-    fontFamily: Fonts.display,
-    fontSize: TypeScale.s22,
+    fontFamily: Fonts.serif,
     fontStyle: 'italic',
+    fontSize: TypeScale.s22,
     color: AM.ink,
+    lineHeight: TypeScale.s22 * 1.2,
   },
 
   // Playlist step
@@ -443,16 +444,17 @@ const styles = StyleSheet.create({
     color: AM.amberDim,
   },
   askValue: {
-    fontFamily: Fonts.display,
-    fontSize: TypeScale.s18,
+    fontFamily: Fonts.serif,
     fontStyle: 'italic',
+    fontSize: TypeScale.s18,
     color: AM.amber,
   },
   playlistName: {
     fontFamily: Fonts.display,
     fontSize: TypeScale.s16,
-    fontStyle: 'italic',
     color: AM.ink,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
   },
   playlistNameSelected: {
     color: AM.amber,
@@ -462,11 +464,12 @@ const styles = StyleSheet.create({
   vibeLabel: {
     fontFamily: Fonts.display,
     fontSize: TypeScale.s18,
-    fontStyle: 'italic',
     color: AM.inkMid,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
   },
   vibeLabelSelected: {
-    color: AM.amber,
+    color: AM.ink,
   },
   vibeSubtitle: {
     marginTop: Space.s4,
@@ -503,9 +506,9 @@ const styles = StyleSheet.create({
     gap: Space.s8,
   },
   errorText: {
-    fontFamily: Fonts.display,
-    fontSize: TypeScale.s16,
+    fontFamily: Fonts.serif,
     fontStyle: 'italic',
+    fontSize: TypeScale.s16,
     color: AM.ink,
   },
   retry: {

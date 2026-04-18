@@ -52,13 +52,13 @@ export function NowPlayingBar() {
       <OnAirIndicator active={status.state !== 'paused'} />
       <View style={styles.textBlock}>
         <Text style={styles.title} numberOfLines={1}>
-          {track?.title ?? (status.state === 'loading' ? 'tuning in\u2026' : 'now playing')}
+          {track?.title ?? (status.state === 'loading' ? 'tuning in…' : 'now playing')}
         </Text>
         {track?.artistName ? (
           <Text style={styles.artist} numberOfLines={1}>{track.artistName}</Text>
         ) : null}
       </View>
-      <Text style={styles.chev}>{'\u2191'}</Text>
+      <Text style={styles.chev}>{'↑'}</Text>
     </Pressable>
   );
 }
@@ -81,15 +81,15 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: Fonts.display,
     fontSize: TypeScale.s15,
-    fontStyle: 'italic',
     color: AM.ink,
+    letterSpacing: 0.3,
   },
   artist: {
     marginTop: 2,
-    fontFamily: Fonts.mono,
-    fontSize: TypeScale.s10,
-    letterSpacing: 1,
-    color: AM.inkDim,
+    fontFamily: Fonts.serif,
+    fontStyle: 'italic',
+    fontSize: TypeScale.s11,
+    color: AM.inkMid,
   },
   chev: {
     fontFamily: Fonts.display,

@@ -14,7 +14,8 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Typography, Spacing, TextColors, Surface } from '../../src/tokens/design-tokens';
+import { AM, Fonts, Space, TypeScale, ZIndex } from '../../src/tokens/design-tokens';
+import { SleeveArt, SpinningRecord, Tick } from '../../src/components/crate';
 import {
   signInWithEmail,
   signUpWithEmail,
@@ -23,7 +24,16 @@ import {
   sendPasswordReset,
 } from '../../src/services/AuthService';
 
+/**
+ * Login — "THE DOOR" variant from the crate-digger design.
+ *
+ * Full-bleed editorial sleeve trio behind a tall "ONAY" masthead with
+ * "MEMBER ENTRANCE · EST. 2026" kicker. Apple-filled / Google-outline
+ * socials are the primary path; email/password is secondary (toggled on).
+ * "Not a member? Become a member →" routes to the onboarding tour.
+ */
 export default function LoginScreen() {
+  const [mode, setMode] = useState<'social' | 'email'>('social');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
@@ -95,326 +105,474 @@ export default function LoginScreen() {
           keyboardShouldPersistTaps="handled"
           bounces={false}
         >
-          {/* Branding */}
-          <View style={styles.brandingSection}>
-            <Text style={styles.logo}>ONAY</Text>
-            <View style={styles.accentLine} />
+          {/* Sleeve trio — skewed behind the masthead */}
+          <View style={styles.sleeveTrio} pointerEvents="none">
+            <View style={[styles.sleeveBack, { transform: [{ translateX: -48 }, { rotate: '-9deg' }], opacity: 0.55 }]}>
+              <SleeveArt title="After Hours" artist="Ben Webster" size={104} variant={0} />
+            </View>
+            <View style={[styles.sleeveFront]}>
+              <SleeveArt title="Members Only" artist="—" size={132} variant={1} />
+            </View>
+            <View style={[styles.sleeveBack, { transform: [{ translateX: 48 }, { rotate: '8deg' }], opacity: 0.55 }]}>
+              <SleeveArt title="Late Broadcast" artist="Vol. III" size={104} variant={2} />
+            </View>
           </View>
 
-          {/* Headline */}
-          <View style={styles.headlineSection}>
-            <Text style={styles.headline}>
-              Enter the{'\n'}
-              <Text style={styles.headlineAccent}>Frequency.</Text>
-            </Text>
-            <Text style={styles.headlineLabel}>SECURE ACCESS REQUIRED</Text>
+          {/* Masthead */}
+          <View style={styles.masthead}>
+            <Text style={styles.kicker}>MEMBER ENTRANCE · EST. 2026</Text>
+            <Text style={styles.wordmark}>ONAY</Text>
+            <Text style={styles.tagline}>The set&rsquo;s already spinning. Come in.</Text>
           </View>
 
-          {/* Email/Password Form */}
-          <View style={styles.formSection}>
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>LISTENER IDENTITY</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="email@address.com"
-                placeholderTextColor={TextColors.outlineVariant}
-                value={email}
-                onChangeText={setEmail}
-                autoCapitalize="none"
-                keyboardType="email-address"
-                autoCorrect={false}
-                textContentType={isSignUp ? 'username' : 'emailAddress'}
-                returnKeyType="next"
-                onSubmitEditing={() => passwordRef.current?.focus()}
-                blurOnSubmit={false}
-                accessibilityLabel="Email address"
-                editable={!loading}
-              />
-            </View>
+          {/* Form column */}
+          <View style={styles.form}>
+            {mode === 'social' && (
+              <>
+                <SocialBtn
+                  kind="filled"
+                  label="CONTINUE — APPLE"
+                  onPress={handleAppleSignIn}
+                  disabled={loading}
+                  icon={<Ionicons name="logo-apple" size={16} color={AM.bgDeep} />}
+                />
+                <SocialBtn
+                  label="CONTINUE — GOOGLE"
+                  onPress={handleGoogleSignIn}
+                  disabled={loading}
+                  icon={<Ionicons name="logo-google" size={15} color={AM.ink} />}
+                />
 
-            <View style={styles.inputGroup}>
-              <View style={styles.inputLabelRow}>
-                <Text style={styles.inputLabel}>ACCESS KEY</Text>
-                {!isSignUp && (
-                  <Pressable onPress={handleForgotPassword} hitSlop={8}>
-                    <Text style={styles.forgotText}>FORGOTTEN?</Text>
-                  </Pressable>
-                )}
-              </View>
-              <TextInput
-                ref={passwordRef}
-                style={styles.input}
-                placeholder="••••••••"
-                placeholderTextColor={TextColors.outlineVariant}
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                textContentType={isSignUp ? 'newPassword' : 'password'}
-                returnKeyType="go"
-                onSubmitEditing={handleEmailAuth}
-                accessibilityLabel="Password"
-                editable={!loading}
-              />
-            </View>
+                <View style={styles.divider}>
+                  <View style={styles.dividerLine} />
+                  <Text style={styles.dividerText}>OR</Text>
+                  <View style={styles.dividerLine} />
+                </View>
 
+                <Pressable
+                  onPress={() => setMode('email')}
+                  accessibilityRole="button"
+                  hitSlop={8}
+                  style={({ pressed }) => [styles.emailLink, pressed && { opacity: 0.6 }]}
+                >
+                  <Text style={styles.emailLinkText}>SIGN IN WITH EMAIL →</Text>
+                </Pressable>
+              </>
+            )}
+
+            {mode === 'email' && (
+              <>
+                <Field
+                  label="EMAIL"
+                  type="email-address"
+                  value={email}
+                  onChangeText={setEmail}
+                  returnKeyType="next"
+                  onSubmitEditing={() => passwordRef.current?.focus()}
+                />
+                <Field
+                  label={isSignUp ? 'NEW PASSWORD' : 'PASSWORD'}
+                  inputRef={passwordRef}
+                  secure
+                  value={password}
+                  onChangeText={setPassword}
+                  returnKeyType="go"
+                  onSubmitEditing={handleEmailAuth}
+                  trailing={
+                    !isSignUp ? (
+                      <Pressable onPress={handleForgotPassword} hitSlop={8}>
+                        <Text style={styles.forgotText}>FORGOT?</Text>
+                      </Pressable>
+                    ) : null
+                  }
+                />
+
+                <Pressable
+                  onPress={handleEmailAuth}
+                  disabled={loading || !email.trim() || !password.trim()}
+                  accessibilityRole="button"
+                  accessibilityLabel={isSignUp ? 'Create account' : 'Sign in'}
+                  style={({ pressed }) => [
+                    styles.enterBtn,
+                    (loading || !email.trim() || !password.trim()) && { opacity: 0.35 },
+                    pressed && { opacity: 0.85 },
+                  ]}
+                >
+                  <Tick pos="tl" color={AM.amber} bg={AM.bg} />
+                  <Tick pos="tr" color={AM.amber} bg={AM.bg} />
+                  <Tick pos="bl" color={AM.amber} bg={AM.bg} />
+                  <Tick pos="br" color={AM.amber} bg={AM.bg} />
+                  <View style={styles.enterBtnCenter}>
+                    <Text style={styles.enterBtnLabel}>
+                      {loading ? 'ONE MOMENT…' : isSignUp ? 'CREATE ACCOUNT' : 'ENTER'}
+                    </Text>
+                    <Text style={styles.enterBtnSub}>
+                      {isSignUp ? 'NEW MEMBER CARD' : 'MEMBER SIGN IN'}
+                    </Text>
+                  </View>
+                  <Text style={styles.enterBtnArrow}>→</Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={() => setMode('social')}
+                  hitSlop={8}
+                  style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.6 }]}
+                >
+                  <Text style={styles.backBtnText}>← BACK TO APPLE / GOOGLE</Text>
+                </Pressable>
+              </>
+            )}
+
+            {/* New-member path */}
             <Pressable
-              style={({ pressed }) => [styles.ctaButton, pressed && styles.pressed, loading && styles.disabled]}
-              onPress={handleEmailAuth}
-              disabled={loading}
-              accessibilityLabel={isSignUp ? 'Create account' : 'Sign in'}
+              onPress={() => setIsSignUp(!isSignUp)}
               accessibilityRole="button"
+              accessibilityLabel="Toggle sign up"
+              style={({ pressed }) => [styles.member, pressed && { opacity: 0.6 }]}
             >
-              <Text style={styles.ctaText}>
-                {loading
-                  ? 'PLEASE WAIT...'
-                  : isSignUp
-                    ? 'CREATE ACCOUNT'
-                    : 'ENTER THE FREQUENCY'}
-              </Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.memberKicker}>
+                  {isSignUp ? 'ALREADY A MEMBER?' : 'NEW AROUND HERE?'}
+                </Text>
+                <Text style={styles.memberText}>
+                  {isSignUp ? 'Sign in →' : 'Become a member →'}
+                </Text>
+              </View>
+              <Text style={styles.memberNo}>B·00</Text>
             </Pressable>
-          </View>
-
-          {/* Social Auth */}
-          <View style={styles.syncSection}>
-            <View style={styles.divider}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>SYNC VIA</Text>
-              <View style={styles.dividerLine} />
-            </View>
-
-            <View style={styles.providers}>
-              <Pressable
-                style={({ pressed }) => [styles.providerButton, pressed && styles.pressed, loading && styles.disabled]}
-                onPress={handleAppleSignIn}
-                disabled={loading}
-                accessibilityLabel="Sign in with Apple"
-                accessibilityRole="button"
-              >
-                <Ionicons name="logo-apple" size={18} color={TextColors.primary} />
-                <Text style={styles.providerText}>Apple</Text>
-              </Pressable>
-
-              <Pressable
-                style={({ pressed }) => [styles.providerButton, pressed && styles.pressed, loading && styles.disabled]}
-                onPress={handleGoogleSignIn}
-                disabled={loading}
-                accessibilityLabel="Sign in with Google"
-                accessibilityRole="button"
-              >
-                <Ionicons name="logo-google" size={16} color={TextColors.primary} />
-                <Text style={styles.providerText}>Google</Text>
-              </Pressable>
-            </View>
-          </View>
-
-          {/* Footer */}
-          <View style={styles.footer}>
-            <Pressable onPress={() => setIsSignUp(!isSignUp)} hitSlop={8}>
-              <Text style={styles.footerText}>
-                {isSignUp ? (
-                  <>
-                    ALREADY TUNED IN?{'  '}
-                    <Text style={styles.footerLink}>SIGN IN</Text>
-                  </>
-                ) : (
-                  <>
-                    NEW TO ONAY?{'  '}
-                    <Text style={styles.footerLink}>CREATE ACCOUNT</Text>
-                  </>
-                )}
-              </Text>
-            </Pressable>
-
-            <View style={styles.legalRow}>
-              <Text style={styles.legalText}>PRIVACY</Text>
-              <Text style={styles.legalDot}>·</Text>
-              <Text style={styles.legalText}>TERMS</Text>
-            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Auth overlay — spinning vinyl while we hit Firebase. Blocks the form. */}
+      {loading && (
+        <View style={styles.authOverlay} pointerEvents="auto">
+          <SpinningRecord size={160} />
+          <View style={styles.authTextBlock}>
+            <Text style={styles.authLabel}>CHECKING YOUR MEMBERSHIP</Text>
+            <Text style={styles.authVoice}>&ldquo;the librarian&rsquo;s on it&hellip;&rdquo;</Text>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
 
+// ─────────────── Bits ───────────────
+
+function SocialBtn({
+  label,
+  onPress,
+  disabled,
+  icon,
+  kind = 'ghost',
+}: {
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+  icon?: React.ReactNode;
+  kind?: 'ghost' | 'filled';
+}) {
+  const filled = kind === 'filled';
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      style={({ pressed }) => [
+        styles.social,
+        { backgroundColor: filled ? AM.ink : 'transparent', borderColor: filled ? AM.ink : AM.amberDim },
+        disabled && { opacity: 0.4 },
+        pressed && { opacity: 0.85 },
+      ]}
+    >
+      <Tick pos="tl" color={filled ? AM.bgDeep : AM.amberDim} bg={filled ? AM.ink : AM.bg} />
+      <Tick pos="tr" color={filled ? AM.bgDeep : AM.amberDim} bg={filled ? AM.ink : AM.bg} />
+      <Tick pos="bl" color={filled ? AM.bgDeep : AM.amberDim} bg={filled ? AM.ink : AM.bg} />
+      <Tick pos="br" color={filled ? AM.bgDeep : AM.amberDim} bg={filled ? AM.ink : AM.bg} />
+      <Text style={[styles.socialLabel, { color: filled ? AM.bgDeep : AM.ink }]}>{label}</Text>
+      <View>{icon}</View>
+    </Pressable>
+  );
+}
+
+function Field({
+  label,
+  value,
+  onChangeText,
+  type,
+  secure,
+  inputRef,
+  returnKeyType,
+  onSubmitEditing,
+  trailing,
+}: {
+  label: string;
+  value: string;
+  onChangeText: (v: string) => void;
+  type?: 'email-address' | 'default';
+  secure?: boolean;
+  inputRef?: React.Ref<TextInputType>;
+  returnKeyType?: 'go' | 'next' | 'done';
+  onSubmitEditing?: () => void;
+  trailing?: React.ReactNode;
+}) {
+  const [focused, setFocused] = useState(false);
+
+  return (
+    <View style={[styles.field, { borderBottomColor: focused ? AM.amber : AM.amberDim }]}>
+      <View style={styles.fieldLabelRow}>
+        <Text style={[styles.fieldLabel, focused && { color: AM.amber }]}>{label}</Text>
+        {trailing}
+      </View>
+      <TextInput
+        ref={inputRef}
+        value={value}
+        onChangeText={onChangeText}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        keyboardType={type ?? 'default'}
+        autoCapitalize="none"
+        autoCorrect={false}
+        secureTextEntry={secure}
+        returnKeyType={returnKeyType}
+        onSubmitEditing={onSubmitEditing}
+        blurOnSubmit={returnKeyType !== 'next'}
+        style={styles.fieldInput}
+        accessibilityLabel={label}
+      />
+    </View>
+  );
+}
+
+// ─────────────── Styles ───────────────
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Surface.base,
-  },
-  flex: {
-    flex: 1,
-  },
+  container: { flex: 1, backgroundColor: AM.bg },
+  flex: { flex: 1 },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: Space.s22,
+    paddingTop: Space.s30,
+    paddingBottom: Space.s30,
+  },
+
+  sleeveTrio: {
+    height: 160,
+    alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: Spacing.xxl,
+    position: 'relative',
+  },
+  sleeveBack: {
+    position: 'absolute',
+  },
+  sleeveFront: {
+    zIndex: 2,
   },
 
-  // Branding
-  brandingSection: {
-    alignItems: 'flex-start',
-    marginBottom: Spacing.xl,
-  },
-  logo: {
-    fontFamily: Typography.display.family,
-    fontSize: 42,
-    color: TextColors.primary,
-    letterSpacing: 6,
-  },
-  accentLine: {
-    width: 40,
-    height: 2,
-    backgroundColor: Colors.accent,
-    marginTop: Spacing.sm,
-  },
-
-  // Headline
-  headlineSection: {
-    marginBottom: Spacing.xl,
-  },
-  headline: {
-    fontFamily: Typography.display.family,
-    fontSize: 36,
-    color: TextColors.primary,
-    lineHeight: 44,
-  },
-  headlineAccent: {
-    color: Colors.accent,
-  },
-  headlineLabel: {
-    fontFamily: Typography.mono.family,
-    fontSize: 10,
-    letterSpacing: 3,
-    color: TextColors.outline,
-    marginTop: Spacing.md,
-  },
-
-  // Form
-  formSection: {
-    marginBottom: Spacing.lg,
-  },
-  inputGroup: {
-    marginBottom: Spacing.lg,
-  },
-  inputLabelRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  masthead: {
+    marginTop: Space.s30,
     alignItems: 'center',
   },
-  inputLabel: {
-    fontFamily: Typography.mono.family,
-    fontSize: 10,
-    letterSpacing: 2,
-    color: Colors.accent,
-    marginBottom: Spacing.sm,
+  kicker: {
+    fontFamily: Fonts.mono,
+    fontSize: 9,
+    color: AM.amberDim,
+    letterSpacing: 4,
   },
-  forgotText: {
-    fontFamily: Typography.mono.family,
-    fontSize: 10,
-    letterSpacing: 1.5,
-    color: Colors.accent,
-    marginBottom: Spacing.sm,
+  wordmark: {
+    marginTop: Space.s10,
+    fontFamily: Fonts.display,
+    fontSize: TypeScale.s56,
+    color: AM.ink,
+    letterSpacing: 1,
+    lineHeight: TypeScale.s56 * 0.9,
   },
-  input: {
-    fontFamily: Typography.body.family,
-    fontSize: 16,
-    color: TextColors.primary,
-    borderBottomWidth: 1,
-    borderBottomColor: TextColors.outlineVariant,
-    paddingVertical: Spacing.sm + 2,
-    paddingHorizontal: 0,
+  tagline: {
+    marginTop: Space.s8,
+    fontFamily: Fonts.serif,
+    fontStyle: 'italic',
+    fontSize: TypeScale.s13,
+    color: AM.inkMid,
   },
-  ctaButton: {
+
+  form: {
+    marginTop: Space.s30,
+    gap: 12,
+  },
+
+  social: {
+    position: 'relative',
+    paddingVertical: Space.s16,
+    paddingHorizontal: Space.s18,
     borderWidth: 1,
-    borderColor: Colors.accent,
-    paddingVertical: Spacing.md,
-    alignItems: 'center',
-    marginTop: Spacing.sm,
-  },
-  ctaText: {
-    fontFamily: Typography.mono.family,
-    fontSize: 12,
-    color: Colors.accent,
-    letterSpacing: 3,
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-  disabled: {
-    opacity: 0.4,
-  },
-
-  // Social Auth
-  syncSection: {
-    marginBottom: Spacing.lg,
-  },
-  divider: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: Spacing.md,
+    justifyContent: 'space-between',
+  },
+  socialLabel: {
+    fontFamily: Fonts.display,
+    fontSize: TypeScale.s14,
+    letterSpacing: 1.5,
+  },
+
+  divider: {
+    marginVertical: Space.s6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   dividerLine: {
     flex: 1,
     height: StyleSheet.hairlineWidth,
-    backgroundColor: TextColors.outlineVariant,
+    backgroundColor: AM.inkGhost,
   },
   dividerText: {
-    fontFamily: Typography.mono.family,
-    fontSize: 10,
-    letterSpacing: 2,
-    color: TextColors.outline,
-    marginHorizontal: Spacing.md,
-  },
-  providers: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-  },
-  providerButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: Spacing.sm + 4,
-    gap: Spacing.sm,
-    borderWidth: 1,
-    borderColor: TextColors.outlineVariant,
-  },
-  providerText: {
-    fontFamily: Typography.body.familyMedium,
-    fontSize: 14,
-    color: TextColors.primary,
+    fontFamily: Fonts.mono,
+    fontSize: 9,
+    color: AM.inkDim,
+    letterSpacing: 3,
   },
 
-  // Footer
-  footer: {
+  emailLink: {
     alignItems: 'center',
-    gap: Spacing.md,
+    paddingVertical: Space.s8,
   },
-  footerText: {
-    fontFamily: Typography.mono.family,
+  emailLinkText: {
+    fontFamily: Fonts.mono,
     fontSize: 10,
-    letterSpacing: 1.5,
-    color: TextColors.outline,
+    color: AM.ink,
+    letterSpacing: 2.5,
   },
-  footerLink: {
-    color: Colors.accent,
+
+  field: {
+    paddingBottom: 6,
+    borderBottomWidth: 1,
+    gap: 4,
   },
-  legalRow: {
+  fieldLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  fieldLabel: {
+    fontFamily: Fonts.mono,
+    fontSize: 9,
+    color: AM.inkDim,
+    letterSpacing: 2.5,
+  },
+  forgotText: {
+    fontFamily: Fonts.mono,
+    fontSize: 9,
+    color: AM.amber,
+    letterSpacing: 2,
+  },
+  fieldInput: {
+    fontFamily: Fonts.display,
+    fontSize: TypeScale.s18,
+    color: AM.ink,
+    letterSpacing: 1,
+    padding: 0,
+    margin: 0,
+  },
+
+  enterBtn: {
+    marginTop: Space.s10,
+    position: 'relative',
+    paddingVertical: Space.s16,
+    paddingHorizontal: Space.s18,
+    borderWidth: 1.5,
+    borderColor: AM.amber,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
+    justifyContent: 'space-between',
   },
-  legalText: {
-    fontFamily: Typography.mono.family,
-    fontSize: 9,
-    letterSpacing: 1.5,
-    color: TextColors.outlineVariant,
+  enterBtnCenter: {
+    flex: 1,
   },
-  legalDot: {
-    fontFamily: Typography.mono.family,
+  enterBtnLabel: {
+    fontFamily: Fonts.display,
+    fontSize: TypeScale.s20,
+    color: AM.amber,
+    letterSpacing: 2,
+  },
+  enterBtnSub: {
+    marginTop: 4,
+    fontFamily: Fonts.mono,
     fontSize: 9,
-    color: TextColors.outlineVariant,
+    color: AM.inkDim,
+    letterSpacing: 2,
+  },
+  enterBtnArrow: {
+    fontFamily: Fonts.display,
+    fontSize: 24,
+    color: AM.amber,
+  },
+
+  backBtn: {
+    marginTop: Space.s4,
+    alignItems: 'center',
+    paddingVertical: Space.s8,
+  },
+  backBtnText: {
+    fontFamily: Fonts.mono,
+    fontSize: 9,
+    color: AM.inkDim,
+    letterSpacing: 2,
+  },
+
+  member: {
+    marginTop: Space.s18,
+    paddingTop: Space.s14,
+    borderTopWidth: 1,
+    borderTopColor: AM.inkGhost,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  memberKicker: {
+    fontFamily: Fonts.mono,
+    fontSize: 9,
+    color: AM.amberDim,
+    letterSpacing: 2.5,
+  },
+  memberText: {
+    marginTop: 2,
+    fontFamily: Fonts.serif,
+    fontStyle: 'italic',
+    fontSize: TypeScale.s14,
+    color: AM.ink,
+  },
+  memberNo: {
+    fontFamily: Fonts.mono,
+    fontSize: 9,
+    color: AM.inkDim,
+    letterSpacing: 2,
+  },
+
+  authOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(5, 4, 3, 0.94)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: ZIndex.tuning,
+  },
+  authTextBlock: {
+    marginTop: Space.s30,
+    alignItems: 'center',
+  },
+  authLabel: {
+    fontFamily: Fonts.mono,
+    fontSize: 10,
+    color: AM.amberDim,
+    letterSpacing: 3,
+  },
+  authVoice: {
+    marginTop: Space.s8,
+    fontFamily: Fonts.serif,
+    fontStyle: 'italic',
+    fontSize: TypeScale.s14,
+    color: AM.inkMid,
   },
 });
