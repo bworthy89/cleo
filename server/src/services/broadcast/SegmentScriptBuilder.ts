@@ -1,7 +1,6 @@
 import type { Manifest, SegmentSlot, Vibe, ManifestTrack, SegmentTier } from './types';
 import type { EnrichmentRecord } from '../enrichment/EnrichmentCache';
 import { normalizeGenreFamily, GENRE_PLAYBOOK, type GenreFamily } from './GenreFamily';
-import { formatAudioFeatures } from './audio-features-format';
 
 export interface SegmentContext {
   timeOfDay: string;
@@ -110,6 +109,7 @@ function buildEnrichmentBlock(enr: EnrichmentRecord | null): string {
   const lines: string[] = [];
   if (enr.producer) lines.push(`- Producer: ${sanitizeForPrompt(enr.producer, 120)}`);
   if (enr.releaseYear) lines.push(`- Year: ${sanitizeForPrompt(enr.releaseYear, 20)}`);
+  if (enr.albumLabel) lines.push(`- Label: ${sanitizeForPrompt(enr.albumLabel, 80)}`);
   if (enr.sample) lines.push(`- Sample: ${sanitizeForPrompt(enr.sample, 200)}`);
   if (enr.wikipediaSummary) lines.push(`- About the track: ${sanitizeForPrompt(enr.wikipediaSummary, 600)}`);
   if (enr.notableFacts?.length) {
@@ -117,7 +117,6 @@ function buildEnrichmentBlock(enr: EnrichmentRecord | null): string {
     lines.push(`- Notable facts:\n${facts}`);
   }
   if (enr.artistBio) lines.push(`- Artist bio: ${sanitizeForPrompt(enr.artistBio, 300)}`);
-  if (enr.audioFeatures) lines.push(`- Sonics: ${formatAudioFeatures(enr.audioFeatures)}`);
   if (!lines.length) return '';
   return `\n\nEnrichment (verified facts you may cite):\n${lines.join('\n')}`;
 }
