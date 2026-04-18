@@ -221,6 +221,7 @@ export default function HomeBroadcastScreen() {
           albumTitle: t.albumTitle ?? '',
           duration: t.duration ?? 180,
           artworkUrl: t.artworkUrl,
+          genreNames: t.genreNames,
         })),
       });
       router.push('/(main)/(broadcast)/player');
