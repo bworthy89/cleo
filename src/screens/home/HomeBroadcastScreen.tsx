@@ -317,7 +317,10 @@ export default function HomeBroadcastScreen() {
           styles.scrollContent,
           {
             paddingTop: insets.top + Space.s18,
-            paddingBottom: insets.bottom + 80 /* above tab bar */,
+            // Leaves room for the tab bar + the NowPlayingBar mini-bar when
+            // a broadcast is active. Over-padding is harmless when the
+            // mini-bar is hidden.
+            paddingBottom: insets.bottom + 120,
           },
         ]}
       >
