@@ -244,7 +244,10 @@ const styles = StyleSheet.create({
     fontSize: TypeScale.s42,
     color: AM.cream,
     letterSpacing: 0.5,
-    lineHeight: TypeScale.s42 * 0.9,
+    // Anton's cap-height extends past even a 1.0x line-box on iOS. For a
+    // big multi-line poster at 42px, need ~1.2x (50) to keep the "T" in
+    // "TONIGHT" from clipping at the top of the oxblood plate.
+    lineHeight: 50,
   },
   mastheadTagline: {
     marginTop: 10,
@@ -338,7 +341,7 @@ const styles = StyleSheet.create({
     fontSize: TypeScale.s18,
     color: AM.ink,
     letterSpacing: 0.3,
-    lineHeight: TypeScale.s18,
+    lineHeight: 22,
   },
   indexTagline: {
     marginTop: 6,

@@ -413,7 +413,7 @@ const styles = StyleSheet.create({
     fontSize: TypeScale.s28,
     color: AM.ink,
     letterSpacing: 0.3,
-    lineHeight: TypeScale.s28,
+    lineHeight: 34,
   },
   artist: {
     marginTop: Space.s8,
@@ -516,7 +516,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.display,
     fontSize: 28,
     color: AM.amber,
-    lineHeight: 28,
+    lineHeight: 34,
   },
   bigBtnSub: {
     position: 'absolute',

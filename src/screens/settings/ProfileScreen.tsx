@@ -183,7 +183,7 @@ const styles = StyleSheet.create({
     fontSize: TypeScale.s28,
     color: AM.cream,
     letterSpacing: 0.5,
-    lineHeight: TypeScale.s28,
+    lineHeight: 34,
   },
   cardSub: {
     marginTop: 6,
@@ -237,7 +237,7 @@ const styles = StyleSheet.create({
     fontSize: TypeScale.s30,
     color: AM.amber,
     letterSpacing: 0.5,
-    lineHeight: TypeScale.s30,
+    lineHeight: 36,
   },
   statLabel: {
     fontFamily: Fonts.mono,

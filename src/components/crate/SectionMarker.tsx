@@ -57,7 +57,8 @@ const styles = StyleSheet.create({
     fontSize: TypeScale.s22,
     color: AM.ink,
     letterSpacing: 0.5,
-    lineHeight: 22,
+    // Anton cap-height extends past a tight line-box on iOS — needs 1.2x.
+    lineHeight: 26,
   },
   side: {
     fontFamily: Fonts.mono,
