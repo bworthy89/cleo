@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import auth from '@react-native-firebase/auth';
 import { AM, Fonts, Space, TypeScale } from '../../tokens/design-tokens';
@@ -73,6 +74,7 @@ export function AskOnayScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ suggestion?: string }>();
   const insets = useSafeAreaInsets();
+  const tabBarHeight = useBottomTabBarHeight();
   const inputRef = useRef<TextInput>(null);
   const flatListRef = useRef<FlatList>(null);
   const messageIdCounter = useRef(1);
@@ -594,7 +596,7 @@ export function AskOnayScreen() {
         />
 
         {/* Typewriter input bar */}
-        <View style={[styles.inputBar, { paddingBottom: Math.max(insets.bottom, Space.s10) }]}>
+        <View style={[styles.inputBar, { paddingBottom: tabBarHeight + Space.s6 }]}>
           <Text style={styles.inputPrefix}>ASK →</Text>
           <TextInput
             ref={inputRef}
