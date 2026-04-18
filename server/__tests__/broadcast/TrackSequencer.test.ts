@@ -194,6 +194,27 @@ describe('TrackSequencer.sequence', () => {
     expect(call.userPrompt).toContain('soul');
   });
 
+  it('includes wikipediaSummary first sentence in per-track enrichment hints', async () => {
+    const cache = new SequenceCache();
+    const enrich = await emptyEnrichmentCache();
+    await enrich.set('t-0', 'Artist0', {
+      wikipediaSummary: 'Dummy song is a classic 1972 soul track. It later won two Grammy awards.',
+      lastEnrichedAt: Date.now(), source: 'wikipedia',
+    });
+    const llm = mockLLM(['{"ordered":["0","1","2","3","4"]}']);
+    const seq = new TrackSequencer(llm, cache, enrich);
+
+    await seq.sequence({
+      pool, vibe: 'morning', length: 'quick', userContext: ctx,
+    });
+
+    const call = (llm.generate as jest.Mock).mock.calls[0][0];
+    expect(call.userPrompt).toContain('wiki: ');
+    expect(call.userPrompt).toContain('Dummy song is a classic 1972 soul track');
+    // Second sentence (after the first period) must not appear.
+    expect(call.userPrompt).not.toContain('Grammy awards');
+  });
+
   describe('observability log', () => {
     afterEach(() => jest.restoreAllMocks());
 
