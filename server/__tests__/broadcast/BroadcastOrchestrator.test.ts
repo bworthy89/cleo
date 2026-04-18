@@ -42,7 +42,6 @@ async function makeDeps() {
     fetchMusicBrainz: jest.fn(async () => null),
     fetchWikipedia: async () => null,
     fetchLastFm: async () => null,
-    fetchSpotify: async () => null,
   });
   return { enrichCache, enricher };
 }
