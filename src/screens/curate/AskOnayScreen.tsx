@@ -347,6 +347,42 @@ export function AskOnayScreen() {
     );
   }, [publishing]);
 
+  // Steering: tapping a classifier-proposed option re-runs curation with
+  // the option treated as user feedback. Full regeneration for now;
+  // surgical edit (modify intent + pool) comes in a follow-up commit.
+  const handleSteer = useCallback(async (option: string) => {
+    if (isGenerating || !currentPlaylist) return;
+    if (!(await checkGuards())) return;
+
+    setInputText('');
+    addMessage({ role: 'user', text: option });
+
+    setIsGenerating(true);
+    const loadingId = addMessage({ role: 'loading' });
+    try {
+      const result = await refinePlaylist(
+        {
+          userFeedback: option,
+          existingTracks: currentPlaylist.tracks.map(t => ({
+            title: t.title,
+            artist: t.artistName,
+          })),
+        },
+        originalPrompt,
+        currentPlaylist.suggestedVibe,
+      );
+      removeMessage(loadingId);
+      setCurrentPlaylist(result);
+      addMessage({ role: 'onay', text: result.conversationalResponse });
+      addMessage({ role: 'playlist', playlist: result });
+    } catch (err: any) {
+      removeMessage(loadingId);
+      addMessage({ role: 'error', text: err?.message || 'Something went wrong. Try again.' });
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [isGenerating, currentPlaylist, originalPrompt, addMessage, removeMessage, checkGuards]);
+
   const handleNewPlaylist = useCallback(() => {
     setCurrentPlaylist(null);
     setOriginalPrompt('');
@@ -403,6 +439,9 @@ export function AskOnayScreen() {
       const pl = item.playlist;
       return (
         <View style={styles.playlistWrap}>
+          {pl.stance ? (
+            <Text style={styles.stanceText}>{pl.stance}</Text>
+          ) : null}
           <Text style={styles.playlistTitle}>{pl.playlistTitle}</Text>
           <Text style={styles.playlistMeta}>{pl.tracks.length} tracks</Text>
           <View style={{ marginTop: Space.s10 }}>
@@ -422,6 +461,26 @@ export function AskOnayScreen() {
               />
             ))}
           </View>
+
+          {pl.options && pl.options.length > 0 ? (
+            <View style={styles.optionsBlock}>
+              <Text style={styles.optionsLabel}>STEER</Text>
+              <View style={styles.optionsChips}>
+                {pl.options.map(opt => (
+                  <Pressable
+                    key={opt}
+                    onPress={() => handleSteer(opt)}
+                    disabled={isGenerating}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Steer: ${opt}`}
+                    style={({ pressed }) => [styles.optionChip, pressed && { opacity: 0.6 }]}
+                  >
+                    <Text style={styles.optionChipText}>{opt}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          ) : null}
 
           <View style={{ height: Space.s22 }} />
           <AmberCTA
@@ -493,6 +552,7 @@ export function AskOnayScreen() {
     handlePublishFeatured,
     handleRefineChip,
     handleSave,
+    handleSteer,
     handleTakeLive,
     isGenerating,
     originalPrompt,
@@ -679,11 +739,51 @@ const styles = StyleSheet.create({
   playlistWrap: {
     marginTop: Space.s10,
   },
+  stanceText: {
+    fontFamily: Fonts.display,
+    fontSize: TypeScale.s15,
+    fontStyle: 'italic',
+    color: AM.inkMid,
+    lineHeight: TypeScale.s15 * 1.55,
+    marginBottom: Space.s18,
+    paddingBottom: Space.s14,
+    borderBottomWidth: 1,
+    borderBottomColor: AM.amberFaint,
+  },
   playlistTitle: {
     fontFamily: Fonts.display,
     fontSize: TypeScale.s22,
     fontStyle: 'italic',
     color: AM.ink,
+  },
+  optionsBlock: {
+    marginTop: Space.s22,
+    paddingTop: Space.s14,
+    borderTopWidth: 1,
+    borderTopColor: AM.amberFaint,
+  },
+  optionsLabel: {
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s10,
+    letterSpacing: 2,
+    color: AM.inkDim,
+    marginBottom: Space.s10,
+  },
+  optionsChips: {
+    gap: Space.s8,
+  },
+  optionChip: {
+    borderWidth: 1,
+    borderColor: AM.amberFaint,
+    paddingHorizontal: Space.s14,
+    paddingVertical: Space.s10,
+  },
+  optionChipText: {
+    fontFamily: Fonts.display,
+    fontSize: TypeScale.s14,
+    fontStyle: 'italic',
+    color: AM.amber,
+    lineHeight: TypeScale.s14 * 1.4,
   },
   playlistMeta: {
     marginTop: Space.s6,
