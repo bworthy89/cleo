@@ -26,6 +26,10 @@ export interface ManifestTrack {
   albumTitle: string;
   duration: number;
   artworkUrl?: string;
+  /** Apple Music genre tags as surfaced from the client's MusicKit bridge.
+   *  Server-side fallback when MusicBrainz / Last.fm don't return a genre.
+   *  Optional for backward compatibility with pre-upgrade clients. */
+  genreNames?: string[];
 }
 
 export interface Manifest {
