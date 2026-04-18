@@ -5,8 +5,10 @@ export type GenreFamily =
 /**
  * Map a raw genre string (from MusicBrainz, Apple Music, or Last.fm) to one
  * of our playbook families. Keyword matching with priority order — gospel
- * before rnb so "gospel soul" routes to gospel; electronic before pop for
- * electro-pop crossovers; hipHop before rnb for hip-hop soul.
+ * before rnb so "gospel soul" routes to gospel; jazz before rnb so "jazz
+ * fusion" routes to jazz not funk; electronic before pop for electro-pop
+ * crossovers; hipHop before rnb for hip-hop soul; global before rock so
+ * "reggae rock" routes to global.
  */
 export function normalizeGenreFamily(raw?: string | string[]): GenreFamily {
   if (!raw) return 'generic';
@@ -15,10 +17,10 @@ export function normalizeGenreFamily(raw?: string | string[]): GenreFamily {
   if (/gospel|spirituals?|praise.+worship|quartet.+gospel/.test(s)) return 'gospel';
   if (/jazz|bebop|bossa|fusion|big band|post[- ]?bop/.test(s)) return 'jazz';
   if (/hip[- ]?hop|rap|trap|drill|boom[- ]?bap/.test(s)) return 'hipHop';
-  if (/r&?b|soul|motown|quiet storm|neo[- ]?soul|funk/.test(s)) return 'rnb';
-  if (/electronic|edm|house|techno|trance|dnb|drum.?and.?bass|dubstep|garage|ambient|idm/.test(s)) return 'electronic';
-  if (/afrobeat|reggae|reggaeton|cumbia|samba|latin|highlife|global|world/.test(s)) return 'global';
-  if (/folk|country|bluegrass|americana|singer.?songwriter/.test(s)) return 'folk';
+  if (/r&?b|soul|motown|quiet storm|neo[- ]?soul|funk|disco/.test(s)) return 'rnb';
+  if (/electronic|edm|house|techno|trance|dnb|drum[^a-z]*(and|n)?[^a-z]*bass|dubstep|garage|ambient|idm|trip[- ]?hop|electro[- ]?pop|synth[- ]?pop|synthpop|electropop/.test(s)) return 'electronic';
+  if (/afrobeat|reggae|reggaeton|cumbia|samba|latin|highlife|global|world|dancehall|ska/.test(s)) return 'global';
+  if (/folk|country|bluegrass|americana|singer.?songwriter|blues/.test(s)) return 'folk';
   if (/rock|punk|grunge|indie|alternative|metal/.test(s)) return 'rock';
   if (/pop|k-?pop|j-?pop/.test(s)) return 'pop';
   return 'generic';
