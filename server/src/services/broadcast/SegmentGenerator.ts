@@ -20,10 +20,12 @@ const DEFAULT_TTS_PARAMS = {
 /**
  * Replace the stylized name "ONAY" with a phonetic spelling so Cartesia /
  * ElevenLabs pronounce it "Oh-nay" rather than spelling or misreading it.
- * Uses a word-boundary regex so it won't hit unrelated substrings.
+ * Uses a word-boundary regex so it won't hit unrelated substrings. Case
+ * insensitive so "Onay" / "onay" (sentence-start or stylized) are also
+ * phoneticized.
  */
 export function phoneticizeHostName(script: string): string {
-  return script.replace(/\bONAY\b/g, 'Oh-nay');
+  return script.replace(/\bONAY\b/gi, 'Oh-nay');
 }
 
 export class SegmentGenerator {
