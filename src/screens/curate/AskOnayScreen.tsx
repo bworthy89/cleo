@@ -310,6 +310,7 @@ export function AskOnayScreen() {
                   albumTitle: t.albumTitle ?? '',
                   duration: t.duration ?? 180,
                   artworkUrl: t.artworkUrl,
+                  genreNames: t.genreNames,
                 })),
               });
               Alert.alert('Published', `"${title}" is now on Tonight on ONAY.`);
