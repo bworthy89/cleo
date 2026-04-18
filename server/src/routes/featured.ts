@@ -18,6 +18,7 @@ const trackSchema = z.object({
   albumTitle: z.string().max(200),
   duration: z.number().positive().max(7200),
   artworkUrl: z.string().url().max(2048).optional(),
+  genreNames: z.array(z.string().max(100)).max(10).optional(),
 });
 
 const publishSchema = z.object({
