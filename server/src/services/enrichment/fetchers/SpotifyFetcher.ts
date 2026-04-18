@@ -12,6 +12,11 @@ interface CachedToken {
   expiresAt: number;
 }
 
+interface SearchResolution {
+  artistId: string;
+  albumId: string;
+}
+
 export class SpotifyFetcher {
   private token: CachedToken | null = null;
 
@@ -23,11 +28,19 @@ export class SpotifyFetcher {
     if (!id || !secret) return null;
     const token = await this.ensureToken(id, secret);
     if (!token) return null;
-    const trackId = await this.searchTrack(title, artist, token);
-    if (!trackId) return null;
-    const features = await this.fetchFeatures(trackId, token);
-    if (!features) return null;
-    return { audioFeatures: features, source: 'spotify' };
+    const resolved = await this.searchTrack(title, artist, token);
+    if (!resolved) return null;
+    const [artistInfo, albumInfo] = await Promise.all([
+      this.fetchArtist(resolved.artistId, token).catch(() => null),
+      this.fetchAlbum(resolved.albumId, token).catch(() => null),
+    ]);
+    const out: Partial<EnrichmentRecord> = {};
+    if (artistInfo?.genres.length) out.genre = artistInfo.genres[0];
+    if (albumInfo?.label) out.albumLabel = albumInfo.label;
+    if (albumInfo?.releaseYear) out.releaseYear = albumInfo.releaseYear;
+    if (Object.keys(out).length === 0) return null;
+    out.source = 'spotify';
+    return out;
   }
 
   private async ensureToken(id: string, secret: string): Promise<string | null> {
@@ -52,7 +65,7 @@ export class SpotifyFetcher {
     return this.token.value;
   }
 
-  private async searchTrack(title: string, artist: string, token: string): Promise<string | null> {
+  private async searchTrack(title: string, artist: string, token: string): Promise<SearchResolution | null> {
     const q = encodeURIComponent(`track:${title} artist:${artist}`);
     const res = await fetchWithTimeout(
       `https://api.spotify.com/v1/search?q=${q}&type=track&limit=1`,
@@ -64,14 +77,38 @@ export class SpotifyFetcher {
     );
     if (!res.ok) return null;
     const data = await res.json() as {
-      tracks?: { items?: Array<{ id: string }> };
+      tracks?: { items?: Array<{
+        artists?: Array<{ id: string }>;
+        album?: { id: string };
+      }> };
     };
-    return data.tracks?.items?.[0]?.id ?? null;
+    const item = data.tracks?.items?.[0];
+    const artistId = item?.artists?.[0]?.id;
+    const albumId = item?.album?.id;
+    if (!artistId || !albumId) return null;
+    return { artistId, albumId };
   }
 
-  private async fetchFeatures(trackId: string, token: string): Promise<NonNullable<EnrichmentRecord['audioFeatures']> | null> {
+  private async fetchArtist(artistId: string, token: string): Promise<{ genres: string[] } | null> {
     const res = await fetchWithTimeout(
-      `https://api.spotify.com/v1/audio-features/${encodeURIComponent(trackId)}`,
+      `https://api.spotify.com/v1/artists/${encodeURIComponent(artistId)}`,
+      {
+        timeoutMs: DEFAULT_ENRICHMENT_TIMEOUT_MS,
+        fetchImpl: this.deps.fetchImpl,
+        headers: { Authorization: `Bearer ${token}` },
+      },
+    );
+    if (!res.ok) return null;
+    const data = await res.json() as { genres?: string[] };
+    const genres = (data.genres ?? []).filter(g => typeof g === 'string');
+    return { genres };
+  }
+
+  private async fetchAlbum(
+    albumId: string, token: string,
+  ): Promise<{ label?: string; releaseYear?: string } | null> {
+    const res = await fetchWithTimeout(
+      `https://api.spotify.com/v1/albums/${encodeURIComponent(albumId)}`,
       {
         timeoutMs: DEFAULT_ENRICHMENT_TIMEOUT_MS,
         fetchImpl: this.deps.fetchImpl,
@@ -80,20 +117,15 @@ export class SpotifyFetcher {
     );
     if (!res.ok) return null;
     const data = await res.json() as {
-      tempo?: number; valence?: number; energy?: number;
-      danceability?: number; key?: number; mode?: number;
+      label?: string;
+      release_date?: string;
     };
-    if (
-      data.tempo === undefined || data.valence === undefined || data.energy === undefined ||
-      data.danceability === undefined || data.key === undefined || data.mode === undefined
-    ) return null;
-    return {
-      tempo: data.tempo,
-      valence: data.valence,
-      energy: data.energy,
-      danceability: data.danceability,
-      key: data.key,
-      mode: data.mode,
-    };
+    const out: { label?: string; releaseYear?: string } = {};
+    if (data.label && typeof data.label === 'string') out.label = data.label;
+    if (data.release_date) {
+      const yearMatch = data.release_date.match(/^(\d{4})/);
+      if (yearMatch) out.releaseYear = yearMatch[1];
+    }
+    return Object.keys(out).length > 0 ? out : null;
   }
 }

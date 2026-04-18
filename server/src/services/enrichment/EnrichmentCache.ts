@@ -13,14 +13,7 @@ export interface EnrichmentRecord {
   wikipediaSummary?: string;
   notableFacts?: string[];
   artistBio?: string;
-  audioFeatures?: {
-    tempo: number;
-    valence: number;
-    energy: number;
-    danceability: number;
-    key: number;
-    mode: number;
-  };
+  albumLabel?: string;
 
   lastEnrichedAt: number;
   source: 'genius' | 'musicbrainz' | 'wikipedia' | 'lastfm' | 'spotify' | 'hybrid';
