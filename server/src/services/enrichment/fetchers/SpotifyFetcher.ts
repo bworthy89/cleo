@@ -1,24 +1,6 @@
 import type { EnrichmentRecord } from '../EnrichmentCache';
 import { fetchWithTimeout, DEFAULT_ENRICHMENT_TIMEOUT_MS } from '../http-timeout';
 
-/**
- * Until Task 8 extends EnrichmentRecord with audioFeatures and source: 'spotify',
- * overlay type satisfies TS. Task 8 will remove it.
- */
-interface AudioFeatures {
-  tempo: number;
-  valence: number;
-  energy: number;
-  danceability: number;
-  key: number;
-  mode: number;
-}
-
-type SpotifyEnrichment = Partial<Omit<EnrichmentRecord, 'source'>> & {
-  audioFeatures?: AudioFeatures;
-  source?: EnrichmentRecord['source'] | 'spotify';
-};
-
 export interface SpotifyFetcherDeps {
   clientId?: string;
   clientSecret?: string;
@@ -35,7 +17,7 @@ export class SpotifyFetcher {
 
   constructor(private readonly deps: SpotifyFetcherDeps = {}) {}
 
-  async fetch(title: string, artist: string): Promise<SpotifyEnrichment | null> {
+  async fetch(title: string, artist: string): Promise<Partial<EnrichmentRecord> | null> {
     const id = this.deps.clientId ?? process.env.SPOTIFY_CLIENT_ID;
     const secret = this.deps.clientSecret ?? process.env.SPOTIFY_CLIENT_SECRET;
     if (!id || !secret) return null;
@@ -87,7 +69,7 @@ export class SpotifyFetcher {
     return data.tracks?.items?.[0]?.id ?? null;
   }
 
-  private async fetchFeatures(trackId: string, token: string): Promise<AudioFeatures | null> {
+  private async fetchFeatures(trackId: string, token: string): Promise<NonNullable<EnrichmentRecord['audioFeatures']> | null> {
     const res = await fetchWithTimeout(
       `https://api.spotify.com/v1/audio-features/${encodeURIComponent(trackId)}`,
       {

@@ -11,10 +11,10 @@ const makeTrack = (id: string): ManifestTrack => ({
 });
 
 const geniusRecord: Partial<EnrichmentRecord> = {
-  producer: 'Producer X', releaseYear: '1972',
+  producer: 'Producer X', releaseYear: '1972', source: 'genius',
 };
 const mbRecord: Partial<EnrichmentRecord> = {
-  genre: 'soul', moodTags: ['warm'],
+  genre: 'soul', moodTags: ['warm'], source: 'musicbrainz',
 };
 
 function makeFetcher(): jest.Mocked<EnrichmentFetcher> {
@@ -27,6 +27,18 @@ function makeFetcher(): jest.Mocked<EnrichmentFetcher> {
       Promise<Partial<EnrichmentRecord> | null>,
       [string, string]
     >(async () => mbRecord),
+    fetchWikipedia: jest.fn<
+      Promise<Partial<EnrichmentRecord> | null>,
+      [string, string]
+    >(async () => null),
+    fetchLastFm: jest.fn<
+      Promise<Partial<EnrichmentRecord> | null>,
+      [string, string]
+    >(async () => null),
+    fetchSpotify: jest.fn<
+      Promise<Partial<EnrichmentRecord> | null>,
+      [string, string]
+    >(async () => null),
   };
 }
 

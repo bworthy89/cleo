@@ -9,17 +9,6 @@ export interface WikipediaFetcherDeps {
 }
 
 /**
- * Forward-declared Wikipedia fields that will land on EnrichmentRecord in Task 8.
- * Typed here as an overlay so this fetcher can return them without modifying
- * EnrichmentCache.ts ahead of the schema migration.
- */
-export type WikipediaEnrichment = Partial<Omit<EnrichmentRecord, 'source'>> & {
-  wikipediaSummary?: string;
-  notableFacts?: string[];
-  source?: EnrichmentRecord['source'] | 'wikipedia';
-};
-
-/**
  * Wikipedia enrichment via the REST v1 search + summary + html endpoints.
  * One search call to find the best page, one summary call for the intro,
  * one html call to mine Background / Recording sections. All three are fast
@@ -28,14 +17,14 @@ export type WikipediaEnrichment = Partial<Omit<EnrichmentRecord, 'source'>> & {
 export class WikipediaFetcher {
   constructor(private readonly deps: WikipediaFetcherDeps = {}) {}
 
-  async fetch(title: string, artist: string): Promise<WikipediaEnrichment | null> {
+  async fetch(title: string, artist: string): Promise<Partial<EnrichmentRecord> | null> {
     try {
       const pageKey = await this.searchBestPage(`${title} ${artist}`);
       if (!pageKey) return null;
       const summary = await this.fetchSummary(pageKey);
       if (!summary) return null;
       const notableFacts = await this.fetchNotableFacts(pageKey);
-      const out: WikipediaEnrichment = {
+      const out: Partial<EnrichmentRecord> = {
         wikipediaSummary: summary,
         source: 'wikipedia',
       };
