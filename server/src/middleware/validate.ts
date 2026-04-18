@@ -65,3 +65,7 @@ export const curatePlaylistSchema = z.object({
   })).optional(),
   userFeedback: z.string().max(500).optional(),
 });
+
+export const curateIntentSchema = z.object({
+  prompt: z.string().min(1).max(500),
+});
