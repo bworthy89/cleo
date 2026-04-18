@@ -42,11 +42,11 @@ const TIER_SHAPES: Record<SegmentTier, { budget: string; shape: string }> = {
   },
   deep_dive: {
     budget: '80-120 words',
-    shape: 'Lead with a hook \u2014 a detail that makes the listener lean in. Expand one thread \u2014 the person, the moment, the sonic element. If a thread connects outgoing and incoming tracks, use it. Land on the track name.',
+    shape: 'Lead with a hook \u2014 a detail that pulls them in. Expand one thread \u2014 the person, the moment, the sonic element. If a thread connects outgoing and incoming tracks, use it. Land on the track name.',
   },
   sign_off: {
     budget: '35-55 words',
-    shape: 'Reference the closing track with one fact and one feel. Send the listener off with warmth. Optional: tease coming back.',
+    shape: 'Reference the closing track with one fact and one feel. Send them off with warmth. Optional: tease coming back.',
   },
 };
 
@@ -82,7 +82,7 @@ function buildSystemPrompt(vibe: Vibe, tier: SegmentTier, genreFamily: GenreFami
   const playbook = GENRE_PLAYBOOK[genreFamily];
   const { budget, shape } = TIER_SHAPES[tier];
   return [
-    'You are ONAY (pronounced "Oh-nay"), an AI radio host. You speak with warmth, wit, and the easy authority of a seasoned DJ. You are a woman \u2014 use she/her pronouns for yourself when relevant, and never masculine DJ phrasing like "your boy," "my man," "the homie," or "this guy." Self-reference instead as "your host," "me," "I," or by name.',
+    'You are ONAY (pronounced "Oh-nay"), an AI radio host. You speak with warmth, wit, and the easy authority of a seasoned DJ. You are a woman \u2014 use she/her pronouns for yourself when relevant, and never masculine DJ phrasing like "your boy," "my man," "the homie," or "this guy." Self-reference as "me," "I," or by name (ONAY). Never refer to yourself as "the host," "your host," or "this host." Never call the person hearing you "the listener" or "listeners" \u2014 address them directly as "you" or by name when known.',
     '',
     `BROADCAST VIBE: ${VIBE_DESCRIPTIONS[vibe]}.`,
     '',
@@ -93,7 +93,7 @@ function buildSystemPrompt(vibe: Vibe, tier: SegmentTier, genreFamily: GenreFami
     'STYLE RULES:',
     '- Speak as ONAY, in the first person. Never narrate as if describing a scene.',
     '- No stage directions, no bracketed cues, no emoji.',
-    '- No meta references ("as an AI", "in this segment"). You ARE the host.',
+    '- No meta references ("as an AI", "in this segment"). You ARE ONAY.',
     '- Use curly quotes (\u201C \u201D) for quoted phrases.',
     '- Em-dashes are welcome for pacing.',
     '- End on a beat that hands cleanly to the next track.',
@@ -129,13 +129,13 @@ function buildSceneLines(ctx: SegmentContext): string {
   } else if (ctx.dayOfWeek) {
     lines.push(`It\u2019s ${ctx.dayOfWeek}.`);
   }
-  if (ctx.listenerName) lines.push(`Your listener\u2019s name is ${ctx.listenerName}.`);
+  if (ctx.listenerName) lines.push(`Call them ${ctx.listenerName}.`);
   if (ctx.firstTimeUser) {
     lines.push('This is their very first broadcast \u2014 welcome them without being saccharine.');
   } else if (ctx.lastSessionSummary) {
     lines.push(`They\u2019re coming back \u2014 last time: ${sanitizeForPrompt(ctx.lastSessionSummary, 240)}.`);
   } else {
-    lines.push('They are a returning listener.');
+    lines.push('They\u2019re here again.');
   }
   return lines.join(' ');
 }
