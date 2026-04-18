@@ -49,7 +49,8 @@ describe('normalizeGenreFamily', () => {
     ['dnb', 'electronic'],
     ['dancehall', 'global'],
     ['ska', 'global'],
-    ['blues', 'folk'],
+    ['blues', 'rnb'],
+    ['rhythm and blues', 'rnb'],
   ])('normalizes %s -> %s', (raw, expected) => {
     expect(normalizeGenreFamily(raw)).toBe(expected);
   });

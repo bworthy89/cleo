@@ -17,10 +17,10 @@ export function normalizeGenreFamily(raw?: string | string[]): GenreFamily {
   if (/gospel|spirituals?|praise.+worship|quartet.+gospel/.test(s)) return 'gospel';
   if (/jazz|bebop|bossa|fusion|big band|post[- ]?bop/.test(s)) return 'jazz';
   if (/hip[- ]?hop|rap|trap|drill|boom[- ]?bap/.test(s)) return 'hipHop';
-  if (/r&?b|soul|motown|quiet storm|neo[- ]?soul|funk|disco/.test(s)) return 'rnb';
+  if (/r&?b|soul|motown|quiet storm|neo[- ]?soul|funk|disco|blues/.test(s)) return 'rnb';
   if (/electronic|edm|house|techno|trance|dnb|drum[^a-z]*(and|n)?[^a-z]*bass|dubstep|garage|ambient|idm|trip[- ]?hop|electro[- ]?pop|synth[- ]?pop|synthpop|electropop/.test(s)) return 'electronic';
   if (/afrobeat|reggae|reggaeton|cumbia|samba|latin|highlife|global|world|dancehall|ska/.test(s)) return 'global';
-  if (/folk|country|bluegrass|americana|singer.?songwriter|blues/.test(s)) return 'folk';
+  if (/folk|country|bluegrass|americana|singer.?songwriter/.test(s)) return 'folk';
   if (/rock|punk|grunge|indie|alternative|metal/.test(s)) return 'rock';
   if (/pop|k-?pop|j-?pop/.test(s)) return 'pop';
   return 'generic';
