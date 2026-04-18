@@ -1,6 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { llmProvider } from '../providers/llm/index.js';
-import { validate, curatePlaylistSchema } from '../middleware/validate.js';
+import {
+  validate, curatePlaylistSchema, curateIntentSchema,
+} from '../middleware/validate.js';
 import { VIBE_ARCS } from '../services/broadcast/vibe-arcs.js';
 
 export const curationRouter = Router();
@@ -8,6 +10,18 @@ export const curationRouter = Router();
 const VIBES = [
   'morning', 'focus', 'workout', 'feelGood',
   'lateNight', 'melancholy', 'party',
+] as const;
+
+const INTENT_TYPES = [
+  'single-artist',
+  'artist-circle',
+  'scene',
+  'mood',
+  'era-genre',
+  'specific-track',
+  'seed-track-plus',
+  'deep-cuts',
+  'mixed',
 ] as const;
 
 /**
@@ -97,6 +111,108 @@ function buildUserPrompt(body: {
     .join('\n');
   return `Current playlist:\n${current}\n\nListener feedback: "${body.userFeedback}"`;
 }
+
+// ─────────────────────── Intent classifier ───────────────────────────
+//
+// Called first by the Ask ONAY flow. Returns a structured intent so the
+// client can pick the right curation strategy. "best of X" is answered
+// by catalog lookup on the artist, not by asking the LLM to name tracks.
+// "mood" / "scene" / "era-genre" still use LLM generation but with
+// tighter framing. See docs on the curation redesign for the taxonomy.
+
+const INTENT_SYSTEM_PROMPT = `You are ONAY, an AI radio host classifying a listener's playlist request. Read the request, decide the intent, pull out structured parameters, and write an opinionated stance that will drive the curation pipeline.
+
+Return ONLY valid JSON. No markdown, no code fences, no prose outside the JSON.
+
+Response shape:
+{
+  "intent": "one of: ${INTENT_TYPES.join(', ')}",
+  "artists": ["Artist Name", ...],
+  "seedTracks": [{ "title": "Song", "artist": "Artist" }, ...],
+  "vibe": "one of: ${VIBES.join(', ')} or null",
+  "era": "e.g. 1990s, early 2000s, 2010s — or null",
+  "genre": "e.g. hip hop, alt-R&B, indie folk — or null",
+  "stance": "2-3 sentences in your voice, explaining your curation choice and the arc. Literary, warm, specific.",
+  "playlistTitle": "A stylized playlist title",
+  "conversationalResponse": "What you'd say opening the chat — warm, 1-2 sentences",
+  "options": ["wider — ...", "tighter — ...", "different vibe — ..."]
+}
+
+Intent taxonomy:
+- single-artist: "best of X", "all of X", "X songs", "give me X" — listener wants one artist's catalog. artists = [the one artist].
+- artist-circle: "X and their collaborators", "the Sonder crew" — artist plus their close network. artists = named artist(s).
+- scene: "X inspired", "like X", "X vibes", "if you liked X" — aesthetic continuation. artists = seed artist(s).
+- mood: "Sunday morning", "late-night chill", "focus music" — mood-driven, no artist. vibe is set.
+- era-genre: "90s hip hop", "2000s indie rock" — era or genre or both. era and/or genre set.
+- specific-track: "play 'Rolling Stone' by X", "that one Lucky Daye song about..." — listener named or described a specific track. seedTracks populated.
+- seed-track-plus: "songs like 'Rolling Stone' by X", "more like that Frank Ocean song" — seed track plus similars. seedTracks populated.
+- deep-cuts: "hidden gems of X", "X's b-sides", "underrated Y" — curatorial deep picks. artists = named artist(s).
+- mixed: combines above or doesn't fit cleanly.
+
+Rules:
+- "best of X" is single-artist, never scene. Scene is only for explicit "like X" / "inspired" language.
+- vibe is only set for mood intent. Scene requests don't set vibe — the curation pipeline will infer the scene's vibe separately.
+- stance is real taste: "Opens on 'Trust' — his breakout — so the listener remembers why they fell for him, then the 2018-2020 run is the body, closes on 'Rolling Stone' because that's the emotional peak." Not "here's a playlist."
+- options: always 3, actionable, in ONAY's voice.
+- playlist titles editorial, not generic. "Brent Faiyaz — the essentials, late-night cut", not "Brent Faiyaz Hits".`;
+
+function sanitize(s: string): string {
+  return s.replace(/[\x00-\x1F\x7F]/g, '');
+}
+
+function tryParseJson(text: string): Record<string, unknown> | null {
+  const first = text.indexOf('{');
+  const last = text.lastIndexOf('}');
+  if (first === -1 || last === -1) return null;
+  try { return JSON.parse(text.slice(first, last + 1)); } catch { return null; }
+}
+
+curationRouter.post('/curate-intent', validate(curateIntentSchema), async (req: Request, res: Response) => {
+  try {
+    const { prompt } = req.body as { prompt: string };
+
+    const result = await llmProvider.generate({
+      systemPrompt: INTENT_SYSTEM_PROMPT,
+      userPrompt: `Listener request: "${sanitize(prompt)}"`,
+      maxTokens: 2048,
+      temperature: 0.4,
+      preferredProvider: 'fallback',
+    });
+
+    const parsed = tryParseJson(result.text);
+    if (!parsed || typeof parsed.intent !== 'string') {
+      throw new Error('intent classifier returned malformed JSON');
+    }
+
+    // Coerce fields to safe defaults; narrow intent to taxonomy.
+    const intent = (INTENT_TYPES as readonly string[]).includes(parsed.intent as string)
+      ? parsed.intent as string
+      : 'mixed';
+    const vibe = typeof parsed.vibe === 'string' && (VIBES as readonly string[]).includes(parsed.vibe)
+      ? parsed.vibe
+      : null;
+
+    res.json({
+      intent,
+      artists: Array.isArray(parsed.artists) ? parsed.artists.filter((a: unknown) => typeof a === 'string').slice(0, 12) : [],
+      seedTracks: Array.isArray(parsed.seedTracks) ? parsed.seedTracks.slice(0, 5) : [],
+      vibe,
+      era: typeof parsed.era === 'string' ? parsed.era : null,
+      genre: typeof parsed.genre === 'string' ? parsed.genre : null,
+      stance: typeof parsed.stance === 'string' ? parsed.stance : '',
+      playlistTitle: typeof parsed.playlistTitle === 'string' ? parsed.playlistTitle : 'ONAY\u2019s Picks',
+      conversationalResponse: typeof parsed.conversationalResponse === 'string'
+        ? parsed.conversationalResponse
+        : 'Here\u2019s what I put together.',
+      options: Array.isArray(parsed.options)
+        ? parsed.options.filter((o: unknown) => typeof o === 'string').slice(0, 3)
+        : [],
+    });
+  } catch (err: any) {
+    console.error('[Curation:intent] Error:', err?.message);
+    res.status(500).json({ error: 'Failed to classify intent' });
+  }
+});
 
 curationRouter.post('/curate-playlist', validate(curatePlaylistSchema), async (req: Request, res: Response) => {
   try {
