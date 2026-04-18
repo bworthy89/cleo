@@ -134,6 +134,13 @@ export class BroadcastPlayer {
       await this.waitIfPaused();
       if (!this.manifest) return;
     }
+    // Sign-off has played; the final segment's releaseAudioSession fires
+    // AVAudioSession.setActive(false, .notifyOthersOnDeactivation), which
+    // prompts MusicKit's ApplicationMusicPlayer to resume its queued item.
+    // Because nothing follows the sign-off to replace the queue, the user
+    // hears the last track start over. Explicit pause marks the MusicKit
+    // player user-paused so the auto-resume is suppressed.
+    await this.music.pause().catch(() => {});
     this.state = 'ended';
     clearPersistedBroadcast();
   }
