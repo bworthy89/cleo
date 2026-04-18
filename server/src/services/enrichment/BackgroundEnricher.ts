@@ -8,7 +8,6 @@ export interface EnrichmentFetcher {
   fetchMusicBrainz(title: string, artist: string): Promise<Partial<EnrichmentRecord> | null>;
   fetchWikipedia(title: string, artist: string): Promise<Partial<EnrichmentRecord> | null>;
   fetchLastFm(title: string, artist: string): Promise<Partial<EnrichmentRecord> | null>;
-  fetchSpotify(title: string, artist: string): Promise<Partial<EnrichmentRecord> | null>;
 }
 
 /**
@@ -62,22 +61,20 @@ export class BackgroundEnricher {
     if (existing && Date.now() - existing.lastEnrichedAt < REFRESH_THRESHOLD_MS) {
       return;
     }
-    const [genius, mb, wiki, lastfm, spotify] = await Promise.all([
+    const [genius, mb, wiki, lastfm] = await Promise.all([
       this.fetcher.fetchGenius(track.title, track.artistName).catch(() => null),
       this.fetcher.fetchMusicBrainz(track.title, track.artistName).catch(() => null),
       this.fetcher.fetchWikipedia(track.title, track.artistName).catch(() => null),
       this.fetcher.fetchLastFm(track.title, track.artistName).catch(() => null),
-      this.fetcher.fetchSpotify(track.title, track.artistName).catch(() => null),
     ]);
-    if (!genius && !mb && !wiki && !lastfm && !spotify) return;
+    if (!genius && !mb && !wiki && !lastfm) return;
     const merged: Partial<EnrichmentRecord> = {
       ...(mb ?? {}),
       ...(wiki ?? {}),
       ...(lastfm ?? {}),
-      ...(spotify ?? {}),
       ...(genius ?? {}),
     };
-    const sources = [genius, mb, wiki, lastfm, spotify].filter((x): x is Partial<EnrichmentRecord> => x != null);
+    const sources = [genius, mb, wiki, lastfm].filter((x): x is Partial<EnrichmentRecord> => x != null);
     const source: EnrichmentRecord['source'] =
       sources.length > 1 ? 'hybrid' : (sources[0]?.source ?? 'hybrid');
     const record: EnrichmentRecord = {

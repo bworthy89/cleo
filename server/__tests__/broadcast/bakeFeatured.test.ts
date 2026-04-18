@@ -51,7 +51,6 @@ describe('bakeFeatured', () => {
       fetchMusicBrainz: jest.fn(async () => null),
       fetchWikipedia: async () => null,
       fetchLastFm: async () => null,
-      fetchSpotify: async () => null,
     });
     const orch = new BroadcastOrchestrator(
       makeMockLLM(SEQUENCER_RESPONSE), makeMockTTS(), makeStorage(),

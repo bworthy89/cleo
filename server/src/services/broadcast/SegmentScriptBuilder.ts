@@ -109,7 +109,6 @@ function buildEnrichmentBlock(enr: EnrichmentRecord | null): string {
   const lines: string[] = [];
   if (enr.producer) lines.push(`- Producer: ${sanitizeForPrompt(enr.producer, 120)}`);
   if (enr.releaseYear) lines.push(`- Year: ${sanitizeForPrompt(enr.releaseYear, 20)}`);
-  if (enr.albumLabel) lines.push(`- Label: ${sanitizeForPrompt(enr.albumLabel, 80)}`);
   if (enr.sample) lines.push(`- Sample: ${sanitizeForPrompt(enr.sample, 200)}`);
   if (enr.wikipediaSummary) lines.push(`- About the track: ${sanitizeForPrompt(enr.wikipediaSummary, 600)}`);
   if (enr.notableFacts?.length) {

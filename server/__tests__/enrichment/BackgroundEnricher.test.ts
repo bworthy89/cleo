@@ -35,10 +35,6 @@ function makeFetcher(): jest.Mocked<EnrichmentFetcher> {
       Promise<Partial<EnrichmentRecord> | null>,
       [string, string]
     >(async () => null),
-    fetchSpotify: jest.fn<
-      Promise<Partial<EnrichmentRecord> | null>,
-      [string, string]
-    >(async () => null),
   };
 }
 
