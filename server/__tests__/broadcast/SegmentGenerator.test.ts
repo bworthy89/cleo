@@ -239,4 +239,15 @@ describe('preprocessForTTS — feat./ft. normalization', () => {
     expect(preprocessForTTS('Hey. Hello. World.')).toBe('Hey. Hello. World.');
     expect(preprocessForTTS('Mr. Smith went home.')).toBe('Mr. Smith went home.');
   });
+
+  it('replaces em-dashes and en-dashes with comma pauses', () => {
+    expect(preprocessForTTS('Next up \u2014 a classic cut')).toBe('Next up, a classic cut');
+    expect(preprocessForTTS('Side A \u2013 side B')).toBe('Side A, side B');
+    // Stuck-to-word em-dashes (rare) still collapse; OK
+    expect(preprocessForTTS('hello\u2014world')).toBe('hello, world');
+  });
+
+  it('normalizes horizontal ellipsis to three dots', () => {
+    expect(preprocessForTTS('wait for it\u2026 here it comes')).toBe('wait for it... here it comes');
+  });
 });
