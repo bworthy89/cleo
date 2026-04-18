@@ -89,7 +89,8 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.display,
     fontSize: TypeScale.s20,
     letterSpacing: 2,
-    lineHeight: 20,
+    // Anton cap-height clips at tight line-boxes on iOS; needs ~1.2x.
+    lineHeight: 24,
   },
   sub: {
     marginTop: 4,
@@ -100,7 +101,7 @@ const styles = StyleSheet.create({
   arrow: {
     fontFamily: Fonts.display,
     fontSize: 24,
-    lineHeight: 24,
+    lineHeight: 28,
     marginLeft: 12,
   },
 });

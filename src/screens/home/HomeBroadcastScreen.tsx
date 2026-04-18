@@ -527,7 +527,7 @@ const styles = StyleSheet.create({
     fontSize: TypeScale.s15,
     color: AM.ink,
     letterSpacing: 0.5,
-    lineHeight: TypeScale.s15 * 1.1,
+    lineHeight: 18,
   },
   recentDate: {
     marginTop: 3,

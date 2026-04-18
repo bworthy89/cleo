@@ -143,7 +143,7 @@ const styles = StyleSheet.create({
     fontSize: TypeScale.s22,
     color: AM.ink,
     letterSpacing: 0.3,
-    lineHeight: TypeScale.s22,
+    lineHeight: 26,
   },
   tagline: {
     marginTop: 6,

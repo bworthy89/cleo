@@ -409,7 +409,7 @@ const styles = StyleSheet.create({
     fontSize: TypeScale.s30,
     color: AM.ink,
     letterSpacing: 0.5,
-    lineHeight: TypeScale.s30,
+    lineHeight: 36,
   },
   closeBtn: {
     position: 'absolute',

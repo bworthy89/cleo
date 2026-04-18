@@ -50,7 +50,7 @@ const styles = StyleSheet.create({
     fontSize: TypeScale.s13,
     color: AM.ink,
     letterSpacing: 0.5,
-    lineHeight: TypeScale.s13 * 1.1,
+    lineHeight: 16,
   },
   meta: {
     marginTop: 4,

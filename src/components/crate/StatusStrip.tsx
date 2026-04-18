@@ -102,7 +102,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: AM.ink,
     letterSpacing: 1,
-    lineHeight: 18,
+    lineHeight: 22,
   },
   num: {
     fontFamily: Fonts.mono,
