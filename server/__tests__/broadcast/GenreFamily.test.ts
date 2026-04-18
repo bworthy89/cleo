@@ -34,6 +34,22 @@ describe('normalizeGenreFamily', () => {
     ['reggaeton', 'global'],
     ['gospel', 'gospel'],
     ['praise and worship', 'gospel'],
+    ['jazz fusion', 'jazz'],
+    ['disco', 'rnb'],
+    ['trip-hop', 'electronic'],
+    ['trip hop', 'electronic'],
+    ['synth-pop', 'electronic'],
+    ['synthpop', 'electronic'],
+    ['electro-pop', 'electronic'],
+    ['electropop', 'electronic'],
+    ['drum and bass', 'electronic'],
+    ['drum & bass', 'electronic'],
+    ["drum'n'bass", 'electronic'],
+    ['drum&bass', 'electronic'],
+    ['dnb', 'electronic'],
+    ['dancehall', 'global'],
+    ['ska', 'global'],
+    ['blues', 'folk'],
   ])('normalizes %s -> %s', (raw, expected) => {
     expect(normalizeGenreFamily(raw)).toBe(expected);
   });
