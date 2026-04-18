@@ -1,8 +1,13 @@
 import { createHash } from 'crypto';
 import type { Vibe, BroadcastLength } from './types';
 
-interface CacheEntry {
+export interface SequenceCacheValue {
   ordered: string[];
+  featureSlots: number[];
+}
+
+interface CacheEntry {
+  value: SequenceCacheValue;
   expiresAt: number;
 }
 
@@ -27,7 +32,9 @@ export class SequenceCache {
     return `${hash}|${vibe}|${length}`;
   }
 
-  get(trackIds: string[], vibe: Vibe, length: BroadcastLength): string[] | null {
+  get(
+    trackIds: string[], vibe: Vibe, length: BroadcastLength,
+  ): SequenceCacheValue | null {
     const key = this.makeKey(trackIds, vibe, length);
     const entry = this.entries.get(key);
     if (!entry) return null;
@@ -38,11 +45,14 @@ export class SequenceCache {
     // LRU: re-insert to mark recently used
     this.entries.delete(key);
     this.entries.set(key, entry);
-    return entry.ordered;
+    return entry.value;
   }
 
   set(
-    trackIds: string[], vibe: Vibe, length: BroadcastLength, ordered: string[],
+    trackIds: string[],
+    vibe: Vibe,
+    length: BroadcastLength,
+    value: SequenceCacheValue,
   ): void {
     const key = this.makeKey(trackIds, vibe, length);
     if (this.entries.size >= this.maxEntries && !this.entries.has(key)) {
@@ -50,7 +60,7 @@ export class SequenceCache {
       if (oldestKey !== undefined) this.entries.delete(oldestKey);
     }
     this.entries.set(key, {
-      ordered,
+      value,
       expiresAt: Date.now() + this.ttlMs,
     });
   }
