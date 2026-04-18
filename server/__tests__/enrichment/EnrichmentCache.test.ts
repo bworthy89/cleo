@@ -91,3 +91,30 @@ describe('EnrichmentCache', () => {
     expect(files).toContain('tracks.json');
   });
 });
+
+describe('EnrichmentCache — concurrent writes', () => {
+  it('serializes parallel set() calls without losing data on disk', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'enrichment-cache-race-'));
+    const filePath = path.join(dir, 'tracks.json');
+    const cache = new EnrichmentCache(filePath);
+    await cache.load();
+
+    const sets = Array.from({ length: 10 }, (_, i) =>
+      cache.set(`title-${i}`, 'artist', {
+        producer: `P${i}`,
+        lastEnrichedAt: Date.now(),
+        source: 'genius',
+      }),
+    );
+    await Promise.all(sets);
+
+    // Reload from disk via a fresh instance to verify persistence.
+    const fresh = new EnrichmentCache(filePath);
+    await fresh.load();
+    for (let i = 0; i < 10; i++) {
+      expect(fresh.get(`title-${i}`, 'artist')).toMatchObject({ producer: `P${i}` });
+    }
+
+    await fs.rm(dir, { recursive: true, force: true });
+  });
+});

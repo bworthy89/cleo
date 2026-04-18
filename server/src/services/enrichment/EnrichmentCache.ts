@@ -45,6 +45,7 @@ function normalizeKey(title: string, artist: string): string {
 export class EnrichmentCache {
   private data: Record<string, EnrichmentRecord> = {};
   private loadPromise: Promise<void> | null = null;
+  private flushQueue: Promise<void> = Promise.resolve();
 
   constructor(private readonly filePath: string) {}
 
@@ -71,10 +72,12 @@ export class EnrichmentCache {
   async set(title: string, artist: string, record: EnrichmentRecord): Promise<void> {
     const key = normalizeKey(title, artist);
     this.data[key] = record;
-    await this.flush();
+    const flush = this.flushQueue.then(() => this.doFlush());
+    this.flushQueue = flush.catch(() => {});
+    await flush;
   }
 
-  private async flush(): Promise<void> {
+  private async doFlush(): Promise<void> {
     const tmp = `${this.filePath}.tmp`;
     const payload: CacheFile = { version: 1, tracks: this.data };
     await fs.writeFile(tmp, JSON.stringify(payload, null, 2), 'utf8');
