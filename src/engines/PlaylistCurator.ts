@@ -126,6 +126,32 @@ function fuzzyMatch(a: string, b: string): boolean {
   return na.includes(nb) || nb.includes(na);
 }
 
+/**
+ * Collapse clean/explicit duplicate pairs of the same song, preferring the
+ * explicit version. When a catalog search returns both variants (same title
+ * + artist, different IDs), Apple lists them as distinct results. ONAY
+ * should always pick the explicit one so lyrics land with their original
+ * edge intact.
+ *
+ * Dedup key is (normalized title, normalized artist). Within a group,
+ * explicit beats clean; otherwise we keep the first encountered result.
+ * Different remixes / remasters / live versions usually carry distinguishing
+ * suffixes in the title and land in separate groups, preserved intact.
+ */
+function preferExplicit(results: CatalogSearchResult[]): CatalogSearchResult[] {
+  const groups = new Map<string, CatalogSearchResult>();
+  for (const r of results) {
+    const key = `${normalize(r.title)}|${normalize(r.artistName)}`;
+    const existing = groups.get(key);
+    if (!existing) {
+      groups.set(key, r);
+    } else if (r.contentRating === 'explicit' && existing.contentRating !== 'explicit') {
+      groups.set(key, r);
+    }
+  }
+  return Array.from(groups.values());
+}
+
 function findBestMatch(
   suggestion: LLMTrackSuggestion,
   results: CatalogSearchResult[]
@@ -196,7 +222,7 @@ function avoidAdjacentSameArtist(profiles: TrackProfile[]): TrackProfile[] {
  */
 async function strategySingleArtist(artistName: string, count: number): Promise<TrackProfile[]> {
   const limit = Math.min(count * 3, MAX_CATALOG_SEARCH_LIMIT);
-  const results = await searchCatalog(artistName, ['songs'], limit);
+  const results = preferExplicit(await searchCatalog(artistName, ['songs'], limit));
   const byArtist = results.filter(r => fuzzyMatch(r.artistName, artistName));
   return byArtist.slice(0, count).map(catalogResultToTrackProfile);
 }
@@ -215,7 +241,7 @@ async function strategyArtistBundle(
     artists.map(async (name) => {
       try {
         const limit = Math.min(perArtist * 2, MAX_CATALOG_SEARCH_LIMIT);
-        const results = await searchCatalog(name, ['songs'], limit);
+        const results = preferExplicit(await searchCatalog(name, ['songs'], limit));
         return results
           .filter(r => fuzzyMatch(r.artistName, name))
           .slice(0, perArtist)
@@ -246,7 +272,7 @@ async function strategySeedTracks(
   const matches: TrackProfile[] = [];
   for (const seed of seeds) {
     try {
-      const results = await searchCatalog(`${seed.title} ${seed.artist}`, ['songs'], 5);
+      const results = preferExplicit(await searchCatalog(`${seed.title} ${seed.artist}`, ['songs'], 5));
       const match = findBestMatch(seed, results);
       if (match) matches.push(catalogResultToTrackProfile(match));
     } catch { /* swallow, move on */ }
@@ -268,7 +294,7 @@ async function searchBatch(
       const globalIdx = i + batchIdx;
       try {
         const query = `${suggestion.title} ${suggestion.artist}`;
-        const results = await searchCatalog(query, ['songs'], 5);
+        const results = preferExplicit(await searchCatalog(query, ['songs'], 5));
         const match = findBestMatch(suggestion, results);
         if (match) {
           matched.set(globalIdx, match);
