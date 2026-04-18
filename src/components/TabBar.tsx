@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AM, Fonts, TypeScale, Space } from '../tokens/design-tokens';
+import { NowPlayingBar } from './NowPlayingBar';
 
 const TABS: { key: string; label: string }[] = [
   { key: '(broadcast)', label: 'broadcast' },
@@ -12,6 +13,7 @@ export function CustomTabBar({ state, navigation }: any) {
 
   return (
     <View style={[styles.container, { paddingBottom: insets.bottom || Space.s18 }]}>
+      <NowPlayingBar />
       <View style={styles.inner}>
         {TABS.map((tab) => {
           const routeIndex = state.routes.findIndex((r: any) => r.name === tab.key);
@@ -45,8 +47,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     backgroundColor: AM.bg,
-    borderTopWidth: 1,
-    borderTopColor: AM.amberFaint,
   },
   inner: {
     flexDirection: 'row',
@@ -55,6 +55,8 @@ const styles = StyleSheet.create({
     height: 56,
     paddingTop: Space.s10,
     gap: Space.s40,
+    borderTopWidth: 1,
+    borderTopColor: AM.amberFaint,
   },
   tab: {
     alignItems: 'center',

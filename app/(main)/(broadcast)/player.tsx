@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -102,9 +102,16 @@ export default function BroadcastPlayerScreen() {
       <View style={[styles.safe, { paddingTop: insets.top + Space.s18, paddingBottom: insets.bottom + Space.s22 }]}>
         {/* Status strip */}
         <View style={styles.strip}>
-          <Text style={styles.stripMono}>
-            {warming ? 'tuning in' : ended ? 'broadcast ended' : paused ? 'paused' : `now playing \u00b7 track ${pad2(trackIndex)} / ${pad2(totalTracks)}`}
-          </Text>
+          <Pressable
+            onPress={onEnd}
+            accessibilityRole="button"
+            accessibilityLabel="End broadcast"
+            accessibilityHint="Stops playback and returns to home"
+            hitSlop={12}
+            style={({ pressed }) => [pressed && { opacity: 0.6 }]}
+          >
+            <Text style={styles.stripEnd}>{'\u2190'} end broadcast</Text>
+          </Pressable>
           <Text style={styles.stripMono}>on air {'\u00b7'} {clock}</Text>
         </View>
 
@@ -180,16 +187,6 @@ export default function BroadcastPlayerScreen() {
         </View>
 
         <View style={{ flex: 1 }} />
-
-        {/* End broadcast */}
-        <Pressable
-          onPress={onEnd}
-          accessibilityRole="button"
-          accessibilityLabel="End broadcast"
-          style={({ pressed }) => [styles.endWrap, pressed && { opacity: 0.6 }]}
-        >
-          <Text style={styles.endText}>end broadcast</Text>
-        </Pressable>
       </View>
 
       <TuningInOverlay visible={warming} />
@@ -218,6 +215,12 @@ const styles = StyleSheet.create({
     fontSize: TypeScale.s9,
     letterSpacing: 3,
     color: AM.inkDim,
+  },
+  stripEnd: {
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s10,
+    letterSpacing: 2,
+    color: AM.amber,
   },
 
   heroWrap: {
@@ -328,16 +331,5 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 30,
     marginTop: Space.s4,
-  },
-
-  endWrap: {
-    alignSelf: 'center',
-    paddingVertical: Space.s14,
-  },
-  endText: {
-    fontFamily: Fonts.mono,
-    fontSize: TypeScale.s10,
-    letterSpacing: 2,
-    color: AM.amberDim,
   },
 });
