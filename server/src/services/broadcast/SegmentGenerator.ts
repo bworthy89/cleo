@@ -39,6 +39,12 @@ export function preprocessForTTS(text: string): string {
   // came out as "cont" in testing. Straight ASCII routes through the
   // contraction phoneme path cleanly.
   out = out.replace(/[\u2018\u2019\u02BC\u2032]/g, "'");
+  // Collapse single-letter initialisms like K.R.I.T. / U.S.A. / B.I.G. so
+  // TTS reads them as one word rather than spelling each letter with a
+  // period-pause between. Chatterbox was truncating "K.R.I.T." to "K"
+  // and Cartesia spaces the letters out. Keep the trailing period if the
+  // initialism ends a sentence.
+  out = out.replace(/\b(?:[A-Z]\.){2,}[A-Z]\b\.?/g, (match) => match.replace(/\./g, ''));
   // (feat. X) / (ft. X) / (Feat X) — drop parens, say "featuring X"
   out = out.replace(/\(\s*(?:feat|ft)\.?\s+([^)]+?)\s*\)/gi, 'featuring $1');
   // Bare "feat." / "ft." outside parens — turn into "featuring"
