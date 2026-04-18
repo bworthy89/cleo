@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Animated, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
+import { useAppActive } from '../../hooks/useAppActive';
 import { AM, Fonts, Space, TypeScale, ZIndex } from '../../tokens/design-tokens';
 import { SpinningRecord } from '../crate/SpinningRecord';
 
@@ -61,8 +62,67 @@ export function TuningInOverlay({
         <Text style={styles.label}>{label}</Text>
         <Text style={styles.headline}>{headline}</Text>
         <Text style={styles.voice}>&ldquo;{voiceLine}&rdquo;</Text>
+        <CyclingStatusLabel active={visible} />
       </View>
     </Animated.View>
+  );
+}
+
+const PHASES = ['CURATING', 'ENRICHING', 'WRITING SEGMENTS', 'TUNING IN'] as const;
+const PHASE_INTERVAL_MS = 5000;
+const FADE_DURATION_MS = 260;
+
+/**
+ * Subtle mono label that cycles through bake-pipeline phases so the
+ * 25-40s cold-bake wait doesn't feel stalled. Pauses its interval when
+ * the app is backgrounded (iOS background CPU budget).
+ */
+function CyclingStatusLabel({ active }: { active: boolean }) {
+  const appActive = useAppActive();
+  const running = active && appActive;
+  const [index, setIndex] = useState(0);
+  const opacity = useRef(new Animated.Value(1)).current;
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (!running) {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      return;
+    }
+    intervalRef.current = setInterval(() => {
+      Animated.timing(opacity, {
+        toValue: 0,
+        duration: FADE_DURATION_MS,
+        easing: Easing.inOut(Easing.ease),
+        useNativeDriver: true,
+      }).start(() => {
+        setIndex((i) => (i + 1) % PHASES.length);
+        Animated.timing(opacity, {
+          toValue: 1,
+          duration: FADE_DURATION_MS,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }).start();
+      });
+    }, PHASE_INTERVAL_MS);
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [running, opacity]);
+
+  return (
+    <Animated.Text
+      accessibilityLiveRegion="polite"
+      style={[styles.status, { opacity }]}
+    >
+      {PHASES[index]}
+    </Animated.Text>
   );
 }
 
@@ -98,5 +158,13 @@ const styles = StyleSheet.create({
     color: AM.inkMid,
     textAlign: 'center',
     lineHeight: TypeScale.s13 * 1.5,
+  },
+  status: {
+    marginTop: Space.s22,
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s10,
+    color: AM.amber,
+    letterSpacing: 2.5,
+    textAlign: 'center',
   },
 });
