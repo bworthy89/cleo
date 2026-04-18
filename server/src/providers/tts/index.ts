@@ -1,6 +1,7 @@
 import { TTSProvider, TTSRequest, TTSResponse } from './types';
 import { CachingTTSProvider } from './cache';
 import { CartesiaProvider } from './cartesia';
+import { ChatterboxProvider } from './chatterbox';
 import { ElevenLabsProvider } from './elevenlabs';
 import { OrpheusProvider } from './orpheus';
 
@@ -8,9 +9,36 @@ export type { TTSRequest, TTSResponse } from './types';
 
 interface ProviderStatus {
   active: string;
-  cartesia: { healthy: boolean; lastCheck: string | null };
-  elevenlabs: { healthy: boolean; lastCheck: string | null };
-  orpheus: { healthy: boolean; lastCheck: string | null };
+  primary: { name: string; healthy: boolean; lastCheck: string | null };
+  fallback: { name: string; healthy: boolean; lastCheck: string | null };
+  tertiary: { name: string; healthy: boolean; lastCheck: string | null };
+}
+
+const PROVIDER_CONSTRUCTORS: Record<string, () => TTSProvider> = {
+  cartesia: () => new CartesiaProvider(),
+  chatterbox: () => new ChatterboxProvider(),
+  elevenlabs: () => new ElevenLabsProvider(),
+  orpheus: () => new OrpheusProvider(),
+};
+
+/**
+ * Ordered slot names — primary, fallback, tertiary.
+ * Respects TTS_PRIMARY env var: that provider moves to primary slot, rest
+ * fill remaining slots in a sensible default order. ElevenLabs stays as
+ * the preferred fallback because it handles prose cleanly.
+ */
+function resolveOrder(): [string, string, string] {
+  const primary = (process.env.TTS_PRIMARY ?? 'cartesia').toLowerCase();
+  const defaults = ['cartesia', 'elevenlabs', 'orpheus'];
+  const known = Object.keys(PROVIDER_CONSTRUCTORS);
+  const chosen = known.includes(primary) ? primary : 'cartesia';
+  const rest = defaults.filter(n => n !== chosen);
+  // If primary is non-default (e.g. chatterbox), keep all three defaults
+  // as remaining slots, prioritizing elevenlabs/orpheus then cartesia.
+  if (!defaults.includes(chosen)) {
+    rest.push('cartesia');
+  }
+  return [chosen, rest[0] ?? '', rest[1] ?? ''];
 }
 
 class TTSProviderFactory {
@@ -25,24 +53,31 @@ class TTSProviderFactory {
   private lastTertiaryCheck: Date | null = null;
   private healthInterval: ReturnType<typeof setInterval> | null = null;
 
+  private readonly order: [string, string, string];
+
   constructor() {
-    try {
-      this.primary = new CartesiaProvider();
-    } catch (e) {
-      console.warn('[TTS] Cartesia provider unavailable:', (e as Error).message);
-    }
+    this.order = resolveOrder();
+    const [primaryName, fallbackName, tertiaryName] = this.order;
+    console.log(`[TTS] Provider order: ${primaryName} > ${fallbackName} > ${tertiaryName}`);
 
-    try {
-      this.fallback = new ElevenLabsProvider();
-    } catch (e) {
-      console.warn('[TTS] ElevenLabs provider unavailable:', (e as Error).message);
-    }
+    const tryBuild = (name: string): TTSProvider | null => {
+      if (!name) return null;
+      const ctor = PROVIDER_CONSTRUCTORS[name];
+      if (!ctor) {
+        console.warn(`[TTS] Unknown provider name: ${name}`);
+        return null;
+      }
+      try {
+        return ctor();
+      } catch (e) {
+        console.warn(`[TTS] ${name} provider unavailable: ${(e as Error).message}`);
+        return null;
+      }
+    };
 
-    try {
-      this.tertiary = new OrpheusProvider();
-    } catch (e) {
-      console.warn('[TTS] Orpheus provider unavailable:', (e as Error).message);
-    }
+    this.primary = tryBuild(primaryName);
+    this.fallback = tryBuild(fallbackName);
+    this.tertiary = tryBuild(tertiaryName);
 
     this.runHealthChecks();
     const interval = Number(process.env.HEALTH_CHECK_INTERVAL_MS) || 30000;
@@ -138,15 +173,18 @@ class TTSProviderFactory {
 
     return {
       active,
-      cartesia: {
+      primary: {
+        name: this.primary?.name ?? this.order[0],
         healthy: this.primaryHealthy,
         lastCheck: this.lastPrimaryCheck?.toISOString() ?? null,
       },
-      elevenlabs: {
+      fallback: {
+        name: this.fallback?.name ?? this.order[1],
         healthy: this.fallbackHealthy,
         lastCheck: this.lastFallbackCheck?.toISOString() ?? null,
       },
-      orpheus: {
+      tertiary: {
+        name: this.tertiary?.name ?? this.order[2],
         healthy: this.tertiaryHealthy,
         lastCheck: this.lastTertiaryCheck?.toISOString() ?? null,
       },
