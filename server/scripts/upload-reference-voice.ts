@@ -26,9 +26,15 @@ async function main(): Promise<void> {
 
   const bytes = await fs.readFile(localPath);
   const filename = path.basename(localPath);
+  const ext = path.extname(localPath).toLowerCase();
+  const mime = ext === '.wav' ? 'audio/wav'
+    : ext === '.mp3' ? 'audio/mpeg'
+    : ext === '.m4a' ? 'audio/mp4'
+    : ext === '.flac' ? 'audio/flac'
+    : 'application/octet-stream';
 
   const form = new FormData();
-  form.append('content', new Blob([new Uint8Array(bytes)], { type: 'audio/mpeg' }), filename);
+  form.append('content', new Blob([new Uint8Array(bytes)], { type: mime }), filename);
 
   const res = await fetch('https://api.replicate.com/v1/files', {
     method: 'POST',
