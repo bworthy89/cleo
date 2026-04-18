@@ -13,10 +13,9 @@ export interface EnrichmentRecord {
   wikipediaSummary?: string;
   notableFacts?: string[];
   artistBio?: string;
-  albumLabel?: string;
 
   lastEnrichedAt: number;
-  source: 'genius' | 'musicbrainz' | 'wikipedia' | 'lastfm' | 'spotify' | 'hybrid';
+  source: 'genius' | 'musicbrainz' | 'wikipedia' | 'lastfm' | 'hybrid';
 }
 
 interface CacheFile {

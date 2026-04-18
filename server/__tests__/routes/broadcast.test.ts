@@ -52,7 +52,6 @@ describe('broadcast router', () => {
       fetchMusicBrainz: jest.fn(async () => null),
       fetchWikipedia: async () => null,
       fetchLastFm: async () => null,
-      fetchSpotify: async () => null,
     });
     store = new BroadcastStore();
     orch = new BroadcastOrchestrator(
