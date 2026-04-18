@@ -77,17 +77,24 @@ class LLMProviderFactory {
   }
 
   async generate(request: LLMRequest): Promise<LLMResponse> {
-    const provider = this.getActiveProvider();
-    console.log(`[LLM] Using ${provider.name}`);
+    const prefersFallback = request.preferredProvider === 'fallback';
+    const first = prefersFallback && this.fallback && this.fallbackHealthy
+      ? this.fallback
+      : this.getActiveProvider();
+    console.log(`[LLM] Using ${first.name}${prefersFallback ? ' (fallback preferred)' : ''}`);
 
     try {
-      return await provider.generate(request);
+      return await first.generate(request);
     } catch (error) {
-      // If primary failed, try fallback
-      if (provider === this.primary && this.fallback) {
-        console.warn(`[LLM] ${provider.name} failed, falling back to ${this.fallback.name}`);
-        this.primaryHealthy = false;
-        return await this.fallback.generate(request);
+      // Cross-try the other provider if one is available. Preserves existing
+      // primary→fallback behavior and adds fallback→primary when the caller
+      // preferred fallback but it errored.
+      const alt = first === this.primary ? this.fallback : this.primary;
+      if (alt) {
+        console.warn(`[LLM] ${first.name} failed, trying ${alt.name}`);
+        if (first === this.primary) this.primaryHealthy = false;
+        else this.fallbackHealthy = false;
+        return await alt.generate(request);
       }
       throw error;
     }

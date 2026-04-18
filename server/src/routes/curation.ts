@@ -93,6 +93,11 @@ curationRouter.post('/curate-playlist', validate(curatePlaylistSchema), async (r
       userPrompt,
       maxTokens: 4096,
       temperature: 0.9,
+      // Curation is a quality-sensitive, low-volume path — route it
+      // through Gemini (fallback slot) whose training corpus has deeper
+      // recall for contemporary / alt-R&B artists than the self-hosted
+      // 8B model. Factory automatically reverses to primary on error.
+      preferredProvider: 'fallback',
     });
 
     // Parse JSON from LLM response
