@@ -407,6 +407,11 @@ public class ExpoMusicKitModule: Module {
           "genreNames": song.genreNames,
         ]
 
+        // Surface contentRating so the JS caller can prefer explicit versions.
+        if let rating = song.contentRating {
+          dict["contentRating"] = rating.rawValue
+        }
+
         if let artwork = song.artwork {
           let url = artwork.url(width: 300, height: 300)
           dict["artworkUrl"] = url?.absoluteString ?? ""
@@ -913,6 +918,9 @@ public class ExpoMusicKitModule: Module {
       "trackNumber": track.trackNumber ?? 0,
       "discNumber": track.discNumber ?? 0
     ]
+    if let rating = track.contentRating {
+      dict["contentRating"] = rating.rawValue
+    }
     if let artworkUrl = artworkUrlString(track.artwork, width: 800, height: 800) {
       dict["artworkUrl"] = artworkUrl
     }
@@ -930,6 +938,9 @@ public class ExpoMusicKitModule: Module {
       "trackNumber": song.trackNumber ?? 0,
       "discNumber": song.discNumber ?? 0
     ]
+    if let rating = song.contentRating {
+      dict["contentRating"] = rating.rawValue
+    }
     if let artworkUrl = artworkUrlString(song.artwork, width: 800, height: 800) {
       dict["artworkUrl"] = artworkUrl
     }

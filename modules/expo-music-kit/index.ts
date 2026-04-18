@@ -136,6 +136,10 @@ export interface CatalogSearchResult {
   duration: number;
   genreNames: string[];
   artworkUrl: string;
+  /** Apple Music content rating — 'explicit' or 'clean' when known. Undefined
+   *  for tracks with no rating metadata. Callers can prefer explicit when
+   *  both variants of a song exist in search results. */
+  contentRating?: 'explicit' | 'clean';
 }
 
 export async function searchCatalog(
