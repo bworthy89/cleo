@@ -10,15 +10,6 @@ const MOOD_WORDS = new Set([
   'dreamy', 'intimate', 'reflective', 'hopeful', 'sad', 'happy',
 ]);
 
-/**
- * Until Task 8 extends EnrichmentRecord with artistBio and source: 'lastfm',
- * we use this local overlay to satisfy TS. Task 8 will remove it.
- */
-type LastFmEnrichment = Partial<Omit<EnrichmentRecord, 'source'>> & {
-  artistBio?: string;
-  source?: EnrichmentRecord['source'] | 'lastfm';
-};
-
 export interface LastFmFetcherDeps {
   apiKey?: string;
   fetchImpl?: typeof fetch;
@@ -29,7 +20,7 @@ export class LastFmFetcher {
 
   constructor(private readonly deps: LastFmFetcherDeps = {}) {}
 
-  async fetch(title: string, artist: string): Promise<LastFmEnrichment | null> {
+  async fetch(title: string, artist: string): Promise<Partial<EnrichmentRecord> | null> {
     const key = this.deps.apiKey ?? process.env.LASTFM_API_KEY;
     if (!key) return null;
     return this.queue.schedule(async () => {
@@ -37,7 +28,7 @@ export class LastFmFetcher {
         this.getTrackInfo(title, artist, key),
         this.getArtistInfo(artist, key),
       ]);
-      const out: LastFmEnrichment = {};
+      const out: Partial<EnrichmentRecord> = {};
       if (track?.moodTags?.length) out.moodTags = track.moodTags;
       if (artistInfo?.bio) out.artistBio = artistInfo.bio;
       if (Object.keys(out).length === 0) return null;

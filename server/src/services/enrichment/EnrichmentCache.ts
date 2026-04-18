@@ -2,13 +2,28 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 
 export interface EnrichmentRecord {
+  // existing
   genre?: string;
   moodTags?: string[];
   releaseYear?: string;
   producer?: string;
   sample?: string;
+
+  // new
+  wikipediaSummary?: string;
+  notableFacts?: string[];
+  artistBio?: string;
+  audioFeatures?: {
+    tempo: number;
+    valence: number;
+    energy: number;
+    danceability: number;
+    key: number;
+    mode: number;
+  };
+
   lastEnrichedAt: number;
-  source: 'genius' | 'musicbrainz' | 'hybrid';
+  source: 'genius' | 'musicbrainz' | 'wikipedia' | 'lastfm' | 'spotify' | 'hybrid';
 }
 
 interface CacheFile {

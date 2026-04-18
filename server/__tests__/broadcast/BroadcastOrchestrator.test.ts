@@ -36,6 +36,9 @@ async function makeDeps() {
   const enricher = new BackgroundEnricher(enrichCache, {
     fetchGenius: jest.fn(async () => null),
     fetchMusicBrainz: jest.fn(async () => null),
+    fetchWikipedia: async () => null,
+    fetchLastFm: async () => null,
+    fetchSpotify: async () => null,
   });
   return { enrichCache, enricher };
 }
