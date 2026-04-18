@@ -135,3 +135,38 @@ describe('BackgroundEnricher', () => {
     expect(cache.get('title-a', 'artist-a')?.source).toBe('musicbrainz');
   });
 });
+
+describe('BackgroundEnricher.drainNow', () => {
+  it('enriches all tracks in parallel and resolves when done', async () => {
+    const cache = await tempCache();
+    const fetcher = makeFetcher();
+    const enricher = new BackgroundEnricher(cache, fetcher);
+
+    const tracks: ManifestTrack[] = [
+      makeTrack('a'),
+      makeTrack('b'),
+      makeTrack('c'),
+    ];
+    await enricher.drainNow(tracks);
+
+    expect(fetcher.fetchGenius).toHaveBeenCalledTimes(3);
+    expect(fetcher.fetchMusicBrainz).toHaveBeenCalledTimes(3);
+    expect(cache.get('title-a', 'artist-a')?.producer).toBe('Producer X');
+    expect(cache.get('title-b', 'artist-b')?.producer).toBe('Producer X');
+    expect(cache.get('title-c', 'artist-c')?.producer).toBe('Producer X');
+  });
+
+  it('skips already-cached tracks within the refresh window', async () => {
+    const cache = await tempCache();
+    await cache.set('title-a', 'artist-a', {
+      genre: 'cached', lastEnrichedAt: Date.now(), source: 'hybrid',
+    });
+    const fetcher = makeFetcher();
+    const enricher = new BackgroundEnricher(cache, fetcher);
+
+    await enricher.drainNow([makeTrack('a')]);
+
+    expect(fetcher.fetchGenius).not.toHaveBeenCalled();
+    expect(fetcher.fetchMusicBrainz).not.toHaveBeenCalled();
+  });
+});
