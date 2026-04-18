@@ -34,6 +34,11 @@ const DEFAULT_TTS_PARAMS = {
  */
 export function preprocessForTTS(text: string): string {
   let out = text;
+  // Normalize curly / typographic apostrophes to straight ASCII. Cartesia's
+  // Sonic 3 mis-reads contractions when the apostrophe is U+2019 — "can't"
+  // came out as "cont" in testing. Straight ASCII routes through the
+  // contraction phoneme path cleanly.
+  out = out.replace(/[\u2018\u2019\u02BC\u2032]/g, "'");
   // (feat. X) / (ft. X) / (Feat X) — drop parens, say "featuring X"
   out = out.replace(/\(\s*(?:feat|ft)\.?\s+([^)]+?)\s*\)/gi, 'featuring $1');
   // Bare "feat." / "ft." outside parens — turn into "featuring"

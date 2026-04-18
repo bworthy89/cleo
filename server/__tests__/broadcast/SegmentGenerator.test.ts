@@ -214,4 +214,17 @@ describe('preprocessForTTS — feat./ft. normalization', () => {
     expect(preprocessForTTS('ONAY here with "Track (feat. X)".'))
       .toBe('Oh-nay here with "Track featuring X".');
   });
+
+  it('normalizes curly right single quote (U+2019) to straight apostrophe', () => {
+    // "can\u2019t" → "can't" — Cartesia contraction fix
+    expect(preprocessForTTS('I can\u2019t wait')).toBe("I can't wait");
+    expect(preprocessForTTS('don\u2019t stop')).toBe("don't stop");
+    expect(preprocessForTTS('you\u2019re locked in')).toBe("you're locked in");
+  });
+
+  it('normalizes other unicode apostrophe-likes (U+2018, U+02BC, U+2032)', () => {
+    expect(preprocessForTTS('can\u2018t')).toBe("can't");
+    expect(preprocessForTTS('can\u02BCt')).toBe("can't");
+    expect(preprocessForTTS('can\u2032t')).toBe("can't");
+  });
 });
