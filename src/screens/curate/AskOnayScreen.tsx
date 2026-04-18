@@ -16,6 +16,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import auth from '@react-native-firebase/auth';
 import { AM, Fonts, Space, TypeScale } from '../../tokens/design-tokens';
 import { BroadcastBackdrop } from '../../components/BroadcastBackdrop';
+import { TuningInOverlay } from '../../components/broadcast/TuningInOverlay';
 import { StampButton, SectionMarker, LinerNotes, SleeveArt, Tick, SettingsCog } from '../../components/crate';
 import { curatePlaylist, refinePlaylist, CuratedPlaylist } from '../../engines/PlaylistCurator';
 import { createPlaylist, authorize } from '../../../modules/expo-music-kit';
@@ -85,6 +86,7 @@ export function AskOnayScreen() {
   const [currentPlaylist, setCurrentPlaylist] = useState<CuratedPlaylist | null>(null);
   const [originalPrompt, setOriginalPrompt] = useState('');
   const [publishing, setPublishing] = useState(false);
+  const [tuning, setTuning] = useState(false);
 
   const canCurate = isCurator(auth().currentUser?.email);
 
@@ -241,6 +243,7 @@ export function AskOnayScreen() {
   }, []);
 
   const handleTakeLive = useCallback(async (playlist: CuratedPlaylist) => {
+    setTuning(true);
     try {
       const client = new BroadcastManifestClient();
       const now = new Date();
@@ -274,6 +277,8 @@ export function AskOnayScreen() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to start broadcast. Please try again.';
       Alert.alert('Broadcast unavailable', msg);
+    } finally {
+      setTuning(false);
     }
   }, [router]);
 
@@ -629,6 +634,7 @@ export function AskOnayScreen() {
           </Pressable>
         </View>
       </KeyboardAvoidingView>
+      <TuningInOverlay visible={tuning} />
     </BroadcastBackdrop>
   );
 }
