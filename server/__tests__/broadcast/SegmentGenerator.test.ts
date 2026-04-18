@@ -227,4 +227,16 @@ describe('preprocessForTTS — feat./ft. normalization', () => {
     expect(preprocessForTTS('can\u02BCt')).toBe("can't");
     expect(preprocessForTTS('can\u2032t')).toBe("can't");
   });
+
+  it('collapses single-letter initialisms into one word', () => {
+    expect(preprocessForTTS('Big K.R.I.T. is next')).toBe('Big KRIT is next');
+    expect(preprocessForTTS('from U.S.A.')).toBe('from USA');
+    expect(preprocessForTTS('N.W.A. in the building')).toBe('NWA in the building');
+    expect(preprocessForTTS('B.I.G. era hip-hop')).toBe('BIG era hip-hop');
+  });
+
+  it('does not collapse regular sentences with periods', () => {
+    expect(preprocessForTTS('Hey. Hello. World.')).toBe('Hey. Hello. World.');
+    expect(preprocessForTTS('Mr. Smith went home.')).toBe('Mr. Smith went home.');
+  });
 });
