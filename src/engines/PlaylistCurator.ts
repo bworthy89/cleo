@@ -71,6 +71,9 @@ const SEARCH_BATCH_SIZE = 5;
 const GAP_FILL_THRESHOLD = 0.2; // 20% unmatched triggers gap-fill
 const SEARCH_TIMEOUT_MS = 45000;
 const TARGET_TRACK_COUNT = 15;
+// Apple Music catalog search API caps `limit` at 25; exceeding it throws
+// MusicDataRequest.Error code 1. Clamp every searchCatalog call.
+const MAX_CATALOG_SEARCH_LIMIT = 25;
 
 async function callCurateEndpoint(body: Record<string, unknown>): Promise<CurationResponse> {
   const controller = new AbortController();
@@ -192,7 +195,8 @@ function avoidAdjacentSameArtist(profiles: TrackProfile[]): TrackProfile[] {
  * by that artist (filtered by fuzzy artist-name match against the catalog).
  */
 async function strategySingleArtist(artistName: string, count: number): Promise<TrackProfile[]> {
-  const results = await searchCatalog(artistName, ['songs'], count * 3);
+  const limit = Math.min(count * 3, MAX_CATALOG_SEARCH_LIMIT);
+  const results = await searchCatalog(artistName, ['songs'], limit);
   const byArtist = results.filter(r => fuzzyMatch(r.artistName, artistName));
   return byArtist.slice(0, count).map(catalogResultToTrackProfile);
 }
@@ -210,7 +214,8 @@ async function strategyArtistBundle(
   const batches = await Promise.all(
     artists.map(async (name) => {
       try {
-        const results = await searchCatalog(name, ['songs'], perArtist * 2);
+        const limit = Math.min(perArtist * 2, MAX_CATALOG_SEARCH_LIMIT);
+        const results = await searchCatalog(name, ['songs'], limit);
         return results
           .filter(r => fuzzyMatch(r.artistName, name))
           .slice(0, perArtist)
