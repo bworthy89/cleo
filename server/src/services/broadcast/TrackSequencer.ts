@@ -211,6 +211,9 @@ export class TrackSequencer {
           enrichment.genre ? sanitizeHint(enrichment.genre, 40) : '',
           enrichment.releaseYear ? sanitizeHint(enrichment.releaseYear, 20) : '',
           enrichment.producer ? `prod: ${sanitizeHint(enrichment.producer, 80)}` : '',
+          enrichment.wikipediaSummary
+            ? `wiki: ${sanitizeHint(enrichment.wikipediaSummary.split('.')[0] ?? '', 160)}`
+            : '',
           enrichment.moodTags?.length
             ? `mood: ${sanitizeHint(enrichment.moodTags.join(','), 80)}`
             : '',
