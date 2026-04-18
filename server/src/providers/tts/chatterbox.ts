@@ -57,7 +57,7 @@ export class ChatterboxProvider implements TTSProvider {
     const input: Record<string, unknown> = {
       prompt: request.text,
       exaggeration: this.exaggeration,
-      cfg: this.cfg,
+      cfg_weight: this.cfg,
       temperature: this.temperature,
     };
     if (this.referenceUrl) {
@@ -70,6 +70,7 @@ export class ChatterboxProvider implements TTSProvider {
       : await this.pollPrediction(prediction);
 
     if (final.status !== 'succeeded') {
+      console.error(`[TTS:chatterbox] prediction ${final.status}: ${final.error ?? 'unknown'}`);
       throw new Error(`Chatterbox prediction ${final.status}: ${final.error ?? 'unknown'}`);
     }
 
