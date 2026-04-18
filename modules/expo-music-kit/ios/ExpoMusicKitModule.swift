@@ -409,7 +409,7 @@ public class ExpoMusicKitModule: Module {
 
         // Surface contentRating so the JS caller can prefer explicit versions.
         if let rating = song.contentRating {
-          dict["contentRating"] = rating.rawValue
+          dict["contentRating"] = Self.contentRatingString(rating)
         }
 
         if let artwork = song.artwork {
@@ -919,7 +919,7 @@ public class ExpoMusicKitModule: Module {
       "discNumber": track.discNumber ?? 0
     ]
     if let rating = track.contentRating {
-      dict["contentRating"] = rating.rawValue
+      dict["contentRating"] = Self.contentRatingString(rating)
     }
     if let artworkUrl = artworkUrlString(track.artwork, width: 800, height: 800) {
       dict["artworkUrl"] = artworkUrl
@@ -939,12 +939,20 @@ public class ExpoMusicKitModule: Module {
       "discNumber": song.discNumber ?? 0
     ]
     if let rating = song.contentRating {
-      dict["contentRating"] = rating.rawValue
+      dict["contentRating"] = Self.contentRatingString(rating)
     }
     if let artworkUrl = artworkUrlString(song.artwork, width: 800, height: 800) {
       dict["artworkUrl"] = artworkUrl
     }
     return dict
+  }
+
+  private static func contentRatingString(_ rating: ContentRating) -> String {
+    switch rating {
+    case .clean: return "clean"
+    case .explicit: return "explicit"
+    @unknown default: return "unknown"
+    }
   }
 
   private func startObserving() {
