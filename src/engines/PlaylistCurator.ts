@@ -70,17 +70,16 @@ function findBestMatch(
   suggestion: LLMTrackSuggestion,
   results: CatalogSearchResult[]
 ): CatalogSearchResult | null {
+  // Title + artist must both fuzzy-match. A title-only fallback used to
+  // live here and would return, say, Amy Winehouse's "Rehab" when the
+  // LLM asked for Brent Faiyaz's "Rehab" — exactly the class of
+  // unrelated-artist drift that this curator is trying to avoid. Better
+  // to return null and let gap-fill try a fresh suggestion.
   for (const result of results) {
     if (
       fuzzyMatch(result.title, suggestion.title) &&
       fuzzyMatch(result.artistName, suggestion.artist)
     ) {
-      return result;
-    }
-  }
-  // Fallback: just match title if artist is close
-  for (const result of results) {
-    if (fuzzyMatch(result.title, suggestion.title)) {
       return result;
     }
   }
