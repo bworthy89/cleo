@@ -39,6 +39,24 @@ export class BackgroundEnricher {
     await this.queue;
   }
 
+  /**
+   * Awaitable drain: enrich tracks in parallel. Returns when all tracks have
+   * been processed (or skipped as already-cached). Used by the orchestrator
+   * as a synchronous pre-step before segment generation. Each track runs all
+   * source fetchers in parallel; across tracks, each source's rate limiter
+   * bucket serializes calls within the shared batch.
+   */
+  async drainNow(tracks: ManifestTrack[]): Promise<void> {
+    await Promise.all(
+      tracks.map(track =>
+        this.enrichOne(track).catch(err => {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.warn(`[BackgroundEnricher] "${track.title}" by ${track.artistName} failed: ${msg}`);
+        }),
+      ),
+    );
+  }
+
   private async enrichOne(track: ManifestTrack): Promise<void> {
     const existing = this.cache.get(track.title, track.artistName);
     if (existing && Date.now() - existing.lastEnrichedAt < REFRESH_THRESHOLD_MS) {
