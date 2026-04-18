@@ -245,3 +245,69 @@ describe('TrackSequencer.sequence', () => {
     });
   });
 });
+
+describe('TrackSequencer featureSlots', () => {
+  const ctx = { timeOfDay: 'night', dayOfWeek: 'Sat' };
+
+  it('returns featureSlots from a valid LLM response', async () => {
+    const enrich = await emptyEnrichmentCache();
+    const llm = mockLLM([
+      JSON.stringify({ ordered: ['1','2','3','4','5'], featureSlots: [2] }),
+    ]);
+    const pool = [1,2,3,4,5].map(n => ({
+      id: String(n), title: `T${n}`, artistName: `A-${n}`, albumTitle: `al-${n}`, duration: 180,
+    }));
+    const sequencer = new TrackSequencer(llm, new SequenceCache(), enrich);
+    const result = await sequencer.sequence({
+      pool, vibe: 'lateNight', length: 'quick', userContext: ctx,
+    });
+    expect(result.featureSlots).toEqual([2]);
+  });
+
+  it('drops out-of-range featureSlots', async () => {
+    const enrich = await emptyEnrichmentCache();
+    const llm = mockLLM([
+      JSON.stringify({ ordered: ['1','2','3','4','5'], featureSlots: [0, 2, 99] }),
+    ]);
+    const pool = [1,2,3,4,5].map(n => ({
+      id: String(n), title: `T${n}`, artistName: `A-${n}`, albumTitle: `al-${n}`, duration: 180,
+    }));
+    const sequencer = new TrackSequencer(llm, new SequenceCache(), enrich);
+    const result = await sequencer.sequence({
+      pool, vibe: 'lateNight', length: 'quick', userContext: ctx,
+    });
+    expect(result.featureSlots).toEqual([2]);
+  });
+
+  it('forces at least one featureSlot at the middle transition when empty', async () => {
+    const enrich = await emptyEnrichmentCache();
+    const llm = mockLLM([
+      JSON.stringify({ ordered: ['1','2','3','4','5'], featureSlots: [] }),
+    ]);
+    const pool = [1,2,3,4,5].map(n => ({
+      id: String(n), title: `T${n}`, artistName: `A-${n}`, albumTitle: `al-${n}`, duration: 180,
+    }));
+    const sequencer = new TrackSequencer(llm, new SequenceCache(), enrich);
+    const result = await sequencer.sequence({
+      pool, vibe: 'lateNight', length: 'quick', userContext: ctx,
+    });
+    // 5 tracks → valid range is 1..4; middle is 2
+    expect(result.featureSlots.length).toBeGreaterThan(0);
+  });
+
+  it('truncates featureSlots count when LLM returns too many', async () => {
+    const enrich = await emptyEnrichmentCache();
+    const llm = mockLLM([
+      JSON.stringify({ ordered: ['1','2','3','4','5'], featureSlots: [1, 2, 3, 4] }),
+    ]);
+    const pool = [1,2,3,4,5].map(n => ({
+      id: String(n), title: `T${n}`, artistName: `A-${n}`, albumTitle: `al-${n}`, duration: 180,
+    }));
+    const sequencer = new TrackSequencer(llm, new SequenceCache(), enrich);
+    const result = await sequencer.sequence({
+      pool, vibe: 'lateNight', length: 'quick', userContext: ctx,
+    });
+    // 5 tracks → ceil(5/4) = 2 max feature slots
+    expect(result.featureSlots.length).toBeLessThanOrEqual(2);
+  });
+});
