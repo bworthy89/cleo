@@ -763,7 +763,7 @@ const styles = StyleSheet.create({
     fontSize: TypeScale.s22,
     color: AM.ink,
     letterSpacing: 0.3,
-    lineHeight: TypeScale.s22,
+    lineHeight: 26,
   },
   plateMetaMono: {
     fontFamily: Fonts.mono,
@@ -815,7 +815,7 @@ const styles = StyleSheet.create({
     fontSize: TypeScale.s14,
     color: AM.ink,
     letterSpacing: 0.3,
-    lineHeight: TypeScale.s14 * 1.1,
+    lineHeight: 17,
   },
   trackArtist: {
     marginTop: 2,

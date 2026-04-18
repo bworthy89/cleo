@@ -593,7 +593,7 @@ const styles = StyleSheet.create({
     fontSize: 36,
     color: AM.ink,
     letterSpacing: 1,
-    lineHeight: 32,
+    lineHeight: 40,
   },
   dialFreq: {
     marginTop: 4,
@@ -663,7 +663,7 @@ const styles = StyleSheet.create({
     fontSize: 28,
     color: AM.ink,
     letterSpacing: 0.5,
-    lineHeight: 28,
+    lineHeight: 34,
   },
   askField: {
     marginTop: Space.s22,
@@ -725,7 +725,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     color: AM.ink,
     letterSpacing: 0.5,
-    lineHeight: 20,
+    lineHeight: 24,
   },
   resultBlurb: {
     marginTop: 8,
@@ -791,7 +791,7 @@ const styles = StyleSheet.create({
     fontSize: 28,
     color: AM.ink,
     letterSpacing: 0.5,
-    lineHeight: 30,
+    lineHeight: 34,
     textAlign: 'center',
   },
   copyTagline: {
@@ -837,6 +837,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: AM.amber,
     letterSpacing: 2,
+    lineHeight: 20,
   },
   nextOxblood: {
     paddingVertical: 14,
@@ -853,6 +854,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: AM.cream,
     letterSpacing: 2,
+    lineHeight: 20,
   },
 
   skip: {

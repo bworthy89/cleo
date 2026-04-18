@@ -132,7 +132,7 @@ export function SleeveArt({ title = '', artist = '', size = 120, variant, palett
           }}>LP / {String(seed % 999).padStart(3, '0')}</Text>
           <Text style={{
             fontFamily: Fonts.display, color: pal[2],
-            fontSize: size * 0.24, lineHeight: size * 0.22,
+            fontSize: size * 0.24, lineHeight: size * 0.28,
             letterSpacing: -0.5,
           }}>{short}</Text>
         </View>
