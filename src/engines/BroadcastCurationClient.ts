@@ -1,8 +1,11 @@
 import { authenticatedFetch } from '../services/api';
 import type { Manifest, ManifestTrack } from './BroadcastPlayer.types';
+import type { SlotKey, DayOfWeek } from '../config/tonightOnOnay';
 
 export interface FeaturedBroadcast {
   id: string;
+  slot?: SlotKey;
+  themeDay?: DayOfWeek;
   title: string;
   description: string;
   vibe: Manifest['vibe'];
@@ -15,6 +18,8 @@ export interface FeaturedBroadcast {
 
 export interface PublishFeaturedRequest {
   id: string;
+  slot?: SlotKey;
+  themeDay?: DayOfWeek;
   title: string;
   description: string;
   vibe: Manifest['vibe'];
