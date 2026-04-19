@@ -19,6 +19,18 @@ import {
   type FeaturedBroadcast,
 } from '../../engines/BroadcastCurationClient';
 import { broadcastPlayer } from '../../engines/BroadcastPlayer.singleton';
+import {
+  dayOfWeekFor,
+  getThemeFor,
+  type DayOfWeek,
+  type SlotKey,
+  type SlotTheme,
+} from '../../config/tonightOnOnay';
+
+// Sun-indexed rotation; mirrors `dayOfWeekFor` internals so we can step forward.
+const DAY_ROTATION: DayOfWeek[] = ['sun','mon','tue','wed','thu','fri','sat'];
+const dayAfter = (d: DayOfWeek, offset: number): DayOfWeek =>
+  DAY_ROTATION[(DAY_ROTATION.indexOf(d) + offset) % 7];
 
 /**
  * Dedicated TONIGHT tab — magazine-index of every featured broadcast. Exact
@@ -87,6 +99,25 @@ export default function TonightScreen() {
   const month = now.toLocaleDateString(undefined, { month: 'short' }).toUpperCase();
   const day = now.getDate();
 
+  // Slot-aware derivations: today's morning + evening slots (baked record
+  // or scheduled theme), plus legacy (non-slot) featured records.
+  const today = dayOfWeekFor(now);
+  const morningRecord = featured.find(b => b.slot === 'morning') ?? null;
+  const eveningRecord = featured.find(b => b.slot === 'evening') ?? null;
+  const legacy = featured.filter(b => !b.slot);
+  const morningTheme = getThemeFor('morning', today);
+  const eveningTheme = getThemeFor('evening', today);
+
+  // Upcoming: next 3 slot-drops in chronological order — tomorrow AM,
+  // tomorrow PM, day-after AM.
+  const upcoming: Array<{ day: DayOfWeek; slot: SlotKey; theme: SlotTheme }> = (
+    [
+      { day: dayAfter(today, 1), slot: 'morning' as SlotKey },
+      { day: dayAfter(today, 1), slot: 'evening' as SlotKey },
+      { day: dayAfter(today, 2), slot: 'morning' as SlotKey },
+    ]
+  ).map(u => ({ ...u, theme: getThemeFor(u.slot, u.day) }));
+
   return (
     <BroadcastBackdrop>
       <ScrollView
@@ -111,12 +142,12 @@ export default function TonightScreen() {
               TONIGHT{'\n'}ON ONAY
             </Text>
             <Text style={styles.mastheadTagline}>
-              Three shows, hand-baked today. Dropped at dusk.
+              Two shows a day. Picked records, not algorithms.
             </Text>
           </View>
         </View>
 
-        {/* Show list — magazine index */}
+        {/* Today's slots — magazine index */}
         <View style={styles.indexWrap}>
           {loading ? (
             <View style={styles.loading}>
@@ -136,78 +167,169 @@ export default function TonightScreen() {
                 <Text style={styles.retryText}>TRY AGAIN →</Text>
               </Pressable>
             </View>
-          ) : featured.length === 0 ? (
-            <View style={styles.empty}>
-              <Text style={styles.emptyHead}>Fresh broadcasts baking.</Text>
-              <Text style={styles.emptySub}>
-                Check back soon · or roll your own on BROADCAST.
-              </Text>
-            </View>
           ) : (
-            featured.map((fb, i) => {
-              const trackCount = fb.manifest.tracks?.length ?? 0;
-              const totalMin = Math.round(
-                (fb.manifest.tracks ?? []).reduce((a, t) => a + (t.duration ?? 180), 0) / 60,
-              );
-              const lengthLabel = `${trackCount} TRACKS · ${totalMin} MIN`;
-              const artwork = fb.manifest.tracks?.[0]?.artworkUrl ?? null;
-              return (
-                <Pressable
-                  key={fb.id}
-                  onPress={() => playFeatured(fb)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Play ${fb.title}`}
-                  style={({ pressed }) => [
-                    styles.indexRow,
-                    i < featured.length - 1 && styles.indexRowDivider,
-                    pressed && { opacity: 0.7 },
-                  ]}
-                >
-                  <SleeveArt
-                    title={fb.title}
-                    artist="ONAY"
-                    size={88}
-                    artworkUrl={artwork}
-                  />
-                  <View style={styles.indexBody}>
-                    <View style={styles.indexMeta}>
-                      <Text style={styles.indexNum}>
-                        № {(i + 1).toString().padStart(2, '0')}
-                      </Text>
-                      <Text style={styles.indexLength}>{lengthLabel}</Text>
-                    </View>
-                    <Text style={styles.indexTitle} numberOfLines={2}>
-                      {fb.title.toUpperCase()}
-                    </Text>
-                    {fb.description ? (
-                      <Text style={styles.indexTagline} numberOfLines={3}>
-                        {fb.description}
-                      </Text>
-                    ) : null}
-                  </View>
-                  <Text style={styles.indexArrow}>→</Text>
-                </Pressable>
-              );
-            })
+            <>
+              <SlotIndexRow
+                slotLabel="MORNING"
+                record={morningRecord}
+                theme={morningTheme}
+                divider
+                onPlay={morningRecord ? () => playFeatured(morningRecord) : null}
+              />
+              <SlotIndexRow
+                slotLabel="EVENING"
+                record={eveningRecord}
+                theme={eveningTheme}
+                divider={legacy.length > 0}
+                onPlay={eveningRecord ? () => playFeatured(eveningRecord) : null}
+              />
+
+              {legacy.length > 0 && (
+                <View style={styles.archiveSection}>
+                  <SectionMarker num="T·02" title="MORE FROM ONAY" side="ARCHIVE" />
+                  {legacy.map((fb, i) => {
+                    const trackCount = fb.manifest.tracks?.length ?? 0;
+                    const totalMin = Math.round(
+                      (fb.manifest.tracks ?? []).reduce((a, t) => a + (t.duration ?? 180), 0) / 60,
+                    );
+                    const lengthLabel = `${trackCount} TRACKS · ${totalMin} MIN`;
+                    const artwork = fb.manifest.tracks?.[0]?.artworkUrl ?? null;
+                    return (
+                      <Pressable
+                        key={fb.id}
+                        onPress={() => playFeatured(fb)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Play ${fb.title}`}
+                        style={({ pressed }) => [
+                          styles.indexRow,
+                          i < legacy.length - 1 && styles.indexRowDivider,
+                          pressed && { opacity: 0.7 },
+                        ]}
+                      >
+                        <SleeveArt title={fb.title} artist="ONAY" size={88} artworkUrl={artwork} />
+                        <View style={styles.indexBody}>
+                          <View style={styles.indexMeta}>
+                            <Text style={styles.indexNum}>
+                              № {(i + 1).toString().padStart(2, '0')}
+                            </Text>
+                            <Text style={styles.indexLength}>{lengthLabel}</Text>
+                          </View>
+                          <Text style={styles.indexTitle} numberOfLines={2}>
+                            {fb.title.toUpperCase()}
+                          </Text>
+                          {fb.description ? (
+                            <Text style={styles.indexTagline} numberOfLines={3}>
+                              {fb.description}
+                            </Text>
+                          ) : null}
+                        </View>
+                        <Text style={styles.indexArrow}>→</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              )}
+            </>
           )}
         </View>
 
-        {/* Upcoming teaser */}
+        {/* Upcoming teaser — next 3 slot-drops pulled from the theme library */}
         <View style={styles.upcoming}>
-          <SectionMarker num="C·01" title="LATER THIS WEEK" side="COMING UP" />
-          {[
-            { title: 'SUNDAY / SLOW COFFEE', drops: 'DROPS SUN 9PM' },
-            { title: 'TUESDAY / KRAUTROCK 101', drops: 'DROPS TUE 9PM' },
-            { title: 'WEDNESDAY / DUB ROOM', drops: 'DROPS WED 9PM' },
-          ].map(row => (
-            <View key={row.title} style={styles.upcomingRow}>
-              <Text style={styles.upcomingTitle}>{row.title}</Text>
-              <Text style={styles.upcomingDrops}>{row.drops}</Text>
+          <SectionMarker num="T·03" title="LATER THIS WEEK" side="COMING UP" />
+          {upcoming.map(u => (
+            <View key={`${u.day}-${u.slot}`} style={styles.upcomingRow}>
+              <Text style={styles.upcomingTitle}>{u.theme.title.toUpperCase()}</Text>
+              <Text style={styles.upcomingDrops}>
+                {u.day.toUpperCase()} · {u.slot.toUpperCase()}
+              </Text>
             </View>
           ))}
         </View>
       </ScrollView>
     </BroadcastBackdrop>
+  );
+}
+
+// ─────────────── SlotIndexRow ───────────────
+//
+// One row of the magazine index that represents a Tonight-on-ONAY slot.
+// When `record` is present, it renders the baked broadcast (sleeve art from
+// the first track, real title/description, arrow to play). When absent, it
+// renders the scheduled theme as a dimmed "COMING UP" placeholder.
+
+interface SlotIndexRowProps {
+  slotLabel: 'MORNING' | 'EVENING';
+  record: FeaturedBroadcast | null;
+  theme: SlotTheme;
+  divider: boolean;
+  onPlay: (() => void) | null;
+}
+
+function SlotIndexRow({ slotLabel, record, theme, divider, onPlay }: SlotIndexRowProps) {
+  const baked = record !== null;
+  const title = baked ? record.title : theme.title;
+  const description = baked ? record.description : theme.description;
+  const artwork = baked ? (record.manifest.tracks?.[0]?.artworkUrl ?? null) : null;
+
+  const rightMeta = baked
+    ? (() => {
+        const trackCount = record.manifest.tracks?.length ?? 0;
+        const totalMin = Math.round(
+          (record.manifest.tracks ?? []).reduce((a, t) => a + (t.duration ?? 180), 0) / 60,
+        );
+        return `${trackCount} TRACKS · ${totalMin} MIN`;
+      })()
+    : `${theme.vibe.toUpperCase()} · ${theme.length.toUpperCase()}`;
+
+  const Body = (
+    <>
+      <SleeveArt title={title} artist="ONAY" size={88} artworkUrl={artwork} />
+      <View style={styles.indexBody}>
+        <View style={styles.indexMeta}>
+          <Text style={styles.slotMetaLabel}>{slotLabel}</Text>
+          <Text style={styles.indexLength}>{rightMeta}</Text>
+        </View>
+        <Text style={styles.indexTitle} numberOfLines={2}>
+          {title.toUpperCase()}
+        </Text>
+        {description ? (
+          <Text style={styles.indexTagline} numberOfLines={3}>
+            {description}
+          </Text>
+        ) : null}
+        {!baked ? <Text style={styles.comingUpTag}>COMING UP</Text> : null}
+      </View>
+      {baked ? <Text style={styles.indexArrow}>→</Text> : null}
+    </>
+  );
+
+  const rowStyle = [
+    styles.indexRow,
+    divider && styles.indexRowDivider,
+    !baked && styles.indexRowPlaceholder,
+  ];
+
+  if (baked && onPlay) {
+    return (
+      <Pressable
+        onPress={onPlay}
+        accessibilityRole="button"
+        accessibilityLabel={`Play ${title}`}
+        style={({ pressed }) => [...rowStyle, pressed && { opacity: 0.7 }]}
+      >
+        {Body}
+      </Pressable>
+    );
+  }
+
+  return (
+    <View
+      accessible
+      accessibilityLabel={`${slotLabel.toLowerCase()} slot — ${title} coming up`}
+      style={rowStyle}
+    >
+      {Body}
+    </View>
   );
 }
 
@@ -328,6 +450,25 @@ const styles = StyleSheet.create({
     fontSize: TypeScale.s9,
     color: AM.oxblood,
     letterSpacing: 2,
+  },
+  slotMetaLabel: {
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s9,
+    color: AM.amber,
+    letterSpacing: 2.5,
+  },
+  comingUpTag: {
+    marginTop: 6,
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s9,
+    color: AM.amberDim,
+    letterSpacing: 2.5,
+  },
+  indexRowPlaceholder: {
+    opacity: 0.55,
+  },
+  archiveSection: {
+    marginTop: Space.s14,
   },
   indexLength: {
     fontFamily: Fonts.mono,
