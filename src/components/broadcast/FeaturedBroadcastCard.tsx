@@ -12,6 +12,9 @@ interface Props {
   stamp?: string;
   /** Italic tagline shown under the title. */
   tagline?: string;
+  /** When set, replaces the default "TONIGHT" stamp and bumps letter-spacing.
+   *  Used by the twin-slot home layout to distinguish morning vs evening. */
+  slotLabel?: string;
 }
 
 function durationFor(broadcast: FeaturedBroadcast): string {
@@ -26,7 +29,8 @@ function durationFor(broadcast: FeaturedBroadcast): string {
  * block + "DROP THE NEEDLE" play strip. Mirrors FeaturedHero from the
  * crate-digger design.
  */
-export function FeaturedBroadcastCard({ broadcast, onPress, stamp = 'TONIGHT', tagline }: Props) {
+export function FeaturedBroadcastCard({ broadcast, onPress, stamp = 'TONIGHT', tagline, slotLabel }: Props) {
+  const displayStamp = slotLabel ?? stamp;
   const tag = tagline ?? broadcast.description ?? '';
   const firstTrack = broadcast.manifest.tracks?.[0];
   const artwork = firstTrack?.artworkUrl ?? null;
@@ -43,7 +47,7 @@ export function FeaturedBroadcastCard({ broadcast, onPress, stamp = 'TONIGHT', t
         <Halftone opacity={0.3} />
         <View style={styles.plateRow}>
           <Text style={styles.plateLabel}>TONIGHT ON ONAY</Text>
-          <Text style={styles.plateStamp}>{stamp.toUpperCase()}</Text>
+          <Text style={styles.plateStamp}>{displayStamp.toUpperCase()}</Text>
         </View>
       </View>
 
