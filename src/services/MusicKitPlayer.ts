@@ -23,6 +23,8 @@ import {
   type PlaybackStatus,
 } from '../../modules/expo-music-kit';
 import type { EventSubscription } from 'expo-modules-core';
+import { UITEST_MODE } from '../config/featureFlags';
+import { UITEST_PLAYLISTS } from '../config/uitestFixtures';
 
 type TrackChangeCallback = (event: TrackChangedEvent) => void;
 type PlaybackStateCallback = (event: PlaybackStateEvent) => void;
@@ -34,15 +36,20 @@ class MusicKitPlayerService {
   private stateListeners: PlaybackStateCallback[] = [];
 
   async authorize(): Promise<AuthResult> {
+    if (UITEST_MODE) {
+      return { status: 'authorized', canPlayCatalog: true };
+    }
     return authorize();
   }
 
   async isAuthorized(): Promise<boolean> {
+    if (UITEST_MODE) return true;
     const status = await getAuthorizationStatus();
     return status === 'authorized';
   }
 
   async fetchPlaylists(): Promise<MusicPlaylist[]> {
+    if (UITEST_MODE) return UITEST_PLAYLISTS;
     return fetchPlaylists();
   }
 

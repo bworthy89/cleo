@@ -24,6 +24,8 @@ import { BroadcastCurationClient } from '../../engines/BroadcastCurationClient';
 import { BroadcastManifestClient } from '../../engines/BroadcastManifestClient';
 import { broadcastPlayer } from '../../engines/BroadcastPlayer.singleton';
 import { isCurator } from '../../config/curators';
+import { UITEST_MODE } from '../../config/featureFlags';
+import { UITEST_CURATED_PLAYLIST } from '../../config/uitestFixtures';
 import { useAppActive } from '../../hooks/useAppActive';
 
 type MessageRole = 'user' | 'onay' | 'playlist' | 'loading' | 'error';
@@ -80,11 +82,24 @@ export function AskOnayScreen() {
   const flatListRef = useRef<FlatList>(null);
   const messageIdCounter = useRef(1);
 
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    if (!UITEST_MODE) return [];
+    // Pre-seed the chat so the result card renders on first paint — no
+    // network round-trip, deterministic content for the screenshot.
+    return [
+      { id: 'uitest-msg-1', role: 'user', text: 'something for after it rains, warm, slow' },
+      { id: 'uitest-msg-2', role: 'onay', text: UITEST_CURATED_PLAYLIST.conversationalResponse },
+      { id: 'uitest-msg-3', role: 'playlist', playlist: UITEST_CURATED_PLAYLIST },
+    ];
+  });
   const [inputText, setInputText] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [currentPlaylist, setCurrentPlaylist] = useState<CuratedPlaylist | null>(null);
-  const [originalPrompt, setOriginalPrompt] = useState('');
+  const [currentPlaylist, setCurrentPlaylist] = useState<CuratedPlaylist | null>(
+    UITEST_MODE ? UITEST_CURATED_PLAYLIST : null,
+  );
+  const [originalPrompt, setOriginalPrompt] = useState(
+    UITEST_MODE ? 'something for after it rains, warm, slow' : '',
+  );
   const [publishing, setPublishing] = useState(false);
   const [tuning, setTuning] = useState(false);
 
