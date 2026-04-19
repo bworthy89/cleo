@@ -16,6 +16,7 @@ import { TuningInOverlay } from '../../components/broadcast/TuningInOverlay';
 import { SetupSheet, type SetupResult } from '../../components/broadcast/SetupSheet';
 import { FeaturedBroadcastCard } from '../../components/broadcast/FeaturedBroadcastCard';
 import { FeaturedRailCard } from '../../components/broadcast/FeaturedRailCard';
+import { SlotPlaceholderCard } from '../../components/broadcast/SlotPlaceholderCard';
 import {
   StatusStrip,
   StampButton,
@@ -273,7 +274,10 @@ export default function HomeBroadcastScreen() {
     );
   }
 
-  const [hero, ...rest] = featured;
+  const morningCard = featured.find(b => b.slot === 'morning') ?? null;
+  const eveningCard = featured.find(b => b.slot === 'evening') ?? null;
+  const legacyCards = featured.filter(b => !b.slot);
+  const lead = morningCard ?? eveningCard ?? null;
 
   return (
     <BroadcastBackdrop>
@@ -289,46 +293,52 @@ export default function HomeBroadcastScreen() {
       >
         <StatusStrip onAir={broadcastActive} num="004" />
 
-        {/* TONIGHT ON ONAY hero */}
-        {hero ? (
+        {/* TONIGHT ON ONAY — twin-slot stack */}
+        {morningCard ? (
           <FeaturedBroadcastCard
-            broadcast={hero}
-            onPress={() => playFeatured(hero)}
-            tagline={hero.description}
+            broadcast={morningCard}
+            onPress={() => playFeatured(morningCard)}
+            tagline={morningCard.description}
+            slotLabel="MORNING"
           />
         ) : (
-          <View style={styles.featuredEmpty}>
-            <Text style={styles.featuredEmptyHead}>Fresh broadcasts baking.</Text>
-            <Text style={styles.featuredEmptySub}>
-              check back soon · or build your own below
-            </Text>
-          </View>
+          <SlotPlaceholderCard slotLabel="MORNING" />
         )}
 
-        {/* Rail — additional featured broadcasts.
-            snapToInterval = card width (150) + inter-card gap (12) so each
-            card settles fully into view; decelerationRate="fast" makes the
-            snap feel physical rather than drifty. */}
-        {rest.length > 0 && (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.rail}
-            snapToInterval={162}
-            decelerationRate="fast"
-            snapToAlignment="start"
-          >
-            {rest.map(fb => (
-              <FeaturedRailCard key={fb.id} broadcast={fb} onPress={() => playFeatured(fb)} />
-            ))}
-          </ScrollView>
+        {eveningCard ? (
+          <FeaturedBroadcastCard
+            broadcast={eveningCard}
+            onPress={() => playFeatured(eveningCard)}
+            tagline={eveningCard.description}
+            slotLabel="EVENING"
+          />
+        ) : (
+          <SlotPlaceholderCard slotLabel="EVENING" />
+        )}
+
+        {legacyCards.length > 0 && (
+          <>
+            <Text style={styles.moreLabel}>MORE FROM ONAY</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.rail}
+              snapToInterval={162}
+              decelerationRate="fast"
+              snapToAlignment="start"
+            >
+              {legacyCards.map(fb => (
+                <FeaturedRailCard key={fb.id} broadcast={fb} onPress={() => playFeatured(fb)} />
+              ))}
+            </ScrollView>
+          </>
         )}
 
         {/* Liner note from ONAY */}
         <View style={{ marginTop: Space.s26 }}>
           <LinerNotes>
-            {hero?.description
-              ? `Tonight — ${hero.description.toLowerCase()}. Stay with it through the first side.`
+            {lead?.description
+              ? `Tonight — ${lead.description.toLowerCase()}. Stay with it through the first side.`
               : 'Picked records, not algorithms. Stay with them.'}
           </LinerNotes>
         </View>
@@ -460,6 +470,15 @@ const styles = StyleSheet.create({
   rail: {
     paddingVertical: Space.s10,
     paddingRight: Space.s10,
+  },
+
+  moreLabel: {
+    marginTop: Space.s22,
+    marginBottom: Space.s6,
+    color: AM.amber,
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s9,
+    letterSpacing: 2.5,
   },
 
   featuredEmpty: {
