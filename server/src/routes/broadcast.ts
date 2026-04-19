@@ -67,9 +67,15 @@ export function createBroadcastRouter(
     }
   });
 
-  router.get('/broadcast/:id/manifest', (req, res) => {
+  router.get('/broadcast/:id/manifest', (req: AuthenticatedRequest, res) => {
     const manifest = store.get(req.params.id);
     if (!manifest) return res.status(404).json({ error: 'not found' });
+    // Ownership gate: a broadcast belongs to the uid that baked it. Curator-baked
+    // (featured) broadcasts are shared globally. Return 404 on mismatch so the
+    // existence of another user's id isn't confirmed.
+    if (manifest.userId !== 'curator' && manifest.userId !== req.uid) {
+      return res.status(404).json({ error: 'not found' });
+    }
     return res.json(manifest);
   });
 
