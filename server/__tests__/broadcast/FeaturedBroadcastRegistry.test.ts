@@ -70,4 +70,38 @@ describe('FeaturedBroadcastRegistry', () => {
     const content = await fs.readFile(p, 'utf8');
     expect(JSON.parse(content).records).toHaveLength(1);
   });
+
+  const mkSlot = (id: string, slot: 'morning'|'evening', day: 'mon', createdAt: number) => ({
+    id, slot, themeDay: day, title: `T ${id}`, description: 'D',
+    vibe: slot === 'morning' ? 'morning' as const : 'lateNight' as const,
+    length: 'quick' as const,
+    baked: true, createdAt,
+    manifest: { broadcastId: id, userId: 'curator', playlistId: null,
+      vibe: 'morning' as const, length: 'quick' as const, createdAt,
+      tracks: [], segmentSlots: [] },
+  });
+
+  it('slot put overwrites on id match (newer wins)', async () => {
+    await reg.put(mkSlot('slot_morning', 'morning', 'mon', 100));
+    await reg.put(mkSlot('slot_morning', 'morning', 'mon', 200));
+    const list = reg.list();
+    expect(list).toHaveLength(1);
+    expect(list[0].createdAt).toBe(200);
+  });
+
+  it('list orders morning → evening → legacy', async () => {
+    await reg.put(mk('legacy-a', true));
+    await reg.put(mkSlot('slot_evening', 'evening', 'mon', 10));
+    await reg.put(mkSlot('slot_morning', 'morning', 'mon', 10));
+    const ids = reg.list().map(r => r.id);
+    expect(ids).toEqual(['slot_morning', 'slot_evening', 'legacy-a']);
+  });
+
+  it('getBySlot returns the record or null', async () => {
+    expect(reg.getBySlot('morning')).toBeNull();
+    await reg.put(mkSlot('slot_morning', 'morning', 'mon', 10));
+    const got = reg.getBySlot('morning');
+    expect(got?.id).toBe('slot_morning');
+    expect(reg.getBySlot('evening')).toBeNull();
+  });
 });
