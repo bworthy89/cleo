@@ -141,9 +141,21 @@ async function bootstrap(): Promise<void> {
   // directly in the manifest and skip this route.
   if (broadcastStorage.getAbsolutePath) {
     const getAbsolutePath = broadcastStorage.getAbsolutePath.bind(broadcastStorage);
-    app.use('/broadcast-asset', requireAuth, (req, res, next) => {
+    app.use('/broadcast-asset', requireAuth, (req: any, res, next) => {
       try {
-        const abs = getAbsolutePath(req.path.replace(/^\/+/, ''));
+        const relPath = req.path.replace(/^\/+/, '');
+        // Asset keys are always `broadcast/<id>/segment/<slot>/v<n>.mp3`.
+        // Enforce the same ownership gate as GET /broadcast/:id/manifest so
+        // an authenticated user can't stream another user's segments by
+        // guessing (or exfiltrating) a broadcastId.
+        const match = relPath.match(/^broadcast\/([^/]+)\//);
+        if (!match) return res.status(404).json({ error: 'not found' });
+        const manifest = broadcastStore.get(match[1]);
+        if (!manifest) return res.status(404).json({ error: 'not found' });
+        if (manifest.userId !== 'curator' && manifest.userId !== req.uid) {
+          return res.status(404).json({ error: 'not found' });
+        }
+        const abs = getAbsolutePath(relPath);
         res.sendFile(abs, (err) => { if (err) next(err); });
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'invalid asset path';

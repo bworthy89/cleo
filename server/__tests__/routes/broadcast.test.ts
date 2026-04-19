@@ -121,4 +121,61 @@ describe('broadcast router', () => {
     const res = await request(app).get('/broadcast/nope/manifest');
     expect(res.status).toBe(404);
   });
+
+  it('GET /broadcast/:id/manifest returns 404 for broadcast owned by another uid', async () => {
+    const ownerApp = (() => {
+      const a = express();
+      a.use(express.json());
+      a.use(authStub('owner-uid'));
+      a.use(createBroadcastRouter(orch, store));
+      return a;
+    })();
+    const create = await request(ownerApp)
+      .post('/broadcast/create')
+      .send({
+        playlistId: 'p1', vibe: 'morning', length: 'quick',
+        userContext: { timeOfDay: '20:47', dayOfWeek: 'Thu', firstTimeUser: false },
+        tracks: tracks(10),
+      });
+    const id = create.body.manifest.broadcastId;
+
+    const attackerApp = (() => {
+      const a = express();
+      a.use(express.json());
+      a.use(authStub('attacker-uid'));
+      a.use(createBroadcastRouter(orch, store));
+      return a;
+    })();
+    const res = await request(attackerApp).get(`/broadcast/${id}/manifest`);
+    expect(res.status).toBe(404);
+  });
+
+  it('GET /broadcast/:id/manifest allows any uid for curator-owned (featured) broadcasts', async () => {
+    const curatorApp = (() => {
+      const a = express();
+      a.use(express.json());
+      a.use(authStub('curator'));
+      a.use(createBroadcastRouter(orch, store));
+      return a;
+    })();
+    const create = await request(curatorApp)
+      .post('/broadcast/create')
+      .send({
+        playlistId: 'p1', vibe: 'morning', length: 'quick',
+        userContext: { timeOfDay: '20:47', dayOfWeek: 'Thu', firstTimeUser: false },
+        tracks: tracks(10),
+      });
+    const id = create.body.manifest.broadcastId;
+
+    const otherApp = (() => {
+      const a = express();
+      a.use(express.json());
+      a.use(authStub('random-user'));
+      a.use(createBroadcastRouter(orch, store));
+      return a;
+    })();
+    const res = await request(otherApp).get(`/broadcast/${id}/manifest`);
+    expect(res.status).toBe(200);
+    expect(res.body.broadcastId).toBe(id);
+  });
 });
