@@ -1,9 +1,16 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import type { Manifest } from './types';
+import type { SlotKey, DayOfWeek } from '../../config/tonightOnOnay';
 
 export interface FeaturedBroadcast {
   id: string;
+  /** Present iff this is a Tonight-on-ONAY slot record. Fixed ids
+   *  `slot_morning` / `slot_evening` make re-bakes replace by natural key. */
+  slot?: SlotKey;
+  /** Day whose theme was used for this bake — denormalized onto the
+   *  record so the client doesn't need to re-derive it. */
+  themeDay?: DayOfWeek;
   title: string;
   description: string;
   vibe: Manifest['vibe'];
@@ -48,8 +55,19 @@ export class FeaturedBroadcastRegistry {
     await this.save();
   }
 
+  /** Baked records only, ordered: morning slot → evening slot → legacy. */
   list(): FeaturedBroadcast[] {
-    return this.records.filter(r => r.baked).map(r => ({ ...r }));
+    const baked = this.records.filter(r => r.baked);
+    const rank = (r: FeaturedBroadcast) =>
+      r.slot === 'morning' ? 0 : r.slot === 'evening' ? 1 : 2;
+    return [...baked]
+      .sort((a, b) => rank(a) - rank(b))
+      .map(r => ({ ...r }));
+  }
+
+  getBySlot(slot: SlotKey): FeaturedBroadcast | null {
+    const hit = this.records.find(r => r.baked && r.slot === slot);
+    return hit ? { ...hit } : null;
   }
 
   /** Atomic write: tmp file + rename. Prevents registry corruption if the
