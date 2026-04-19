@@ -13,8 +13,10 @@ the iOS 48s/60s background CPU budget when LLM + TTS ran between tracks.
 
 **Current plan state:** Plans 1–4 (server bake pipeline → client player → home + curation
 pipeline → cleanup/migration) are all tagged as complete on the `pre-baked-broadcast`
-branch. Production deployment to the Fastify VPS is NOT done — the app runs against a
-local Express server only.
+branch. The Express broadcast server is deployed to production at
+`api.worthymedia.tech` (VPS, `/home/cleo/cleo-broadcast/`, port 3102 behind Caddy) with
+R2 storage live. The old Fastify server at `/home/cleo/cleo-api/` on port 3100 is kept
+running as a rollback safety net — Caddy routes away from it.
 
 ---
 
@@ -38,11 +40,22 @@ local Express server only.
 - Filesystem TTS cache dedupes identical text across bakes
 
 ### Backend
-- **Local dev:** Node.js + Express (`server/`) on port 3001. Jest + ts-jest test suite.
-- **Production:** Fastify at `api.worthymedia.tech` (Hostinger VPS). Does NOT yet host
-  the broadcast routes — shipping to TestFlight still requires porting/deploying the
-  Express broadcast subsystem there.
-- Firebase JWT auth middleware (`requireAuth`) gates all routes.
+- **Local dev:** Node.js + Express (`server/`) on port 3001. Jest + ts-jest test suite
+  (233 tests). `STORAGE_BACKEND` env unset → `LocalFilesystemStorage` under
+  `server/.broadcast-cache/`; segments served via `/broadcast-asset/*`.
+- **Production:** Express broadcast server at `api.worthymedia.tech` (Hostinger VPS ID
+  <HOSTINGER_ID>, IP <VPS_HOST>), running at `/home/cleo/cleo-broadcast/` on port 3102
+  behind Caddy, managed by PM2 (app name `cleo-broadcast`). `STORAGE_BACKEND=r2` →
+  Cloudflare R2 bucket `cleo-broadcast-segments`; segment URLs are 7-day presigned
+  GetObject links embedded in the manifest. Deploy runbook: `server/DEPLOY.md`.
+- **Rollback lane:** old Fastify server still running at `/home/cleo/cleo-api/` on port
+  3100. Caddy routes `api.worthymedia.tech` to `:3102`; a one-line `sed` on the
+  Caddyfile swaps back to `:3100` if the new server breaks. Scheduled for `pm2 delete`
+  after a 1-week soak — until then, don't assume it's gone.
+- Firebase JWT auth middleware (`requireAuth`) gates all routes. Ownership gate on
+  `GET /broadcast/:id/manifest` + `/broadcast-asset/*` — both return 404 unless
+  `manifest.userId === req.uid` or `manifest.userId === 'curator'` (featured broadcasts
+  are globally accessible).
 - Curator-only publish route (`POST /broadcast/featured/publish`) gated by
   `requireCurator` middleware against `CURATOR_EMAILS` env allowlist.
 
@@ -504,18 +517,16 @@ EXPO_PUBLIC_SENTRY_DSN
 
 ## What's Left (not yet shipped)
 
-- **Production deployment** — the Fastify server at `api.worthymedia.tech` does not
-  know any of the broadcast routes. TestFlight with `EXPO_PUBLIC_API_URL` pointed at
-  production will 404 on every bake. Either deploy the Express broadcast subsystem to
-  the VPS or port to Fastify.
-- **S3 / signed-URL storage adapter** — `LocalFilesystemStorage` works for dev; prod
-  needs real object storage with signed URLs + TTL.
 - **Bake abort endpoint** — no `DELETE /broadcast/:id`. User canceling mid-bake still
   pays for all remaining LLM + TTS calls.
 - **Scheduled/autonomous featured bakes** (cron "Monday Reset" etc.) — requires server
   Apple Music developer token setup.
 - **Native Swift cleanup** — eject code and `beginTTSBackgroundTask` / `silencePlayer`
   leftovers.
+- **Rollback Fastify decommission** — `pm2 delete cleo-api` after the new server
+  proves stable on TestFlight for ~1 week.
+- **R2 presign TTL tightening** — currently 7 days; could be tightened to match the
+  `BroadcastStore` 2h TTL to reduce blast radius if a manifest ever leaks.
 
 ---
 
