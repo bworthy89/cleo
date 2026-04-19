@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { FeaturedBroadcastRegistry } from '../services/broadcast/FeaturedBroadcastRegistry';
 import type { BroadcastOrchestrator } from '../services/broadcast/BroadcastOrchestrator';
 import { requireCurator, type AuthenticatedRequest } from '../middleware/auth';
+import { getThemeFor } from '../config/tonightOnOnay';
 
 const vibeSchema = z.enum([
   'morning', 'focus', 'workout', 'feelGood',
@@ -10,6 +11,8 @@ const vibeSchema = z.enum([
 ]);
 
 const lengthSchema = z.enum(['quick', 'standard', 'long']);
+const slotSchema = z.enum(['morning', 'evening']);
+const daySchema = z.enum(['mon','tue','wed','thu','fri','sat','sun']);
 
 const trackSchema = z.object({
   id: z.string().min(1).max(80),
@@ -23,12 +26,37 @@ const trackSchema = z.object({
 
 const publishSchema = z.object({
   id: z.string().min(1).max(80),
+  slot: slotSchema.optional(),
+  themeDay: daySchema.optional(),
   title: z.string().min(1).max(120),
   description: z.string().min(1).max(400),
   vibe: vibeSchema,
   length: lengthSchema,
   artworkUrl: z.string().url().optional(),
   tracks: z.array(trackSchema).min(5).max(100),
+}).superRefine((v, ctx) => {
+  if (v.slot) {
+    if (!v.themeDay) {
+      ctx.addIssue({ code: 'custom', path: ['themeDay'], message: 'themeDay required when slot is set' });
+      return;
+    }
+    const expectedId = `slot_${v.slot}`;
+    if (v.id !== expectedId) {
+      ctx.addIssue({ code: 'custom', path: ['id'], message: `id must be "${expectedId}" for slot ${v.slot}` });
+    }
+    const theme = getThemeFor(v.slot, v.themeDay);
+    if (theme.vibe !== v.vibe) {
+      ctx.addIssue({ code: 'custom', path: ['vibe'], message: `vibe must match theme (${theme.vibe})` });
+    }
+    if (theme.length !== v.length) {
+      ctx.addIssue({ code: 'custom', path: ['length'], message: `length must match theme (${theme.length})` });
+    }
+  } else {
+    // Free-form publishes may not use the reserved slot id namespace.
+    if (/^slot_/.test(v.id)) {
+      ctx.addIssue({ code: 'custom', path: ['id'], message: 'id "slot_*" is reserved for Tonight on ONAY slots' });
+    }
+  }
 });
 
 export function createFeaturedRouter(
@@ -75,6 +103,8 @@ export function createFeaturedRouter(
 
         await registry.put({
           id: config.id,
+          slot: config.slot,
+          themeDay: config.themeDay,
           title: config.title,
           description: config.description,
           vibe: config.vibe,
