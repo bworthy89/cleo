@@ -21,6 +21,8 @@ import { StampButton, SectionMarker, LinerNotes, SleeveArt, Tick, SettingsCog } 
 import { curatePlaylist, refinePlaylist, CuratedPlaylist } from '../../engines/PlaylistCurator';
 import { createPlaylist, authorize } from '../../../modules/expo-music-kit';
 import { BroadcastCurationClient } from '../../engines/BroadcastCurationClient';
+import type { PublishFeaturedRequest } from '../../engines/BroadcastCurationClient';
+import { PublishFeaturedSheet } from '../../components/broadcast/PublishFeaturedSheet';
 import { BroadcastManifestClient } from '../../engines/BroadcastManifestClient';
 import { broadcastPlayer } from '../../engines/BroadcastPlayer.singleton';
 import { isCurator } from '../../config/curators';
@@ -101,6 +103,8 @@ export function AskOnayScreen() {
     UITEST_MODE ? 'something for after it rains, warm, slow' : '',
   );
   const [publishing, setPublishing] = useState(false);
+  const [publishSheetFor, setPublishSheetFor] = useState<CuratedPlaylist | null>(null);
+  const [publishError, setPublishError] = useState<string | null>(null);
   const [tuning, setTuning] = useState(false);
 
   const canCurate = isCurator(auth().currentUser?.email);
@@ -297,58 +301,42 @@ export function AskOnayScreen() {
     }
   }, [router]);
 
-  const handlePublishFeatured = useCallback(async (playlist: CuratedPlaylist) => {
-    if (publishing) return;
-    const count = playlist.trackIds.length;
-    const length: 'quick' | 'standard' | 'long' =
-      count >= 15 ? 'long' : count >= 9 ? 'standard' : 'quick';
+  const handlePublishFeatured = useCallback((playlist: CuratedPlaylist) => {
+    setPublishError(null);
+    setPublishSheetFor(playlist);
+  }, []);
 
-    Alert.prompt?.(
-      'Publish as Tonight on ONAY',
-      'This will bake the broadcast and show it on every user’s home screen. Confirm the title:',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Publish',
-          onPress: async (titleOverride?: string) => {
-            const title = (titleOverride && titleOverride.trim().length > 0)
-              ? titleOverride.trim()
-              : playlist.playlistTitle;
-            setPublishing(true);
-            try {
-              const client = new BroadcastCurationClient();
-              const slug = `${Date.now()}-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40)}`;
-              await client.publishFeatured({
-                id: slug,
-                title,
-                description: playlist.playlistDescription,
-                vibe: playlist.suggestedVibe,
-                length,
-                artworkUrl: playlist.tracks[0]?.artworkUrl,
-                tracks: playlist.tracks.map(t => ({
-                  id: t.id,
-                  title: t.title,
-                  artistName: t.artistName,
-                  albumTitle: t.albumTitle ?? '',
-                  duration: t.duration ?? 180,
-                  artworkUrl: t.artworkUrl,
-                  genreNames: t.genreNames,
-                })),
-              });
-              Alert.alert('Published', `"${title}" is now on Tonight on ONAY.`);
-            } catch (err) {
-              const msg = err instanceof Error ? err.message : 'Publish failed.';
-              Alert.alert('Publish failed', msg);
-            } finally {
-              setPublishing(false);
-            }
-          },
-        },
-      ],
-      'plain-text',
-      playlist.playlistTitle,
-    );
-  }, [publishing]);
+  const handlePublishSubmit = useCallback(async (
+    partial: Omit<PublishFeaturedRequest, 'tracks' | 'artworkUrl'>,
+  ) => {
+    const playlist = publishSheetFor;
+    if (!playlist || publishing) return;
+    setPublishing(true);
+    setPublishError(null);
+    try {
+      const client = new BroadcastCurationClient();
+      await client.publishFeatured({
+        ...partial,
+        artworkUrl: playlist.tracks[0]?.artworkUrl,
+        tracks: playlist.tracks.map(t => ({
+          id: t.id,
+          title: t.title,
+          artistName: t.artistName,
+          albumTitle: t.albumTitle ?? '',
+          duration: t.duration ?? 180,
+          artworkUrl: t.artworkUrl,
+          genreNames: t.genreNames,
+        })),
+      });
+      setPublishSheetFor(null);
+      Alert.alert('Published', `"${partial.title}" is now on Tonight on ONAY.`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Publish failed.';
+      setPublishError(msg);
+    } finally {
+      setPublishing(false);
+    }
+  }, [publishSheetFor, publishing]);
 
   const handleNewPlaylist = useCallback(() => {
     setCurrentPlaylist(null);
@@ -649,6 +637,24 @@ export function AskOnayScreen() {
           </Pressable>
         </View>
       </KeyboardAvoidingView>
+      {publishSheetFor && (
+        <PublishFeaturedSheet
+          visible={!!publishSheetFor}
+          sessionVibe={publishSheetFor.suggestedVibe}
+          defaultTitle={publishSheetFor.playlistTitle}
+          defaultDescription={publishSheetFor.playlistDescription}
+          defaultVibe={publishSheetFor.suggestedVibe}
+          defaultLength={
+            publishSheetFor.trackIds.length >= 15 ? 'long'
+            : publishSheetFor.trackIds.length >= 9 ? 'standard'
+            : 'quick'
+          }
+          publishing={publishing}
+          error={publishError}
+          onClose={() => { setPublishSheetFor(null); setPublishError(null); }}
+          onSubmit={handlePublishSubmit}
+        />
+      )}
       <TuningInOverlay visible={tuning} />
     </BroadcastBackdrop>
   );
