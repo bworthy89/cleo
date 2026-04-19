@@ -202,39 +202,118 @@ Ordering of the response follows the registry's new `list()` ordering
 
 ## Client Changes
 
-### `AskOnayScreen` — Publish Sheet
+### `AskOnayScreen` — Publish Sheet (replacing the Alert prompt)
 
-Replace the current single-tap "Publish as Featured" button with a sheet
-component containing three choices (Free-form / Tonight's Morning / Tonight's
-Evening). Implementation lives in
-`src/components/broadcast/PublishFeaturedSheet.tsx` (new).
+Today the "Publish as Tonight on ONAY" button on a curator-visible playlist
+opens a native `Alert.prompt` that asks for a title override and then fires
+`publishFeatured`. That flow goes away entirely. It is replaced with a new
+modal component:
 
-Key behavior:
+**New file:** `src/components/broadcast/PublishFeaturedSheet.tsx`
 
-- Each slot tile in the sheet previews the theme's title + description +
-  vibe chip, sourced from `getThemeFor(slot, todayLocal)`.
-- An edit affordance on a slot tile lets the curator override title,
-  description, and `themeDay` (via day picker). Vibe/length stay locked to
-  the theme — and always to the **selected day's** theme, so day override
-  also swaps the vibe/length.
-- Slot-vibe-warning logic is a pure function over
-  `(sessionVibe, selectedTheme.vibe)`; renders above the confirm button.
-- On confirm, call `authenticatedFetch('/broadcast/featured/publish', …)`
-  with the new payload fields.
+Visual layout (top to bottom, full-height modal with the existing black base):
 
-### `HomeBroadcastScreen`
+1. **Header row** — left: a `×` close pressable; right: DM Mono 10px gold
+   label "PUBLISH AS FEATURED" with a 2×40 gold underbar. Matches
+   `SectionMarker` treatment.
+2. **Slot tiles** — three stacked Pressable cards on `Surface.container`
+   with 2px `Colors.accent` left border (gold-edge card pattern). Selected
+   tile gets a filled `Glow.ctaShadow`. One at a time is selected.
+    - **Tile A — Free-form.** Small DM Mono label "FREE-FORM", then a
+      Playfair title ("Name your own drop") and Inter body. Title + short
+      description inputs render inline when the tile is selected.
+    - **Tile B — Tonight's Morning.** Small DM Mono label "MORNING · {DAY}"
+      in gold, then Playfair title from `getThemeFor('morning', today).title`,
+      Inter body description. A vibe chip (using `getVibeAccent(theme.vibe)`)
+      sits top-right. When selected, an "Edit" row reveals inline inputs for
+      title + description overrides plus a day picker ("Using {DAY}'s
+      theme — swap?"). Changing the day re-pulls theme defaults, including
+      vibe and length, and updates the chip.
+    - **Tile C — Tonight's Evening.** Same shape as Tile B, using the
+      evening theme.
+3. **Soft warning band** — below the tiles, only shown when a slot is
+   selected AND `sessionVibe !== theme.vibe`. EB Garamond italic body copy:
+   "This slot's vibe is *{theme.vibe}*. I'll re-voice the commentary for
+   the morning angle." Not blocking — informational.
+4. **Confirm CTA** — full-width `Gradient.cta` button, DM Mono uppercase
+   label "PUBLISH AS {SELECTION}". Disabled until a tile is selected and
+   (for free-form) a title has been entered.
+5. **Publishing state** — on submit, the CTA swaps to a pulsing
+   `Animation.pulseSlow` spinner with "BAKING…" copy. Errors render in a
+   short text band above the CTA in `Colors.textMuted`.
 
-- Derive `morningCard = broadcasts.find(b => b.slot === 'morning')` and
-  `eveningCard` similarly. Render them first, with slot-label chips. Fall
-  back to muted placeholder when null.
-- Remaining broadcasts (no `slot` field) render under a collapsed "More
-  from ONAY" section below the slot pair.
+Interaction rules:
 
-### `FeaturedBroadcastCard`
+- Only one tile is selected at a time. Selection persists while the sheet
+  is open; closing resets.
+- Edit affordance is inline (not a drill-in) so the sheet stays a single
+  screen.
+- Day picker is a compact horizontal row of 7 DM Mono chips (MON–SUN);
+  today is highlighted with the accent.
+- Haptic: `expo-haptics` light impact on tile select, medium on confirm.
+- Accessibility: each tile is `accessibilityRole="radio"` with
+  `accessibilityState={{ selected }}`. CTA is `"button"`.
 
-Add one optional prop: `slotLabel?: string`. Renders above the title in
-`Colors.accent` DM Mono, 10px / letterSpacing 2.5 — matching existing section
-labels. No other visual changes.
+The existing curator-visibility check (`canCurate` on `AskOnayScreen`) still
+gates whether the button that opens the sheet renders.
+
+### `HomeBroadcastScreen` — Twin-slot Layout
+
+Today's pattern is **hero + rail**: one `FeaturedBroadcastCard` (hero) plus
+horizontal `FeaturedRailCard`s (rest). We change the top-of-screen feed to
+a **twin-slot stack** that always reserves space for both slots, then keeps
+the rail for legacy records.
+
+New structure in order:
+
+1. **Section marker** — "TONIGHT ON ONAY" in the existing SectionMarker
+   style (DM Mono gold, underbar, `num="T·01"`). New prop `pulse` is
+   unchanged from today.
+2. **Morning slot card.** If `getBySlot('morning')` exists, render a
+   `FeaturedBroadcastCard` with `slotLabel="MORNING"`. If not, render a new
+   `SlotPlaceholderCard` with copy "Tonight's Morning · coming up" in
+   muted Inter, 2px `Colors.accent` left border, and no tap action.
+3. **Evening slot card.** Same treatment with the evening record or
+   placeholder.
+4. **"More from ONAY" row** — only renders when at least one non-slot
+   legacy record exists. Small DM Mono section label "MORE FROM ONAY" (no
+   underbar, to read as a subsection), then the existing horizontal
+   `FeaturedRailCard` rail.
+
+Both slot cards are the same visual weight. No "hero" promotion — the slate
+is programmed, not ranked.
+
+Liner-note quote below the stack is unchanged, but its dynamic copy is
+extended to pick from whichever slot is fresher:
+`const lead = morningCard ?? eveningCard ?? null;` then fall back to the
+existing static string.
+
+### `FeaturedBroadcastCard` — Slot Label
+
+Add one optional prop: `slotLabel?: string`. When set, renders a small chip
+above the title: DM Mono 10px, `letterSpacing: 2.5`, `Colors.accent`,
+uppercase. Sits in the same vertical rhythm as today's tagline. No layout
+shift when the prop is absent.
+
+### `SlotPlaceholderCard` (new)
+
+**New file:** `src/components/broadcast/SlotPlaceholderCard.tsx`
+
+- Same outer shape as `FeaturedBroadcastCard` (card radius, gold-edge
+  border, min-height matched) so the Morning/Evening stack stays
+  visually consistent whether baked or not.
+- Content: slot chip ("MORNING" / "EVENING"), muted Playfair headline
+  ("coming up"), Inter body ("ONAY is between tracks"). No pressable
+  handler — the card is informational.
+- Opacity 0.55 on the whole card; no animation (respects the "no
+  backgrounded loops" rule and avoids pulling attention from live
+  content).
+
+### Design-token touch points
+
+No new tokens. This feature uses existing: `Colors.accent`, `Colors.textMuted`,
+`Surface.container`, `Gradient.cta`, `Glow.ctaShadow`, `Typography.*`,
+`Space.*`, `Radius.*`, `Animation.pulseSlow`, `getVibeAccent()`.
 
 ---
 
