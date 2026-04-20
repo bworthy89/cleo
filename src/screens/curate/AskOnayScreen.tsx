@@ -23,7 +23,7 @@ import { createPlaylist, authorize } from '../../../modules/expo-music-kit';
 import { BroadcastCurationClient } from '../../engines/BroadcastCurationClient';
 import type { PublishFeaturedRequest } from '../../engines/BroadcastCurationClient';
 import { PublishFeaturedSheet } from '../../components/broadcast/PublishFeaturedSheet';
-import { BroadcastManifestClient } from '../../engines/BroadcastManifestClient';
+import { BroadcastManifestClient, sanitizeTracksForBake } from '../../engines/BroadcastManifestClient';
 import { broadcastPlayer } from '../../engines/BroadcastPlayer.singleton';
 import { isCurator } from '../../config/curators';
 import { UITEST_MODE } from '../../config/featureFlags';
@@ -270,6 +270,12 @@ export function AskOnayScreen() {
       const length: 'quick' | 'standard' | 'long' =
         count >= 15 ? 'long' : count >= 9 ? 'standard' : 'quick';
 
+      const sanitized = sanitizeTracksForBake(playlist.tracks).slice(0, 20);
+      if (sanitized.length < 5) {
+        throw new Error(
+          `Only ${sanitized.length} playable track${sanitized.length === 1 ? '' : 's'} resolved (need at least 5).`,
+        );
+      }
       const { manifest, firstSegmentUrls } = await client.createBroadcast({
         playlistId: `curated-${Date.now()}`,
         vibe: playlist.suggestedVibe,
@@ -279,14 +285,7 @@ export function AskOnayScreen() {
           dayOfWeek: now.toLocaleDateString(undefined, { weekday: 'long' }),
           firstTimeUser: false,
         },
-        tracks: playlist.tracks.slice(0, 20).map(t => ({
-          id: t.id,
-          title: t.title,
-          artistName: t.artistName,
-          albumTitle: t.albumTitle ?? '',
-          duration: t.duration ?? 180,
-          artworkUrl: t.artworkUrl,
-        })),
+        tracks: sanitized,
       });
 
       router.push('/(main)/(broadcast)/player');
