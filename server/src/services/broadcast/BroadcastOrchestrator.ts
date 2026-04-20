@@ -22,6 +22,13 @@ const SEGMENT_CONCURRENCY = 4;
 export class BroadcastOrchestrator {
   private readonly generator: SegmentGenerator;
   private readonly sequencer: TrackSequencer;
+  /**
+   * Tracks the background bake (slots 1..N) for each in-progress broadcast.
+   * Callers that need completion (`bakeFeatured`, the featured publish route)
+   * await `waitForCompletion(id)` which resolves when the entry is deleted
+   * by the background task's .finally().
+   */
+  private readonly inFlight = new Map<string, Promise<void>>();
 
   constructor(
     llm: LLMCaller,
@@ -52,14 +59,8 @@ export class BroadcastOrchestrator {
       },
     });
 
-    // 2. Drain enrichment for the chosen N tracks only, not the full pool.
-    //    Running this synchronously before segment generation lets the
-    //    script builder pull producer / sample / bio hints for any track
-    //    where a fresh enrichment lookup completes in time.
-    await this.backgroundEnricher.drainNow(seq.orderedTracks);
-
-    // 3. Build the manifest. Includes tier per slot based on featureSlots
-    //    picked by the sequencer (deep_dive vs. fact_bridge transitions).
+    // 2. Build the manifest immediately — enrichment isn't needed to know
+    //    which slots exist and which tracks they target.
     const manifest = buildManifest({
       userId: input.userId,
       playlistId: input.playlistId,
@@ -70,13 +71,32 @@ export class BroadcastOrchestrator {
     });
     this.store.put(manifest);
 
-    // 4. Generate all segments in parallel with a small concurrency cap.
-    //    Cold-open failures still throw so the caller sees a 5xx; any
-    //    subsequent-slot failure marks that slot 'failed' but leaves the
-    //    rest of the broadcast playable.
-    await this.generateAllSegmentsCapped(manifest, input.userContext);
+    // 3. Fire enrichment drain and slot 0 bake in parallel.
+    //    Slot 0 is the cold_open — it sets the scene and names the first
+    //    track. It works fine with an empty enrichment block, so we don't
+    //    block it on the ~10-20s Genius/MusicBrainz fan-out. drainNow runs
+    //    concurrently and populates the cache in time for slots 1..N.
+    const drainP = this.backgroundEnricher.drainNow(seq.orderedTracks).catch(err => {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`[BroadcastOrchestrator] drainNow failed: ${msg}`);
+    });
+    const slot0P = this.generateSlot(manifest, 0, input.userContext);
 
-    // 5. Return the final manifest with all slots populated.
+    // 4. HTTP response is gated on slot 0 audio being baked AND enrichment
+    //    being drained. We wait for drainNow so background slots 1..N have
+    //    a populated cache (richer producer/sample hints); on warm cache
+    //    drainNow returns near-instantly, so tune-in is F5 slot 0 time.
+    await Promise.all([drainP, slot0P]);
+
+    // 5. Fan out slots 1..N as a background task. Client polls
+    //    /broadcast/:id/manifest to pick up audioUrls as slots complete.
+    if (manifest.segmentSlots.length > 1) {
+      const backgroundP = this.generateSlotsBackground(manifest, input.userContext)
+        .finally(() => { this.inFlight.delete(manifest.broadcastId); });
+      this.inFlight.set(manifest.broadcastId, backgroundP);
+    }
+
+    // 6. Return manifest with slot 0 ready; slots 1..N still 'pending'.
     const finalManifest = this.store.get(manifest.broadcastId)!;
     const coldOpen = finalManifest.segmentSlots[0];
     const firstSegmentUrls = coldOpen.audioUrls ?? [];
@@ -87,17 +107,17 @@ export class BroadcastOrchestrator {
   }
 
   /**
-   * No-op in the fully pre-baked pipeline. Kept for compatibility with
-   * callers (`bakeFeatured`, the featured publish route) that were written
-   * against the older two-phase sync+async pipeline — completion is now
-   * guaranteed when `create()` resolves.
+   * Wait for the background bake (slots 1..N) of a broadcast to complete.
+   * Resolves immediately if the broadcast has no tracked background work
+   * (single-slot manifest, already finished, or never created).
    */
-  async waitForCompletion(_broadcastId: string): Promise<void> {
-    return;
+  async waitForCompletion(broadcastId: string): Promise<void> {
+    const p = this.inFlight.get(broadcastId);
+    if (p) await p;
   }
 
-  isInFlight(_broadcastId: string): boolean {
-    return false;
+  isInFlight(broadcastId: string): boolean {
+    return this.inFlight.has(broadcastId);
   }
 
   /** Read the current manifest state (slots include their latest status + urls). */
@@ -105,21 +125,30 @@ export class BroadcastOrchestrator {
     return this.store.get(broadcastId);
   }
 
-  private async generateAllSegmentsCapped(
+  private async generateSlotsBackground(
     manifest: Manifest,
     ctx: SegmentContext,
   ): Promise<void> {
-    const indices = manifest.segmentSlots.map(s => s.index);
+    // Slots 1..N run with the same concurrency cap as before; slot 0 was
+    // already baked synchronously above.
+    const indices = manifest.segmentSlots
+      .filter(s => s.index > 0)
+      .map(s => s.index);
     let nextIndex = 0;
-    const workers: Promise<void>[] = [];
     const runWorker = async (): Promise<void> => {
       while (true) {
         const i = nextIndex++;
         if (i >= indices.length) return;
-        await this.generateSlot(manifest, indices[i], ctx);
+        try {
+          await this.generateSlot(manifest, indices[i], ctx);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.warn(`[BroadcastOrchestrator] slot ${indices[i]} failed: ${msg}`);
+        }
       }
     };
     const workerCount = Math.min(SEGMENT_CONCURRENCY, indices.length);
+    const workers: Promise<void>[] = [];
     for (let w = 0; w < workerCount; w++) {
       workers.push(runWorker());
     }
