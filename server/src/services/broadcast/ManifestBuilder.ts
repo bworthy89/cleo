@@ -35,18 +35,27 @@ export function buildManifest(input: BuildManifestInput): Manifest {
     tier: 'cold_open',
   });
 
-  for (let i = 0; i < tracks.length - 1; i++) {
+  // Transitions fire before tracks at indices 2, 4, 6, … (every other track
+  // starting from the third). Tier alternates fact_bridge → tight_bridge,
+  // starting with fact_bridge. featureSlots overrides to deep_dive but does
+  // NOT consume a step in the alternation counter — the next non-deep_dive
+  // transition still follows whatever the natural next tier would be.
+  let alternationCounter = 0;
+  for (let i = 2; i < tracks.length; i += 2) {
     const index = segmentSlots.length;
-    const tier: SegmentTier = featureSet.has(index) ? 'deep_dive' : 'fact_bridge';
+    const naturalTier: SegmentTier =
+      alternationCounter % 2 === 0 ? 'fact_bridge' : 'tight_bridge';
+    const tier: SegmentTier = featureSet.has(index) ? 'deep_dive' : naturalTier;
     segmentSlots.push({
       index,
       kind: 'transition',
-      afterTrackId: tracks[i].id,
-      beforeTrackId: tracks[i + 1].id,
+      afterTrackId: tracks[i - 1].id,
+      beforeTrackId: tracks[i].id,
       variantCount: 1,
       status: 'pending',
       tier,
     });
+    alternationCounter += 1;
   }
 
   segmentSlots.push({

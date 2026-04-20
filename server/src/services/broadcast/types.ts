@@ -9,7 +9,12 @@ export type SegmentSlotKind =
   | 'transition'
   | 'sign_off';
 
-export type SegmentTier = 'cold_open' | 'fact_bridge' | 'deep_dive' | 'sign_off';
+export type SegmentTier =
+  | 'cold_open'
+  | 'fact_bridge'
+  | 'tight_bridge'
+  | 'deep_dive'
+  | 'sign_off';
 
 export interface SegmentSlot {
   index: number;
