@@ -79,7 +79,7 @@ describe('BroadcastOrchestrator.create', () => {
     expect(stored.segmentSlots[0].audioUrls).toHaveLength(1);
   });
 
-  it('marks all slots ready after create() (fully pre-baked)', async () => {
+  it('marks slot 0 ready synchronously and the rest pending until waitForCompletion resolves', async () => {
     const { enrichCache, enricher } = await makeDeps();
     const llm = makeMockLLM(SEQUENCER_RESPONSE);
     const tts = makeMockTTS();
@@ -93,29 +93,31 @@ describe('BroadcastOrchestrator.create', () => {
       length: 'quick', userContext: ctx, tracks: tracks(10),
     });
 
-    // waitForCompletion is a no-op in the fully pre-baked pipeline but
-    // callers still exercise it — ensure it still resolves without error.
+    // Immediately after create resolves: slot 0 ready, 1..N still pending.
+    const afterCreate = store.get(manifest.broadcastId)!;
+    expect(afterCreate.segmentSlots[0].status).toBe('ready');
+    expect(afterCreate.segmentSlots.slice(1).some(s => s.status === 'pending')).toBe(true);
+
+    // Waiting for completion drains the background bake.
     await orch.waitForCompletion(manifest.broadcastId);
 
     const final = store.get(manifest.broadcastId)!;
     for (const slot of final.segmentSlots) {
       expect(slot.status).toBe('ready');
     }
-    // 1 sequencer call + 1 cold_open + 2 transitions + 1 sign_off = 5 LLM calls
+    // 1 sequencer + 1 cold_open + 2 transitions + 1 sign_off = 5 LLM calls total
     expect(llm.generate).toHaveBeenCalledTimes(5);
   });
 
   it('marks individual slots as failed on provider errors without rejecting create()', async () => {
     const { enrichCache, enricher } = await makeDeps();
     const llm = makeMockLLM();
-    // Sequence of calls: sequencer (JSON), then 6 segment calls. Fail a
-    // non-cold-open slot. Cold-open failures still throw (they block the
-    // response); other slots record 'failed' so the client can show a
-    // degraded broadcast.
+    // Sequence of calls: sequencer (JSON), cold_open (sync, must succeed),
+    // then slots 1..N in background. Fail one non-cold-open slot; the
+    // broadcast remains playable with that slot marked 'failed'.
     (llm.generate as jest.Mock)
       .mockImplementationOnce(async () => ({ text: SEQUENCER_RESPONSE })) // sequencer
-      .mockImplementationOnce(async () => ({ text: 'ok' })) // cold_open
-      .mockImplementationOnce(async () => ({ text: 'ok' }))
+      .mockImplementationOnce(async () => ({ text: 'ok' })) // cold_open (sync)
       .mockImplementationOnce(async () => ({ text: 'ok' }))
       .mockImplementationOnce(async () => { throw new Error('llm exploded'); })
       .mockImplementation(async () => ({ text: 'ok' }));
@@ -128,6 +130,8 @@ describe('BroadcastOrchestrator.create', () => {
       userId: 'u1', playlistId: 'p1', vibe: 'morning',
       length: 'quick', userContext: ctx, tracks: tracks(10),
     });
+    // Drain the background bake so the failure is recorded before assertions.
+    await orch.waitForCompletion(manifest.broadcastId);
 
     const final = store.get(manifest.broadcastId)!;
     const failed = final.segmentSlots.filter(s => s.status === 'failed');
@@ -135,7 +139,7 @@ describe('BroadcastOrchestrator.create', () => {
     expect(final.segmentSlots[0].status).toBe('ready');
   });
 
-  it('isInFlight always returns false in the fully pre-baked pipeline', async () => {
+  it('isInFlight is true immediately after create() and false after waitForCompletion', async () => {
     const { enrichCache, enricher } = await makeDeps();
     const orch = new BroadcastOrchestrator(
       makeMockLLM(SEQUENCER_RESPONSE), makeMockTTS(), makeStorage(),
@@ -145,13 +149,16 @@ describe('BroadcastOrchestrator.create', () => {
       userId: 'u1', playlistId: 'p1', vibe: 'morning',
       length: 'quick', userContext: ctx, tracks: tracks(10),
     });
-    // pipeline is synchronous in create(); no background work remains.
+    // Background slots 1..N are still baking right after create resolves.
+    expect(orch.isInFlight(manifest.broadcastId)).toBe(true);
+    await orch.waitForCompletion(manifest.broadcastId);
     expect(orch.isInFlight(manifest.broadcastId)).toBe(false);
   });
+
 });
 
-describe('BroadcastOrchestrator — fully pre-baked pipeline', () => {
-  it('returns a manifest with all slots ready after create()', async () => {
+describe('BroadcastOrchestrator — sync slot 0 + async slots 1..N', () => {
+  it('returns slot 0 ready synchronously; all slots ready after waitForCompletion', async () => {
     const { enrichCache, enricher } = await makeDeps();
     const orch = new BroadcastOrchestrator(
       makeMockLLM(SEQUENCER_RESPONSE), makeMockTTS(), makeStorage(),
@@ -161,26 +168,31 @@ describe('BroadcastOrchestrator — fully pre-baked pipeline', () => {
       userId: 'u1', playlistId: 'p1', vibe: 'morning',
       length: 'quick', userContext: ctx, tracks: tracks(10),
     });
-    expect(res.manifest.segmentSlots.every(s => s.status === 'ready')).toBe(true);
+    expect(res.manifest.segmentSlots[0].status).toBe('ready');
     expect(res.manifest.featureSlots).toBeDefined();
+
+    await orch.waitForCompletion(res.manifest.broadcastId);
+    const final = orch.getManifest(res.manifest.broadcastId)!;
+    expect(final.segmentSlots.every(s => s.status === 'ready')).toBe(true);
   });
 
-  it('calls drainNow on the enricher before segment generation', async () => {
+  it('drainNow completes before any slot > 0 starts', async () => {
     const { enrichCache, enricher } = await makeDeps();
     const llm = makeMockLLM(SEQUENCER_RESPONSE);
     const tts = makeMockTTS();
     const storage = makeStorage();
 
     const callOrder: string[] = [];
+    // Keep drainNow slow so we can observe that slots 1..N wait for it.
+    // Slot 0 runs in parallel, so 'segment:.../segment/0/' may appear before
+    // drainNow resolves — that's expected under the new design.
     const drainSpy = jest.spyOn(enricher, 'drainNow').mockImplementation(
       async () => {
+        await new Promise(resolve => setTimeout(resolve, 20));
         callOrder.push('drainNow');
       },
     );
 
-    // Wrap storage.put so we can observe when segments start being persisted.
-    // Storage.put is the tail end of a segment generation; if it's observed
-    // only after drainNow runs, we've proved the ordering holds.
     const origPut = storage.put;
     (storage.put as jest.Mock) = jest.fn(async (key: string, bytes: Buffer) => {
       callOrder.push(`segment:${key}`);
@@ -191,16 +203,25 @@ describe('BroadcastOrchestrator — fully pre-baked pipeline', () => {
       llm, tts, storage, new BroadcastStore(), enrichCache, enricher,
     );
 
-    await orch.create({
+    const { manifest } = await orch.create({
       userId: 'u1', playlistId: 'p1', vibe: 'morning',
       length: 'quick', userContext: ctx, tracks: tracks(10),
     });
+    await orch.waitForCompletion(manifest.broadcastId);
 
     expect(drainSpy).toHaveBeenCalledTimes(1);
-    const firstSegmentIndex = callOrder.findIndex(s => s.startsWith('segment:'));
     const drainIndex = callOrder.indexOf('drainNow');
     expect(drainIndex).toBeGreaterThanOrEqual(0);
-    expect(firstSegmentIndex).toBeGreaterThan(drainIndex);
+
+    // Every slot > 0 must be written after drainNow completes.
+    const slotGtZeroIndices = callOrder
+      .map((entry, i) => ({ entry, i }))
+      .filter(({ entry }) => /segment:.*\/segment\/[1-9]\d*\//.test(entry))
+      .map(({ i }) => i);
+    expect(slotGtZeroIndices.length).toBeGreaterThan(0);
+    for (const i of slotGtZeroIndices) {
+      expect(i).toBeGreaterThan(drainIndex);
+    }
   });
 
   it('drains enrichment for the chosen N tracks only, not the full pool', async () => {
@@ -222,12 +243,12 @@ describe('BroadcastOrchestrator — fully pre-baked pipeline', () => {
     expect(passed.length).toBe(5);
   });
 
-  it('respects the segment generation concurrency cap of 4', async () => {
+  it('respects the segment generation concurrency cap of 4 for background slots', async () => {
     const { enrichCache, enricher } = await makeDeps();
 
-    // Instrument TTS so we can count concurrent segment generations. Each
-    // segment goes LLM → TTS → storage; wrapping synthesize gives us a hook
-    // at the start of segment work that overlaps with peers.
+    // Instrument TTS so we can count concurrent segment generations during
+    // the background slots 1..N fan-out. Slot 0 runs alone (sync) before
+    // this, so peak overlap is the background worker pool.
     let active = 0;
     let maxActive = 0;
     const tts = makeMockTTS();
@@ -244,12 +265,13 @@ describe('BroadcastOrchestrator — fully pre-baked pipeline', () => {
       new BroadcastStore(), enrichCache, enricher,
     );
 
-    await orch.create({
+    const { manifest } = await orch.create({
       userId: 'u1', playlistId: 'p1', vibe: 'morning',
       length: 'long', userContext: ctx, tracks: tracks(20),
     });
+    await orch.waitForCompletion(manifest.broadcastId);
 
-    // 15 tracks -> 16 slots. Cap is 4.
+    // 15 tracks → 9 slots (sparse cadence). Background pool cap is 4.
     expect(maxActive).toBeGreaterThan(1);
     expect(maxActive).toBeLessThanOrEqual(4);
   });
