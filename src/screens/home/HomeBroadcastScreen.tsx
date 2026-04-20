@@ -29,7 +29,7 @@ import {
   BroadcastCurationClient,
   type FeaturedBroadcast,
 } from '../../engines/BroadcastCurationClient';
-import { BroadcastManifestClient } from '../../engines/BroadcastManifestClient';
+import { BroadcastManifestClient, sanitizeTracksForBake } from '../../engines/BroadcastManifestClient';
 import { broadcastPlayer } from '../../engines/BroadcastPlayer.singleton';
 import { BroadcastResumer } from '../../engines/BroadcastResumer';
 import type { MusicPlaylist } from '../../../modules/expo-music-kit';
@@ -206,6 +206,12 @@ export default function HomeBroadcastScreen() {
     try {
       const tracks = await musicKitPlayer.fetchPlaylistTracks(result.playlistId);
       const client = new BroadcastManifestClient();
+      const sanitized = sanitizeTracksForBake(tracks).slice(0, 20);
+      if (sanitized.length < 5) {
+        throw new Error(
+          `Playlist has only ${sanitized.length} playable track${sanitized.length === 1 ? '' : 's'} (need at least 5).`,
+        );
+      }
       const { manifest, firstSegmentUrls } = await client.createBroadcast({
         playlistId: result.playlistId,
         vibe: result.vibe,
@@ -215,15 +221,7 @@ export default function HomeBroadcastScreen() {
           dayOfWeek: new Date().toLocaleDateString(undefined, { weekday: 'long' }),
           firstTimeUser: false,
         },
-        tracks: tracks.slice(0, 20).map(t => ({
-          id: t.id,
-          title: t.title,
-          artistName: t.artistName,
-          albumTitle: t.albumTitle ?? '',
-          duration: t.duration ?? 180,
-          artworkUrl: t.artworkUrl,
-          genreNames: t.genreNames,
-        })),
+        tracks: sanitized,
       });
       router.push('/(main)/(broadcast)/player');
       broadcastPlayer.start(manifest, firstSegmentUrls).catch((err: unknown) => {

@@ -42,6 +42,47 @@ function isAbsoluteUrl(s: string): boolean {
   return /^https?:\/\//i.test(s);
 }
 
+/**
+ * Filter raw MusicKit tracks down to ones the bake server will accept and
+ * normalize borderline fields. Matches the Zod schema on `POST /broadcast/create`:
+ *   id/title/artistName non-empty, duration > 0, artworkUrl valid http(s) URL,
+ *   strings within length caps.
+ *
+ * Apple Music occasionally returns tracks with `duration === 0` (regional
+ * unavailability), empty or malformed `artworkUrl`, or titles longer than
+ * the server's 200-char cap. Filtering here prevents a 400 error response
+ * that would otherwise surface as "invalid request" to the user with no
+ * actionable signal.
+ */
+export function sanitizeTracksForBake(
+  input: Array<{
+    id: string; title: string; artistName: string;
+    albumTitle?: string | null; duration?: number | null;
+    artworkUrl?: string | null; genreNames?: string[] | null;
+  }>,
+): CreateBroadcastRequest['tracks'] {
+  return input
+    .filter(t =>
+      t.id && t.id.length <= 80
+      && t.title && t.title.length > 0
+      && t.artistName && t.artistName.length > 0
+      && typeof t.duration === 'number' && t.duration > 0 && t.duration <= 7200,
+    )
+    .map(t => ({
+      id: t.id,
+      title: t.title.slice(0, 200),
+      artistName: t.artistName.slice(0, 200),
+      albumTitle: (t.albumTitle ?? '').slice(0, 200),
+      duration: t.duration as number,
+      artworkUrl: t.artworkUrl && isAbsoluteUrl(t.artworkUrl) && t.artworkUrl.length <= 2048
+        ? t.artworkUrl
+        : undefined,
+      genreNames: t.genreNames
+        ? t.genreNames.filter(g => g && g.length <= 100).slice(0, 10)
+        : undefined,
+    }));
+}
+
 export class BroadcastManifestClient {
   async createBroadcast(req: CreateBroadcastRequest): Promise<CreateBroadcastResponse> {
     const res = await authenticatedFetch('/broadcast/create', {
