@@ -53,7 +53,18 @@ export function createBroadcastRouter(
   router.post('/broadcast/create', ...createMiddleware, async (req: AuthenticatedRequest, res: Response) => {
     const parsed = createSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ error: 'invalid request', details: parsed.error.flatten() });
+      // Log the specific field-level issues so we can diagnose 400s that
+      // users report. Zod's `fieldErrors` is a map of path → messages.
+      const flat = parsed.error.flatten();
+      const issues = parsed.error.issues.slice(0, 5).map(i => ({
+        path: i.path.join('.'),
+        code: i.code,
+        message: i.message,
+      }));
+      console.warn(
+        `[broadcast/create] 400 invalid request — issues: ${JSON.stringify(issues)}`,
+      );
+      return res.status(400).json({ error: 'invalid request', details: flat });
     }
     if (!req.uid) return res.status(401).json({ error: 'unauthenticated' });
 
