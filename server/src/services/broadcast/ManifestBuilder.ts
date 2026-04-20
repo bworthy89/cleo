@@ -37,9 +37,10 @@ export function buildManifest(input: BuildManifestInput): Manifest {
 
   // Transitions fire before tracks at indices 2, 4, 6, … (every other track
   // starting from the third). Tier alternates fact_bridge → tight_bridge,
-  // starting with fact_bridge. featureSlots overrides to deep_dive but does
-  // NOT consume a step in the alternation counter — the next non-deep_dive
-  // transition still follows whatever the natural next tier would be.
+  // starting with fact_bridge. featureSlots overrides the computed tier to
+  // deep_dive; the alternation counter still advances, so a deep_dive
+  // consumes one turn. If a deep_dive lands where fact_bridge would have
+  // been, the following transition is tight_bridge (and vice-versa).
   let alternationCounter = 0;
   for (let i = 2; i < tracks.length; i += 2) {
     const index = segmentSlots.length;
