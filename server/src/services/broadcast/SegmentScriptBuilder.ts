@@ -37,8 +37,12 @@ const TIER_SHAPES: Record<SegmentTier, { budget: string; shape: string }> = {
     shape: 'Anchor the time and vibe first, then name the opening track. If a concrete detail about the track is in the enrichment, weave it in naturally. Land on the track name so the music can come in.',
   },
   fact_bridge: {
-    budget: '40-60 words',
-    shape: 'One concrete fact (year, producer, sample, lyric, chart, or studio) and one perceptual note (how it lands, what is about to change). End by naming the incoming track. Tight \u2014 no filler.',
+    budget: '45-55 words',
+    shape: 'One concrete fact (year, producer, sample, lyric, chart, or studio) and one perceptual note (how it lands, what is about to change). End by naming the incoming track. Tight \u2014 no filler. Do not acknowledge the outgoing track \u2014 the listener just heard it and you never introduced it.',
+  },
+  tight_bridge: {
+    budget: '30-40 words',
+    shape: 'One hook \u2014 either a concrete fact OR a perceptual note, not both. Name the incoming track. Tight, no filler. Do not acknowledge the outgoing track.',
   },
   deep_dive: {
     budget: '80-120 words',
@@ -88,7 +92,7 @@ function buildSystemPrompt(vibe: Vibe, tier: SegmentTier, genreFamily: GenreFami
     '',
     `GENRE VOICE (incoming track is ${genreFamily}): ${playbook}`,
     '',
-    'FACT DISCIPLINE: When you state specifics \u2014 producer credits, year, chart positions, personnel, lyrical references, sessions \u2014 use ONLY what\u2019s in the enrichment block or what you know with high confidence from your training. If you\u2019re not certain about a fact, don\u2019t invent one. Pivot to the perceptual instead: how it feels, what the sonics do, what\u2019s about to shift. Never fabricate names, dates, or credits.',
+    'FACT DISCIPLINE: When you state specifics \u2014 producer credits, year, chart positions, personnel, lyrical references, sessions \u2014 use ONLY what\u2019s in the enrichment block or what you know with high confidence from your training. If you\u2019re not certain about a fact, don\u2019t invent one. Pivot to the perceptual instead: how it feels, what the sonics do, what\u2019s about to shift. Never fabricate names, dates, or credits. Pick the single most interesting fact from the enrichment. Don\u2019t try to weave multiple.',
     '',
     'STYLE RULES:',
     '- Speak as ONAY, in the first person. Never narrate as if describing a scene.',
@@ -172,7 +176,6 @@ export function buildSegmentPrompts(
   }
 
   if (slot.kind === 'transition') {
-    const outgoing = findTrack(manifest, slot.afterTrackId)!;
     const incoming = findTrack(manifest, slot.beforeTrackId)!;
     const incomingEnr = enrichmentCache?.get(incoming.title, incoming.artistName) ?? null;
     const family = pickGenreFamily(incoming, incomingEnr);
@@ -180,7 +183,6 @@ export function buildSegmentPrompts(
     const maxTokens = tier === 'deep_dive' ? 768 : 512;
     const userPrompt =
       `${scene}\n\n` +
-      `Outgoing: ${trackRef(outgoing)}\n` +
       `Incoming: ${trackRef(incoming)} \u2014 ${family}.` +
       buildEnrichmentBlock(incomingEnr) +
       `\n\nWrite ONAY\u2019s ${tier}. ${budget}. End by naming the incoming track.`;

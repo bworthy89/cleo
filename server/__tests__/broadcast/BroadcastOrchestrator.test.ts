@@ -57,8 +57,8 @@ describe('BroadcastOrchestrator.create', () => {
       userId: 'u1', playlistId: 'p1', vibe: 'morning',
       length: 'quick', userContext: ctx, tracks: tracks(10),
     });
-    // 5 tracks → cold_open + 4 transitions + sign_off = 6 slots
-    expect(result.manifest.segmentSlots).toHaveLength(6);
+    // 5 tracks → cold_open + 2 transitions (halved, at i=2,4) + sign_off = 4 slots
+    expect(result.manifest.segmentSlots).toHaveLength(4);
     expect(result.firstSegmentUrls).toHaveLength(1);
     expect(result.firstSegmentUrls[0]).toMatch(/^https:\/\/cdn\/broadcast\/.+\/segment\/0\/v0\.mp3$/);
   });
@@ -101,8 +101,8 @@ describe('BroadcastOrchestrator.create', () => {
     for (const slot of final.segmentSlots) {
       expect(slot.status).toBe('ready');
     }
-    // 1 sequencer call + 1 cold_open + 4 transitions + 1 sign_off = 7 LLM calls
-    expect(llm.generate).toHaveBeenCalledTimes(7);
+    // 1 sequencer call + 1 cold_open + 2 transitions + 1 sign_off = 5 LLM calls
+    expect(llm.generate).toHaveBeenCalledTimes(5);
   });
 
   it('marks individual slots as failed on provider errors without rejecting create()', async () => {
