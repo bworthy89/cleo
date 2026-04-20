@@ -38,7 +38,7 @@ const TIER_SHAPES: Record<SegmentTier, { budget: string; shape: string }> = {
   },
   fact_bridge: {
     budget: '45-55 words',
-    shape: 'One concrete fact (year, producer, sample, lyric, chart, or studio) and one perceptual note (how it lands, what is about to change). End by naming the incoming track. Tight \u2014 no filler. Do not acknowledge the outgoing track \u2014 the listener just heard it and you never introduced it.',
+    shape: 'One concrete fact (year, producer, sample, lyric, chart, or studio) and one perceptual note (how it lands, what is about to change). End by naming the incoming track. Tight \u2014 no filler. Do not acknowledge the outgoing track \u2014 they just heard it and you never introduced it.',
   },
   tight_bridge: {
     budget: '30-40 words',
