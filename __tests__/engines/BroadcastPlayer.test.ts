@@ -1,6 +1,9 @@
 import { BroadcastPlayer } from '../../src/engines/BroadcastPlayer';
 import type { Manifest } from '../../src/engines/BroadcastPlayer.types';
 
+// 2-track manifest under sparse-segment shape: cold_open + sign_off only.
+// No transition between t0 and t1 because transitions fire before even-index
+// tracks (2, 4, ...), and with only 2 tracks the second one is index 1.
 const makeManifest = (): Manifest => ({
   broadcastId: 'b1', userId: 'u1', playlistId: 'p1',
   vibe: 'morning', length: 'quick', createdAt: Date.now(),
@@ -11,9 +14,28 @@ const makeManifest = (): Manifest => ({
   segmentSlots: [
     { index: 0, kind: 'cold_open', beforeTrackId: 't0', variantCount: 1, status: 'ready',
       audioUrls: ['https://cdn/seg0-v0.mp3'] },
-    { index: 1, kind: 'transition', afterTrackId: 't0', beforeTrackId: 't1', variantCount: 1, status: 'ready',
+    { index: 1, kind: 'sign_off', afterTrackId: 't1', variantCount: 1, status: 'ready',
       audioUrls: ['https://cdn/seg1-v0.mp3'] },
-    { index: 2, kind: 'sign_off', afterTrackId: 't1', variantCount: 1, status: 'ready',
+  ],
+});
+
+// 3-track manifest under sparse-segment shape: cold_open + one transition
+// before t2 + sign_off. Used in tests that need to exercise a mid-broadcast
+// transition segment.
+const makeManifest3 = (): Manifest => ({
+  broadcastId: 'b1', userId: 'u1', playlistId: 'p1',
+  vibe: 'morning', length: 'quick', createdAt: Date.now(),
+  tracks: [
+    { id: 't0', title: 'T0', artistName: 'A', albumTitle: 'AL', duration: 180 },
+    { id: 't1', title: 'T1', artistName: 'A', albumTitle: 'AL', duration: 180 },
+    { id: 't2', title: 'T2', artistName: 'A', albumTitle: 'AL', duration: 180 },
+  ],
+  segmentSlots: [
+    { index: 0, kind: 'cold_open', beforeTrackId: 't0', variantCount: 1, status: 'ready',
+      audioUrls: ['https://cdn/seg0-v0.mp3'] },
+    { index: 1, kind: 'transition', afterTrackId: 't1', beforeTrackId: 't2', variantCount: 1, status: 'ready',
+      audioUrls: ['https://cdn/seg1-v0.mp3'] },
+    { index: 2, kind: 'sign_off', afterTrackId: 't2', variantCount: 1, status: 'ready',
       audioUrls: ['https://cdn/seg2-v0.mp3'] },
   ],
 });
@@ -152,8 +174,7 @@ describe('BroadcastPlayer', () => {
       ...makeManifest(),
       segmentSlots: [
         { index: 0, kind: 'cold_open', beforeTrackId: 't0', variantCount: 1, status: 'ready', audioUrls: ['u0'] },
-        { index: 1, kind: 'transition', afterTrackId: 't0', beforeTrackId: 't1', variantCount: 1, status: 'pending' },
-        { index: 2, kind: 'sign_off', afterTrackId: 't1', variantCount: 1, status: 'pending' },
+        { index: 1, kind: 'sign_off', afterTrackId: 't1', variantCount: 1, status: 'pending' },
       ],
     };
     const ready: Manifest = {
@@ -161,7 +182,6 @@ describe('BroadcastPlayer', () => {
       segmentSlots: [
         pending.segmentSlots[0],
         { ...pending.segmentSlots[1], status: 'ready', audioUrls: ['u1'] },
-        { ...pending.segmentSlots[2], status: 'ready', audioUrls: ['u2'] },
       ],
     };
     (deps.manifestClient.fetchManifest as jest.Mock).mockResolvedValueOnce(ready);
@@ -210,16 +230,28 @@ describe('BroadcastPlayer', () => {
 
   describe('track-end detection', () => {
     it('advances when MusicKit resets position to 0 after track ends (single-track queue)', async () => {
+      // Uses a 3-track sparse manifest so a transition segment sits between
+      // t1 and t2; ending t1 should kick the transition (seg1) TTS.
       const deps = makeDeps();
       const player = new BroadcastPlayer(
         deps.music, deps.native, deps.manifestClient, deps.stingers,
       );
-      player.start(makeManifest(), ['https://cdn/seg0-v0.mp3']);
+      player.start(makeManifest3(), ['https://cdn/seg0-v0.mp3']);
       // Flush cold_open segment and transition into runTrackAt(0)
       for (let i = 0; i < 40; i++) await Promise.resolve();
       expect(deps.logs).toContain('play:t0');
 
-      // Simulate MusicKit streaming playback events, then track end + position reset
+      // t0 ends — no transition before t1 under sparse shape, so we should
+      // see play:t1 directly.
+      deps.listeners.state?.({ status: 'playing', playbackTime: 10 });
+      deps.listeners.state?.({ status: 'playing', playbackTime: 179 });
+      deps.listeners.state?.({ status: 'paused', playbackTime: 0 });
+
+      for (let i = 0; i < 40; i++) await Promise.resolve();
+      expect(deps.logs).toContain('play:t1');
+
+      // Simulate MusicKit streaming playback events for t1, then track end +
+      // position reset to exercise the reset-to-0 detector.
       deps.listeners.state?.({ status: 'playing', playbackTime: 10 });
       deps.listeners.state?.({ status: 'playing', playbackTime: 90 });
       deps.listeners.state?.({ status: 'playing', playbackTime: 179 });
@@ -244,6 +276,9 @@ describe('BroadcastPlayer', () => {
       // the last song starts over after ONAY signs off. The fix: end the
       // natural-completion path with an explicit music.pause() so
       // MusicKit is marked user-paused before the release fires.
+      //
+      // Under sparse segment shape, a 2-track broadcast has only cold_open
+      // (seg0) + sign_off (seg1) — no transition between t0 and t1.
       const deps = makeDeps();
       const player = new BroadcastPlayer(
         deps.music, deps.native, deps.manifestClient, deps.stingers,
@@ -256,16 +291,16 @@ describe('BroadcastPlayer', () => {
       deps.listeners.state?.({ status: 'playing', playbackTime: 179 });
       deps.listeners.state?.({ status: 'paused',  playbackTime: 0 });
 
-      // Transition → runTrackAt(1)
+      // No transition under sparse shape — straight to runTrackAt(1)
       for (let i = 0; i < 40; i++) await Promise.resolve();
       expect(deps.logs).toContain('play:t1');
       deps.listeners.state?.({ status: 'playing', playbackTime: 179 });
       deps.listeners.state?.({ status: 'paused',  playbackTime: 0 });
 
-      // Sign off + post-loop teardown
+      // Sign off (seg1) + post-loop teardown
       for (let i = 0; i < 40; i++) await Promise.resolve();
 
-      const signOff = deps.logs.findIndex(l => l.startsWith('tts:BASE64_seg2'));
+      const signOff = deps.logs.findIndex(l => l.startsWith('tts:BASE64_seg1'));
       const pause   = deps.logs.indexOf('music.pause');
       expect(signOff).toBeGreaterThan(-1);
       expect(pause).toBeGreaterThan(signOff);
@@ -275,11 +310,13 @@ describe('BroadcastPlayer', () => {
     });
 
     it('does NOT advance on user pause (time does not reset to 0)', async () => {
+      // Use a 3-track sparse manifest so there IS a downstream segment
+      // (transition before t2, seg1) whose non-firing we can verify.
       const deps = makeDeps();
       const player = new BroadcastPlayer(
         deps.music, deps.native, deps.manifestClient, deps.stingers,
       );
-      player.start(makeManifest(), ['https://cdn/seg0-v0.mp3']);
+      player.start(makeManifest3(), ['https://cdn/seg0-v0.mp3']);
       for (let i = 0; i < 40; i++) await Promise.resolve();
       expect(deps.logs).toContain('play:t0');
 
@@ -290,8 +327,187 @@ describe('BroadcastPlayer', () => {
       deps.listeners.state?.({ status: 'paused', playbackTime: 45 });
 
       for (let i = 0; i < 20; i++) await Promise.resolve();
-      // Transition segment must NOT have started
+      // Transition segment (seg1) must NOT have started, and t1 must not
+      // have begun either — the loop is parked mid-t0.
       expect(deps.logs.some(l => l.startsWith('tts:BASE64_seg1'))).toBe(false);
+      expect(deps.logs).not.toContain('play:t1');
+
+      await player.end();
+    });
+  });
+
+  describe('sparse segments', () => {
+    // 5 tracks, sparse segments: cold_open → t0 → t1 → trans(before t2) → t2
+    // → t3 → trans(before t4) → t4 → sign_off
+    const makeManifest5 = (): Manifest => ({
+      broadcastId: 'b5', userId: 'u1', playlistId: 'p1',
+      vibe: 'lateNight', length: 'quick', createdAt: Date.now(),
+      tracks: Array.from({ length: 5 }, (_, i) => ({
+        id: `t${i}`, title: `Track ${i}`, artistName: 'A',
+        albumTitle: '', duration: 1,
+      })),
+      segmentSlots: [
+        { index: 0, kind: 'cold_open', beforeTrackId: 't0',
+          variantCount: 1, status: 'ready', tier: 'cold_open',
+          audioUrls: ['https://cdn/seg0-v0.mp3'] },
+        { index: 1, kind: 'transition', afterTrackId: 't1', beforeTrackId: 't2',
+          variantCount: 1, status: 'ready', tier: 'fact_bridge',
+          audioUrls: ['https://cdn/seg1-v0.mp3'] },
+        { index: 2, kind: 'transition', afterTrackId: 't3', beforeTrackId: 't4',
+          variantCount: 1, status: 'ready', tier: 'deep_dive',
+          audioUrls: ['https://cdn/seg2-v0.mp3'] },
+        { index: 3, kind: 'sign_off', afterTrackId: 't4',
+          variantCount: 1, status: 'ready', tier: 'sign_off',
+          audioUrls: ['https://cdn/seg3-v0.mp3'] },
+      ],
+      featureSlots: [],
+    });
+
+    it('plays all 5 tracks in order interleaved with 4 segments', async () => {
+      const deps = makeDeps();
+      // getPlaybackStatus/getPlaybackTime let waitForTrackEnd's poll loop
+      // detect end-of-track without relying on event-stream timing.
+      const music = {
+        ...deps.music,
+        getPlaybackStatus: jest.fn(async () => 'stopped'),
+        getPlaybackTime: jest.fn(async () => 1),
+      };
+      const player = new BroadcastPlayer(
+        music, deps.native, deps.manifestClient, deps.stingers,
+      );
+      player.start(makeManifest5(), ['https://cdn/seg0-v0.mp3']);
+
+      // Drive each track to 'playing' then 'stopped' via event stream so
+      // waitForTrackEnd resolves. 5 tracks × a generous microtask flush.
+      for (let t = 0; t < 5; t++) {
+        for (let i = 0; i < 80; i++) await Promise.resolve();
+        deps.listeners.state?.({ status: 'playing', playbackTime: 0.1 });
+        deps.listeners.state?.({ status: 'stopped', playbackTime: 1 });
+      }
+      // Final flush to let sign_off + post-loop pause/teardown settle.
+      for (let i = 0; i < 80; i++) await Promise.resolve();
+
+      // Filter logs down to the segment/track order.
+      const order = deps.logs.filter(
+        l => l.startsWith('tts:BASE64_seg') || l.startsWith('play:'),
+      );
+      expect(order).toEqual([
+        'tts:BASE64_seg0-v0.m',
+        'play:t0',
+        'play:t1',
+        'tts:BASE64_seg1-v0.m',
+        'play:t2',
+        'play:t3',
+        'tts:BASE64_seg2-v0.m',
+        'play:t4',
+        'tts:BASE64_seg3-v0.m',
+      ]);
+
+      await player.end();
+    });
+
+    it('2-track manifest with no transitions plays t0 → t1 → sign_off', async () => {
+      const deps = makeDeps();
+      const music = {
+        ...deps.music,
+        getPlaybackStatus: jest.fn(async () => 'stopped'),
+        getPlaybackTime: jest.fn(async () => 1),
+      };
+
+      const manifest: Manifest = {
+        broadcastId: 'b2', userId: 'u1', playlistId: 'p1',
+        vibe: 'morning', length: 'quick', createdAt: Date.now(),
+        tracks: [
+          { id: 't0', title: 'T0', artistName: 'A', albumTitle: '', duration: 1 },
+          { id: 't1', title: 'T1', artistName: 'A', albumTitle: '', duration: 1 },
+        ],
+        segmentSlots: [
+          { index: 0, kind: 'cold_open', beforeTrackId: 't0',
+            variantCount: 1, status: 'ready',
+            audioUrls: ['https://cdn/seg0-v0.mp3'] },
+          { index: 1, kind: 'sign_off', afterTrackId: 't1',
+            variantCount: 1, status: 'ready',
+            audioUrls: ['https://cdn/seg1-v0.mp3'] },
+        ],
+      };
+
+      const player = new BroadcastPlayer(
+        music, deps.native, deps.manifestClient, deps.stingers,
+      );
+      player.start(manifest, ['https://cdn/seg0-v0.mp3']);
+
+      for (let t = 0; t < 2; t++) {
+        for (let i = 0; i < 80; i++) await Promise.resolve();
+        deps.listeners.state?.({ status: 'playing', playbackTime: 0.1 });
+        deps.listeners.state?.({ status: 'stopped', playbackTime: 1 });
+      }
+      for (let i = 0; i < 80; i++) await Promise.resolve();
+
+      const order = deps.logs.filter(
+        l => l.startsWith('tts:BASE64_seg') || l.startsWith('play:'),
+      );
+      expect(order).toEqual([
+        'tts:BASE64_seg0-v0.m',
+        'play:t0',
+        'play:t1',
+        'tts:BASE64_seg1-v0.m',
+      ]);
+
+      await player.end();
+    });
+
+    it('3-track manifest plays t0 → t1 → trans(before t2) → t2 → sign_off', async () => {
+      const deps = makeDeps();
+      const music = {
+        ...deps.music,
+        getPlaybackStatus: jest.fn(async () => 'stopped'),
+        getPlaybackTime: jest.fn(async () => 1),
+      };
+
+      const manifest: Manifest = {
+        broadcastId: 'b3', userId: 'u1', playlistId: 'p1',
+        vibe: 'morning', length: 'quick', createdAt: Date.now(),
+        tracks: [
+          { id: 't0', title: 'T0', artistName: 'A', albumTitle: '', duration: 1 },
+          { id: 't1', title: 'T1', artistName: 'A', albumTitle: '', duration: 1 },
+          { id: 't2', title: 'T2', artistName: 'A', albumTitle: '', duration: 1 },
+        ],
+        segmentSlots: [
+          { index: 0, kind: 'cold_open', beforeTrackId: 't0',
+            variantCount: 1, status: 'ready',
+            audioUrls: ['https://cdn/seg0-v0.mp3'] },
+          { index: 1, kind: 'transition', afterTrackId: 't1', beforeTrackId: 't2',
+            variantCount: 1, status: 'ready',
+            audioUrls: ['https://cdn/seg1-v0.mp3'] },
+          { index: 2, kind: 'sign_off', afterTrackId: 't2',
+            variantCount: 1, status: 'ready',
+            audioUrls: ['https://cdn/seg2-v0.mp3'] },
+        ],
+      };
+
+      const player = new BroadcastPlayer(
+        music, deps.native, deps.manifestClient, deps.stingers,
+      );
+      player.start(manifest, ['https://cdn/seg0-v0.mp3']);
+
+      for (let t = 0; t < 3; t++) {
+        for (let i = 0; i < 80; i++) await Promise.resolve();
+        deps.listeners.state?.({ status: 'playing', playbackTime: 0.1 });
+        deps.listeners.state?.({ status: 'stopped', playbackTime: 1 });
+      }
+      for (let i = 0; i < 80; i++) await Promise.resolve();
+
+      const order = deps.logs.filter(
+        l => l.startsWith('tts:BASE64_seg') || l.startsWith('play:'),
+      );
+      expect(order).toEqual([
+        'tts:BASE64_seg0-v0.m',
+        'play:t0',
+        'play:t1',
+        'tts:BASE64_seg1-v0.m',
+        'play:t2',
+        'tts:BASE64_seg2-v0.m',
+      ]);
 
       await player.end();
     });
