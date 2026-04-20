@@ -511,5 +511,42 @@ describe('BroadcastPlayer', () => {
 
       await player.end();
     });
+
+    it('progress is monotonic through a 5-track sparse broadcast', async () => {
+      const deps = makeDeps();
+      const music = {
+        ...deps.music,
+        getPlaybackStatus: jest.fn(async () => 'stopped'),
+        getPlaybackTime: jest.fn(async () => 1),
+      };
+      const player = new BroadcastPlayer(
+        music, deps.native, deps.manifestClient, deps.stingers,
+      );
+
+      const samples: number[] = [];
+      const sample = () => samples.push(player.getStatus().progress);
+
+      player.start(makeManifest5(), ['https://cdn/seg0-v0.mp3']);
+
+      // Sample after every await microtask flush so we see the value during
+      // segments, between states, and during tracks.
+      for (let t = 0; t < 5; t++) {
+        for (let i = 0; i < 80; i++) { await Promise.resolve(); sample(); }
+        deps.listeners.state?.({ status: 'playing', playbackTime: 0.1 });
+        sample();
+        deps.listeners.state?.({ status: 'stopped', playbackTime: 1 });
+        sample();
+      }
+      for (let i = 0; i < 80; i++) { await Promise.resolve(); sample(); }
+
+      // Each sample must be >= the previous sample.
+      for (let i = 1; i < samples.length; i++) {
+        expect(samples[i]).toBeGreaterThanOrEqual(samples[i - 1]);
+      }
+      // Final progress should have reached 100% once state transitions to 'ended'.
+      expect(samples[samples.length - 1]).toBe(1);
+
+      await player.end();
+    });
   });
 });
