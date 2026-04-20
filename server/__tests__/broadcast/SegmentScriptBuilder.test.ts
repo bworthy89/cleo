@@ -48,11 +48,11 @@ describe('buildSegmentPrompts', () => {
     expect(prompt.userPrompt).toContain('20:47');
   });
 
-  it('references both outgoing and incoming tracks in transition', () => {
+  it('references the incoming track in transition (hybrid: outgoing dropped)', () => {
     const m = makeManifest();
     const [prompt] = buildSegmentPrompts(m.segmentSlots[1], m, ctx);
-    expect(prompt.userPrompt).toContain('Nikes');
     expect(prompt.userPrompt).toContain('Pyramids');
+    expect(prompt.userPrompt).not.toMatch(/^Outgoing:/m);
   });
 
   it('references the last track in sign_off', () => {
@@ -217,13 +217,13 @@ describe('SegmentScriptBuilder — tiered prompts', () => {
     expect(prompt.userPrompt).toMatch(/80-120 words/);
   });
 
-  it('fact_bridge prompt includes 40-60 word budget', () => {
+  it('fact_bridge prompt includes 45-55 word budget', () => {
     const m = makeManifest();
     m.segmentSlots[1].tier = 'fact_bridge';
     const [prompt] = buildSegmentPrompts(m.segmentSlots[1], m, {
       timeOfDay: 'night', dayOfWeek: 'Sat', firstTimeUser: false,
     });
-    expect(prompt.userPrompt).toMatch(/40-60 words/);
+    expect(prompt.userPrompt).toMatch(/45-55 words/);
   });
 
   it('system prompt embeds the genre playbook when incoming is hip-hop', () => {
@@ -283,5 +283,108 @@ describe('SegmentScriptBuilder — tiered prompts', () => {
     });
     expect(prompt.userPrompt).toMatch(/35-55 words/);
     expect(prompt.userPrompt).not.toMatch(/Incoming:/);
+  });
+});
+
+describe('buildSegmentPrompts — tight_bridge tier', () => {
+  const baseCtx = {
+    timeOfDay: '21:30', dayOfWeek: 'Tuesday', firstTimeUser: false,
+  };
+  const tracks = [
+    { id: '1', title: 'First', artistName: 'A', albumTitle: '', duration: 180 },
+    { id: '2', title: 'Second', artistName: 'B', albumTitle: '', duration: 180 },
+  ];
+  const manifest = {
+    broadcastId: 'b', userId: 'u', playlistId: null, vibe: 'lateNight' as const,
+    length: 'quick' as const, createdAt: 0, tracks,
+    segmentSlots: [], featureSlots: [],
+  };
+
+  it('emits a 30-40 word budget when tier is tight_bridge', () => {
+    const slot = {
+      index: 1, kind: 'transition' as const,
+      afterTrackId: '1', beforeTrackId: '2',
+      variantCount: 1, status: 'pending' as const,
+      tier: 'tight_bridge' as const,
+    };
+    const [prompt] = buildSegmentPrompts(slot, manifest, baseCtx);
+    expect(prompt.userPrompt).toMatch(/30-40 words/);
+  });
+
+  it('drops the outgoing-track line under hybrid rule', () => {
+    const slot = {
+      index: 1, kind: 'transition' as const,
+      afterTrackId: '1', beforeTrackId: '2',
+      variantCount: 1, status: 'pending' as const,
+      tier: 'tight_bridge' as const,
+    };
+    const [prompt] = buildSegmentPrompts(slot, manifest, baseCtx);
+    expect(prompt.userPrompt).not.toMatch(/^Outgoing:/m);
+    expect(prompt.userPrompt).toMatch(/^Incoming: /m);
+  });
+});
+
+describe('buildSegmentPrompts — fact_bridge tier (post-hybrid)', () => {
+  const baseCtx = {
+    timeOfDay: '21:30', dayOfWeek: 'Tuesday', firstTimeUser: false,
+  };
+  const tracks = [
+    { id: '1', title: 'First', artistName: 'A', albumTitle: '', duration: 180 },
+    { id: '2', title: 'Second', artistName: 'B', albumTitle: '', duration: 180 },
+  ];
+  const manifest = {
+    broadcastId: 'b', userId: 'u', playlistId: null, vibe: 'lateNight' as const,
+    length: 'quick' as const, createdAt: 0, tracks,
+    segmentSlots: [], featureSlots: [],
+  };
+
+  it('emits a 45-55 word budget when tier is fact_bridge', () => {
+    const slot = {
+      index: 1, kind: 'transition' as const,
+      afterTrackId: '1', beforeTrackId: '2',
+      variantCount: 1, status: 'pending' as const,
+      tier: 'fact_bridge' as const,
+    };
+    const [prompt] = buildSegmentPrompts(slot, manifest, baseCtx);
+    expect(prompt.userPrompt).toMatch(/45-55 words/);
+  });
+
+  it('drops the outgoing-track line under hybrid rule', () => {
+    const slot = {
+      index: 1, kind: 'transition' as const,
+      afterTrackId: '1', beforeTrackId: '2',
+      variantCount: 1, status: 'pending' as const,
+      tier: 'fact_bridge' as const,
+    };
+    const [prompt] = buildSegmentPrompts(slot, manifest, baseCtx);
+    expect(prompt.userPrompt).not.toMatch(/^Outgoing:/m);
+    expect(prompt.userPrompt).toMatch(/^Incoming: /m);
+  });
+});
+
+describe('buildSegmentPrompts — fact discipline', () => {
+  const baseCtx = {
+    timeOfDay: '21:30', dayOfWeek: 'Tuesday', firstTimeUser: false,
+  };
+  const tracks = [
+    { id: '1', title: 'First', artistName: 'A', albumTitle: '', duration: 180 },
+    { id: '2', title: 'Second', artistName: 'B', albumTitle: '', duration: 180 },
+  ];
+  const manifest = {
+    broadcastId: 'b', userId: 'u', playlistId: null, vibe: 'lateNight' as const,
+    length: 'quick' as const, createdAt: 0, tracks,
+    segmentSlots: [], featureSlots: [],
+  };
+
+  it('includes the single-fact discipline rule in the system prompt', () => {
+    const slot = {
+      index: 1, kind: 'transition' as const,
+      afterTrackId: '1', beforeTrackId: '2',
+      variantCount: 1, status: 'pending' as const,
+      tier: 'fact_bridge' as const,
+    };
+    const [prompt] = buildSegmentPrompts(slot, manifest, baseCtx);
+    expect(prompt.systemPrompt).toMatch(/single most interesting fact/);
+    expect(prompt.systemPrompt).toMatch(/Don.t try to weave multiple/);
   });
 });
