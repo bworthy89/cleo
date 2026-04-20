@@ -32,16 +32,26 @@ running as a rollback safety net — Caddy routes away from it.
 - `@expo-google-fonts` — Playfair Display, Inter, EB Garamond, DM Mono
 
 ### AI & Voice (server-side only)
-- Ollama (self-hosted via Pangolin tunnel at `ollama.worthymedia.online`) — primary LLM
-- Gemini 2.5 Flash — fallback LLM
-- Cartesia (`sonic-3`) — primary TTS
-- ElevenLabs (`eleven_turbo_v2_5`) — fallback TTS
-- Orpheus (self-hosted) — tertiary TTS
+- Gemini 2.5 Flash — LLM (was fallback; now primary since Ollama disabled)
+- Ollama — **disabled in prod**, GPU reserved for F5-TTS. `OLLAMA_BASE_URL` is now a
+  required env var; leaving it unset → Ollama provider fails to construct, Gemini
+  becomes the active primary
+- F5-TTS (self-hosted FastAPI wrapper on the Linux box via Pangolin at
+  `<TTS_TUNNEL>`) — **primary TTS**, voice-cloned from a Cartesia sample.
+  `tts://tts` endpoint accepts JSON `{ text, ref_id, speed, nfe_step, cfg_strength }`
+- Cartesia (`sonic-3`) — fallback TTS
+- ElevenLabs (`eleven_turbo_v2_5`) — tertiary TTS
+- Orpheus (self-hosted) — quaternary (kept in the provider list for now)
 - Filesystem TTS cache dedupes identical text across bakes
+- **Pronunciation dict** ported from Cartesia's server-side dict to
+  `server/src/providers/tts/pronunciations.json` (146 entries, artist names →
+  phonetic forms). Applied locally in `preprocessForTTS` so F5-TTS (which has no
+  dict API) gets the same phonetic corrections as the paid providers; Cartesia
+  receives pre-substituted text so its own dict becomes a no-op for these entries
 
 ### Backend
 - **Local dev:** Node.js + Express (`server/`) on port 3001. Jest + ts-jest test suite
-  (233 tests). `STORAGE_BACKEND` env unset → `LocalFilesystemStorage` under
+  (258 tests). `STORAGE_BACKEND` env unset → `LocalFilesystemStorage` under
   `server/.broadcast-cache/`; segments served via `/broadcast-asset/*`.
 - **Production:** Express broadcast server at `api.worthymedia.tech` (Hostinger VPS ID
   <HOSTINGER_ID>, IP <VPS_HOST>), running at `/home/cleo/cleo-broadcast/` on port 3102
@@ -110,9 +120,12 @@ cleo-app/
 │       │   ├── auth.ts           ← requireAuth + requireCurator (exposes req.uid, req.email)
 │       │   └── validate.ts       ← Zod schemas for shared routes
 │       ├── providers/
-│       │   ├── llm/              ← Ollama primary + Gemini fallback factory
-│       │   └── tts/              ← Cartesia primary + ElevenLabs fallback + Orpheus
-│       │                           tertiary factory, wrapped in CachingTTSProvider
+│       │   ├── llm/              ← Gemini (primary, since Ollama requires explicit
+│       │   │                       OLLAMA_BASE_URL and isn't configured in prod)
+│       │   └── tts/              ← F5-TTS primary / Cartesia fallback / ElevenLabs
+│       │                           tertiary (reorderable via TTS_PRIMARY env),
+│       │                           wrapped in CachingTTSProvider. pronunciations.json
+│       │                           holds 146 artist-name entries ported from Cartesia
 │       ├── routes/
 │       │   ├── broadcast.ts      ← POST /broadcast/create, GET /broadcast/:id/manifest
 │       │   ├── featured.ts       ← GET /broadcast/featured, POST /broadcast/featured/publish
@@ -132,8 +145,11 @@ cleo-app/
 │       │   │   ├── SegmentGenerator.ts         ← LLM → TTS → ObjectStorage per variant
 │       │   │   │                                 (parallel variant generation)
 │       │   │   ├── BroadcastStore.ts           ← in-memory 2h-TTL manifest state
-│       │   │   ├── BroadcastOrchestrator.ts    ← sync slot 0 + async Promise.allSettled
-│       │   │   │                                 over remaining slots; cleans up inFlight
+│       │   │   ├── BroadcastOrchestrator.ts    ← slot 0 + drainNow race in parallel;
+│       │   │   │                                 HTTP response gated on both. Slots
+│       │   │   │                                 1..N fan out as a 4-worker background
+│       │   │   │                                 pool; inFlight map tracks the promise
+│       │   │   │                                 for waitForCompletion / isInFlight
 │       │   │   ├── FeaturedBroadcastRegistry.ts← JSON-file-backed (atomic tmp+rename),
 │       │   │   │                                 malformed-JSON tolerant
 │       │   │   └── bakeFeatured.ts             ← CLI job: config → orchestrator → registry
@@ -235,17 +251,28 @@ cleo-app/
 1. User taps "Build your broadcast" on the home screen → `SetupSheet` opens
 2. 3 steps: pick playlist (from Apple Music) → pick vibe → pick length (quick/standard/long)
 3. Client calls `musicKitPlayer.fetchPlaylistTracks(playlistId)` to get track metadata
-4. Client `POST /broadcast/create` with `{ playlistId, vibe, length, userContext, tracks }`
-5. Server responds synchronously with `{ manifest, firstSegmentUrls }` — target ~5-8s
-6. Client navigates to `/player`, starts `broadcastPlayer.start(manifest, firstSegmentUrls)`
-7. `TuningInCanvas` shows on the player screen while the cold open is fetched
-8. Main loop: `runSegmentAt(0)` (cold open) → `runTrackAt(0)` → `runSegmentAt(1)` →
-   `runTrackAt(1)` → … → `runSegmentAt(N)` (sign off). Each segment plays via
+4. Tracks run through `sanitizeTracksForBake` (drop 0-duration / empty-title / bad-URL
+   tracks; clamp overlong strings) so the Zod schema on the server doesn't reject the
+   request. If <5 playable tracks remain, surface a clear "need at least 5" error
+   instead of letting the server return an opaque 400.
+5. Client `POST /broadcast/create` with `{ playlistId, vibe, length, userContext, tracks }`
+6. Server responds after **slot 0 + enrichment drain** are both complete (~11-19s
+   wallclock depending on enrichment cache warmth) with `{ manifest, firstSegmentUrls }`.
+   Slots 1..N are still `pending`; the client picks them up via polling.
+7. Client navigates to `/player`, starts `broadcastPlayer.start(manifest, firstSegmentUrls)`
+8. `TuningInCanvas` shows on the player screen while the cold open is fetched
+9. **Sparse-cadence main loop**: iterate `manifest.segmentSlots` in order, advancing
+   `nextSegmentIdx` only when a slot targets the upcoming track. For 5 tracks that's
+   `cold_open → t0 → t1 → trans(→t2) → t2 → t3 → trans(→t4) → t4 → sign_off`. Tracks
+   without a matching segment play back-to-back. Each segment plays via
    `playAudioFromBase64` (duck MusicKit → play TTS → release audio session). Each
    track plays via `musicKitPlayer.play([trackId])`.
-9. Between `playAudioFromBase64` and `musicKitPlayer.play`, the player calls
-   `releaseAudioSession` natively so MusicKit can reclaim exclusive session control.
-10. `waitForTrackEnd` watches both `getPlaybackStatus()` and `getPlaybackTime()` once
+10. Between `playAudioFromBase64` and `musicKitPlayer.play`, the player calls
+    `releaseAudioSession` natively so MusicKit can reclaim exclusive session control.
+11. `schedulePolling()` fires every 3s while any slot is `pending`, GETting
+    `/broadcast/:id/manifest` and triggering `kickBackgroundFetch` for newly-ready
+    audio URLs. Stops automatically when every slot is non-pending (ready or failed).
+12. `waitForTrackEnd` watches both `getPlaybackStatus()` and `getPlaybackTime()` once
     per second (and via the 0.5s `onPlaybackStateChanged` event). Ends the wait when
     `playbackTime >= duration - 0.5` OR `status === 'stopped'` — but only after
     `status === 'playing'` has been observed at least once for the current track
@@ -264,15 +291,26 @@ create(input):
        repair pass for same-artist/same-album adjacency (≤5 passes)
      → one retry on failure; silent fallback to pool.slice(0, N) on second failure
   2. ManifestBuilder.buildManifest(input.tracks = seq.orderedTracks)
-     → cold_open, transition×(N-1), sign_off; variantCount=1 for all
+     → SPARSE CADENCE: cold_open + transitions before tracks at even indices
+       (2, 4, 6, …) + sign_off. Transition tiers alternate fact_bridge (45-55 words)
+       → tight_bridge (30-40 words), starting with fact_bridge. For 5 tracks: 4 slots.
+       For 9: 6. For 15: 9. featureSlots overrides specific indices to deep_dive.
   3. store.put(manifest)
-  4. SYNC: generateSlot(0) — SegmentScriptBuilder → LLM → TTS → ObjectStorage
-  5. ASYNC (fire-and-forget, Promise.allSettled):
-       generateSlot(1..N) — each in parallel, failures mark slot 'failed'
-       .finally(() => inFlight.delete(manifest.broadcastId))
-  6. ASYNC: backgroundEnricher.enqueue(seq.orderedTracks) — Genius + MusicBrainz,
-     serialized per-API at 1.1s, writes EnrichmentCache; does not block the response
-  7. Return { manifest: store.get(id), firstSegmentUrls: slot0Urls }
+  4. Kick drainNow (Genius+MB+Wiki+LastFm parallel per track, serialized per-API
+     at 1.1s by rate limiter) and generateSlot(0) IN PARALLEL. Slot 0 is cold_open
+     — works fine with empty enrichment, so drainNow doesn't block slot 0's LLM.
+  5. await Promise.all([drainP, slot0P]) — HTTP response gated on BOTH completing.
+     Waiting for drainNow means the shared EnrichmentCache is populated in time
+     for slots 1..N to pull producer/sample hints.
+  6. Fire-and-forget: generateSlotsBackground(slots 1..N) with a 4-worker pool
+     (SEGMENT_CONCURRENCY=4). Each slot: SegmentScriptBuilder → LLM → TTS →
+     ObjectStorage. Failures mark slot 'failed' but don't abort peers. Promise
+     stored in inFlight map; deleted via .finally() when all workers return.
+  7. Return { manifest: store.get(id) [slot 0 ready, 1..N pending],
+              firstSegmentUrls: slot0Urls }
+
+BroadcastOrchestrator.waitForCompletion(id) — awaits the inFlight promise (used
+  by bakeFeatured, featured publish route, tests). isInFlight(id) checks the map.
 ```
 
 ### Curation sequencer (TrackSequencer)
@@ -352,13 +390,33 @@ create(input):
 ```
 GEMINI_API_KEY
 CARTESIA_API_KEY, CARTESIA_VOICE_ID, CARTESIA_MODEL_ID
+CARTESIA_PRONUNCIATION_DICT_ID            ← source dict; synced locally to
+                                            providers/tts/pronunciations.json
 ELEVENLABS_API_KEY, ELEVENLABS_VOICE_ID, ELEVENLABS_PRONUNCIATION_DICT_ID/_VERSION
-OLLAMA_BASE_URL, OLLAMA_MODEL
+OLLAMA_BASE_URL, OLLAMA_MODEL             ← leave unset in prod; unset → Ollama
+                                            provider unavailable, Gemini promoted
 ORPHEUS_BASE_URL, ORPHEUS_VOICE, ORPHEUS_MAX_TOKENS
 GENIUS_ACCESS_TOKEN
 HEALTH_CHECK_INTERVAL_MS, HEALTH_CHECK_TIMEOUT_MS
-BROADCAST_ASSET_BASE_URL      ← dev: http://<LAN-IP>:3001
-CURATOR_EMAILS                ← comma-separated; authoritative publish gate
+BROADCAST_ASSET_BASE_URL                  ← dev: http://<LAN-IP>:3001
+CURATOR_EMAILS                            ← comma-separated; authoritative publish gate
+
+# TTS provider ordering (factory reads this to reorder the primary slot)
+TTS_PRIMARY=f5tts
+
+# F5-TTS (self-hosted FastAPI wrapper on the Linux box via Pangolin)
+F5TTS_BASE_URL=https://<TTS_TUNNEL>
+F5TTS_VOICE_REF=onay-cartesia             ← ref audio + transcript saved on the server
+F5TTS_NFE_STEP=12                         ← diffusion steps; 12 is the sweet spot on
+                                            6700XT (~7s/call, close to nfe=16 quality)
+F5TTS_CFG_STRENGTH=2.5
+F5TTS_SPEED=0.9                           ← used when caller passes default 1.0
+F5TTS_TIMEOUT_MS=180000                   ← lifted from 60s so async slot 1..N queue
+                                            doesn't flip to Cartesia under the asyncio
+                                            serialize lock
+
+# Cloudflare R2 (prod only; STORAGE_BACKEND=r2)
+R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET, R2_PUBLIC_BASE_URL
 ```
 
 Project root `.env`:
@@ -412,6 +470,27 @@ EXPO_PUBLIC_SENTRY_DSN
   Metro reconnects and when backgrounded.
 - **Server `BroadcastOrchestrator.inFlight` map must delete on completion** (via
   `.finally(() => inFlight.delete(id))`) — otherwise grows unbounded.
+- **Sparse segment cadence.** `ManifestBuilder` places transitions only before tracks
+  at indices 2, 4, 6, … (even, nonzero). Tracks between transitions play back-to-back.
+  Tier alternation `fact_bridge` → `tight_bridge`, starting with `fact_bridge`;
+  `featureSlots` overrides specific indices to `deep_dive` and consumes an alternation
+  step. Client `BroadcastPlayer` uses the `nextSegmentIdx` dual-cursor walk that
+  only advances on `beforeTrackId` match — don't regress to the old `i+1` lockstep.
+- **Tier shapes live in `SegmentScriptBuilder.TIER_SHAPES`** — `cold_open` 55-80
+  words, `fact_bridge` 45-55, `tight_bridge` 30-40, `deep_dive` 80-120, `sign_off`
+  35-55. The FACT DISCIPLINE rule forbids weaving multiple enrichment facts:
+  "Pick the single most interesting fact. Don't try to weave multiple."
+- **Transition prompts are hybrid-editorial** — drop the `Outgoing: …` line; only
+  reference the incoming track. Listener already heard the outgoing track without
+  narration (ONAY never introduced it), so acknowledging it reads as redundant.
+- **Client must run `sanitizeTracksForBake` before `POST /broadcast/create`** —
+  Apple Music occasionally returns tracks with `duration === 0`, empty titles, or
+  malformed artwork URLs. Unsanitized, these trigger the server's Zod schema and
+  return an opaque 400. Helper lives in `src/engines/BroadcastManifestClient.ts`.
+- **Track-based monotonic progress bar.** `BroadcastPlayer.computeProgress()` uses
+  `(currentTrackIndex + 1) / (tracks + 1)` with the last tick reserved for sign_off.
+  Don't revert to the old "tracks + segments" denominator — under sparse cadence
+  it produced visible 25-30% jumps as segments start/end.
 - **Curator gate is two-layer**: client UI hides the button unless email is in
   `src/config/curators.ts`; server rejects non-curators with 403 via `requireCurator`.
   UI filter is UX-only; server is authoritative.
@@ -436,6 +515,16 @@ EXPO_PUBLIC_SENTRY_DSN
   `sanitizeHint` before interpolation, mirroring `sanitizeForPrompt`'s control-char /
   role-hijack / backtick stripping. Never embed raw Genius/MB strings into the
   sequencer prompt.
+- **`OllamaProvider` constructor throws when `OLLAMA_BASE_URL` is unset.** The
+  factory catches and falls back to Gemini as primary. Don't re-introduce a
+  `localhost:11434` default — it creates 502 noise every 30s on the health check
+  cycle when Ollama isn't actually running.
+- **F5-TTS is not thread-safe.** The FastAPI wrapper uses a module-level
+  `asyncio.Lock` to serialize all `MODEL.infer(...)` calls. Concurrent calls
+  without the lock produce `"Sizes of tensors must match"` errors. Don't scale
+  by running multiple uvicorn workers — on the 6700XT the GPU is compute-bound
+  and time-slicing across workers doesn't help; each worker also has its own
+  MODEL instance, bypassing the lock.
 
 ---
 
@@ -458,8 +547,10 @@ EXPO_PUBLIC_SENTRY_DSN
   matching `\.id`. Takes ~300-500ms first time; cached after.
 
 ### Broadcast pipeline
-- **Gemini free tier quota**: 20 requests/minute. A standard broadcast = ~10 LLM calls.
-  If Ollama goes down and the app falls back to Gemini, two bakes in a minute will 429.
+- **Gemini free tier quota**: 20 requests/minute. A 9-song standard broadcast under
+  sparse cadence = 1 sequencer + 6 segment calls = 7 LLM calls, so two bakes in a
+  minute still comes in at 14 — under the cap but tight. Long broadcasts (15 songs
+  = 9 segments) run 10 LLM calls each; two back-to-back longs will 429.
 - **`generationLimiter` would apply globally without path scoping**. `app.use(mw, router)`
   without a path prefix runs the middleware on every request, not just the router's
   routes. Fix is the `skip` filter in the limiter config.
@@ -534,7 +625,9 @@ EXPO_PUBLIC_SENTRY_DSN
 
 Spec: `docs/superpowers/specs/2026-04-12-pre-baked-broadcast-design.md`
 Curation spec (2026-04-16): `docs/superpowers/specs/2026-04-16-curation-design.md`
+Segment cadence spec (2026-04-20): `docs/superpowers/specs/2026-04-20-segment-cadence-design.md`
 Plans: `docs/superpowers/plans/2026-04-12-pre-baked-broadcast-plan-{1..4}-*.md`
 Curation plan: `docs/superpowers/plans/2026-04-16-curation-implementation.md`
+Segment cadence plan: `docs/superpowers/plans/2026-04-20-segment-cadence.md`
 Legacy PRD: `cleo-prd.md` at repo root — predates the pre-baked pivot; reference only
 for vibe/fallback library content that still informs `SegmentScriptBuilder`.
