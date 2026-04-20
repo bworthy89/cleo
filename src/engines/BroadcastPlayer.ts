@@ -124,15 +124,41 @@ export class BroadcastPlayer {
     if (!this.manifest) return;
     await this.waitIfPaused();
     if (!this.manifest) return;
+
+    // Walk tracks in order. After each track, check whether the next segment
+    // in the manifest targets the upcoming track (beforeTrackId match) or is
+    // the sign_off. If neither, play the next track directly — adjacent
+    // tracks with no transition between them play back-to-back.
+    let nextSegmentIdx = 1;
     for (let i = 0; i < this.manifest.tracks.length; i++) {
       await this.runTrackAt(i);
       if (!this.manifest) return;
       await this.waitIfPaused();
       if (!this.manifest) return;
-      await this.runSegmentAt(i + 1);
-      if (!this.manifest) return;
-      await this.waitIfPaused();
-      if (!this.manifest) return;
+
+      const slots = this.manifest.segmentSlots;
+      const nextTrack = this.manifest.tracks[i + 1];
+      const nextSlot = slots[nextSegmentIdx];
+
+      if (!nextTrack) {
+        // Last track just ended — play sign_off if present.
+        if (nextSlot && nextSlot.kind === 'sign_off') {
+          await this.runSegmentAt(nextSegmentIdx);
+          if (!this.manifest) return;
+          await this.waitIfPaused();
+          if (!this.manifest) return;
+        }
+        break;
+      }
+
+      // Run the next segment only if it introduces the upcoming track.
+      if (nextSlot && nextSlot.beforeTrackId === nextTrack.id) {
+        await this.runSegmentAt(nextSegmentIdx);
+        if (!this.manifest) return;
+        await this.waitIfPaused();
+        if (!this.manifest) return;
+        nextSegmentIdx += 1;
+      }
     }
     // Sign-off has played; the final segment's releaseAudioSession fires
     // AVAudioSession.setActive(false, .notifyOthersOnDeactivation), which
