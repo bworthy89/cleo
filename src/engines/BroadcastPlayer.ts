@@ -491,10 +491,17 @@ export class BroadcastPlayer {
 
   private computeProgress(): number {
     if (!this.manifest) return 0;
-    const total = this.manifest.tracks.length + this.manifest.segmentSlots.length;
-    if (total === 0) return 0;
-    const done = (this.currentTrackIndex + 1) + (this.currentSegmentIndex + 1);
-    return Math.min(1, done / total);
+    const tracks = this.manifest.tracks.length;
+    if (tracks === 0) return 0;
+    // Monotonic broadcast progress: each started track advances the bar.
+    // Using tracks+1 in the denominator reserves the final tick for sign_off
+    // so the bar doesn't hit 100% while the last track is still playing.
+    // The prior formula (tracks + segments as denominator, both indices as
+    // numerator) snapped up and down as segments started and ended — tolerable
+    // at dense N+1 cadence but ~30% swings under the sparse layout.
+    const started = Math.max(0, this.currentTrackIndex + 1);
+    const done = this.state === 'ended' ? tracks + 1 : started;
+    return Math.min(1, done / (tracks + 1));
   }
 }
 
