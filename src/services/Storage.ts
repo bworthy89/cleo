@@ -123,6 +123,15 @@ export function clearPersistedBroadcast(): void {
   storage.remove(StorageKeys.CURRENT_BROADCAST);
 }
 
+/** Read-modify-write: updates only the cursor, preserves manifest and
+ *  updatedAt. No-op when no record exists — defensive, should not be
+ *  called before setPersistedBroadcast has seeded the record. */
+export function updatePersistedCursor(trackIndex: number): void {
+  const rec = getPersistedBroadcast();
+  if (!rec) return;
+  setPersistedBroadcast({ ...rec, trackCursor: trackIndex });
+}
+
 /**
  * Clear user-facing data on logout. Preserves USER so returning users
  * are not re-routed through onboarding.
