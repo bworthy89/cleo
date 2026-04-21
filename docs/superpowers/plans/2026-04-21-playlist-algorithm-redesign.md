@@ -957,12 +957,13 @@ const originalFetch = global.fetch;
 describe('ReccoBeatsFetcher', () => {
   afterEach(() => { global.fetch = originalFetch; });
 
-  it('returns features for a single ISRC', async () => {
+  it('returns features keyed by ISRC, not by ReccoBeats id', async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
         content: [{
-          id: 'USRC17607839',
+          id: '2670c328-c40f-45f4-80df-f48b29296deb',  // UUID — NOT the ISRC
+          isrc: 'USRC17607839',
           tempo: 123.4, energy: 0.72, valence: 0.55,
           danceability: 0.68, acousticness: 0.12,
           loudness: -6.2, instrumentalness: 0.02,
@@ -972,9 +973,10 @@ describe('ReccoBeatsFetcher', () => {
     const f = new ReccoBeatsFetcher();
     const out = await f.fetch(['USRC17607839']);
     expect(out.size).toBe(1);
-    const rec = out.get('USRC17607839');
+    const rec = out.get('USRC17607839');  // ← keyed by ISRC, not UUID
     expect(rec?.tempo).toBe(123.4);
     expect(rec?.loudness).toBeCloseTo(0.897, 2); // (−6.2 + 60) / 60
+    expect(out.get('2670c328-c40f-45f4-80df-f48b29296deb')).toBeUndefined();
   });
 
   it('returns empty map on API 500 after one retry', async () => {
@@ -1031,6 +1033,7 @@ const BATCH_GAP_MS = 500;
 interface ReccoResponse {
   content?: Array<{
     id: string;
+    isrc?: string;       // ReccoBeats added this to the response 2025-12-13
     tempo?: number;
     energy?: number;
     valence?: number;
@@ -1075,9 +1078,9 @@ export class ReccoBeatsFetcher {
         const json = await res.json() as ReccoResponse;
         const out = new Map<string, AudioFeatures>();
         for (const row of json.content ?? []) {
-          if (!row.id) continue;
+          if (!row.isrc) continue;
           const feat = this.toAudioFeatures(row);
-          if (feat) out.set(row.id, feat);
+          if (feat) out.set(row.isrc, feat);
         }
         return out;
       } catch (err) {
