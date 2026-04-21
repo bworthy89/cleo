@@ -11,7 +11,9 @@
     "format": "prettier --write 'src/**/*.{ts,tsx}' 'server/src/**/*.ts'",
     "format:check": "prettier --check 'src/**/*.{ts,tsx}' 'server/src/**/*.ts'",
     "typecheck": "tsc --noEmit",
-    "test": "jest --runInBand"
+    "test": "jest --runInBand",
+    "env:dev": "./scripts/env-dev.sh",
+    "dev:app": "./scripts/env-dev.sh && expo start"
   },
   "dependencies": {
     "@expo-google-fonts/anton": "^0.4.2",
