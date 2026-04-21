@@ -1,12 +1,12 @@
 import { LLMProvider, LLMRequest, LLMResponse } from './types';
-import { OllamaProvider } from './ollama';
+import { GroqProvider } from './groq';
 import { GeminiProvider } from './gemini';
 
 export type { LLMRequest, LLMResponse } from './types';
 
 interface ProviderStatus {
   active: string;
-  ollama: { healthy: boolean; lastCheck: string | null };
+  groq: { healthy: boolean; lastCheck: string | null };
   gemini: { healthy: boolean; lastCheck: string | null };
 }
 
@@ -20,11 +20,13 @@ class LLMProviderFactory {
   private healthInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
-    // Initialize providers — fail gracefully if env vars are missing
+    // Groq (Llama 3.3 70B on LPU) = primary — sub-second inference, generous
+    // free tier, no quota-exhaust failure mode that Gemini has. Gemini stays
+    // as fallback for when Groq is unreachable.
     try {
-      this.primary = new OllamaProvider();
+      this.primary = new GroqProvider();
     } catch (e) {
-      console.warn('[LLM] Ollama provider unavailable:', (e as Error).message);
+      console.warn('[LLM] Groq provider unavailable:', (e as Error).message);
     }
 
     try {
@@ -107,7 +109,7 @@ class LLMProviderFactory {
 
     return {
       active,
-      ollama: {
+      groq: {
         healthy: this.primaryHealthy,
         lastCheck: this.lastPrimaryCheck?.toISOString() ?? null,
       },
