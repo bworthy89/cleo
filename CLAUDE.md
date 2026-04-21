@@ -335,17 +335,42 @@ BroadcastOrchestrator.waitForCompletion(id) — awaits the inFlight promise (use
   by bakeFeatured, featured publish route, tests). isInFlight(id) checks the map.
 ```
 
-### Curation sequencer (TrackSequencer)
-- Arcs live in `server/src/services/broadcast/vibe-arcs.ts` — 7 vibes (morning, focus,
-  workout, feelGood, lateNight, melancholy, party), each with `descriptor`, prose
-  `arc`, `preferred[]`, `avoid[]`. Preferred/avoid are **soft signals**, not filters —
-  the LLM is told to adapt when the pool doesn't match.
-- Pool cap: 40 tracks. Larger playlists take first 40 in input order.
-- Fails fast (`/insufficient tracks/`) when pool.length < N.
-- Enrichment hints passed to the LLM are length-capped and sanitized via `sanitizeHint`
-  (mirrors `sanitizeForPrompt`) since third-party APIs (Genius/MB) are not trusted
-  input surfaces.
-- Fallback path logs via `console.warn`; background enrichment errors log per-track.
+### Curation sequencer (`DeterministicTrackSequencer`)
+
+- Deterministic numeric sequencing replaced the LLM-based `TrackSequencer` on
+  2026-04-21. The old path is preserved as `LLMTrackSequencer` behind env
+  `SEQUENCER_MODE=llm` for rollback; slated for deletion after soak.
+- Each track carries `AudioFeatures` (`tempo/energy/valence/danceability/
+  acousticness/loudness/instrumentalness`). Features fetched by
+  `FeatureFetchChain` with the ladder:
+  ReccoBeats (ISRC-keyed) → Deezer (BPM+loudness) → Last.fm tags + genre
+  synth → genre-only defaults → neutrals. Populated in `BackgroundEnricher`'s
+  drainNow stage; persisted in `EnrichmentCache` alongside existing fields.
+- Vibe curves live in `server/src/services/broadcast/vibe-curves.ts` — 4
+  keyframes (open/body/peak/close at fractional positions 0.0/0.33/0.67/1.0)
+  × 7 vibes × 7 features, plus per-feature weights. Hand-authored from the
+  prose in `vibe-arcs.ts`; data, not code.
+- For each slot, the sequencer interpolates the target vector at fractional
+  position `i/(N-1)`, scores every remaining track by weighted L2 distance +
+  adjacency penalty (+0.15 same artist, +0.30 same album), takes top-K
+  candidates (K=2 for quick, K=3 for standard/long), and picks one via a
+  `mulberry32` PRNG seeded on `broadcastId`.
+- **Deterministic within a bake** (same broadcastId → byte-identical output);
+  **varies across bakes** (different broadcastId → different top-K pick).
+- No LLM involvement in ordering. Sequencer output always valid — fallback
+  ladder guarantees every track has a complete feature vector; no `pool.slice`
+  silent fallback.
+- `SequenceCache` is deleted; sequencing is ~microseconds so caching is
+  incompatible with per-bake seeded variation anyway.
+- `nominateDeepDives` ranks transitions by incoming-track enrichment richness
+  (count of non-empty fields among producer/sample/wikipediaSummary/
+  notableFacts) and caps picks at `ceil((N-1)/4)`. Deterministic.
+
+**Telemetry:** each bake logs
+`[Sequencer] source=deterministic vibe=X N=Y poolSize=Z firstId=... lastId=...
+meanDistance=0.XX features: reccobeats=n synthesized=m defaults=k`.
+Poor-fit warning (`[Sequencer] poor vibe fit (mean distance 0.XX)`) fires
+when mean distance exceeds 0.7 — indicates the pool doesn't match the vibe.
 
 ### Featured (editorial) flow
 - `bakeFeatured(config)` reads a config JSON with `{ id, title, description, vibe,
@@ -430,6 +455,10 @@ CURATOR_EMAILS                            ← comma-separated; authoritative pub
 # (new env var for self-hosted → self-hosted fallback before paid API).
 TTS_PRIMARY=cosyvoice
 TTS_FALLBACK=f5tts
+
+# Sequencer — default 'deterministic' (ReccoBeats-based). 'llm' keeps the
+# old LLM-based path for rollback. Flag removed after 2-week soak.
+SEQUENCER_MODE=deterministic
 
 # CosyVoice3 (self-hosted on Linux box:8001, proxied via F5 tunnel /cosy/*)
 COSYVOICE_BASE_URL=https://f5tts.worthymedia.online/cosy
@@ -674,6 +703,11 @@ EXPO_PUBLIC_SENTRY_DSN
   screen, old player, "Take It Live" via queueManager) are gone or rewired.
 - Native Swift `playEjectTransition`, `cancelEjectTransition`, `onEjectTrackChanged`
   are still compiled in but unreferenced from TS. Candidate for a native cleanup pass.
+- `SequenceCache` kept temporarily behind `SEQUENCER_MODE=llm` (used only by
+  `LLMTrackSequencer`); slated for deletion after the 2-week rollout soak
+  together with `LLMTrackSequencer` itself.
+- `LLMTrackSequencer` (formerly `TrackSequencer`) kept behind `SEQUENCER_MODE=llm`
+  for rollback; new bakes use `DeterministicTrackSequencer` by default.
 
 ---
 

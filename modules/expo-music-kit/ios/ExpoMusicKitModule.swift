@@ -713,6 +713,9 @@ public class ExpoMusicKitModule: Module {
     if let artworkUrl = artworkUrlString(track.artwork, width: 800, height: 800) {
       dict["artworkUrl"] = artworkUrl
     }
+    if let isrc = track.isrc {
+      dict["isrc"] = isrc
+    }
     return dict
   }
 
@@ -732,6 +735,9 @@ public class ExpoMusicKitModule: Module {
     }
     if let artworkUrl = artworkUrlString(song.artwork, width: 800, height: 800) {
       dict["artworkUrl"] = artworkUrl
+    }
+    if let isrc = song.isrc {
+      dict["isrc"] = isrc
     }
     return dict
   }

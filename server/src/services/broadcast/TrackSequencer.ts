@@ -35,7 +35,7 @@ function logResult(
   const firstId = ids[0] ?? '';
   const lastId = ids[ids.length - 1] ?? '';
   console.log(
-    `[TrackSequencer] source=${result.source} vibe=${req.vibe} N=${ids.length} poolSize=${poolSize} firstId=${firstId} lastId=${lastId}`,
+    `[LLMTrackSequencer] source=${result.source} vibe=${req.vibe} N=${ids.length} poolSize=${poolSize} firstId=${firstId} lastId=${lastId}`,
   );
 }
 
@@ -44,12 +44,25 @@ export interface SequenceRequest {
   vibe: Vibe;
   length: BroadcastLength;
   userContext: { timeOfDay: string; dayOfWeek: string };
+  /** Required since Task 13. Used by the deterministic sequencer to seed its
+   *  PRNG; the LLM path ignores the value. */
+  broadcastId: string;
 }
 
 export interface SequenceResult {
   orderedTracks: ManifestTrack[];
   featureSlots: number[];
-  source: 'cache' | 'llm' | 'fallback';
+  source: 'cache' | 'llm' | 'fallback' | 'deterministic';
+}
+
+/**
+ * Structural interface satisfied by both `LLMTrackSequencer` and
+ * `DeterministicTrackSequencer`. `BroadcastOrchestrator` depends only on this
+ * shape so the two implementations can be swapped via the `SEQUENCER_MODE`
+ * env flag.
+ */
+export interface ITrackSequencer {
+  sequence(req: SequenceRequest): Promise<SequenceResult>;
 }
 
 const SYSTEM_PROMPT = `You are a radio programmer arranging a broadcast. You receive a pool of tracks and a target arc. Return a JSON array of N track IDs in the order they should play, chosen to best fit the arc using the pool provided.
@@ -66,7 +79,7 @@ Hard constraints:
 - featureSlots indices are all in range 1..N-1 inclusive, no duplicates
 - Return ONLY the JSON object, no prose before or after`;
 
-export class TrackSequencer {
+export class LLMTrackSequencer implements ITrackSequencer {
   constructor(
     private readonly llm: LLMCaller,
     private readonly cache: SequenceCache,
@@ -112,11 +125,11 @@ export class TrackSequencer {
         return result;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.warn(`[TrackSequencer] attempt ${attempt + 1} failed: ${msg}`);
+        console.warn(`[LLMTrackSequencer] attempt ${attempt + 1} failed: ${msg}`);
       }
     }
 
-    console.warn('[TrackSequencer] falling back to deterministic slice');
+    console.warn('[LLMTrackSequencer] falling back to deterministic slice');
     const orderedTracks = cappedPool.slice(0, N);
     const featureSlots = this.fixupFeatureSlots([], N);
     const result: SequenceResult = {

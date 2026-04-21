@@ -41,6 +41,10 @@ export interface ManifestTrack {
    *  Server-side fallback when MusicBrainz / Last.fm don't return a genre.
    *  Optional for backward compatibility with pre-upgrade clients. */
   genreNames?: string[];
+  /** Apple Music ISRC (International Standard Recording Code) for the track.
+   *  Used as the lookup key for ReccoBeats / Deezer audio-feature fetches.
+   *  Optional — pre-upgrade clients + tracks without an ISRC omit this. */
+  isrc?: string;
 }
 
 export interface Manifest {
