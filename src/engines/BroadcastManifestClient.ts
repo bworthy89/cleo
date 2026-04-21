@@ -122,17 +122,33 @@ export class BroadcastManifestClient {
   async fetchSegmentAudio(urlOrPath: string): Promise<string> {
     // URL dispatch:
     //  - Relative path → authenticatedFetch (JWT attached, API_BASE_URL prepended).
-    //  - Absolute URL at our own API host (local-FS dev mode) → strip the origin
+    //  - Absolute URL at our own API origin (local-FS dev mode) → strip the origin
     //    and authenticatedFetch, since /broadcast-asset/* requires requireAuth.
-    //  - Absolute URL at a different host (R2 presigned) → plain fetch; the
+    //  - Absolute URL at a different origin (R2 presigned) → plain fetch; the
     //    URL carries its own auth in the query string.
+    //
+    // Origin comparison (not startsWith) prevents attaching the JWT to a
+    // lookalike host like "https://api.worthymedia.tech.evil.com/..." which
+    // would pass a naive prefix match and leak the bearer token.
     const res = isAbsoluteUrl(urlOrPath)
-      ? urlOrPath.startsWith(API_BASE_URL)
-        ? await authenticatedFetch(urlOrPath.slice(API_BASE_URL.length))
-        : await fetch(urlOrPath)
+      ? await this.fetchAbsolute(urlOrPath)
       : await authenticatedFetch(urlOrPath);
     if (!res.ok) throw new Error(`fetchSegmentAudio failed: ${res.status}`);
     const buffer = await res.arrayBuffer();
     return arrayBufferToBase64(buffer);
+  }
+
+  private async fetchAbsolute(url: string): Promise<Response> {
+    try {
+      const target = new URL(url);
+      const apiOrigin = new URL(API_BASE_URL).origin;
+      if (target.origin === apiOrigin) {
+        return authenticatedFetch(target.pathname + target.search + target.hash);
+      }
+    } catch {
+      // Malformed URL (shouldn't happen after isAbsoluteUrl check) — fall
+      // through to plain fetch rather than risk attaching auth to garbage.
+    }
+    return fetch(url);
   }
 }

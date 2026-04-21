@@ -70,8 +70,19 @@ export class GroqProvider implements LLMProvider {
   }
 
   async healthCheck(): Promise<boolean> {
-    // Just verify the API key is configured — no generation call to avoid
-    // burning rate limit on startup polling.
-    return !!this.apiKey;
+    // Probe `/openai/v1/models` — auth-gated, cheap, NOT counted against
+    // generation rate limit. Returns 200 only if API key is valid AND the
+    // service is reachable. Any other outcome (network, timeout, 4xx, 5xx)
+    // is swallowed and reported as unhealthy so the factory can fail over.
+    if (!this.apiKey) return false;
+    try {
+      const res = await fetch('https://api.groq.com/openai/v1/models', {
+        headers: { Authorization: `Bearer ${this.apiKey}` },
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
   }
 }
