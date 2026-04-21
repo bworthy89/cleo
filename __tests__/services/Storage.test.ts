@@ -8,6 +8,7 @@ import {
   setPersistedBroadcast,
   getPersistedBroadcast,
   clearPersistedBroadcast,
+  updatePersistedCursor,
   addBroadcastToHistory,
   getBroadcastHistory,
   BROADCAST_HISTORY_RETENTION_MS,
@@ -148,6 +149,29 @@ describe('broadcast storage', () => {
       trackCursor: -1,
       updatedAt: Date.now(),
     });
+    expect(getPersistedBroadcast()).toBeUndefined();
+  });
+});
+
+describe('updatePersistedCursor', () => {
+  it('overwrites only the trackCursor while preserving manifest + updatedAt', () => {
+    const originalUpdatedAt = 1000;
+    setPersistedBroadcast({
+      manifest: makeManifest('b1'),
+      trackCursor: -1,
+      updatedAt: originalUpdatedAt,
+    });
+
+    updatePersistedCursor(3);
+
+    const rec = getPersistedBroadcast();
+    expect(rec?.manifest.broadcastId).toBe('b1');
+    expect(rec?.trackCursor).toBe(3);
+    expect(rec?.updatedAt).toBe(originalUpdatedAt);
+  });
+
+  it('is a no-op when no broadcast is persisted', () => {
+    expect(() => updatePersistedCursor(0)).not.toThrow();
     expect(getPersistedBroadcast()).toBeUndefined();
   });
 });
