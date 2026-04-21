@@ -81,14 +81,42 @@ export function setOnaySuggestion(uid: string, suggestion: OnaySuggestion): void
   setObject(`${StorageKeys.ONAY_SUGGESTION}:${uid}`, suggestion);
 }
 
-// Persisted broadcast manifest — used for resume-after-terminate within the
-// in-memory 2h TTL on the server. Cleared on session end.
-export function setPersistedBroadcast(manifest: Manifest): void {
-  setObject(StorageKeys.CURRENT_BROADCAST, manifest);
+export interface PersistedBroadcast {
+  manifest: Manifest;
+  /** -1 = no track started yet; 0..N-1 = last track the player entered. */
+  trackCursor: number;
+  /** ms since epoch — debugging / future freshness heuristics. */
+  updatedAt: number;
 }
 
-export function getPersistedBroadcast(): Manifest | undefined {
-  return getObject<Manifest>(StorageKeys.CURRENT_BROADCAST);
+function isPersistedBroadcast(v: unknown): v is PersistedBroadcast {
+  if (!v || typeof v !== 'object') return false;
+  const o = v as Record<string, unknown>;
+  return (
+    typeof o.manifest === 'object' && o.manifest !== null &&
+    typeof o.trackCursor === 'number' &&
+    typeof o.updatedAt === 'number'
+  );
+}
+
+/** Persisted broadcast cursor — used for mid-session resume within the
+ *  in-memory 2h TTL on the server. Cleared on session end. */
+export function setPersistedBroadcast(rec: PersistedBroadcast): void {
+  setObject(StorageKeys.CURRENT_BROADCAST, rec);
+}
+
+/** Returns the persisted record, or undefined if missing / corrupt /
+ *  legacy shape. Clears the MMKV key on shape mismatch so the user
+ *  doesn't see a stale "resume" offer after an upgrade. */
+export function getPersistedBroadcast(): PersistedBroadcast | undefined {
+  const raw = getObject<unknown>(StorageKeys.CURRENT_BROADCAST);
+  if (raw === undefined) return undefined;
+  if (!isPersistedBroadcast(raw)) {
+    console.warn('[Storage] persisted broadcast has legacy/corrupt shape, clearing');
+    clearPersistedBroadcast();
+    return undefined;
+  }
+  return raw;
 }
 
 export function clearPersistedBroadcast(): void {
@@ -149,4 +177,16 @@ export function getBroadcastHistory(): BroadcastHistoryEntry[] {
     setObject(StorageKeys.BROADCAST_HISTORY, live);
   }
   return live;
+}
+
+/**
+ * Remove a specific broadcast from local history (e.g. because the server
+ * returned 404 on /broadcast/:id/manifest — the underlying audio is gone).
+ */
+export function removeBroadcastFromHistory(broadcastId: string): void {
+  const existing = getObject<BroadcastHistoryEntry[]>(StorageKeys.BROADCAST_HISTORY) ?? [];
+  const next = existing.filter(e => e.manifest.broadcastId !== broadcastId);
+  if (next.length !== existing.length) {
+    setObject(StorageKeys.BROADCAST_HISTORY, next);
+  }
 }
