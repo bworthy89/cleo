@@ -3,7 +3,7 @@
     "name": "ONAY",
     "slug": "cleo",
     "version": "1.2.0",
-    "runtimeVersion": "1.1.1",
+    "runtimeVersion": "1.1.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.worthymedia.cleo",
-      "buildNumber": "55",
+      "buildNumber": "56",
       "infoPlist": {
         "NSAppleMusicUsageDescription": "ONAY uses Apple Music to play your playlists with AI-powered radio hosting.",
         "NSPhotoLibraryUsageDescription": "ONAY may access your photo library to set a profile picture.",
