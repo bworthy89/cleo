@@ -5,6 +5,7 @@ import type {
 import type { StingerKind } from './BroadcastStingers';
 import {
   setPersistedBroadcast, clearPersistedBroadcast, addBroadcastToHistory,
+  updatePersistedCursor,
 } from '../services/Storage';
 
 export interface MusicDeps {
@@ -91,7 +92,11 @@ export class BroadcastPlayer {
 
   async start(manifest: Manifest, firstSegmentUrls: string[]): Promise<void> {
     this.manifest = manifest;
-    setPersistedBroadcast(manifest);
+    setPersistedBroadcast({
+      manifest,
+      trackCursor: -1,
+      updatedAt: Date.now(),
+    });
     // Save to history at start (option A): the user sees the broadcast
     // in their list as soon as it begins, and it persists through manual
     // or natural end so they can re-listen within the retention window.
@@ -325,6 +330,7 @@ export class BroadcastPlayer {
     if (!this.manifest) return;
     const track = this.manifest.tracks[trackIndex];
     this.currentTrackIndex = trackIndex;
+    updatePersistedCursor(trackIndex);
     this.state = 'playing_track';
     console.log(`[BroadcastPlayer] runTrackAt(${trackIndex}) id=${track.id} "${track.title}"`);
     try {

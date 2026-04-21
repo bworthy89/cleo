@@ -549,4 +549,64 @@ describe('BroadcastPlayer', () => {
       await player.end();
     });
   });
+
+  describe('cursor persistence', () => {
+    // We read back the persisted record via MMKV (mocked).
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { getPersistedBroadcast } = require('../../src/services/Storage');
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { __resetAllStores } = require('../../__mocks__/react-native-mmkv');
+
+    beforeEach(() => { __resetAllStores(); });
+
+    it('seeds trackCursor=-1 at start() and advances to N as runTrackAt(N) fires', async () => {
+      const deps = makeDeps();
+      const music = {
+        ...deps.music,
+        getPlaybackStatus: jest.fn(async () => 'stopped'),
+        getPlaybackTime: jest.fn(async () => 1),
+      };
+      const manifest: Manifest = {
+        broadcastId: 'bC', userId: 'u1', playlistId: 'p1',
+        vibe: 'morning', length: 'quick', createdAt: Date.now(),
+        tracks: [
+          { id: 't0', title: 'T0', artistName: 'A', albumTitle: '', duration: 1 },
+          { id: 't1', title: 'T1', artistName: 'A', albumTitle: '', duration: 1 },
+        ],
+        segmentSlots: [
+          { index: 0, kind: 'cold_open', beforeTrackId: 't0',
+            variantCount: 1, status: 'ready',
+            audioUrls: ['https://cdn/seg0-v0.mp3'] },
+          { index: 1, kind: 'sign_off', afterTrackId: 't1',
+            variantCount: 1, status: 'ready',
+            audioUrls: ['https://cdn/seg1-v0.mp3'] },
+        ],
+      };
+
+      const player = new BroadcastPlayer(
+        music, deps.native, deps.manifestClient, deps.stingers,
+      );
+      player.start(manifest, ['https://cdn/seg0-v0.mp3']);
+
+      // Immediately after start(), record is seeded with cursor -1.
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+      expect(getPersistedBroadcast()?.trackCursor).toBe(-1);
+
+      // Drive t0 to completion.
+      for (let i = 0; i < 80; i++) await Promise.resolve();
+      deps.listeners.state?.({ status: 'playing', playbackTime: 0.1 });
+      deps.listeners.state?.({ status: 'stopped', playbackTime: 1 });
+      for (let i = 0; i < 80; i++) await Promise.resolve();
+      // Cursor should now be at 1 (runTrackAt(1) entered).
+      expect(getPersistedBroadcast()?.trackCursor).toBe(1);
+
+      // Drive t1 to completion; after sign_off the record should be cleared.
+      deps.listeners.state?.({ status: 'playing', playbackTime: 0.1 });
+      deps.listeners.state?.({ status: 'stopped', playbackTime: 1 });
+      for (let i = 0; i < 80; i++) await Promise.resolve();
+      expect(getPersistedBroadcast()).toBeUndefined();
+
+      await player.end();
+    });
+  });
 });
