@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import type { ObjectStorage } from '../storage/ObjectStorage';
 import { buildManifest } from './ManifestBuilder';
 import { buildSegmentPrompts, type SegmentContext } from './SegmentScriptBuilder';
@@ -91,9 +92,13 @@ export class BroadcastOrchestrator {
   async create(
     input: BroadcastCreateRequest & { userId: string },
   ): Promise<BroadcastCreateResponse> {
+    // 0. Generate the broadcast id up front so it can thread through BOTH
+    //    the sequencer (as its deterministic PRNG seed) and the manifest
+    //    builder. Same id everywhere means re-bakes with the same inputs
+    //    produce the same track order.
+    const broadcastId = randomUUID();
+
     // 1. Sequence the pool (uses any cached enrichment as hints).
-    //    broadcastId is a placeholder here; Task 14 threads the real manifest
-    //    id through so the deterministic PRNG seed is stable across re-bakes.
     const seq = await this.sequencer.sequence({
       pool: input.tracks,
       vibe: input.vibe,
@@ -102,12 +107,13 @@ export class BroadcastOrchestrator {
         timeOfDay: input.userContext.timeOfDay,
         dayOfWeek: input.userContext.dayOfWeek,
       },
-      broadcastId: 'pending',
+      broadcastId,
     });
 
     // 2. Build the manifest immediately — enrichment isn't needed to know
     //    which slots exist and which tracks they target.
     const manifest = buildManifest({
+      broadcastId,
       userId: input.userId,
       playlistId: input.playlistId,
       vibe: input.vibe,
