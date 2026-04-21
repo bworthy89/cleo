@@ -1,0 +1,18 @@
+appId: com.worthymedia.cleo
+name: Sign Out - confirmation dialog appears
+---
+- launchApp
+- tapOn: "ONAY"
+
+# Scroll to bottom
+- scroll
+- scroll
+- scroll
+
+- tapOn: "Sign Out"
+
+# Confirmation dialog should appear
+- assertVisible: "Are you sure you want to sign out?"
+
+# Cancel to stay in app
+- tapOn: "Cancel"

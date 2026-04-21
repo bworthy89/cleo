@@ -1,0 +1,3 @@
+api.worthymedia.tech {
+    reverse_proxy localhost:3001
+}

@@ -1,0 +1,17 @@
+appId: com.worthymedia.cleo
+name: Personality Selection - can switch AI personality
+---
+- launchApp
+- tapOn: "ONAY"
+
+# Scroll to personality options
+- scroll
+
+# Select The Companion
+- tapOn: "The Companion"
+
+# Select The Oracle
+- tapOn: "The Oracle"
+
+# Select back to The Curator
+- tapOn: "The Curator"

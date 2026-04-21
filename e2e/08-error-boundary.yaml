@@ -1,0 +1,19 @@
+appId: com.worthymedia.cleo
+name: Error Boundary - app doesn't crash on tab navigation
+---
+- launchApp
+
+# Rapidly switch between all tabs to stress test
+- tapOn: "Arc"
+- tapOn: "Archive"
+- tapOn: "ONAY"
+- tapOn: "Broadcast"
+- tapOn: "ONAY"
+- tapOn: "Arc"
+- tapOn: "Broadcast"
+- tapOn: "Archive"
+- tapOn: "ONAY"
+- tapOn: "Broadcast"
+
+# App should still be responsive
+- assertVisible: "LIVE BROADCAST"

@@ -1,108 +1,107 @@
-// design-tokens.ts — Single source of truth for all UI values
+// design-tokens.ts — Onay "Crate Digger" design system.
+//
+// Evolution of the Analog Midnight palette into a late-night record-shop
+// aesthetic: warm black base, amber as a signal, oxblood as the primary
+// editorial stamp, cream as the surface ink. Anton (condensed display)
+// replaces Fraunces for poster/headline roles; Fraunces italic remains
+// the liner-notes voice.
+//
+// Primary exports: `AM` (palette), `Fonts`, `TypeScale`, `Space`,
+// `Radius`, `Halftone`, `AMGlow`, `AMBloom`. Legacy aliases
+// (`Colors`, `Typography`, `Surface`, `Spacing`, `TextColors`, `Radius`)
+// remap to the new palette for surfaces that haven't yet been rewritten.
+//
+// ───────────────────────── Primary tokens ─────────────────────────
 
-export const Colors = {
-  base: { black: '#0D0D0D', white: '#FAF8F4', cream: '#F5F0E8' },
-  accent: '#C8832A',
-  accentDark: '#A06820',
-  error: '#ff6e84',
-  vibe: {
-    morning:    { accent: '#C8832A' },
-    chill:      { accent: '#5B7FA6' },
-    lateNight:  { accent: '#7B5EA7' },
-    workout:    { accent: '#FF4D3D' },
-    party:      { accent: '#FF8C42' },
-    general:    { accent: '#C8832A' },
-    focus:      { accent: '#4A7A5B' },
-    feelGood:   { accent: '#E8923A' },
-    throwback:  { accent: '#B87A3A' },
-    elevated:   { accent: '#8B7BA8' },
-    melancholy: { accent: '#5B6A8A' },
-    sunday:     { accent: '#A88B6A' },
+export const AM = {
+  // Base — warm black
+  bg:         '#0B0907',
+  bgDeep:     '#050403',
+
+  // Ink — cream, the text/stroke color on dark surfaces
+  ink:        '#F4ECDC',
+  inkMid:     'rgba(244, 236, 220, 0.80)',
+  inkDim:     'rgba(244, 236, 220, 0.58)',
+  inkGhost:   'rgba(244, 236, 220, 0.20)',
+
+  // Amber — late-night signal, secondary accent
+  amber:      '#E8A24B',
+  amberDim:   'rgba(232, 162, 75, 0.55)',
+  amberFaint: 'rgba(232, 162, 75, 0.15)',
+
+  // Oxblood — record-label red, primary editorial stamp
+  oxblood:    '#A43A2E',
+  oxbloodDim: 'rgba(164, 58, 46, 0.55)',
+
+  // Cream + paper — inverted surfaces (library card etc.)
+  cream:      '#F4ECDC',
+  paper:      '#F2E7CF',
+  paperInk:   '#2A1510',
+
+  // Hairline rules
+  rule:       'rgba(244, 236, 220, 0.26)',
+  ruleStrong: 'rgba(244, 236, 220, 0.50)',
+} as const;
+
+export const Fonts = {
+  display:     'Anton_400Regular',                // condensed poster face
+  displayThin: 'Anton_400Regular',                // kept for legacy alias
+  serif:       'Fraunces_400Regular_Italic',      // liner-notes voice
+  serifReg:    'Fraunces_400Regular_Italic',
+  serifThin:   'Fraunces_300Light_Italic',
+  mono:        'JetBrainsMono_400Regular',
+  monoMedium:  'JetBrainsMono_500Medium',
+} as const;
+
+export const TypeScale = {
+  s8: 8, s9: 9, s10: 10, s11: 11, s12: 12, s13: 13, s14: 14, s15: 15,
+  s16: 16, s18: 18, s20: 20, s22: 22, s26: 26, s28: 28, s30: 30,
+  s32: 32, s36: 36, s42: 42, s44: 44, s56: 56, s76: 76,
+} as const;
+
+export const Space = {
+  s2: 2, s4: 4, s6: 6, s8: 8, s10: 10, s12: 12, s14: 14, s16: 16,
+  s18: 18, s20: 20, s22: 22, s24: 24, s26: 26, s30: 30, s32: 32,
+  s34: 34, s40: 40, s48: 48, s52: 52, s60: 60, s72: 72,
+} as const;
+
+export const AMGlow = {
+  cta: {
+    shadowColor: AM.amber,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.12,
+    shadowRadius: 24,
   },
-};
-
-export const Surface = {
-  lowest:    '#000000',
-  base:      '#0D0D0D',
-  low:       '#131315',
-  container: '#19191C',
-  high:      '#1F1F22',
-  highest:   '#262528',
-  bright:    '#2C2C2F',
-};
-
-export const TextColors = {
-  primary:   '#F6F3F5',
-  secondary: '#ACAAAD',
-  outline:   '#767577',
-  outlineVariant: '#48474A',
-};
-
-export const Typography = {
-  display:   { family: 'PlayfairDisplay_400Regular' },
-  body:      { family: 'Inter_400Regular', familyMedium: 'Inter_500Medium', familySemiBold: 'Inter_600SemiBold' },
-  cleoVoice: { family: 'EBGaramond_400Regular_Italic', style: 'italic' as const },
-  mono:      { family: 'DMMono_400Regular' },
-};
-
-export const Glass = {
-  panel:     { bg: 'rgba(38,37,40,0.4)', blur: 24, tint: 'dark' as const },
-  panelDark: { bg: 'rgba(19,19,21,0.6)', blur: 24, tint: 'dark' as const },
-  border:    'rgba(72,71,74,0.08)',
-  borderSubtle: 'rgba(72,71,74,0.05)',
-};
-
-export const Glow = {
-  accent: { color: Colors.accent, opacity: 0.15, spread: 40 },
-  ctaShadow: {
-    shadowColor: Colors.accent,
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
+  dot: {
+    shadowColor: AM.oxblood,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 6,
   },
-};
+  oxbloodStamp: {
+    shadowColor: AM.bgDeep,
+    shadowOffset: { width: 2, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+  },
+} as const;
 
-export const Gradient = {
-  cta: { colors: [Colors.accent, Colors.accentDark] as const, start: { x: 0, y: 0 }, end: { x: 1, y: 1 } },
-};
+// Background radial amber bloom — LinearGradient stand-in (RN has no radial).
+// Approximates `radial-gradient(ellipse 140% 60% at 50% 0%, amber-faint, transparent 70%)`.
+export const AMBloom = {
+  colors: ['rgba(232, 162, 75, 0.10)', 'rgba(232, 162, 75, 0.04)', 'rgba(11, 9, 7, 0)'] as const,
+  locations: [0, 0.4, 0.7] as const,
+  start: { x: 0.5, y: 0 },
+  end:   { x: 0.5, y: 0.6 },
+} as const;
 
-export const Spacing = { xs: 4, sm: 8, md: 16, lg: 24, xl: 40, xxl: 64 };
+// Halftone dot pattern — used under oxblood plates/panels for editorial grit.
+// Consumed by `Halftone` component as a data URI.
+export const HALFTONE_SVG = `<svg xmlns='http://www.w3.org/2000/svg' width='6' height='6'>
+  <circle cx='1' cy='1' r='0.6' fill='rgba(232,224,208,0.25)'/>
+</svg>`;
 
-export const Radius = { none: 0, sm: 4, md: 12, lg: 16, xl: 24, full: 9999 };
-
-export const Animation = {
-  duck:      { duration: 300, targetVolume: 0.15 },
-  rampUp:    { duration: 800 },
-  wordFade:  { stagger: 40 },
-  cleoScale: { speaking: 1.03, resting: 1.0 },
-  press:     { scale: 0.92, duration: 200 },
-};
-
-export const TabBar = {
-  height: 84,
-  radius: 24,
-  bg: 'rgba(13,13,13,0.6)',
-  activeColor: Colors.accent,
-  inactiveColor: 'rgba(172,170,173,0.35)',
-  iconSize: 24,
-  labelSize: 8,
-  labelTracking: 1.12,
-};
-
-export const AppHeaderTokens = {
-  height: 64,
-  bg: 'rgba(13,13,13,0.6)',
-  blur: 20,
-  logoSize: 18,
-  logoTracking: 2.7,
-  avatarSize: 32,
-};
-
-export const Shadow = {
-  text:   { offset: { width: 0, height: 1 } as const, radius: 3, opacity: 0.3 },
-  subtle: { offset: { width: 0, height: 2 } as const, radius: 4, opacity: 0.08 },
-  medium: { offset: { width: 0, height: 4 } as const, radius: 8, opacity: 0.12 },
-};
+export const GrainOpacity = 0.06;
 
 export const ZIndex = {
   base: 1,
@@ -110,15 +109,9 @@ export const ZIndex = {
   header: 40,
   modal: 50,
   tabBar: 50,
-};
-
-export const Opacity = {
-  primary: 0.9,
-  secondary: 0.7,
-  muted: 0.35,
-  ghost: 0.15,
-  dimmed: 0.3,
-};
+  drawer: 60,
+  tuning: 70,
+} as const;
 
 export function withAlpha(hex: string, alpha: number): string {
   const r = parseInt(hex.slice(1, 3), 16);
@@ -127,6 +120,49 @@ export function withAlpha(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-export function getVibeAccent(vibe: string): string {
-  return Colors.vibe[vibe as keyof typeof Colors.vibe]?.accent ?? Colors.accent;
-}
+// ───────────────────────── Legacy aliases ─────────────────────────
+// Remap so unmigrated surfaces (auth/login, ErrorBoundary, OfflineBanner,
+// NowPlayingBar, etc.) still render on-brand. New code should import
+// `AM` / `Fonts` / `TypeScale` / `Space` / `Radius` directly.
+
+/** @deprecated Use `AM` tokens. */
+export const Colors = {
+  base: { black: AM.bg, white: AM.ink, cream: AM.cream },
+  accent:     AM.amber,
+  accentDark: AM.amberDim,
+  oxblood:    AM.oxblood,
+  error:      AM.oxblood,
+};
+
+/** @deprecated Use `AM.bg` / `AM.amberFaint`. */
+export const Surface = {
+  lowest:    AM.bgDeep,
+  base:      AM.bg,
+  low:       AM.bg,
+  container: AM.bg,
+  high:      AM.bg,
+  highest:   AM.bg,
+  bright:    AM.bg,
+};
+
+/** @deprecated Use `AM.ink / inkMid / inkDim`. */
+export const TextColors = {
+  primary:        AM.ink,
+  secondary:      AM.inkMid,
+  outline:        AM.inkDim,
+  outlineVariant: AM.inkGhost,
+};
+
+/** @deprecated Use `Fonts` directly. Legacy-shape keys retained. */
+export const Typography = {
+  display:   { family: Fonts.display },
+  body:      { family: Fonts.serif, familyMedium: Fonts.serif, familySemiBold: Fonts.serif },
+  cleoVoice: { family: Fonts.serif, style: 'italic' as const },
+  mono:      { family: Fonts.mono },
+};
+
+/** @deprecated Use `Space`. */
+export const Spacing = { xs: 4, sm: 8, md: 16, lg: 24, xl: 40, xxl: 64 };
+
+/** @deprecated Crate Digger uses radius 0 for primary surfaces. */
+export const Radius = { none: 0, sm: 2, md: 4, lg: 8, xl: 12, full: 9999 };
