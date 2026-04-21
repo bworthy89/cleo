@@ -79,6 +79,10 @@ export async function fetchPlaylistTracks(playlistId: string): Promise<MusicTrac
 
 // ── Playback ───────────────────────────────────────────────────────────
 
+export async function clearQueueCache(): Promise<void> {
+  return await ExpoMusicKit.clearQueueCache();
+}
+
 export async function play(trackIds?: string[], playlistId?: string): Promise<void> {
   return await ExpoMusicKit.play(trackIds ?? null, playlistId ?? null);
 }
@@ -113,6 +117,47 @@ export async function getNextInQueue(): Promise<{ id?: string; title: string; ar
   return await ExpoMusicKit.getNextInQueue();
 }
 
+export type UpcomingTrack = {
+  id?: string;
+  title: string;
+  artistName: string;
+  artworkUrl?: string;
+};
+
+export async function getUpcomingQueue(count: number = 6): Promise<UpcomingTrack[]> {
+  return await ExpoMusicKit.getUpcomingQueue(count);
+}
+
+export interface CatalogSearchResult {
+  id: string;
+  title: string;
+  artistName: string;
+  albumTitle: string;
+  duration: number;
+  genreNames: string[];
+  artworkUrl: string;
+  /** Apple Music content rating — 'explicit' or 'clean' when known. Undefined
+   *  for tracks with no rating metadata. Callers can prefer explicit when
+   *  both variants of a song exist in search results. */
+  contentRating?: 'explicit' | 'clean';
+}
+
+export async function searchCatalog(
+  query: string,
+  types: string[] = ['songs'],
+  limit: number = 5
+): Promise<CatalogSearchResult[]> {
+  return await ExpoMusicKit.searchCatalog(query, types, limit);
+}
+
+export async function createPlaylist(
+  name: string,
+  description: string,
+  trackIds: string[]
+): Promise<string> {
+  return await ExpoMusicKit.createPlaylist(name, description, trackIds);
+}
+
 export async function getPlaybackTime(): Promise<number> {
   return await ExpoMusicKit.getPlaybackTime();
 }
@@ -145,14 +190,18 @@ export async function deactivateDuckingSession(): Promise<void> {
   return await ExpoMusicKit.deactivateDuckingSession();
 }
 
-// ── Eject Transition ──────────────────────────────────────────────────
-
-export async function playEjectTransition(ttsBase64: string, fadeInDelayMs: number): Promise<void> {
-  return await ExpoMusicKit.playEjectTransition(ttsBase64, fadeInDelayMs);
+export async function releaseAudioSession(): Promise<void> {
+  return await ExpoMusicKit.releaseAudioSession();
 }
 
-export async function cancelEjectTransition(): Promise<void> {
-  return await ExpoMusicKit.cancelEjectTransition();
+/**
+ * Tell the native module a broadcast is in progress so its 0.5s playback
+ * timer keeps emitting events when the phone locks. Without this the timer
+ * is paused on background and the JS state machine can't detect track-end
+ * events, stalling the broadcast until the user unlocks the phone.
+ */
+export async function setBroadcastActive(active: boolean): Promise<void> {
+  return await ExpoMusicKit.setBroadcastActive(active);
 }
 
 // ── Event Listeners ────────────────────────────────────────────────────
@@ -167,15 +216,4 @@ export function addPlaybackStateListener(
   listener: (event: PlaybackStateEvent) => void
 ): EventSubscription {
   return emitter.addListener('onPlaybackStateChanged', listener);
-}
-
-export type EjectTrackChangedEvent = {
-  trackId?: string;
-  previousTrackId?: string;
-};
-
-export function addEjectTrackChangedListener(
-  listener: (event: EjectTrackChangedEvent) => void
-): EventSubscription {
-  return emitter.addListener('onEjectTrackChanged', listener);
 }

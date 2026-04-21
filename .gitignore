@@ -3,6 +3,9 @@
 # dependencies
 node_modules/
 
+# git worktrees
+.worktrees/
+
 # Expo
 .expo/
 dist/
@@ -41,4 +44,8 @@ server/.env
 # generated native folders
 /ios/
 /android/
-GoogleService-Info.plist
+# GoogleService-Info.plist is safe to commit (contains no private keys)
+firebase-debug.log
+
+# TTS audio cache
+server/.cache/

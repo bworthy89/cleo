@@ -1,508 +1,294 @@
-import React, { useEffect, useState } from 'react';
-import { Alert, View, Text, ScrollView, StyleSheet, Pressable, Switch } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import Slider from '@react-native-community/slider';
-import { Ionicons } from '@expo/vector-icons';
+import { useEffect, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import auth from '@react-native-firebase/auth';
-import { router } from 'expo-router';
+import * as Haptics from 'expo-haptics';
+import { AM, Fonts, Space, TypeScale } from '../../tokens/design-tokens';
+import { BroadcastBackdrop } from '../../components/BroadcastBackdrop';
 import {
-  Colors, Surface, TextColors, Typography, Spacing, Radius, withAlpha, AppHeaderTokens,
-} from '../../tokens/design-tokens';
-import { AppHeader } from '../../components/AppHeader';
-import { storage } from '../../services/Storage';
-import { signOut } from '../../services/AuthService';
-import { musicKitPlayer } from '../../services/MusicKitPlayer';
-import { setTTSVolume, authorize } from '../../../modules/expo-music-kit';
+  StatusStrip,
+  LinerNotes,
+  SectionMarker,
+  Halftone,
+} from '../../components/crate';
+import { useSettings } from '../../contexts/SettingsContext';
+import {
+  getBroadcastHistory,
+  type BroadcastHistoryEntry,
+} from '../../services/Storage';
+import { memberNo as formatMemberNo, memberSlot } from '../../lib/memberNo';
 
-// ─── Types ───────────────────────────────────────────────────────────
-
-type Personality = 'curator' | 'companion' | 'oracle';
-
-interface PersonalityOption {
-  key: Personality;
-  label: string;
-  description: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  iconColor: string;
-}
-
-const PERSONALITIES: PersonalityOption[] = [
-  {
-    key: 'curator',
-    label: 'Curator',
-    description: 'Analytical & Knowledgeable. Deep dives into musicology and technical specs.',
-    icon: 'library-outline',
-    iconColor: Colors.accent,
-  },
-  {
-    key: 'companion',
-    label: 'Companion',
-    description: 'Warm & Empathetic. Focuses on emotional resonance and mood matching.',
-    icon: 'heart-outline',
-    iconColor: Colors.vibe.chill.accent,
-  },
-  {
-    key: 'oracle',
-    label: 'Oracle',
-    description: 'Enigmatic & Avant-garde. Experimental discoveries and cryptic curation.',
-    icon: 'eye-outline',
-    iconColor: '#ff97b8',
-  },
-];
-
-// ─── Component ───────────────────────────────────────────────────────
-
+/**
+ * ONAY tab — member lounge. Identity + recent listens + an editorial note
+ * from ONAY. Account settings live in the drawer (cog in StatusStrip), not
+ * here — this tab is the human-facing face of the app.
+ */
 export function ProfileScreen() {
   const insets = useSafeAreaInsets();
+  const settings = useSettings();
+
   const firebaseUser = auth().currentUser;
+  const email = firebaseUser?.email ?? '—';
+  const displayName = firebaseUser?.displayName ?? 'Listener';
+  const memberNo = formatMemberNo(firebaseUser?.uid);
+  const memberSlotStr = memberSlot(firebaseUser?.uid);
 
-  const [selectedPersonality, setSelectedPersonality] = useState<Personality>(
-    () => (storage.getString('cleoPersonality') as Personality) ?? 'curator',
-  );
-  const [appleMusicConnected, setAppleMusicConnected] = useState(false);
-  const [hostVolume, setHostVolume] = useState<number>(
-    () => {
-      const saved = storage.getString('hostVolumeMix');
-      return saved ? parseFloat(saved) : 0.7;
-    },
-  );
-
+  const [history, setHistory] = useState<BroadcastHistoryEntry[]>([]);
   useEffect(() => {
-    musicKitPlayer.isAuthorized().then(setAppleMusicConnected).catch(() => {});
-    setTTSVolume(hostVolume);
+    setHistory(getBroadcastHistory());
   }, []);
 
-  const handlePersonalityChange = (personality: Personality) => {
-    setSelectedPersonality(personality);
-    storage.set('cleoPersonality', personality);
-  };
+  const totalMinutes = history.reduce((total, entry) => {
+    const tracks = entry.manifest.tracks ?? [];
+    const dur = tracks.reduce((a, t) => a + (t.duration ?? 180), 0);
+    return total + Math.round(dur / 60);
+  }, 0);
 
-  const handleVolumeChange = (value: number) => {
-    setHostVolume(value);
-    setTTSVolume(value);
-    storage.set('hostVolumeMix', value.toString());
-  };
+  const firstListen = history.length > 0
+    ? new Date(Math.min(...history.map(h => h.createdAt)))
+    : null;
+  const sinceLabel = firstListen
+    ? `SINCE ${firstListen.toLocaleDateString(undefined, { month: 'short', year: '2-digit' }).toUpperCase()}`
+    : "SINCE '26";
 
-  const volumeToDb = (v: number): string => {
-    if (v <= 0.01) return '-∞ dB';
-    const db = 20 * Math.log10(v);
-    return `${db >= 0 ? '+' : ''}${db.toFixed(0)} dB`;
+  const openSettings = () => {
+    Haptics.selectionAsync().catch(() => {});
+    settings.open();
   };
-
-  const handleAppleMusicToggle = async () => {
-    if (appleMusicConnected) return;
-    try {
-      const result = await authorize();
-      if (result.status === 'authorized') {
-        setAppleMusicConnected(true);
-        storage.set('appleMusicAuthorized', 'true');
-      }
-    } catch {}
-  };
-
-  const handleManageSubscription = () => {
-    Alert.alert('Coming Soon', 'Subscription management will be available in a future update.');
-  };
-
-  const handleSignOut = () => {
-    Alert.alert(
-      'Sign Out',
-      'Are you sure you want to sign out?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Sign Out',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await signOut();
-              router.replace('/(auth)/login');
-            } catch {
-              // sign-out failed — stay on screen
-            }
-          },
-        },
-      ],
-    );
-  };
-
-  const displayName = firebaseUser?.displayName ?? 'Listener';
-  const email = firebaseUser?.email ?? '';
-  const initial = displayName.charAt(0).toUpperCase();
 
   return (
-    <View style={styles.root}>
-      <AppHeader />
-
+    <BroadcastBackdrop>
       <ScrollView
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingTop: AppHeaderTokens.height + insets.top + Spacing.lg },
-        ]}
+        style={styles.flex}
+        contentContainerStyle={{
+          paddingTop: insets.top + Space.s6,
+          paddingBottom: insets.bottom + 120,
+          paddingHorizontal: 20,
+        }}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Profile Header ── */}
-        <View style={styles.profileHeader}>
-          <LinearGradient
-            colors={[Colors.accent, withAlpha(Colors.accent, 0.3)]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.avatarRing}
-          >
-            <View style={styles.avatarInner}>
-              {displayName !== 'Listener' ? (
-                <Text style={styles.avatarInitial}>{initial}</Text>
-              ) : (
-                <Ionicons name="person" size={36} color={TextColors.outline} />
-              )}
-            </View>
-          </LinearGradient>
-          <Text style={styles.userName}>{displayName}</Text>
-          {email ? <Text style={styles.userEmail}>{email}</Text> : null}
-        </View>
+        <StatusStrip onAir={false} num={memberSlotStr} />
 
-        {/* ── AI Personality ── */}
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>AI PERSONALITY</Text>
-          {PERSONALITIES.map((p) => {
-            const isSelected = selectedPersonality === p.key;
-            return (
+        {/* Oxblood member card masthead */}
+        <View style={styles.card}>
+          <Halftone opacity={0.3} spacing={5} />
+          <View style={{ position: 'relative' }}>
+            <View style={styles.cardTop}>
+              <Text style={styles.cardKicker}>MEMBER CARD · REG №</Text>
+              <Text style={styles.cardMemberNo}>{memberNo}</Text>
+            </View>
+            <Text style={styles.cardName}>{displayName.toUpperCase()}</Text>
+            <Text style={styles.cardSub}>{email}</Text>
+            <View style={styles.cardFooter}>
+              <Text style={styles.cardSince}>{sinceLabel}</Text>
               <Pressable
-                key={p.key}
-                onPress={() => handlePersonalityChange(p.key)}
+                onPress={openSettings}
+                accessibilityRole="button"
+                accessibilityLabel="Open settings"
+                hitSlop={6}
                 style={({ pressed }) => [pressed && { opacity: 0.7 }]}
-                accessibilityLabel={`${p.label}: ${p.description}${isSelected ? ', selected' : ''}`}
-                accessibilityRole="radio"
               >
-                <View style={[
-                  styles.personalityCard,
-                  isSelected && styles.personalityCardSelected,
-                ]}>
-                  <View style={styles.personalityLeft}>
-                    <View style={[styles.radioOuter, isSelected && styles.radioOuterSelected]}>
-                      {isSelected && <View style={styles.radioDot} />}
-                    </View>
-                    <View style={styles.personalityText}>
-                      <View style={styles.personalityLabelRow}>
-                        <Ionicons name={p.icon} size={16} color={p.iconColor} style={styles.personalityIcon} />
-                        <Text style={[
-                          styles.personalityLabel,
-                          isSelected && styles.personalityLabelSelected,
-                        ]}>{p.label}</Text>
-                      </View>
-                      <Text style={styles.personalityDesc}>{p.description}</Text>
-                    </View>
-                  </View>
-                </View>
+                <Text style={styles.cardManage}>MANAGE →</Text>
               </Pressable>
-            );
-          })}
-        </View>
-
-        {/* ── Connected Ecosystem ── */}
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>CONNECTED ECOSYSTEM</Text>
-          <View style={styles.ecosystemCard}>
-            <View style={styles.ecosystemRow}>
-              <Ionicons name="musical-note" size={20} color={Colors.accent} />
-              <Text style={styles.ecosystemLabel}>Apple Music</Text>
-              <Text style={styles.ecosystemStatus}>
-                {appleMusicConnected ? 'Connected' : 'Not Connected'}
-              </Text>
-              <Switch
-                value={appleMusicConnected}
-                onValueChange={handleAppleMusicToggle}
-                disabled={appleMusicConnected}
-                trackColor={{ false: Surface.bright, true: withAlpha(Colors.accent, 0.4) }}
-                thumbColor={appleMusicConnected ? Colors.accent : TextColors.outline}
-                style={styles.ecosystemSwitch}
-              />
             </View>
           </View>
         </View>
 
-        {/* ── Voice Profile ── */}
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>VOICE PROFILE</Text>
+        {/* Greeting */}
+        <View style={styles.liner}>
+          <LinerNotes>
+            Welcome back. Tonight&rsquo;s set is already being baked — I&rsquo;ll ping you
+            when the needle&rsquo;s ready to drop.
+          </LinerNotes>
+        </View>
 
-          {/* Audio Fidelity (display-only) */}
-          <View style={styles.sliderRow}>
-            <View style={styles.sliderHeader}>
-              <Text style={styles.sliderLabel}>Audio Fidelity</Text>
-              <Text style={styles.sliderValue}>LOSSLESS</Text>
-            </View>
-            <View style={styles.sliderTrack}>
-              <LinearGradient
-                colors={[Colors.accent, Colors.vibe.chill.accent]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={[styles.sliderFill, { width: '85%' }]}
-              />
-            </View>
+        {/* Listening stats */}
+        <SectionMarker num="D·01" title="YOUR LISTENING" side="LAST 24 HOURS" />
+        <View style={styles.stats}>
+          <View style={styles.statCell}>
+            <Text style={styles.statValue}>{history.length}</Text>
+            <Text style={styles.statLabel}>BROADCASTS</Text>
           </View>
-
-          {/* Host Volume Mix (interactive) */}
-          <View style={styles.sliderRow}>
-            <View style={styles.sliderHeader}>
-              <Text style={styles.sliderLabel}>Host Volume Mix</Text>
-              <Text style={styles.sliderValue}>{volumeToDb(hostVolume)}</Text>
-            </View>
-            <Slider
-              style={styles.volumeSlider}
-              minimumValue={0}
-              maximumValue={1}
-              step={0.05}
-              value={hostVolume}
-              onValueChange={handleVolumeChange}
-              minimumTrackTintColor={Colors.accent}
-              maximumTrackTintColor={Surface.bright}
-              thumbTintColor={Colors.base.white}
-            />
+          <View style={styles.statDivider} />
+          <View style={styles.statCell}>
+            <Text style={styles.statValue}>{totalMinutes}</Text>
+            <Text style={styles.statLabel}>MINUTES</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statCell}>
+            <Text style={styles.statValue}>{(history[0]?.manifest.tracks ?? []).length}</Text>
+            <Text style={styles.statLabel}>LAST SET</Text>
           </View>
         </View>
 
-        {/* ── Account ── */}
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>ACCOUNT</Text>
+        {/* Settings shortcut */}
+        <SectionMarker num="D·02" title="BACK OFFICE" side="MEMBER CARD" />
+        <Pressable
+          onPress={openSettings}
+          accessibilityRole="button"
+          accessibilityLabel="Open settings drawer"
+          style={({ pressed }) => [styles.settingsLink, pressed && { opacity: 0.7 }]}
+        >
+          <View>
+            <Text style={styles.settingsLabel}>SETTINGS</Text>
+            <Text style={styles.settingsSub}>Account · Notifications · Connections · About</Text>
+          </View>
+          <Text style={styles.settingsArrow}>→</Text>
+        </Pressable>
 
-          <Pressable
-            style={({ pressed }) => [styles.accountRow, pressed && { opacity: 0.7 }]}
-            onPress={handleManageSubscription}
-            accessibilityLabel="Manage Subscription"
-            accessibilityRole="button"
-          >
-            <Text style={styles.accountRowText}>Manage Subscription</Text>
-            <Ionicons name="chevron-forward" size={18} color={TextColors.outline} />
-          </Pressable>
-
-          <Pressable
-            style={({ pressed }) => [styles.accountRow, pressed && { opacity: 0.7 }]}
-            onPress={handleSignOut}
-            accessibilityLabel="Sign out"
-            accessibilityRole="button"
-          >
-            <Text style={[styles.accountRowText, { color: Colors.error }]}>Sign Out</Text>
-            <Ionicons name="chevron-forward" size={18} color={Colors.error} />
-          </Pressable>
+        {/* Colophon */}
+        <View style={styles.colophon}>
+          <Text style={styles.colophonText}>ONAY RADIO · EST. 2026</Text>
+          <Text style={styles.colophonText}>NO ALGORITHMS · NO SHUFFLE · SIDE A → SIDE B</Text>
         </View>
-
-        <View style={{ height: insets.bottom + 100 }} />
       </ScrollView>
-    </View>
+    </BroadcastBackdrop>
   );
 }
 
-// ─── Styles ──────────────────────────────────────────────────────────
-
-const RING_SIZE = 100;
-const RING_BORDER = 3;
-const INNER_SIZE = RING_SIZE - RING_BORDER * 2;
-
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: Surface.base,
-  },
-  scrollContent: {
-    paddingHorizontal: Spacing.lg,
-  },
+  flex: { flex: 1 },
 
-  // Section label
-  sectionLabel: {
-    fontFamily: Typography.mono.family,
-    fontSize: 10,
-    letterSpacing: 2.5,
-    color: Colors.accent,
-    marginBottom: Spacing.md,
-  },
-
-  // Profile Header
-  profileHeader: {
-    alignItems: 'center',
-    marginBottom: Spacing.xl,
-  },
-  avatarRing: {
-    width: RING_SIZE,
-    height: RING_SIZE,
-    borderRadius: RING_SIZE / 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarInner: {
-    width: INNER_SIZE,
-    height: INNER_SIZE,
-    borderRadius: INNER_SIZE / 2,
-    backgroundColor: Surface.base,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarInitial: {
-    fontFamily: Typography.display.family,
-    fontSize: 36,
-    color: TextColors.primary,
-  },
-  userName: {
-    fontFamily: Typography.display.family,
-    fontSize: 24,
-    color: TextColors.primary,
-    marginTop: Spacing.md,
-  },
-  userEmail: {
-    fontFamily: Typography.body.family,
-    fontSize: 12,
-    color: TextColors.secondary,
-    marginTop: Spacing.xs,
-  },
-
-  // Section
-  section: {
-    marginBottom: Spacing.xl,
-  },
-
-  // Personality Cards
-  personalityCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: Spacing.md,
-    borderRadius: Radius.sm,
-    marginBottom: Spacing.sm,
-    backgroundColor: Surface.container,
-    borderWidth: 1,
-    borderColor: 'transparent',
-  },
-  personalityCardSelected: {
-    borderColor: Colors.accent,
-    backgroundColor: withAlpha(Colors.accent, 0.08),
-  },
-  personalityLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  radioOuter: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: TextColors.outlineVariant,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: Spacing.md,
-  },
-  radioOuterSelected: {
-    borderColor: Colors.accent,
-  },
-  radioDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: Colors.accent,
-  },
-  personalityText: {
-    flex: 1,
-  },
-  personalityLabelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  personalityIcon: {
-    marginRight: Spacing.xs,
-  },
-  personalityLabel: {
-    fontFamily: Typography.body.familySemiBold,
-    fontSize: 15,
-    color: TextColors.primary,
-  },
-  personalityLabelSelected: {
-    color: Colors.accent,
-  },
-  personalityDesc: {
-    fontFamily: Typography.body.family,
-    fontSize: 12,
-    color: TextColors.outline,
-    lineHeight: 17,
-  },
-
-  // Connected Ecosystem
-  ecosystemCard: {
-    backgroundColor: Surface.container,
-    borderRadius: Radius.sm,
-    padding: Spacing.md,
-  },
-  ecosystemRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  ecosystemLabel: {
-    fontFamily: Typography.body.familyMedium,
-    fontSize: 14,
-    color: TextColors.primary,
-    marginLeft: Spacing.sm,
-    flex: 1,
-  },
-  ecosystemStatus: {
-    fontFamily: Typography.mono.family,
-    fontSize: 10,
-    color: Colors.accent,
-    letterSpacing: 0.8,
-    marginRight: Spacing.sm,
-  },
-  ecosystemSwitch: {
-    transform: [{ scale: 0.8 }],
-  },
-
-  // Voice Profile Sliders
-  sliderRow: {
-    marginBottom: Spacing.lg,
-  },
-  sliderHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: Spacing.sm,
-  },
-  sliderLabel: {
-    fontFamily: Typography.body.familyMedium,
-    fontSize: 14,
-    color: TextColors.primary,
-  },
-  sliderValue: {
-    fontFamily: Typography.mono.family,
-    fontSize: 11,
-    color: Colors.accent,
-    letterSpacing: 0.8,
-  },
-  sliderTrack: {
-    height: 4,
-    backgroundColor: Surface.bright,
-    borderRadius: 2,
-    overflow: 'visible',
+  card: {
+    marginTop: Space.s22,
+    padding: 18,
+    backgroundColor: AM.oxblood,
+    overflow: 'hidden',
     position: 'relative',
   },
-  sliderFill: {
-    height: 4,
-    borderRadius: 2,
+  cardTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(232,224,208,0.35)',
+    paddingBottom: 8,
   },
-  volumeSlider: {
-    width: '100%',
-    height: 30,
+  cardKicker: {
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s9,
+    color: AM.cream,
+    letterSpacing: 3,
+    opacity: 0.85,
   },
-
-  // Account Rows
-  accountRow: {
+  cardMemberNo: {
+    fontFamily: Fonts.display,
+    fontSize: TypeScale.s14,
+    color: AM.cream,
+    letterSpacing: 2,
+  },
+  cardName: {
+    marginTop: 14,
+    fontFamily: Fonts.display,
+    fontSize: TypeScale.s28,
+    color: AM.cream,
+    letterSpacing: 0.5,
+    lineHeight: 34,
+  },
+  cardSub: {
+    marginTop: 6,
+    fontFamily: Fonts.serif,
+    fontStyle: 'italic',
+    fontSize: TypeScale.s13,
+    color: AM.cream,
+    opacity: 0.85,
+  },
+  cardFooter: {
+    marginTop: 18,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: Surface.container,
-    padding: Spacing.md,
-    borderRadius: Radius.sm,
-    marginBottom: Spacing.sm,
   },
-  accountRowText: {
-    fontFamily: Typography.body.familyMedium,
-    fontSize: 14,
-    color: TextColors.primary,
+  cardSince: {
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s9,
+    color: AM.cream,
+    letterSpacing: 2.5,
+    opacity: 0.75,
+  },
+  cardManage: {
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s10,
+    color: AM.cream,
+    letterSpacing: 2,
+  },
+
+  liner: {
+    marginTop: Space.s22,
+  },
+
+  stats: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    marginTop: 4,
+  },
+  statCell: {
+    flex: 1,
+    paddingVertical: 16,
+    alignItems: 'center',
+    gap: 6,
+  },
+  statDivider: {
+    width: 0.5,
+    backgroundColor: AM.rule,
+  },
+  statValue: {
+    fontFamily: Fonts.display,
+    fontSize: TypeScale.s30,
+    color: AM.amber,
+    letterSpacing: 0.5,
+    lineHeight: 36,
+  },
+  statLabel: {
+    fontFamily: Fonts.mono,
+    fontSize: 8,
+    color: AM.inkDim,
+    letterSpacing: 2.5,
+  },
+
+  settingsLink: {
+    marginTop: 4,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderWidth: 0.5,
+    borderColor: AM.ruleStrong,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  settingsLabel: {
+    fontFamily: Fonts.display,
+    fontSize: TypeScale.s16,
+    color: AM.ink,
+    letterSpacing: 1.5,
+  },
+  settingsSub: {
+    marginTop: 4,
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s9,
+    color: AM.inkDim,
+    letterSpacing: 1.5,
+  },
+  settingsArrow: {
+    fontFamily: Fonts.display,
+    fontSize: TypeScale.s18,
+    color: AM.amber,
+  },
+
+  colophon: {
+    marginTop: Space.s40,
+    paddingTop: 16,
+    borderTopWidth: 0.5,
+    borderTopColor: AM.rule,
+    alignItems: 'center',
+    gap: 4,
+  },
+  colophonText: {
+    fontFamily: Fonts.mono,
+    fontSize: 8,
+    letterSpacing: 2,
+    color: AM.inkDim,
   },
 });
+
+export default ProfileScreen;

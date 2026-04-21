@@ -1,0 +1,16 @@
+appId: com.worthymedia.cleo
+name: Broadcast Home - sections render correctly
+---
+- launchApp
+
+# Greeting section
+- assertVisible: "LIVE BROADCAST"
+
+# Stations section
+- assertVisible: "YOUR STATIONS"
+
+# Playlists section
+- scrollUntilVisible:
+    element: "PLAYLISTS"
+    direction: DOWN
+- assertVisible: "PLAYLISTS"

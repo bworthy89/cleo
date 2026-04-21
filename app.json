@@ -2,7 +2,8 @@
   "expo": {
     "name": "ONAY",
     "slug": "cleo",
-    "version": "1.0.0",
+    "version": "1.2.0",
+    "runtimeVersion": "1.1.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -10,16 +11,19 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#FAF6EF"
+      "backgroundColor": "#0A0807"
     },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.worthymedia.cleo",
+      "buildNumber": "56",
       "infoPlist": {
         "NSAppleMusicUsageDescription": "ONAY uses Apple Music to play your playlists with AI-powered radio hosting.",
+        "NSPhotoLibraryUsageDescription": "ONAY may access your photo library to set a profile picture.",
         "UIBackgroundModes": [
           "audio"
-        ]
+        ],
+        "ITSAppUsesNonExemptEncryption": false
       },
       "entitlements": {
         "com.apple.developer.applesignin": [
@@ -31,12 +35,13 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#FAF6EF",
+        "backgroundColor": "#0B0907",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "package": "com.worthymedia.cleo"
+      "package": "com.worthymedia.cleo",
+      "permissions": []
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -58,7 +63,15 @@
             "deploymentTarget": "16.0"
           }
         }
-      ]
-    ]
+      ],
+      "@sentry/react-native"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "65e6f716-8b20-415c-9827-cfcef3e2c8ae"
+      }
+    },
+    "owner": "bworthy89"
   }
 }

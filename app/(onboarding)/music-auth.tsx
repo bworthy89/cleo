@@ -1,13 +1,26 @@
 import { useState } from 'react';
-import { Pressable, SafeAreaView, StyleSheet, Text, View, Alert } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { Colors, Typography, Spacing, TextColors, Surface } from '../../src/tokens/design-tokens';
+import { AM, Fonts, Space, TypeScale } from '../../src/tokens/design-tokens';
+import { BroadcastBackdrop } from '../../src/components/BroadcastBackdrop';
+import { StampButton, LinerNotes, SpinningRecord } from '../../src/components/crate';
 import { musicKitPlayer } from '../../src/services/MusicKitPlayer';
 import { getUser, setUser } from '../../src/services/Storage';
 
 export default function MusicAuthScreen() {
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(false);
+
+  const finish = (appleMusicAuthorized: boolean) => {
+    const existing = getUser();
+    setUser({
+      name: existing?.name,
+      appleMusicAuthorized,
+      createdAt: existing?.createdAt ?? new Date().toISOString(),
+    });
+    router.replace('/(main)');
+  };
 
   const handleConnect = async () => {
     if (loading) return;
@@ -15,14 +28,7 @@ export default function MusicAuthScreen() {
     try {
       const result = await musicKitPlayer.authorize();
       if (result.status === 'authorized') {
-        const existing = getUser();
-        setUser({
-          name: existing?.name,
-          defaultVibe: existing?.defaultVibe,
-          appleMusicAuthorized: true,
-          createdAt: existing?.createdAt ?? new Date().toISOString(),
-        });
-        router.push('/(onboarding)/cleo-setup');
+        finish(true);
       } else {
         Alert.alert(
           'Apple Music Required',
@@ -36,165 +42,104 @@ export default function MusicAuthScreen() {
     }
   };
 
-  const handleSkip = () => {
-    const existing = getUser();
-    setUser({
-      name: existing?.name,
-      defaultVibe: existing?.defaultVibe,
-      appleMusicAuthorized: false,
-      createdAt: existing?.createdAt ?? new Date().toISOString(),
-    });
-    router.push('/(onboarding)/cleo-setup');
-  };
+  const handleSkip = () => finish(false);
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
-        <Text style={styles.sectionLabel}>SIGNAL SOURCE</Text>
-        <View style={styles.accentLine} />
+    <BroadcastBackdrop>
+      <View style={[
+        styles.root,
+        { paddingTop: insets.top + Space.s32, paddingBottom: insets.bottom + Space.s22 },
+      ]}>
+        <View style={styles.content}>
+          <Text style={styles.kicker}>SIGNAL SOURCE · 05 / 05</Text>
 
-        <Text style={styles.title}>Connect Your{'\n'}Library</Text>
-        <Text style={styles.description}>
-          ONAY plays music from your Apple Music library. Connect your account so she can access your playlists and start hosting your sessions.
-        </Text>
+          {/* Spinning vinyl above the headline — quiet brand moment */}
+          <View style={styles.vinylWrap}>
+            <SpinningRecord size={120} tonearm={false} period={4200} />
+          </View>
 
-        <View style={styles.featureList}>
-          <View style={styles.featureRow}>
-            <Ionicons name="musical-notes-outline" size={18} color={Colors.accent} />
-            <Text style={styles.featureText}>Access your playlists and library</Text>
-          </View>
-          <View style={styles.featureRow}>
-            <Ionicons name="mic-outline" size={18} color={Colors.accent} />
-            <Text style={styles.featureText}>ONAY hosts between your tracks</Text>
-          </View>
-          <View style={styles.featureRow}>
-            <Ionicons name="radio-outline" size={18} color={Colors.accent} />
-            <Text style={styles.featureText}>Every session feels like live radio</Text>
+          <Text style={styles.headline}>
+            Bring your{'\n'}
+            <Text style={styles.headlineAmber}>library.</Text>
+          </Text>
+
+          <View style={styles.linerWrap}>
+            <LinerNotes>
+              ONAY plays from your Apple Music. Connect so she can pull your playlists
+              and host between the tracks. We don&rsquo;t copy or keep any of it.
+            </LinerNotes>
           </View>
         </View>
-      </View>
 
-      <View style={styles.bottom}>
-        <Text style={styles.cleoVoice}>
-          I need access to your library to start hosting.
-        </Text>
-        <Pressable
-          style={({ pressed }) => [
-            styles.button,
-            loading && styles.buttonDisabled,
-            pressed && styles.pressed,
-          ]}
-          onPress={handleConnect}
-          disabled={loading}
-          accessibilityLabel="Connect Apple Music"
-          accessibilityRole="button"
-        >
-          <Ionicons name="musical-note" size={16} color={Colors.base.black} style={styles.buttonIcon} />
-          <Text style={styles.buttonText}>
-            {loading ? 'CONNECTING...' : 'CONNECT APPLE MUSIC'}
-          </Text>
-        </Pressable>
-        <Pressable onPress={handleSkip} style={styles.skipWrapper} hitSlop={8}>
-          <Text style={styles.skipText}>Skip for now</Text>
-        </Pressable>
+        <View style={styles.bottom}>
+          <StampButton
+            label={loading ? 'CONNECTING…' : 'CONNECT APPLE MUSIC'}
+            sub="ONE-TIME · APPLE HANDLES THE PERMISSIONS"
+            onPress={handleConnect}
+            disabled={loading}
+            kind="amber"
+            accessibilityHint="Opens Apple Music authorization"
+          />
+          <Pressable
+            onPress={handleSkip}
+            accessibilityRole="button"
+            accessibilityLabel="Skip for now"
+            hitSlop={10}
+            style={({ pressed }) => [styles.skip, pressed && { opacity: 0.5 }]}
+          >
+            <Text style={styles.skipText}>skip — I&rsquo;ll connect later</Text>
+          </Pressable>
+        </View>
       </View>
-    </SafeAreaView>
+    </BroadcastBackdrop>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
-    backgroundColor: Surface.base,
+    paddingHorizontal: Space.s20,
   },
   content: {
     flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: Spacing.lg,
   },
-  sectionLabel: {
-    fontFamily: Typography.mono.family,
+  kicker: {
+    fontFamily: Fonts.mono,
     fontSize: 10,
     letterSpacing: 3,
-    color: Colors.accent,
-    marginBottom: Spacing.sm,
+    color: AM.inkDim,
   },
-  accentLine: {
-    width: 40,
-    height: 2,
-    backgroundColor: Colors.accent,
-    marginBottom: Spacing.xl,
+  headline: {
+    marginTop: Space.s26,
+    fontFamily: Fonts.display,
+    fontSize: TypeScale.s42,
+    color: AM.ink,
+    letterSpacing: 0.8,
+    lineHeight: TypeScale.s42 * 0.95,
+    textAlign: 'center',
   },
-  title: {
-    fontFamily: Typography.display.family,
-    fontSize: 34,
-    color: TextColors.primary,
-    lineHeight: 42,
-    marginBottom: Spacing.md,
+  headlineAmber: {
+    color: AM.amber,
   },
-  description: {
-    fontFamily: Typography.body.family,
-    fontSize: 15,
-    color: TextColors.secondary,
-    lineHeight: 22,
-    marginBottom: Spacing.xl,
-  },
-  featureList: {
-    gap: Spacing.md,
-  },
-  featureRow: {
-    flexDirection: 'row',
+  vinylWrap: {
     alignItems: 'center',
-    gap: Spacing.md,
+    marginTop: Space.s30,
   },
-  featureText: {
-    fontFamily: Typography.body.family,
-    fontSize: 14,
-    color: TextColors.secondary,
+  linerWrap: {
+    marginTop: Space.s26,
   },
   bottom: {
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.xxl,
+    gap: Space.s14,
   },
-  cleoVoice: {
-    fontFamily: Typography.cleoVoice.family,
-    fontStyle: 'italic',
-    fontSize: 16,
-    color: Colors.accent,
-    textAlign: 'center',
-    marginBottom: Spacing.lg,
-  },
-  button: {
-    flexDirection: 'row',
+  skip: {
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.accent,
-    paddingVertical: Spacing.md,
-    gap: Spacing.sm,
-  },
-  buttonIcon: {
-    marginTop: 1,
-  },
-  buttonDisabled: {
-    opacity: 0.3,
-  },
-  buttonText: {
-    fontFamily: Typography.mono.family,
-    fontSize: 12,
-    color: Colors.base.black,
-    letterSpacing: 2,
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-  skipWrapper: {
-    marginTop: Spacing.md,
-    alignItems: 'center',
-    paddingVertical: Spacing.sm,
+    paddingVertical: Space.s10,
   },
   skipText: {
-    fontFamily: Typography.body.family,
-    fontSize: 14,
-    color: TextColors.secondary,
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s10,
+    letterSpacing: 2,
+    color: AM.inkDim,
+    textDecorationLine: 'underline',
   },
 });
