@@ -30,6 +30,7 @@ export interface CreateBroadcastRequest {
     id: string; title: string; artistName: string;
     albumTitle: string; duration: number; artworkUrl?: string;
     genreNames?: string[];
+    isrc?: string;
   }>;
 }
 
@@ -59,6 +60,7 @@ export function sanitizeTracksForBake(
     id: string; title: string; artistName: string;
     albumTitle?: string | null; duration?: number | null;
     artworkUrl?: string | null; genreNames?: string[] | null;
+    isrc?: string | null;
   }>,
 ): CreateBroadcastRequest['tracks'] {
   return input
@@ -79,6 +81,12 @@ export function sanitizeTracksForBake(
         : undefined,
       genreNames: t.genreNames
         ? t.genreNames.filter(g => g && g.length <= 100).slice(0, 10)
+        : undefined,
+      // ISRC is 12 chars: 2-letter country + 3-alphanumeric registrant + 7 digits
+      // (5-digit year-of-reference + designation). Reject anything that doesn't
+      // match the canonical shape so the server's Zod length check passes.
+      isrc: t.isrc && /^[A-Z]{2}[A-Z0-9]{3}\d{7}$/.test(t.isrc)
+        ? t.isrc
         : undefined,
     }));
 }

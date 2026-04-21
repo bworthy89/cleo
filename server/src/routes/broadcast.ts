@@ -2,23 +2,7 @@ import { Router, type Request, type RequestHandler, type Response } from 'expres
 import { z } from 'zod';
 import type { BroadcastOrchestrator } from '../services/broadcast/BroadcastOrchestrator';
 import type { BroadcastStore } from '../services/broadcast/BroadcastStore';
-
-const vibeSchema = z.enum([
-  'morning', 'focus', 'workout', 'feelGood',
-  'lateNight', 'melancholy', 'party',
-]);
-
-const lengthSchema = z.enum(['quick', 'standard', 'long']);
-
-const trackSchema = z.object({
-  id: z.string().min(1).max(80),
-  title: z.string().min(1).max(200),
-  artistName: z.string().min(1).max(200),
-  albumTitle: z.string().max(200),
-  duration: z.number().positive().max(7200),
-  artworkUrl: z.string().url().max(2048).optional(),
-  genreNames: z.array(z.string().max(100)).max(10).optional(),
-});
+import { vibeSchema, lengthSchema, trackSchema } from './shared-schemas';
 
 const contextSchema = z.object({
   timeOfDay: z.string(),
