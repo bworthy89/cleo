@@ -1,0 +1,29 @@
+{
+  "name": "lateNight quick — low-energy tracks dominate",
+  "vibe": "lateNight",
+  "length": "quick",
+  "broadcastId": "golden-late-night-quick",
+  "pool": [
+    { "id": "0", "title": "Hushed", "artistName": "A", "albumTitle": "X", "duration": 200,
+      "features": { "tempo": 78, "energy": 0.20, "valence": 0.30, "danceability": 0.40, "acousticness": 0.65, "loudness": 0.30, "instrumentalness": 0.25 } },
+    { "id": "1", "title": "Dim", "artistName": "B", "albumTitle": "Y", "duration": 200,
+      "features": { "tempo": 82, "energy": 0.25, "valence": 0.32, "danceability": 0.45, "acousticness": 0.55, "loudness": 0.35, "instrumentalness": 0.20 } },
+    { "id": "2", "title": "Lamp", "artistName": "C", "albumTitle": "Z", "duration": 200,
+      "features": { "tempo": 85, "energy": 0.35, "valence": 0.40, "danceability": 0.50, "acousticness": 0.45, "loudness": 0.40, "instrumentalness": 0.15 } },
+    { "id": "3", "title": "Groove", "artistName": "D", "albumTitle": "W", "duration": 200,
+      "features": { "tempo": 90, "energy": 0.50, "valence": 0.45, "danceability": 0.60, "acousticness": 0.30, "loudness": 0.50, "instrumentalness": 0.10 } },
+    { "id": "4", "title": "Piano", "artistName": "E", "albumTitle": "V", "duration": 200,
+      "features": { "tempo": 72, "energy": 0.18, "valence": 0.28, "danceability": 0.25, "acousticness": 0.80, "loudness": 0.25, "instrumentalness": 0.35 } },
+    { "id": "5", "title": "Banger", "artistName": "F", "albumTitle": "U", "duration": 200,
+      "features": { "tempo": 128, "energy": 0.85, "valence": 0.75, "danceability": 0.85, "acousticness": 0.10, "loudness": 0.80, "instrumentalness": 0.03 } },
+    { "id": "6", "title": "Anthem", "artistName": "G", "albumTitle": "T", "duration": 200,
+      "features": { "tempo": 130, "energy": 0.88, "valence": 0.82, "danceability": 0.80, "acousticness": 0.12, "loudness": 0.82, "instrumentalness": 0.02 } },
+    { "id": "7", "title": "Pulse", "artistName": "H", "albumTitle": "S", "duration": 200,
+      "features": { "tempo": 120, "energy": 0.75, "valence": 0.70, "danceability": 0.80, "acousticness": 0.15, "loudness": 0.75, "instrumentalness": 0.05 } },
+    { "id": "8", "title": "Fade", "artistName": "I", "albumTitle": "R", "duration": 200,
+      "features": { "tempo": 80, "energy": 0.28, "valence": 0.30, "danceability": 0.42, "acousticness": 0.50, "loudness": 0.35, "instrumentalness": 0.18 } },
+    { "id": "9", "title": "Rest", "artistName": "J", "albumTitle": "Q", "duration": 200,
+      "features": { "tempo": 75, "energy": 0.22, "valence": 0.26, "danceability": 0.30, "acousticness": 0.68, "loudness": 0.28, "instrumentalness": 0.28 } }
+  ],
+  "expectedOrder": ["1", "8", "2", "3", "0"]
+}
