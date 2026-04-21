@@ -8,9 +8,20 @@ import { BroadcastOrchestrator } from '@/services/broadcast/BroadcastOrchestrato
 import { BroadcastStore } from '@/services/broadcast/BroadcastStore';
 import { EnrichmentCache } from '@/services/enrichment/EnrichmentCache';
 import { BackgroundEnricher } from '@/services/enrichment/BackgroundEnricher';
+import { FeatureFetchChain } from '@/services/broadcast/FeatureFetchChain';
 import { makeMockLLM } from '../../__mocks__/llm';
 import { makeMockTTS } from '../../__mocks__/tts';
 import type { ManifestTrack } from '@/services/broadcast/types';
+
+// Pin to the LLM sequencer so the mocked SEQUENCER_RESPONSE is used.
+const ORIGINAL_SEQUENCER_MODE = process.env.SEQUENCER_MODE;
+beforeAll(() => { process.env.SEQUENCER_MODE = 'llm'; });
+afterAll(() => {
+  if (ORIGINAL_SEQUENCER_MODE === undefined) delete process.env.SEQUENCER_MODE;
+  else process.env.SEQUENCER_MODE = ORIGINAL_SEQUENCER_MODE;
+});
+
+const noopFetchChain = { fetchBatch: async () => new Map() } as unknown as FeatureFetchChain;
 
 const makeStorage = () => ({
   put: jest.fn(async (k: string) => `https://cdn/${k}`),
@@ -56,7 +67,7 @@ describe('broadcast router', () => {
     store = new BroadcastStore();
     orch = new BroadcastOrchestrator(
       makeMockLLM(SEQUENCER_RESPONSE), makeMockTTS(), makeStorage(),
-      store, enrichCache, enricher,
+      store, enrichCache, enricher, noopFetchChain,
     );
   });
 

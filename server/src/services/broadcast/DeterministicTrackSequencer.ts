@@ -2,6 +2,7 @@ import type { ManifestTrack, Vibe, BroadcastLength } from './types';
 import type { EnrichmentCache } from '../enrichment/EnrichmentCache';
 import type { FeatureFetchChain, FetchedFeatures } from './FeatureFetchChain';
 import type { AudioFeatures } from './audio-features';
+import type { ITrackSequencer } from './TrackSequencer';
 import { VIBE_CURVES } from './vibe-curves';
 import {
   weightedDistance,
@@ -46,7 +47,7 @@ interface ScoredTrack {
   score: number;
 }
 
-export class DeterministicTrackSequencer {
+export class DeterministicTrackSequencer implements ITrackSequencer {
   constructor(
     private readonly enrichmentCache: EnrichmentCache,
     private readonly fetchChain: Pick<FeatureFetchChain, 'fetchBatch'>,

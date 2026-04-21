@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { TrackSequencer } from '@/services/broadcast/TrackSequencer';
+import { LLMTrackSequencer } from '@/services/broadcast/TrackSequencer';
 import { SequenceCache } from '@/services/broadcast/SequenceCache';
 import { EnrichmentCache } from '@/services/enrichment/EnrichmentCache';
 import type { ManifestTrack } from '@/services/broadcast/types';
@@ -28,7 +28,7 @@ async function emptyEnrichmentCache(): Promise<EnrichmentCache> {
   return c;
 }
 
-describe('TrackSequencer.sequence', () => {
+describe('LLMTrackSequencer.sequence', () => {
   const pool = Array.from({ length: 10 }, (_, i) => track(String(i), `Artist${i}`));
   const ctx = { timeOfDay: '20:00', dayOfWeek: 'Thursday' };
 
@@ -36,15 +36,17 @@ describe('TrackSequencer.sequence', () => {
     const cache = new SequenceCache();
     const enrich = await emptyEnrichmentCache();
     const llm = mockLLM(['{"ordered":["0","1","2","3","4"]}']);
-    const seq = new TrackSequencer(llm, cache, enrich);
+    const seq = new LLMTrackSequencer(llm, cache, enrich);
 
     const first = await seq.sequence({
       pool, vibe: 'morning', length: 'quick', userContext: ctx,
+      broadcastId: "bid-test",
     });
     expect(first.source).toBe('llm');
 
     const second = await seq.sequence({
       pool, vibe: 'morning', length: 'quick', userContext: ctx,
+      broadcastId: "bid-test",
     });
     expect(second.source).toBe('cache');
     expect(second.orderedTracks.map(t => t.id)).toEqual(first.orderedTracks.map(t => t.id));
@@ -55,10 +57,11 @@ describe('TrackSequencer.sequence', () => {
     const cache = new SequenceCache();
     const enrich = await emptyEnrichmentCache();
     const llm = mockLLM(['{"ordered":["2","4","0","6","8"]}']);
-    const seq = new TrackSequencer(llm, cache, enrich);
+    const seq = new LLMTrackSequencer(llm, cache, enrich);
 
     const result = await seq.sequence({
       pool, vibe: 'morning', length: 'quick', userContext: ctx,
+      broadcastId: "bid-test",
     });
     expect(result.source).toBe('llm');
     expect(result.orderedTracks.map(t => t.id)).toEqual(['2', '4', '0', '6', '8']);
@@ -69,10 +72,11 @@ describe('TrackSequencer.sequence', () => {
     const cache = new SequenceCache();
     const enrich = await emptyEnrichmentCache();
     const llm = mockLLM(['not json', 'also not json']);
-    const seq = new TrackSequencer(llm, cache, enrich);
+    const seq = new LLMTrackSequencer(llm, cache, enrich);
 
     const result = await seq.sequence({
       pool, vibe: 'morning', length: 'quick', userContext: ctx,
+      broadcastId: "bid-test",
     });
     expect(result.source).toBe('fallback');
     expect(result.orderedTracks).toHaveLength(5);
@@ -86,10 +90,11 @@ describe('TrackSequencer.sequence', () => {
       '{"ordered":["99","88","77","66","55"]}', // all hallucinated
       '{"ordered":["0","1","2","3","4"]}',       // valid on retry
     ]);
-    const seq = new TrackSequencer(llm, cache, enrich);
+    const seq = new LLMTrackSequencer(llm, cache, enrich);
 
     const result = await seq.sequence({
       pool, vibe: 'morning', length: 'quick', userContext: ctx,
+      broadcastId: "bid-test",
     });
     expect(result.source).toBe('llm');
     expect(result.orderedTracks.map(t => t.id)).toEqual(['0', '1', '2', '3', '4']);
@@ -103,10 +108,11 @@ describe('TrackSequencer.sequence', () => {
       '{"ordered":["0","1","2"]}',              // too short
       '{"ordered":["0","1","2","3","4"]}',       // correct length
     ]);
-    const seq = new TrackSequencer(llm, cache, enrich);
+    const seq = new LLMTrackSequencer(llm, cache, enrich);
 
     const result = await seq.sequence({
       pool, vibe: 'morning', length: 'quick', userContext: ctx,
+      broadcastId: "bid-test",
     });
     expect(result.source).toBe('llm');
     expect(result.orderedTracks).toHaveLength(5);
@@ -118,10 +124,11 @@ describe('TrackSequencer.sequence', () => {
     const cache = new SequenceCache();
     const enrich = await emptyEnrichmentCache();
     const llm = mockLLM(['{"ordered":["0","1","2","3","4"]}']);
-    const seq = new TrackSequencer(llm, cache, enrich);
+    const seq = new LLMTrackSequencer(llm, cache, enrich);
 
     await seq.sequence({
       pool: largePool, vibe: 'morning', length: 'quick', userContext: ctx,
+      broadcastId: "bid-test",
     });
 
     const userPrompt = (llm.generate as jest.Mock).mock.calls[0][0].userPrompt as string;
@@ -134,10 +141,11 @@ describe('TrackSequencer.sequence', () => {
     const cache = new SequenceCache();
     const enrich = await emptyEnrichmentCache();
     const llm = mockLLM(['{"ordered":[]}']);
-    const seq = new TrackSequencer(llm, cache, enrich);
+    const seq = new LLMTrackSequencer(llm, cache, enrich);
 
     await expect(seq.sequence({
       pool: pool.slice(0, 3), vibe: 'morning', length: 'quick', userContext: ctx,
+      broadcastId: "bid-test",
     })).rejects.toThrow(/insufficient tracks/);
   });
 
@@ -145,10 +153,11 @@ describe('TrackSequencer.sequence', () => {
     const cache = new SequenceCache();
     const enrich = await emptyEnrichmentCache();
     const llm = mockLLM(['{"ordered":["0","1","2","3","4"]}']);
-    const seq = new TrackSequencer(llm, cache, enrich);
+    const seq = new LLMTrackSequencer(llm, cache, enrich);
 
     await seq.sequence({
       pool, vibe: 'lateNight', length: 'quick', userContext: ctx,
+      broadcastId: "bid-test",
     });
 
     const call = (llm.generate as jest.Mock).mock.calls[0][0];
@@ -165,10 +174,11 @@ describe('TrackSequencer.sequence', () => {
     const enrich = await emptyEnrichmentCache();
     // LLM duplicates track "0"
     const llm = mockLLM(['{"ordered":["0","0","1","2","3"]}']);
-    const seq = new TrackSequencer(llm, cache, enrich);
+    const seq = new LLMTrackSequencer(llm, cache, enrich);
 
     const result = await seq.sequence({
       pool, vibe: 'morning', length: 'quick', userContext: ctx,
+      broadcastId: "bid-test",
     });
     expect(result.source).toBe('llm');
     const ids = result.orderedTracks.map(t => t.id);
@@ -183,10 +193,11 @@ describe('TrackSequencer.sequence', () => {
       lastEnrichedAt: Date.now(), source: 'hybrid',
     });
     const llm = mockLLM(['{"ordered":["0","1","2","3","4"]}']);
-    const seq = new TrackSequencer(llm, cache, enrich);
+    const seq = new LLMTrackSequencer(llm, cache, enrich);
 
     await seq.sequence({
       pool, vibe: 'morning', length: 'quick', userContext: ctx,
+      broadcastId: "bid-test",
     });
 
     const call = (llm.generate as jest.Mock).mock.calls[0][0];
@@ -202,10 +213,11 @@ describe('TrackSequencer.sequence', () => {
       lastEnrichedAt: Date.now(), source: 'wikipedia',
     });
     const llm = mockLLM(['{"ordered":["0","1","2","3","4"]}']);
-    const seq = new TrackSequencer(llm, cache, enrich);
+    const seq = new LLMTrackSequencer(llm, cache, enrich);
 
     await seq.sequence({
       pool, vibe: 'morning', length: 'quick', userContext: ctx,
+      broadcastId: "bid-test",
     });
 
     const call = (llm.generate as jest.Mock).mock.calls[0][0];
@@ -223,11 +235,11 @@ describe('TrackSequencer.sequence', () => {
       const cache = new SequenceCache();
       const enrich = await emptyEnrichmentCache();
       const llm = mockLLM(['{"ordered":["2","4","0","6","8"]}']);
-      const seq = new TrackSequencer(llm, cache, enrich);
+      const seq = new LLMTrackSequencer(llm, cache, enrich);
 
-      await seq.sequence({ pool, vibe: 'lateNight', length: 'quick', userContext: ctx });
+      await seq.sequence({ pool, vibe: 'lateNight', length: 'quick', userContext: ctx, broadcastId: "bid-test" });
 
-      const line = logSpy.mock.calls.map(c => c.join(' ')).find(s => s.includes('[TrackSequencer]'));
+      const line = logSpy.mock.calls.map(c => c.join(' ')).find(s => s.includes('[LLMTrackSequencer]'));
       expect(line).toBeDefined();
       expect(line).toContain('source=llm');
       expect(line).toContain('vibe=lateNight');
@@ -241,13 +253,13 @@ describe('TrackSequencer.sequence', () => {
       const cache = new SequenceCache();
       const enrich = await emptyEnrichmentCache();
       const llm = mockLLM(['{"ordered":["0","1","2","3","4"]}']);
-      const seq = new TrackSequencer(llm, cache, enrich);
+      const seq = new LLMTrackSequencer(llm, cache, enrich);
 
-      await seq.sequence({ pool, vibe: 'morning', length: 'quick', userContext: ctx });
+      await seq.sequence({ pool, vibe: 'morning', length: 'quick', userContext: ctx, broadcastId: "bid-test" });
       const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
-      await seq.sequence({ pool, vibe: 'morning', length: 'quick', userContext: ctx });
+      await seq.sequence({ pool, vibe: 'morning', length: 'quick', userContext: ctx, broadcastId: "bid-test" });
 
-      const line = logSpy.mock.calls.map(c => c.join(' ')).find(s => s.includes('[TrackSequencer]'));
+      const line = logSpy.mock.calls.map(c => c.join(' ')).find(s => s.includes('[LLMTrackSequencer]'));
       expect(line).toContain('source=cache');
     });
 
@@ -257,17 +269,17 @@ describe('TrackSequencer.sequence', () => {
       const cache = new SequenceCache();
       const enrich = await emptyEnrichmentCache();
       const llm = mockLLM(['not json', 'still not json']);
-      const seq = new TrackSequencer(llm, cache, enrich);
+      const seq = new LLMTrackSequencer(llm, cache, enrich);
 
-      await seq.sequence({ pool, vibe: 'morning', length: 'quick', userContext: ctx });
+      await seq.sequence({ pool, vibe: 'morning', length: 'quick', userContext: ctx, broadcastId: "bid-test" });
 
-      const line = logSpy.mock.calls.map(c => c.join(' ')).find(s => s.includes('[TrackSequencer]'));
+      const line = logSpy.mock.calls.map(c => c.join(' ')).find(s => s.includes('[LLMTrackSequencer]'));
       expect(line).toContain('source=fallback');
     });
   });
 });
 
-describe('TrackSequencer featureSlots', () => {
+describe('LLMTrackSequencer featureSlots', () => {
   const ctx = { timeOfDay: 'night', dayOfWeek: 'Sat' };
 
   it('returns featureSlots from a valid LLM response', async () => {
@@ -278,9 +290,10 @@ describe('TrackSequencer featureSlots', () => {
     const pool = [1,2,3,4,5].map(n => ({
       id: String(n), title: `T${n}`, artistName: `A-${n}`, albumTitle: `al-${n}`, duration: 180,
     }));
-    const sequencer = new TrackSequencer(llm, new SequenceCache(), enrich);
+    const sequencer = new LLMTrackSequencer(llm, new SequenceCache(), enrich);
     const result = await sequencer.sequence({
       pool, vibe: 'lateNight', length: 'quick', userContext: ctx,
+      broadcastId: "bid-test",
     });
     expect(result.featureSlots).toEqual([2]);
   });
@@ -293,9 +306,10 @@ describe('TrackSequencer featureSlots', () => {
     const pool = [1,2,3,4,5].map(n => ({
       id: String(n), title: `T${n}`, artistName: `A-${n}`, albumTitle: `al-${n}`, duration: 180,
     }));
-    const sequencer = new TrackSequencer(llm, new SequenceCache(), enrich);
+    const sequencer = new LLMTrackSequencer(llm, new SequenceCache(), enrich);
     const result = await sequencer.sequence({
       pool, vibe: 'lateNight', length: 'quick', userContext: ctx,
+      broadcastId: "bid-test",
     });
     expect(result.featureSlots).toEqual([2]);
   });
@@ -308,9 +322,10 @@ describe('TrackSequencer featureSlots', () => {
     const pool = [1,2,3,4,5].map(n => ({
       id: String(n), title: `T${n}`, artistName: `A-${n}`, albumTitle: `al-${n}`, duration: 180,
     }));
-    const sequencer = new TrackSequencer(llm, new SequenceCache(), enrich);
+    const sequencer = new LLMTrackSequencer(llm, new SequenceCache(), enrich);
     const result = await sequencer.sequence({
       pool, vibe: 'lateNight', length: 'quick', userContext: ctx,
+      broadcastId: "bid-test",
     });
     // 5 tracks → valid range is 1..4; middle is 2
     expect(result.featureSlots.length).toBeGreaterThan(0);
@@ -324,9 +339,10 @@ describe('TrackSequencer featureSlots', () => {
     const pool = [1,2,3,4,5].map(n => ({
       id: String(n), title: `T${n}`, artistName: `A-${n}`, albumTitle: `al-${n}`, duration: 180,
     }));
-    const sequencer = new TrackSequencer(llm, new SequenceCache(), enrich);
+    const sequencer = new LLMTrackSequencer(llm, new SequenceCache(), enrich);
     const result = await sequencer.sequence({
       pool, vibe: 'lateNight', length: 'quick', userContext: ctx,
+      broadcastId: "bid-test",
     });
     // 5 tracks → ceil(5/4) = 2 max feature slots
     expect(result.featureSlots.length).toBeLessThanOrEqual(2);
