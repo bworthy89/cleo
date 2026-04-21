@@ -137,6 +137,19 @@ describe('broadcast storage', () => {
     clearPersistedBroadcast();
     expect(getPersistedBroadcast()).toBeUndefined();
   });
+
+  it('rejects and clears a record whose manifest is an array (not an object)', () => {
+    // Simulate corrupt data: arrays satisfy typeof===object but aren't
+    // a Manifest. The guard must reject them.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { setObject, StorageKeys } = require('../../src/services/Storage');
+    setObject(StorageKeys.CURRENT_BROADCAST, {
+      manifest: [],
+      trackCursor: -1,
+      updatedAt: Date.now(),
+    });
+    expect(getPersistedBroadcast()).toBeUndefined();
+  });
 });
 
 describe('broadcast history', () => {
