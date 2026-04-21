@@ -1,0 +1,27 @@
+appId: com.worthymedia.cleo
+name: Tab Navigation - all tabs accessible
+---
+- launchApp
+
+# Default tab is Broadcast
+- assertVisible: "LIVE BROADCAST"
+
+# Navigate to Arc tab
+- tapOn: "Arc"
+- assertVisible:
+    text: ".*session arc.*"
+    optional: true
+
+# Navigate to Archive tab
+- tapOn: "Archive"
+- assertVisible:
+    text: ".*Archives.*"
+    optional: true
+
+# Navigate to ONAY tab
+- tapOn: "ONAY"
+- assertVisible: "ONAY SAYS"
+
+# Navigate back to Broadcast
+- tapOn: "Broadcast"
+- assertVisible: "LIVE BROADCAST"

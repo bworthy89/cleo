@@ -1,0 +1,16 @@
+{
+  "id": "late-night-soul",
+  "title": "Late Night Soul",
+  "description": "Slow burners and velvet grooves for after the lights go down.",
+  "vibe": "lateNight",
+  "length": "quick",
+  "artworkUrl": "https://example.com/art/late-night-soul.jpg",
+  "curatorListenerName": "tonight's listener",
+  "tracks": [
+    { "id": "1001", "title": "Pyramids", "artistName": "Frank Ocean", "albumTitle": "Channel Orange", "duration": 600 },
+    { "id": "1002", "title": "Nikes", "artistName": "Frank Ocean", "albumTitle": "Blonde", "duration": 314 },
+    { "id": "1003", "title": "Redbone", "artistName": "Childish Gambino", "albumTitle": "Awaken, My Love!", "duration": 306 },
+    { "id": "1004", "title": "Passionfruit", "artistName": "Drake", "albumTitle": "More Life", "duration": 298 },
+    { "id": "1005", "title": "Cranes in the Sky", "artistName": "Solange", "albumTitle": "A Seat at the Table", "duration": 251 }
+  ]
+}

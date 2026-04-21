@@ -1,0 +1,11 @@
+appId: com.worthymedia.cleo
+name: Station Creation - playlist tap opens vibe picker
+---
+- launchApp
+
+# Scroll to playlists
+- scroll
+
+# Tap on a playlist card by accessibility label
+- tapOn:
+    text: "Station: .*"

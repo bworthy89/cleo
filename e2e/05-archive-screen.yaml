@@ -1,0 +1,15 @@
+appId: com.worthymedia.cleo
+name: Archive Screen - renders with filter tabs
+---
+- launchApp
+- tapOn: "Archive"
+
+# Filter tabs should be visible
+- assertVisible: "Latest"
+- assertVisible: "By Mood"
+- assertVisible: "By Date"
+
+# Tab switching
+- tapOn: "By Mood"
+- tapOn: "By Date"
+- tapOn: "Latest"
