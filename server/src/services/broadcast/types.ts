@@ -82,6 +82,13 @@ export interface BroadcastCreateRequest {
     listenerName?: string;
   };
   tracks: ManifestTrack[];
+  /** When true, the orchestrator skips the DeterministicTrackSequencer's
+   *  score-and-place pass and uses `tracks` in the order the caller supplied.
+   *  Intended for Ask ONAY flows where Groq already curated the sequence —
+   *  re-ordering server-side would disrupt the LLM's deliberate progression.
+   *  Deep-dive slot nomination still runs; feature fetch still runs for
+   *  commentary enrichment. */
+  preserveOrder?: boolean;
 }
 
 export interface BroadcastCreateResponse {
