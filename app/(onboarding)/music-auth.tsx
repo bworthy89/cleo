@@ -54,16 +54,16 @@ export default function MusicAuthScreen() {
           <Text style={styles.kicker}>SIGNAL SOURCE · 05 / 05</Text>
 
           {/* Spinning vinyl above the headline — quiet brand moment */}
-          <View style={{ alignItems: 'center', marginTop: Space.s30 }}>
+          <View style={styles.vinylWrap}>
             <SpinningRecord size={120} tonearm={false} period={4200} />
           </View>
 
           <Text style={styles.headline}>
             Bring your{'\n'}
-            <Text style={{ color: AM.amber }}>library.</Text>
+            <Text style={styles.headlineAmber}>library.</Text>
           </Text>
 
-          <View style={{ marginTop: Space.s26 }}>
+          <View style={styles.linerWrap}>
             <LinerNotes>
               ONAY plays from your Apple Music. Connect so she can pull your playlists
               and host between the tracks. We don&rsquo;t copy or keep any of it.
@@ -117,6 +117,16 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     lineHeight: TypeScale.s42 * 0.95,
     textAlign: 'center',
+  },
+  headlineAmber: {
+    color: AM.amber,
+  },
+  vinylWrap: {
+    alignItems: 'center',
+    marginTop: Space.s30,
+  },
+  linerWrap: {
+    marginTop: Space.s26,
   },
   bottom: {
     gap: Space.s14,

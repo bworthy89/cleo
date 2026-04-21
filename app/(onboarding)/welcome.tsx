@@ -393,19 +393,29 @@ function FrameAsk() {
 
   useEffect(() => {
     if (!appActive) return;
-    Animated.timing(type, { toValue: 1, duration: 2200, easing: Easing.linear, useNativeDriver: false }).start();
-    Animated.loop(
+    const typeAnim = Animated.timing(type, { toValue: 1, duration: 2200, easing: Easing.linear, useNativeDriver: false });
+    typeAnim.start();
+    const caretLoop = Animated.loop(
       Animated.sequence([
         Animated.timing(caretOp, { toValue: 0, duration: 400, useNativeDriver: true }),
         Animated.timing(caretOp, { toValue: 1, duration: 400, useNativeDriver: true }),
       ]),
-    ).start();
+    );
+    caretLoop.start();
+    let cardAnim: Animated.CompositeAnimation | null = null;
     const t1 = setTimeout(() => setPhase('thinking'), 2400);
     const t2 = setTimeout(() => {
       setPhase('result');
-      Animated.timing(cardOpacity, { toValue: 1, duration: 440, useNativeDriver: true }).start();
+      cardAnim = Animated.timing(cardOpacity, { toValue: 1, duration: 440, useNativeDriver: true });
+      cardAnim.start();
     }, 4000);
-    return () => { clearTimeout(t1); clearTimeout(t2); };
+    return () => {
+      caretLoop.stop();
+      typeAnim.stop();
+      cardAnim?.stop();
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
   }, [appActive, type, caretOp, cardOpacity]);
 
   const typeWidth = type.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] });

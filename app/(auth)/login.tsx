@@ -107,13 +107,13 @@ export default function LoginScreen() {
         >
           {/* Sleeve trio — skewed behind the masthead */}
           <View style={styles.sleeveTrio} pointerEvents="none">
-            <View style={[styles.sleeveBack, { transform: [{ translateX: -48 }, { rotate: '-9deg' }], opacity: 0.55 }]}>
+            <View style={styles.sleeveBackLeft}>
               <SleeveArt title="After Hours" artist="Ben Webster" size={104} variant={0} />
             </View>
-            <View style={[styles.sleeveFront]}>
+            <View style={styles.sleeveFront}>
               <SleeveArt title="Members Only" artist="—" size={132} variant={1} />
             </View>
-            <View style={[styles.sleeveBack, { transform: [{ translateX: 48 }, { rotate: '8deg' }], opacity: 0.55 }]}>
+            <View style={styles.sleeveBackRight}>
               <SleeveArt title="Late Broadcast" artist="Vol. III" size={104} variant={2} />
             </View>
           </View>
@@ -122,7 +122,7 @@ export default function LoginScreen() {
           <View style={styles.masthead}>
             <Text style={styles.kicker}>MEMBER ENTRANCE · EST. 2026</Text>
             <Text style={styles.wordmark}>ONAY</Text>
-            <Text style={styles.tagline}>The set&rsquo;s already spinning. Come in.</Text>
+            <Text style={styles.tagline}>The set’s already spinning. Come in.</Text>
           </View>
 
           {/* Form column */}
@@ -152,6 +152,7 @@ export default function LoginScreen() {
                 <Pressable
                   onPress={() => setMode('email')}
                   accessibilityRole="button"
+                  accessibilityLabel="Sign in with email"
                   hitSlop={8}
                   style={({ pressed }) => [styles.emailLink, pressed && { opacity: 0.6 }]}
                 >
@@ -180,7 +181,12 @@ export default function LoginScreen() {
                   onSubmitEditing={handleEmailAuth}
                   trailing={
                     !isSignUp ? (
-                      <Pressable onPress={handleForgotPassword} hitSlop={8}>
+                      <Pressable
+                        onPress={handleForgotPassword}
+                        accessibilityRole="button"
+                        accessibilityLabel="Forgot password"
+                        hitSlop={8}
+                      >
                         <Text style={styles.forgotText}>FORGOT?</Text>
                       </Pressable>
                     ) : null
@@ -215,6 +221,8 @@ export default function LoginScreen() {
 
                 <Pressable
                   onPress={() => setMode('social')}
+                  accessibilityRole="button"
+                  accessibilityLabel="Back to Apple and Google sign-in"
                   hitSlop={8}
                   style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.6 }]}
                 >
@@ -250,7 +258,7 @@ export default function LoginScreen() {
           <SpinningRecord size={160} />
           <View style={styles.authTextBlock}>
             <Text style={styles.authLabel}>CHECKING YOUR MEMBERSHIP</Text>
-            <Text style={styles.authVoice}>&ldquo;the librarian&rsquo;s on it&hellip;&rdquo;</Text>
+            <Text style={styles.authVoice}>“the librarian’s on it…”</Text>
           </View>
         </View>
       )}
@@ -364,8 +372,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     position: 'relative',
   },
-  sleeveBack: {
+  sleeveBackLeft: {
     position: 'absolute',
+    transform: [{ translateX: -48 }, { rotate: '-9deg' }],
+    opacity: 0.55,
+  },
+  sleeveBackRight: {
+    position: 'absolute',
+    transform: [{ translateX: 48 }, { rotate: '8deg' }],
+    opacity: 0.55,
   },
   sleeveFront: {
     zIndex: 2,

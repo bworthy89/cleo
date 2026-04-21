@@ -1,5 +1,6 @@
 import type { LLMRequest, LLMResponse } from '../../providers/llm/types';
 import type { TTSRequest, TTSResponse } from '../../providers/tts/types';
+import { applyPronunciations } from '../../providers/tts/pronunciations';
 import type { ObjectStorage } from '../storage/ObjectStorage';
 import type { PromptSet } from './SegmentScriptBuilder';
 
@@ -20,25 +21,33 @@ const DEFAULT_TTS_PARAMS = {
 /**
  * Preprocess LLM-generated script text before handing to TTS.
  *
- * Runs in order:
- * 1. (feat. X) / (ft. X) parenthesized features → "featuring X" (drops parens
- *    so prose flows naturally through TTS).
- * 2. Bare "feat." / "ft." outside parens → "featuring".
- * 3. ONAY host name → "Oh-nay" (case-insensitive, word-bounded so "BALONAY"
- *    and "ONAYS" aren't touched).
- *
- * Note: the provider-side pronunciation dictionary (Cartesia's
- * `pronunciation_dict_id`, ElevenLabs' `pronunciation_dictionary_locators`)
- * handles artist/word phonetic overrides; this function handles the
- * structural patterns that dicts can't express cleanly.
+ * Artist-name pronunciations (Big K.R.I.T. → "Big Krit", Aminé → "Ahmeenay",
+ * …) are applied locally from a shared dictionary (ported from Cartesia's
+ * server-side dict) so F5-TTS — which has no dict API — matches the behavior
+ * of the paid providers. Runs before initialism collapse so multi-period
+ * entries like "Big K.R.I.T." match before the generic regex strips the dots.
  */
 export function preprocessForTTS(text: string): string {
   let out = text;
+  // Apply artist pronunciations first (before initialism collapse, which
+  // would otherwise mangle multi-period entries into unmatchable forms).
+  out = applyPronunciations(out);
   // Normalize curly / typographic apostrophes to straight ASCII. Cartesia's
   // Sonic 3 mis-reads contractions when the apostrophe is U+2019 — "can't"
   // came out as "cont" in testing. Straight ASCII routes through the
   // contraction phoneme path cleanly.
   out = out.replace(/[\u2018\u2019\u02BC\u2032]/g, "'");
+  // Curly double quotes → straight ASCII. F5-TTS's character-level tokenizer
+  // mishandles U+201C/U+201D consistently; straight quotes get dropped
+  // gracefully.
+  out = out.replace(/[\u201C\u201D\u2033]/g, '"');
+  // Strip markdown-style emphasis wrappers. Gemini occasionally surfaces
+  // *word* or **word** as prosody hints, but F5-TTS reads them literally —
+  // either pronouncing the asterisks or distorting the alignment model,
+  // which manifests as exaggerated / theatrical delivery.
+  out = out.replace(/\*+([^*\n]+?)\*+/g, '$1');
+  // Stray single asterisks (mismatched) — drop them entirely.
+  out = out.replace(/\*/g, '');
   // Em-dashes (U+2014) and en-dashes (U+2013) used for pacing in prose
   // get interpreted by TTS models as strong structural breaks — louder
   // pauses than commas, often longer than intended. The LLM writes with
@@ -57,8 +66,12 @@ export function preprocessForTTS(text: string): string {
   out = out.replace(/\(\s*(?:feat|ft)\.?\s+([^)]+?)\s*\)/gi, 'featuring $1');
   // Bare "feat." / "ft." outside parens — turn into "featuring"
   out = out.replace(/\b(?:feat|ft)\./gi, 'featuring');
-  // Host name phonetic
-  out = out.replace(/\bONAY\b/gi, 'Oh-nay');
+  // Host name phonetic. F5-TTS reads hyphens in phonetic substitutions as
+  // sharp syllable breaks that distort prosody (verified via A/B probes
+  // 2026-04-20), so we concatenate rather than hyphenate. Cartesia/ElevenLabs
+  // get the concatenated form too; their own pronunciation dicts were
+  // bypassed anyway because we pre-substitute.
+  out = out.replace(/\bONAY\b/gi, 'Ohnay');
   return out;
 }
 

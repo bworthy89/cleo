@@ -1,5 +1,7 @@
 # ONAY Playlist Generation — Implementation Plan
 
+> **⚠ SUPERSEDED — historical reference only.** The live-generation engines this plan targets (`QueueManager`, `QueuePlanner`, `RulesEngine`, `upgradeQueueInBackground`, `skipAIUpgrade`) were deleted in the 2026-04-12 pre-baked-broadcast pivot. Task 0's diagnostic logging is unimplementable today. Tasks 1–9 (Ask ONAY screen, `PlaylistCurator`, `/curate-playlist` route) landed and remain live under the new architecture. Do **not** reintroduce the retired APIs. For current design, see `docs/superpowers/specs/2026-04-12-pre-baked-broadcast-design.md` and the plan-1..4 docs.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Enable ONAY to curate and create Apple Music playlists via a conversational chat interface and periodic home screen suggestions.

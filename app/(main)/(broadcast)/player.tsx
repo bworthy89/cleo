@@ -85,13 +85,15 @@ export default function BroadcastPlayerScreen() {
 
   const [hostVolume, setHostVolume] = useState<number>(() => {
     const saved = storage.getString(StorageKeys.HOST_VOLUME_MIX);
-    return saved ? parseFloat(saved) : 0.7;
+    const parsed = saved ? parseFloat(saved) : NaN;
+    return Number.isFinite(parsed) ? Math.min(Math.max(parsed, 0), 1) : 0.7;
   });
   useEffect(() => { setTTSVolume(hostVolume); }, [hostVolume]);
 
   const onChangeVolume = useCallback((v: number) => {
-    setHostVolume(v);
-    storage.set(StorageKeys.HOST_VOLUME_MIX, v.toString());
+    const clamped = Number.isFinite(v) ? Math.min(Math.max(v, 0), 1) : 0.7;
+    setHostVolume(clamped);
+    storage.set(StorageKeys.HOST_VOLUME_MIX, clamped.toString());
   }, []);
 
   const warming = status.state === 'loading';
@@ -102,9 +104,10 @@ export default function BroadcastPlayerScreen() {
   const track = status.currentTrack;
   const trackIndex  = Math.max(status.currentTrackIndex, 0) + 1;
   const totalTracks = Math.max(status.totalTracks, 1);
+  // Broadcast-level monotonic progress (per design: journey progress, not
+  // per-track elapsed). Seconds labels intentionally omitted below — the
+  // status surface exposes no per-track position.
   const progress    = Math.min(Math.max(status.progress, 0), 1);
-  const position    = progress * (track?.duration ?? 0);
-  const duration    = track?.duration ?? 0;
 
   const onPause = () => {
     Haptics.selectionAsync().catch(() => {});
@@ -200,12 +203,8 @@ export default function BroadcastPlayerScreen() {
           )}
         </View>
 
-        {/* Progress */}
+        {/* Progress — broadcast-level journey bar, not per-track elapsed */}
         <View style={styles.progressBlock}>
-          <View style={styles.progressRow}>
-            <Text style={styles.progressMono}>{formatTime(position)}</Text>
-            <Text style={styles.progressMono}>{formatTime(duration)}</Text>
-          </View>
           <View style={styles.progressRail}>
             <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
             <View style={[styles.progressTick, { left: `${progress * 100}%` }]} />
@@ -282,6 +281,7 @@ export default function BroadcastPlayerScreen() {
               minimumTrackTintColor="transparent"
               maximumTrackTintColor="transparent"
               thumbTintColor="transparent"
+              accessibilityRole="adjustable"
               accessibilityLabel="ONAY host volume"
             />
           </View>
@@ -438,17 +438,6 @@ const styles = StyleSheet.create({
 
   progressBlock: {
     marginTop: Space.s22,
-  },
-  progressRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: Space.s8,
-  },
-  progressMono: {
-    fontFamily: Fonts.mono,
-    fontSize: TypeScale.s9,
-    letterSpacing: 1.5,
-    color: AM.inkDim,
   },
   progressRail: {
     position: 'relative',
