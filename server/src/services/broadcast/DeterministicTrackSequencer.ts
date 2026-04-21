@@ -22,6 +22,8 @@ const K_FOR_LENGTH: Record<BroadcastLength, number> = {
 
 const POOL_CAP = 40;
 
+const POOR_FIT_THRESHOLD = 0.7;
+
 // Types declared locally (not exported as the shared SequenceRequest/SequenceResult)
 // so they don't collide with the types exported from TrackSequencer.ts (which still
 // carries the 'cache' | 'llm' | 'fallback' source union). TypeScript's structural
@@ -97,8 +99,22 @@ export class DeterministicTrackSequencer implements ITrackSequencer {
       if (removeIdx >= 0) remaining.splice(removeIdx, 1);
     }
 
+    // Mean weighted distance of selected tracks (pure vibe fit — no adjacency penalty).
+    let totalDistance = 0;
+    for (let i = 0; i < result.length; i++) {
+      const p = result.length === 1 ? 0 : i / (result.length - 1);
+      const target = interpolateKeyframes(curve.keyframes, p);
+      const features = featureMap.get(result[i].id)!.features;
+      totalDistance += weightedDistance(features, target, curve.weights);
+    }
+    const meanDistance = totalDistance / result.length;
+
+    if (meanDistance > POOR_FIT_THRESHOLD) {
+      console.warn(`[Sequencer] poor vibe fit (mean distance ${meanDistance.toFixed(2)})`);
+    }
+
     const featureSlots = nominateDeepDives(result, this.enrichmentCache);
-    this.logResult(req, result, stats);
+    this.logResult(req, result, stats, meanDistance);
 
     return {
       orderedTracks: result,
@@ -123,12 +139,14 @@ export class DeterministicTrackSequencer implements ITrackSequencer {
     req: SequenceRequest,
     result: ManifestTrack[],
     stats: { reccobeats: number; synthesized: number; defaults: number },
+    meanDistance: number,
   ): void {
     const firstId = result[0]?.id ?? '';
     const lastId = result[result.length - 1]?.id ?? '';
     console.log(
       `[Sequencer] source=deterministic vibe=${req.vibe} N=${result.length} poolSize=${req.pool.length} ` +
-      `firstId=${firstId} lastId=${lastId} features: reccobeats=${stats.reccobeats} synthesized=${stats.synthesized} defaults=${stats.defaults}`
+      `firstId=${firstId} lastId=${lastId} meanDistance=${meanDistance.toFixed(2)} ` +
+      `features: reccobeats=${stats.reccobeats} synthesized=${stats.synthesized} defaults=${stats.defaults}`
     );
   }
 }
