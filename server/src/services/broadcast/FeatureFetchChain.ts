@@ -27,20 +27,31 @@ interface Deps {
 export class FeatureFetchChain {
   constructor(private deps: Deps) {}
 
-  /** Fetch features for a single track, trying each tier in order. */
+  /** Fetch features for a single track, trying each tier in order. Each
+   *  external dep call is wrapped so an unexpected throw falls cleanly to
+   *  the next tier instead of aborting the whole chain. */
   async fetchOne(track: ManifestTrack): Promise<FetchedFeatures> {
     // Tier 1: ReccoBeats (ISRC only)
     if (track.isrc) {
-      const hit = await this.deps.recco.fetch([track.isrc]);
-      const f = hit.get(track.isrc);
-      if (f) return { features: f, source: 'reccobeats', partial: false };
+      try {
+        const hit = await this.deps.recco.fetch([track.isrc]);
+        const f = hit.get(track.isrc);
+        if (f) return { features: f, source: 'reccobeats', partial: false };
+      } catch (err) {
+        console.warn(`[FeatureFetchChain] tier-1 recco threw for ${track.isrc}: ${err}`);
+      }
     }
 
     // Tier 2: Deezer partial (ISRC only) + synth
     if (track.isrc) {
-      const deezer = await this.deps.deezer.fetch(track.isrc);
+      let deezer: Awaited<ReturnType<DeezerFeaturesFetcher['fetch']>> = null;
+      try {
+        deezer = await this.deps.deezer.fetch(track.isrc);
+      } catch (err) {
+        console.warn(`[FeatureFetchChain] tier-2 deezer threw for ${track.isrc}: ${err}`);
+      }
       if (deezer) {
-        const tags = await this.deps.lastFmTags.get(track.title, track.artistName);
+        const tags = await this.safeLastFmTags(track);
         const features = synthesizeFeatures({
           partialFeatures: deezer,
           lastFmTags: tags,
@@ -51,7 +62,7 @@ export class FeatureFetchChain {
     }
 
     // Tier 3: Last.fm + genre synth
-    const tags = await this.deps.lastFmTags.get(track.title, track.artistName);
+    const tags = await this.safeLastFmTags(track);
     if (tags.length > 0) {
       const features = synthesizeFeatures({
         lastFmTags: tags,
@@ -71,12 +82,28 @@ export class FeatureFetchChain {
     return { features: { ...NEUTRAL_FEATURES }, source: 'defaults', partial: false };
   }
 
+  /** Wrap `lastFmTags.get` so a throw falls through to an empty tag list
+   *  (natural no-op for downstream synth) instead of aborting the tier. */
+  private async safeLastFmTags(track: ManifestTrack): Promise<string[]> {
+    try {
+      return await this.deps.lastFmTags.get(track.title, track.artistName);
+    } catch (err) {
+      console.warn(`[FeatureFetchChain] lastFmTags threw for "${track.title}" by ${track.artistName}: ${err}`);
+      return [];
+    }
+  }
+
   /** Batch version — groups ISRCs for ReccoBeats to cut HTTP overhead. */
   async fetchBatch(tracks: ManifestTrack[]): Promise<Map<string, FetchedFeatures>> {
     const withIsrc = tracks.filter(t => !!t.isrc);
-    const reccoHits = withIsrc.length > 0
-      ? await this.deps.recco.fetch(withIsrc.map(t => t.isrc!))
-      : new Map<string, AudioFeatures>();
+    let reccoHits: Map<string, AudioFeatures> = new Map();
+    if (withIsrc.length > 0) {
+      try {
+        reccoHits = await this.deps.recco.fetch(withIsrc.map(t => t.isrc!));
+      } catch (err) {
+        console.warn(`[FeatureFetchChain] batch recco threw for ${withIsrc.length} tracks: ${err}`);
+      }
+    }
     const result = new Map<string, FetchedFeatures>();
     for (const t of tracks) {
       if (t.isrc && reccoHits.has(t.isrc)) {

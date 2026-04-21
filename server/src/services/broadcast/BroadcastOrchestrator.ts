@@ -69,8 +69,17 @@ export class BroadcastOrchestrator {
    * Test-only helper that constructs an orchestrator with no-op
    * dependencies. Lets tests inspect wiring (e.g. `sequencerMode`) without
    * pulling in real LLM / TTS / storage / feature-fetch backends.
+   *
+   * Pass `overrides` to substitute specific internals after construction.
+   * This is the only authorized site for mutating the otherwise-readonly
+   * sequencer/generator/backgroundEnricher fields; tests should not reach
+   * into the class themselves.
    */
-  static makeWithDefaults(): BroadcastOrchestrator {
+  static makeWithDefaults(overrides: {
+    sequencer?: ITrackSequencer;
+    generator?: Pick<SegmentGenerator, 'generateVariants'>;
+    backgroundEnricher?: Pick<BackgroundEnricher, 'drainNow'>;
+  } = {}): BroadcastOrchestrator {
     const noopLLM: LLMCaller = {
       generate: async () => ({ text: '' }),
     };
@@ -82,11 +91,22 @@ export class BroadcastOrchestrator {
     };
     const store = new BroadcastStore();
     const cache = new EnrichmentCache('/tmp/noop-enrich.json');
-    const enricher = { drainNow: async () => {} } as unknown as BackgroundEnricher;
+    const enricher = overrides.backgroundEnricher
+      ? (overrides.backgroundEnricher as unknown as BackgroundEnricher)
+      : ({ drainNow: async () => {} } as unknown as BackgroundEnricher);
     const fetchChain = { fetchBatch: async () => new Map() } as unknown as FeatureFetchChain;
-    return new BroadcastOrchestrator(
+    const orch = new BroadcastOrchestrator(
       noopLLM, noopTTS, noopStorage, store, cache, enricher, fetchChain,
     );
+    // Private-field overrides live here (one authorized site) rather than
+    // in each test. Go through `unknown` to bypass TS's private-field check.
+    if (overrides.sequencer) {
+      (orch as unknown as { sequencer: ITrackSequencer }).sequencer = overrides.sequencer;
+    }
+    if (overrides.generator) {
+      (orch as unknown as { generator: Pick<SegmentGenerator, 'generateVariants'> }).generator = overrides.generator;
+    }
+    return orch;
   }
 
   async create(

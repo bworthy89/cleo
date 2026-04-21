@@ -144,6 +144,10 @@ export interface CatalogSearchResult {
    *  for tracks with no rating metadata. Callers can prefer explicit when
    *  both variants of a song exist in search results. */
   contentRating?: 'explicit' | 'clean';
+  /** Apple Music ISRC when the native bridge can surface it. Carried through
+   *  the Ask ONAY curator flow so featured-broadcast bakes can hit ReccoBeats
+   *  (Tier 1 feature fetch) instead of degrading to Deezer+synth. */
+  isrc?: string;
 }
 
 export async function searchCatalog(

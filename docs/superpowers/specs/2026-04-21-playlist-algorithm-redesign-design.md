@@ -194,7 +194,7 @@ Initial values hand-authored from the existing prose in `vibe-arcs.ts`; curves a
 
 ## Scoring algorithm
 
-```
+```text
 function sequence(pool, vibe, length, broadcastId):
   N = LENGTH_TO_N[length]
   if pool.length < N: throw 'insufficient tracks'
@@ -321,7 +321,7 @@ Every track ends with a complete `AudioFeatures` vector. Tiers attempted in orde
 
 Emitted per bake (after sequencing completes):
 
-```
+```text
 [Sequencer] source=deterministic vibe=lateNight N=5 poolSize=20
   features: reccobeats=15 synthesized=4 defaults=1
   meanDistance=0.42 topScoreDistance=0.28 lastScoreDistance=0.61
@@ -329,12 +329,14 @@ Emitted per bake (after sequencing completes):
 ```
 
 Pool-vibe-mismatch warning (separate line, only when triggered):
-```
+
+```text
 [Sequencer] poor vibe fit (mean distance 0.74)
 ```
 
 Feature fetch tier breakdown per enrichment drain:
-```
+
+```text
 [BackgroundEnricher] features tiers: reccobeats=38 deezer=2 lastfm=0 defaults=0 (40 tracks)
 ```
 

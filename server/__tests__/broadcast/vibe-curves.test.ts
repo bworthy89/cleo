@@ -1,18 +1,13 @@
 // server/__tests__/broadcast/vibe-curves.test.ts
 import { VIBE_CURVES } from '../../src/services/broadcast/vibe-curves';
-import type { Vibe } from '../../src/services/broadcast/types';
-
-const ALL_VIBES: Vibe[] = [
-  'morning', 'focus', 'workout', 'feelGood',
-  'lateNight', 'melancholy', 'party',
-];
+import { VIBE_LIST } from '../../src/services/broadcast/types';
 
 describe('VIBE_CURVES', () => {
-  it.each(ALL_VIBES)('has exactly 4 keyframes for %s', (vibe) => {
+  it.each(VIBE_LIST)('has exactly 4 keyframes for %s', (vibe) => {
     expect(VIBE_CURVES[vibe].keyframes).toHaveLength(4);
   });
 
-  it.each(ALL_VIBES)('has canonical positions 0.0 / 0.33 / 0.67 / 1.0 for %s', (vibe) => {
+  it.each(VIBE_LIST)('has canonical positions 0.0 / 0.33 / 0.67 / 1.0 for %s', (vibe) => {
     const positions = VIBE_CURVES[vibe].keyframes.map(k => k.position);
     expect(positions[0]).toBe(0.0);
     expect(positions[1]).toBeCloseTo(0.33, 2);
@@ -20,7 +15,7 @@ describe('VIBE_CURVES', () => {
     expect(positions[3]).toBe(1.0);
   });
 
-  it.each(ALL_VIBES)('has weights summing to approximately 1 for %s', (vibe) => {
+  it.each(VIBE_LIST)('has weights summing to approximately 1 for %s', (vibe) => {
     const w = VIBE_CURVES[vibe].weights;
     const sum = w.tempo + w.energy + w.valence + w.danceability
               + w.acousticness + w.loudness + w.instrumentalness;

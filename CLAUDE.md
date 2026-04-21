@@ -360,8 +360,10 @@ BroadcastOrchestrator.waitForCompletion(id) — awaits the inFlight promise (use
 - No LLM involvement in ordering. Sequencer output always valid — fallback
   ladder guarantees every track has a complete feature vector; no `pool.slice`
   silent fallback.
-- `SequenceCache` is deleted; sequencing is ~microseconds so caching is
-  incompatible with per-bake seeded variation anyway.
+- `SequenceCache` is retained only on the LLM path (`SEQUENCER_MODE=llm`); the
+  deterministic path skips it because sequencing is ~microseconds and caching
+  is incompatible with per-bake seeded variation anyway. Scheduled for deletion
+  together with `LLMTrackSequencer` after the 2-week rollout soak.
 - `nominateDeepDives` ranks transitions by incoming-track enrichment richness
   (count of non-empty fields among producer/sample/wikipediaSummary/
   notableFacts) and caps picks at `ceil((N-1)/4)`. Deterministic.
@@ -398,9 +400,10 @@ when mean distance exceeds 0.7 — indicates the pool doesn't match the vibe.
   lastEnrichedAt, source }`. Atomic tmp+rename writes, malformed-JSON tolerant, 30-day
   re-enrichment threshold. Used by `TrackSequencer` prompt and `SegmentScriptBuilder`
   for producer/sample commentary flavor on repeat listens.
-- **`SequenceCache`** — in-memory LRU, 24h TTL, max 500 entries. Keyed on
-  `sha256(sortedTrackIds)|vibe|length` so key is stable if Apple Music returns tracks
-  in a different order. Same-day re-bakes skip the LLM entirely.
+- **`SequenceCache`** (LLM path only; `SEQUENCER_MODE=llm`) — in-memory LRU,
+  24h TTL, max 500 entries. Keyed on `sha256(sortedTrackIds)|vibe|length` so
+  key is stable if Apple Music returns tracks in a different order. Same-day
+  re-bakes skip the LLM entirely. Not used on the deterministic path.
 - **`server/featured-broadcasts/registry.json`** — gitignored; holds baked featured
   records. Atomic write via `.tmp` + rename.
 - **`BroadcastStore`** — in-memory, 2h TTL, lazy eviction on access.

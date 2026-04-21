@@ -1,13 +1,8 @@
 import { VIBE_ARCS } from '@/services/broadcast/vibe-arcs';
-import type { Vibe } from '@/services/broadcast/types';
-
-const ALL_VIBES: Vibe[] = [
-  'morning', 'focus', 'workout', 'feelGood',
-  'lateNight', 'melancholy', 'party',
-];
+import { VIBE_LIST } from '@/services/broadcast/types';
 
 describe('VIBE_ARCS', () => {
-  it.each(ALL_VIBES)('has a complete arc for %s', (vibe) => {
+  it.each(VIBE_LIST)('has a complete arc for %s', (vibe) => {
     const arc = VIBE_ARCS[vibe];
     expect(arc).toBeDefined();
     expect(arc.vibe).toBe(vibe);
@@ -18,6 +13,6 @@ describe('VIBE_ARCS', () => {
   });
 
   it('covers exactly the 7 vibes', () => {
-    expect(Object.keys(VIBE_ARCS).sort()).toEqual([...ALL_VIBES].sort());
+    expect(Object.keys(VIBE_ARCS).sort()).toEqual([...VIBE_LIST].sort());
   });
 });
