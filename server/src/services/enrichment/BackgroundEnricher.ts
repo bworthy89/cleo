@@ -29,10 +29,18 @@ export class BackgroundEnricher {
   enqueue(tracks: ManifestTrack[]): void {
     for (const track of tracks) {
       this.queue = this.queue.then(() =>
-        this.enrichOne(track).catch(err => {
-          const msg = err instanceof Error ? err.message : String(err);
-          console.warn(`[BackgroundEnricher] "${track.title}" by ${track.artistName} failed: ${msg}`);
-        }),
+        this.enrichOne(track)
+          .then(() => {
+            // Mirror drainNow: text enrichment then features, serialized
+            // per-track through the queue. Per-track fetchBatch means one
+            // ReccoBeats HTTP call per track on this path (vs batched in
+            // drainNow) — acceptable because enqueue is fire-and-forget.
+            if (this.featureChain) return this.fetchAndStoreFeatures([track]);
+          })
+          .catch(err => {
+            const msg = err instanceof Error ? err.message : String(err);
+            console.warn(`[BackgroundEnricher] "${track.title}" by ${track.artistName} failed: ${msg}`);
+          }),
       );
     }
   }

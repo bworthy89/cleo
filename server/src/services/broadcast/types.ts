@@ -1,6 +1,12 @@
-export type Vibe =
-  | 'morning' | 'focus' | 'workout' | 'feelGood'
-  | 'lateNight' | 'melancholy' | 'party';
+/** Canonical vibe list — the single source of truth. `Vibe` is derived from
+ *  this so adding a new entry updates the type automatically. Tests iterate
+ *  `VIBE_LIST` instead of duplicating the array. */
+export const VIBE_LIST = [
+  'morning', 'focus', 'workout', 'feelGood',
+  'lateNight', 'melancholy', 'party',
+] as const;
+
+export type Vibe = typeof VIBE_LIST[number];
 
 export type BroadcastLength = 'quick' | 'standard' | 'long';
 

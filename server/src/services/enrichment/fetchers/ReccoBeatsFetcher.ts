@@ -72,6 +72,9 @@ export class ReccoBeatsFetcher {
         return new Map();
       }
     }
+    // Unreachable — all paths inside the loop return or continue, and
+    // continue on the last attempt is gated by `attempt < MAX_RETRIES`.
+    // Kept to satisfy TypeScript's control-flow analysis (TS2366).
     return new Map();
   }
 

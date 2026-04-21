@@ -13,10 +13,11 @@ describe('BroadcastOrchestrator threads broadcastId into sequence()', () => {
         };
       },
     };
-    const orch = BroadcastOrchestrator.makeWithDefaults();
-    (orch as any).sequencer = fakeSequencer;
-    (orch as any).generator = { generateVariants: async () => [] };
-    (orch as any).backgroundEnricher = { drainNow: async () => {} };
+    const orch = BroadcastOrchestrator.makeWithDefaults({
+      sequencer: fakeSequencer,
+      generator: { generateVariants: async () => [] },
+      backgroundEnricher: { drainNow: async () => {} },
+    });
 
     const pool = Array.from({ length: 5 }, (_, i) => ({
       id: String(i), title: 't' + i, artistName: 'A', albumTitle: 'B', duration: 200,
