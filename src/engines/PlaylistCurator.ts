@@ -179,6 +179,7 @@ function catalogResultToTrackProfile(result: CatalogSearchResult): TrackProfile 
     duration: result.duration,
     genreNames: result.genreNames,
     artworkUrl: result.artworkUrl,
+    isrc: result.isrc,
     trackNumber: 0,
     discNumber: 0,
     mbEnriched: false,

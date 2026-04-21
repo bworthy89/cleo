@@ -406,6 +406,12 @@ public class ExpoMusicKitModule: Module {
           dict["contentRating"] = Self.contentRatingString(rating)
         }
 
+        // ISRC — needed for server-side ReccoBeats/Deezer feature lookup on
+        // curator-baked featured broadcasts (Ask ONAY flow).
+        if let isrc = song.isrc {
+          dict["isrc"] = isrc
+        }
+
         if let artwork = song.artwork {
           let url = artwork.url(width: 300, height: 300)
           dict["artworkUrl"] = url?.absoluteString ?? ""

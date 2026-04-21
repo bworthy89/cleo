@@ -150,4 +150,20 @@ describe('buildManifest — tier alternation', () => {
     });
     expect(m.featureSlots).toEqual([1]);
   });
+
+  it('rejects an empty-string broadcastId', () => {
+    expect(() => buildManifest({
+      broadcastId: '',
+      userId: 'u', playlistId: null, vibe: 'lateNight', length: 'quick',
+      tracks: Array.from({ length: 5 }, (_, i) => t(String(i))),
+    })).toThrow(/non-blank broadcastId/);
+  });
+
+  it('rejects a whitespace-only broadcastId', () => {
+    expect(() => buildManifest({
+      broadcastId: '   ',
+      userId: 'u', playlistId: null, vibe: 'lateNight', length: 'quick',
+      tracks: Array.from({ length: 5 }, (_, i) => t(String(i))),
+    })).toThrow(/non-blank broadcastId/);
+  });
 });
