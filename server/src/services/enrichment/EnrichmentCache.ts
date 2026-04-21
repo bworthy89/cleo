@@ -1,5 +1,6 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
+import type { AudioFeatures } from '../broadcast/audio-features';
 
 export interface EnrichmentRecord {
   // existing
@@ -8,14 +9,18 @@ export interface EnrichmentRecord {
   releaseYear?: string;
   producer?: string;
   sample?: string;
-
-  // new
   wikipediaSummary?: string;
   notableFacts?: string[];
   artistBio?: string;
-
   lastEnrichedAt: number;
-  source: 'genius' | 'musicbrainz' | 'wikipedia' | 'lastfm' | 'hybrid';
+  source: 'genius' | 'musicbrainz' | 'wikipedia' | 'lastfm' | 'hybrid' | 'reccobeats';
+
+  // new
+  isrc?: string;
+  features?: AudioFeatures;
+  featuresSource?: 'reccobeats' | 'synthesized' | 'defaults';
+  featuresAt?: number;
+  featuresVersion?: number;
 }
 
 interface CacheFile {
