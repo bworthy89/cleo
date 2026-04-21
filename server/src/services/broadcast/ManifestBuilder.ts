@@ -4,6 +4,12 @@ import type {
 } from './types';
 
 export interface BuildManifestInput {
+  /** Optional pre-generated broadcast id. When provided, the returned manifest
+   *  uses it verbatim; when absent, `buildManifest` generates one via
+   *  `randomUUID()`. Callers that need the id available BEFORE building the
+   *  manifest (e.g. to thread it into `sequencer.sequence` as a deterministic
+   *  PRNG seed) should generate it themselves and pass it in. */
+  broadcastId?: string;
   userId: string;
   playlistId: string | null;
   vibe: Vibe;
@@ -70,7 +76,7 @@ export function buildManifest(input: BuildManifestInput): Manifest {
   });
 
   return {
-    broadcastId: randomUUID(),
+    broadcastId: input.broadcastId ?? randomUUID(),
     userId: input.userId,
     playlistId: input.playlistId,
     vibe: input.vibe,

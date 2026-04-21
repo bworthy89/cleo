@@ -20,6 +20,9 @@ import { FeaturedBroadcastRegistry } from './services/broadcast/FeaturedBroadcas
 import { EnrichmentCache } from './services/enrichment/EnrichmentCache';
 import { BackgroundEnricher } from './services/enrichment/BackgroundEnricher';
 import { DefaultEnrichmentFetcher } from './services/enrichment/DefaultEnrichmentFetcher';
+import { ReccoBeatsFetcher } from './services/enrichment/fetchers/ReccoBeatsFetcher';
+import { DeezerFeaturesFetcher } from './services/enrichment/fetchers/DeezerFeaturesFetcher';
+import { FeatureFetchChain } from './services/broadcast/FeatureFetchChain';
 import { gracefulShutdown } from './shutdown';
 
 const app = express();
@@ -107,16 +110,32 @@ const broadcastStore = new BroadcastStore();
 const enrichmentCache = new EnrichmentCache(
   path.resolve(__dirname, '../.enrichment-cache/tracks.json'),
 );
-const backgroundEnricher = new BackgroundEnricher(
-  enrichmentCache, new DefaultEnrichmentFetcher(),
-);
 
 async function bootstrap(): Promise<void> {
   await enrichmentCache.load();
 
+  // Feature-fetch chain for the deterministic sequencer. ReccoBeats is the
+  // primary tier (ISRC-only); Deezer fills partial-BPM fallbacks; Last.fm
+  // tag reads come from the enrichment cache's moodTags field (populated by
+  // BackgroundEnricher's fetchLastFm stage). No network calls on the Last.fm
+  // adapter itself — reuse of the cached tags keeps bake latency flat.
+  const recco = new ReccoBeatsFetcher();
+  const deezer = new DeezerFeaturesFetcher();
+  const lastFmTags = {
+    async get(title: string, artist: string): Promise<string[]> {
+      const rec = enrichmentCache.get(title, artist);
+      return rec?.moodTags ?? [];
+    },
+  };
+  const featureFetchChain = new FeatureFetchChain({ recco, deezer, lastFmTags });
+
+  const backgroundEnricher = new BackgroundEnricher(
+    enrichmentCache, new DefaultEnrichmentFetcher(), featureFetchChain,
+  );
+
   const broadcastOrchestrator = new BroadcastOrchestrator(
     llmProvider, ttsProvider, broadcastStorage, broadcastStore,
-    enrichmentCache, backgroundEnricher,
+    enrichmentCache, backgroundEnricher, featureFetchChain,
   );
 
   // Auth-protected API routes

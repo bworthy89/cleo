@@ -1,7 +1,9 @@
 import type { EnrichmentCache, EnrichmentRecord } from './EnrichmentCache';
 import type { ManifestTrack } from '../broadcast/types';
+import type { FeatureFetchChain } from '../broadcast/FeatureFetchChain';
 
 const REFRESH_THRESHOLD_MS = 30 * 24 * 60 * 60 * 1000;
+const FEATURES_VERSION = 1;
 
 export interface EnrichmentFetcher {
   fetchGenius(title: string, artist: string): Promise<Partial<EnrichmentRecord> | null>;
@@ -21,6 +23,7 @@ export class BackgroundEnricher {
   constructor(
     private readonly cache: EnrichmentCache,
     private readonly fetcher: EnrichmentFetcher,
+    private readonly featureChain?: FeatureFetchChain,
   ) {}
 
   enqueue(tracks: ManifestTrack[]): void {
@@ -54,6 +57,9 @@ export class BackgroundEnricher {
         }),
       ),
     );
+    if (this.featureChain) {
+      await this.fetchAndStoreFeatures(tracks);
+    }
   }
 
   private async enrichOne(track: ManifestTrack): Promise<void> {
@@ -83,5 +89,37 @@ export class BackgroundEnricher {
       source,
     };
     await this.cache.set(track.title, track.artistName, record);
+  }
+
+  private async fetchAndStoreFeatures(tracks: ManifestTrack[]): Promise<void> {
+    // Skip tracks whose cached record already has up-to-date features.
+    const need = tracks.filter(t => {
+      const rec = this.cache.get(t.title, t.artistName);
+      return !rec?.features || rec.featuresVersion !== FEATURES_VERSION;
+    });
+    if (need.length === 0) return;
+
+    const results = await this.featureChain!.fetchBatch(need);
+    const reccobeats = [...results.values()].filter(r => r.source === 'reccobeats').length;
+    const synthesized = [...results.values()].filter(r => r.source === 'synthesized').length;
+    const defaults = [...results.values()].filter(r => r.source === 'defaults').length;
+    console.log(
+      `[BackgroundEnricher] features tiers: reccobeats=${reccobeats} ` +
+      `synthesized=${synthesized} defaults=${defaults} (${need.length} tracks)`
+    );
+
+    for (const track of need) {
+      const fetched = results.get(track.id);
+      if (!fetched) continue;
+      const existing = this.cache.get(track.title, track.artistName);
+      await this.cache.set(track.title, track.artistName, {
+        ...(existing ?? { lastEnrichedAt: Date.now(), source: 'hybrid' as const }),
+        isrc: track.isrc ?? existing?.isrc,
+        features: fetched.features,
+        featuresSource: fetched.source,
+        featuresAt: Date.now(),
+        featuresVersion: FEATURES_VERSION,
+      });
+    }
   }
 }

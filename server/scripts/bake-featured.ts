@@ -8,6 +8,9 @@ import { bakeFeatured } from '../src/services/broadcast/bakeFeatured';
 import { EnrichmentCache } from '../src/services/enrichment/EnrichmentCache';
 import { BackgroundEnricher } from '../src/services/enrichment/BackgroundEnricher';
 import { DefaultEnrichmentFetcher } from '../src/services/enrichment/DefaultEnrichmentFetcher';
+import { ReccoBeatsFetcher } from '../src/services/enrichment/fetchers/ReccoBeatsFetcher';
+import { DeezerFeaturesFetcher } from '../src/services/enrichment/fetchers/DeezerFeaturesFetcher';
+import { FeatureFetchChain } from '../src/services/broadcast/FeatureFetchChain';
 import { llmProvider } from '../src/providers/llm';
 import { ttsProvider } from '../src/providers/tts';
 
@@ -29,12 +32,21 @@ async function main() {
     path.resolve(__dirname, '../.enrichment-cache/tracks.json'),
   );
   await enrichmentCache.load();
+  const recco = new ReccoBeatsFetcher();
+  const deezer = new DeezerFeaturesFetcher();
+  const lastFmTags = {
+    async get(title: string, artist: string): Promise<string[]> {
+      const rec = enrichmentCache.get(title, artist);
+      return rec?.moodTags ?? [];
+    },
+  };
+  const featureFetchChain = new FeatureFetchChain({ recco, deezer, lastFmTags });
   const backgroundEnricher = new BackgroundEnricher(
-    enrichmentCache, new DefaultEnrichmentFetcher(),
+    enrichmentCache, new DefaultEnrichmentFetcher(), featureFetchChain,
   );
   const orch = new BroadcastOrchestrator(
     llmProvider, ttsProvider, storage, store,
-    enrichmentCache, backgroundEnricher,
+    enrichmentCache, backgroundEnricher, featureFetchChain,
   );
 
   const registry = new FeaturedBroadcastRegistry(
