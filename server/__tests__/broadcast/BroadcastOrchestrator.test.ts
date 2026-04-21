@@ -5,10 +5,25 @@ import { BroadcastOrchestrator } from '@/services/broadcast/BroadcastOrchestrato
 import { BroadcastStore } from '@/services/broadcast/BroadcastStore';
 import { EnrichmentCache } from '@/services/enrichment/EnrichmentCache';
 import { BackgroundEnricher } from '@/services/enrichment/BackgroundEnricher';
+import { FeatureFetchChain } from '@/services/broadcast/FeatureFetchChain';
 import { makeMockLLM } from '../../__mocks__/llm';
 import { makeMockTTS } from '../../__mocks__/tts';
 import type { ObjectStorage } from '@/services/storage/ObjectStorage';
 import type { ManifestTrack } from '@/services/broadcast/types';
+
+// These tests exercise the LLM sequencer path (mocked LLM returns canned
+// SEQUENCER_RESPONSE). Pin the mode so the orchestrator doesn't fall back to
+// DeterministicTrackSequencer, which would bypass the mocked LLM entirely.
+const ORIGINAL_SEQUENCER_MODE = process.env.SEQUENCER_MODE;
+beforeAll(() => { process.env.SEQUENCER_MODE = 'llm'; });
+afterAll(() => {
+  if (ORIGINAL_SEQUENCER_MODE === undefined) delete process.env.SEQUENCER_MODE;
+  else process.env.SEQUENCER_MODE = ORIGINAL_SEQUENCER_MODE;
+});
+
+// Noop feature-fetch chain. The LLM sequencer doesn't use it, but the
+// orchestrator constructor requires it.
+const noopFetchChain = { fetchBatch: async () => new Map() } as unknown as FeatureFetchChain;
 
 const makeStorage = (): ObjectStorage => ({
   put: jest.fn(async (key: string) => `https://cdn/${key}`),
@@ -51,7 +66,7 @@ describe('BroadcastOrchestrator.create', () => {
     const { enrichCache, enricher } = await makeDeps();
     const orch = new BroadcastOrchestrator(
       makeMockLLM(SEQUENCER_RESPONSE), makeMockTTS(), makeStorage(),
-      new BroadcastStore(), enrichCache, enricher,
+      new BroadcastStore(), enrichCache, enricher, noopFetchChain,
     );
     const result = await orch.create({
       userId: 'u1', playlistId: 'p1', vibe: 'morning',
@@ -68,7 +83,7 @@ describe('BroadcastOrchestrator.create', () => {
     const store = new BroadcastStore();
     const orch = new BroadcastOrchestrator(
       makeMockLLM(SEQUENCER_RESPONSE), makeMockTTS(), makeStorage(),
-      store, enrichCache, enricher,
+      store, enrichCache, enricher, noopFetchChain,
     );
     const { manifest } = await orch.create({
       userId: 'u1', playlistId: 'p1', vibe: 'morning',
@@ -85,7 +100,7 @@ describe('BroadcastOrchestrator.create', () => {
     const tts = makeMockTTS();
     const store = new BroadcastStore();
     const orch = new BroadcastOrchestrator(
-      llm, tts, makeStorage(), store, enrichCache, enricher,
+      llm, tts, makeStorage(), store, enrichCache, enricher, noopFetchChain,
     );
 
     const { manifest } = await orch.create({
@@ -124,7 +139,7 @@ describe('BroadcastOrchestrator.create', () => {
 
     const store = new BroadcastStore();
     const orch = new BroadcastOrchestrator(
-      llm, makeMockTTS(), makeStorage(), store, enrichCache, enricher,
+      llm, makeMockTTS(), makeStorage(), store, enrichCache, enricher, noopFetchChain,
     );
     const { manifest } = await orch.create({
       userId: 'u1', playlistId: 'p1', vibe: 'morning',
@@ -143,7 +158,7 @@ describe('BroadcastOrchestrator.create', () => {
     const { enrichCache, enricher } = await makeDeps();
     const orch = new BroadcastOrchestrator(
       makeMockLLM(SEQUENCER_RESPONSE), makeMockTTS(), makeStorage(),
-      new BroadcastStore(), enrichCache, enricher,
+      new BroadcastStore(), enrichCache, enricher, noopFetchChain,
     );
     const { manifest } = await orch.create({
       userId: 'u1', playlistId: 'p1', vibe: 'morning',
@@ -162,7 +177,7 @@ describe('BroadcastOrchestrator — sync slot 0 + async slots 1..N', () => {
     const { enrichCache, enricher } = await makeDeps();
     const orch = new BroadcastOrchestrator(
       makeMockLLM(SEQUENCER_RESPONSE), makeMockTTS(), makeStorage(),
-      new BroadcastStore(), enrichCache, enricher,
+      new BroadcastStore(), enrichCache, enricher, noopFetchChain,
     );
     const res = await orch.create({
       userId: 'u1', playlistId: 'p1', vibe: 'morning',
@@ -200,7 +215,7 @@ describe('BroadcastOrchestrator — sync slot 0 + async slots 1..N', () => {
     });
 
     const orch = new BroadcastOrchestrator(
-      llm, tts, storage, new BroadcastStore(), enrichCache, enricher,
+      llm, tts, storage, new BroadcastStore(), enrichCache, enricher, noopFetchChain,
     );
 
     const { manifest } = await orch.create({
@@ -230,7 +245,7 @@ describe('BroadcastOrchestrator — sync slot 0 + async slots 1..N', () => {
 
     const orch = new BroadcastOrchestrator(
       makeMockLLM(SEQUENCER_RESPONSE), makeMockTTS(), makeStorage(),
-      new BroadcastStore(), enrichCache, enricher,
+      new BroadcastStore(), enrichCache, enricher, noopFetchChain,
     );
 
     await orch.create({
@@ -262,7 +277,7 @@ describe('BroadcastOrchestrator — sync slot 0 + async slots 1..N', () => {
 
     const orch = new BroadcastOrchestrator(
       makeMockLLM(SEQUENCER_RESPONSE_LONG), tts, makeStorage(),
-      new BroadcastStore(), enrichCache, enricher,
+      new BroadcastStore(), enrichCache, enricher, noopFetchChain,
     );
 
     const { manifest } = await orch.create({

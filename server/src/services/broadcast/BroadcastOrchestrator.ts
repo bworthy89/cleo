@@ -6,10 +6,12 @@ import type {
   BroadcastCreateRequest, BroadcastCreateResponse, Manifest,
 } from './types';
 import { BroadcastStore } from './BroadcastStore';
-import { TrackSequencer } from './TrackSequencer';
+import { LLMTrackSequencer, type ITrackSequencer } from './TrackSequencer';
+import { DeterministicTrackSequencer } from './DeterministicTrackSequencer';
 import { SequenceCache } from './SequenceCache';
-import type { EnrichmentCache } from '../enrichment/EnrichmentCache';
+import { EnrichmentCache } from '../enrichment/EnrichmentCache';
 import type { BackgroundEnricher } from '../enrichment/BackgroundEnricher';
+import type { FeatureFetchChain } from './FeatureFetchChain';
 
 /**
  * Maximum number of segments generated in parallel. Each segment costs one
@@ -21,7 +23,13 @@ const SEGMENT_CONCURRENCY = 4;
 
 export class BroadcastOrchestrator {
   private readonly generator: SegmentGenerator;
-  private readonly sequencer: TrackSequencer;
+  private readonly sequencer: ITrackSequencer;
+  /**
+   * Which sequencer implementation is active. Selected in the constructor
+   * from `process.env.SEQUENCER_MODE`: 'llm' picks `LLMTrackSequencer`; any
+   * other value (or unset) picks `DeterministicTrackSequencer`.
+   */
+  readonly sequencerMode: 'deterministic' | 'llm';
   /**
    * Tracks the background bake (slots 1..N) for each in-progress broadcast.
    * Callers that need completion (`bakeFeatured`, the featured publish route)
@@ -37,11 +45,46 @@ export class BroadcastOrchestrator {
     private readonly store: BroadcastStore,
     private readonly enrichmentCache: EnrichmentCache,
     private readonly backgroundEnricher: BackgroundEnricher,
+    featureFetchChain: FeatureFetchChain,
     sequenceCache?: SequenceCache,
   ) {
     this.generator = new SegmentGenerator(llm, tts, storage);
-    this.sequencer = new TrackSequencer(
-      llm, sequenceCache ?? new SequenceCache(), enrichmentCache,
+
+    const mode = process.env.SEQUENCER_MODE ?? 'deterministic';
+    if (mode === 'llm') {
+      this.sequencerMode = 'llm';
+      this.sequencer = new LLMTrackSequencer(
+        llm, sequenceCache ?? new SequenceCache(), enrichmentCache,
+      );
+    } else {
+      this.sequencerMode = 'deterministic';
+      this.sequencer = new DeterministicTrackSequencer(
+        enrichmentCache, featureFetchChain,
+      );
+    }
+  }
+
+  /**
+   * Test-only helper that constructs an orchestrator with no-op
+   * dependencies. Lets tests inspect wiring (e.g. `sequencerMode`) without
+   * pulling in real LLM / TTS / storage / feature-fetch backends.
+   */
+  static makeWithDefaults(): BroadcastOrchestrator {
+    const noopLLM: LLMCaller = {
+      generate: async () => ({ text: '' }),
+    };
+    const noopTTS: TTSCaller = {
+      synthesize: async () => ({ audioContent: '' }),
+    };
+    const noopStorage: ObjectStorage = {
+      put: async (key: string) => `noop://${key}`,
+    };
+    const store = new BroadcastStore();
+    const cache = new EnrichmentCache('/tmp/noop-enrich.json');
+    const enricher = { drainNow: async () => {} } as unknown as BackgroundEnricher;
+    const fetchChain = { fetchBatch: async () => new Map() } as unknown as FeatureFetchChain;
+    return new BroadcastOrchestrator(
+      noopLLM, noopTTS, noopStorage, store, cache, enricher, fetchChain,
     );
   }
 
@@ -49,6 +92,8 @@ export class BroadcastOrchestrator {
     input: BroadcastCreateRequest & { userId: string },
   ): Promise<BroadcastCreateResponse> {
     // 1. Sequence the pool (uses any cached enrichment as hints).
+    //    broadcastId is a placeholder here; Task 14 threads the real manifest
+    //    id through so the deterministic PRNG seed is stable across re-bakes.
     const seq = await this.sequencer.sequence({
       pool: input.tracks,
       vibe: input.vibe,
@@ -57,6 +102,7 @@ export class BroadcastOrchestrator {
         timeOfDay: input.userContext.timeOfDay,
         dayOfWeek: input.userContext.dayOfWeek,
       },
+      broadcastId: 'pending',
     });
 
     // 2. Build the manifest immediately — enrichment isn't needed to know
