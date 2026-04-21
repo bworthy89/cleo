@@ -13,6 +13,10 @@ export type MusicTrack = {
   artworkUrl?: string;
   trackNumber: number;
   discNumber: number;
+  /** Apple Music ISRC (International Standard Recording Code) when the native
+   *  bridge can surface it. Used as the lookup key for ReccoBeats / Deezer
+   *  audio-feature fetches during server-side sequencing. */
+  isrc?: string;
 };
 
 export type MusicPlaylist = {
