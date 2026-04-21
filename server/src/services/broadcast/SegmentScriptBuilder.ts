@@ -33,8 +33,8 @@ const VIBE_DESCRIPTIONS: Record<Vibe, string> = {
 
 const TIER_SHAPES: Record<SegmentTier, { budget: string; shape: string }> = {
   cold_open: {
-    budget: '55-80 words',
-    shape: 'Anchor the time and vibe first, then name the opening track. If a concrete detail about the track is in the enrichment, weave it in naturally. Land on the track name so the music can come in.',
+    budget: '35-50 words',
+    shape: 'Short. Anchor the time and vibe in one beat, then name the opening track. Only weave in a concrete detail from the enrichment if it earns its place. Land on the track name so the music can come in.',
   },
   fact_bridge: {
     budget: '45-55 words',
@@ -86,7 +86,7 @@ function buildSystemPrompt(vibe: Vibe, tier: SegmentTier, genreFamily: GenreFami
   const playbook = GENRE_PLAYBOOK[genreFamily];
   const { budget, shape } = TIER_SHAPES[tier];
   return [
-    'You are ONAY (pronounced "Oh-nay"), an AI radio host. You speak with warmth, wit, and the easy authority of a seasoned DJ. You are a woman \u2014 use she/her pronouns for yourself when relevant, and never masculine DJ phrasing like "your boy," "my man," "the homie," or "this guy." Self-reference as "me," "I," or by name (ONAY). Never refer to yourself as "the host," "your host," or "this host." Never call the person hearing you "the listener" or "listeners" \u2014 address them directly as "you" or by name when known.',
+    'You are ONAY (pronounced "Ohnay"), an AI radio host. You speak with warmth, wit, and the easy authority of a seasoned DJ. You are a woman \u2014 use she/her pronouns for yourself when relevant, and never masculine DJ phrasing like "your boy," "my man," "the homie," or "this guy." Self-reference as "me," "I," or by name (ONAY). Never refer to yourself as "the host," "your host," or "this host." Never call the person hearing you "the listener" or "listeners" \u2014 address them directly as "you" or by name when known.',
     '',
     `BROADCAST VIBE: ${VIBE_DESCRIPTIONS[vibe]}.`,
     '',
@@ -126,14 +126,17 @@ function buildEnrichmentBlock(enr: EnrichmentRecord | null): string {
 
 function buildSceneLines(ctx: SegmentContext): string {
   const lines: string[] = [];
-  if (ctx.dayOfWeek && ctx.timeOfDay) {
-    lines.push(`It\u2019s ${ctx.dayOfWeek}, ${ctx.timeOfDay}.`);
-  } else if (ctx.timeOfDay) {
-    lines.push(`It\u2019s ${ctx.timeOfDay}.`);
-  } else if (ctx.dayOfWeek) {
-    lines.push(`It\u2019s ${ctx.dayOfWeek}.`);
+  const day = ctx.dayOfWeek ? sanitizeForPrompt(ctx.dayOfWeek, 30) : '';
+  const time = ctx.timeOfDay ? sanitizeForPrompt(ctx.timeOfDay, 30) : '';
+  const name = ctx.listenerName ? sanitizeForPrompt(ctx.listenerName, 50) : '';
+  if (day && time) {
+    lines.push(`It\u2019s ${day}, ${time}.`);
+  } else if (time) {
+    lines.push(`It\u2019s ${time}.`);
+  } else if (day) {
+    lines.push(`It\u2019s ${day}.`);
   }
-  if (ctx.listenerName) lines.push(`Call them ${ctx.listenerName}.`);
+  if (name) lines.push(`Call them ${name}.`);
   if (ctx.firstTimeUser) {
     lines.push('This is their very first broadcast \u2014 welcome them without being saccharine.');
   } else if (ctx.lastSessionSummary) {

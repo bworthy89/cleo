@@ -128,7 +128,7 @@ describe('SegmentGenerator.generateVariants', () => {
     })).rejects.toThrow('tts down');
   });
 
-  it('phoneticizes ONAY to Oh-nay before TTS synthesis', async () => {
+  it('phoneticizes ONAY to Ohnay before TTS synthesis', async () => {
     const llm = makeMockLLM('Hey, this is ONAY. You\u2019re locked in.');
     const tts = makeMockTTS();
     const storage = makeStorage();
@@ -140,7 +140,7 @@ describe('SegmentGenerator.generateVariants', () => {
     });
 
     const ttsArg = (tts.synthesize as jest.Mock).mock.calls[0][0];
-    expect(ttsArg.text).toContain('Oh-nay');
+    expect(ttsArg.text).toContain('Ohnay');
     expect(ttsArg.text).not.toContain('ONAY');
   });
 });
@@ -149,14 +149,14 @@ describe('phoneticizeHostName', () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { phoneticizeHostName } = require('@/services/broadcast/SegmentGenerator');
 
-  it('replaces standalone ONAY with Oh-nay', () => {
+  it('replaces standalone ONAY with Ohnay', () => {
     expect(phoneticizeHostName('Hey, this is ONAY.'))
-      .toBe('Hey, this is Oh-nay.');
+      .toBe('Hey, this is Ohnay.');
   });
 
   it('handles multiple occurrences', () => {
     expect(phoneticizeHostName('ONAY here, and that was ONAY signing off.'))
-      .toBe('Oh-nay here, and that was Oh-nay signing off.');
+      .toBe('Ohnay here, and that was Ohnay signing off.');
   });
 
   it('does not match substrings like BALONAY or ONAYS', () => {
@@ -212,7 +212,7 @@ describe('preprocessForTTS — feat./ft. normalization', () => {
 
   it('composes with host name phoneticization', () => {
     expect(preprocessForTTS('ONAY here with "Track (feat. X)".'))
-      .toBe('Oh-nay here with "Track featuring X".');
+      .toBe('Ohnay here with "Track featuring X".');
   });
 
   it('normalizes curly right single quote (U+2019) to straight apostrophe', () => {
@@ -229,7 +229,9 @@ describe('preprocessForTTS — feat./ft. normalization', () => {
   });
 
   it('collapses single-letter initialisms into one word', () => {
-    expect(preprocessForTTS('Big K.R.I.T. is next')).toBe('Big KRIT is next');
+    // Big K.R.I.T. is in the artist pronunciation dict — dict wins over the
+    // generic initialism regex and produces the Cartesia-authored form.
+    expect(preprocessForTTS('Big K.R.I.T. is next')).toBe('Big Krit is next');
     expect(preprocessForTTS('from U.S.A.')).toBe('from USA');
     expect(preprocessForTTS('N.W.A. in the building')).toBe('NWA in the building');
     expect(preprocessForTTS('B.I.G. era hip-hop')).toBe('BIG era hip-hop');
@@ -249,5 +251,46 @@ describe('preprocessForTTS — feat./ft. normalization', () => {
 
   it('normalizes horizontal ellipsis to three dots', () => {
     expect(preprocessForTTS('wait for it\u2026 here it comes')).toBe('wait for it... here it comes');
+  });
+
+  it('applies artist pronunciation dict entries', () => {
+    expect(preprocessForTTS('new Aminé single')).toBe('new Ahmeenay single');
+    expect(preprocessForTTS('SZA is on it')).toBe('Sizza is on it');
+    expect(preprocessForTTS('Beyoncé tonight')).toBe('Beeyonsay tonight');
+    expect(preprocessForTTS('Playboi Carti goes next')).toBe('Playboy Cartee goes next');
+  });
+
+  it('prefers longer dict entries over shorter prefixes', () => {
+    // Boosie Badazz should match before Boosie alone
+    expect(preprocessForTTS('track from Boosie Badazz'))
+      .toBe('track from Boosee Badazz');
+  });
+
+  it('does not match dict entries as substrings of larger words', () => {
+    // SZA entry must not fire inside "PIZZA" or similar
+    expect(preprocessForTTS('extra SZArf')).toBe('extra SZArf');
+  });
+
+  it('strips markdown emphasis wrappers (single and double asterisks)', () => {
+    // F5-TTS reads asterisks as characters or as prosody hints that
+    // distort alignment; either way they must be stripped.
+    expect(preprocessForTTS('a groove that just *settles* you'))
+      .toBe('a groove that just settles you');
+    expect(preprocessForTTS('a voice that just **vamps** tonight'))
+      .toBe('a voice that just vamps tonight');
+    expect(preprocessForTTS('*settles*, *vamps*, and *swings*'))
+      .toBe('settles, vamps, and swings');
+  });
+
+  it('drops stray/mismatched asterisks', () => {
+    expect(preprocessForTTS('wait a sec *')).toBe('wait a sec ');
+    expect(preprocessForTTS('* stray * leading')).toBe(' stray  leading');
+  });
+
+  it('normalizes curly double quotes to straight ASCII', () => {
+    expect(preprocessForTTS('this is \u201CFound.\u201D'))
+      .toBe('this is "Found."');
+    expect(preprocessForTTS('\u2033double-prime\u2033'))
+      .toBe('"double-prime"');
   });
 });

@@ -181,10 +181,10 @@ describe('buildSegmentPrompts', () => {
       expect(sys).toContain('my man');
     });
 
-    it('surfaces the Oh-nay pronunciation hint', () => {
+    it('surfaces the Ohnay pronunciation hint', () => {
       const m = makeManifest();
       const prompts = buildSegmentPrompts(m.segmentSlots[0], m, ctx);
-      expect(prompts[0].systemPrompt).toContain('Oh-nay');
+      expect(prompts[0].systemPrompt).toContain('Ohnay');
     });
   });
 });
@@ -267,12 +267,12 @@ describe('SegmentScriptBuilder — tiered prompts', () => {
     expect(prompt.userPrompt).toMatch(/About the track/);
   });
 
-  it('cold_open uses 55-80 word budget and omits outgoing', () => {
+  it('cold_open uses 35-50 word budget and omits outgoing', () => {
     const m = makeManifest();
     const [prompt] = buildSegmentPrompts(m.segmentSlots[0], m, {
       timeOfDay: 'night', dayOfWeek: 'Sat', firstTimeUser: true,
     });
-    expect(prompt.userPrompt).toMatch(/55-80 words/);
+    expect(prompt.userPrompt).toMatch(/35-50 words/);
     expect(prompt.userPrompt).not.toMatch(/Outgoing:/);
   });
 

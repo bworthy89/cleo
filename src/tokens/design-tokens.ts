@@ -19,10 +19,10 @@ export const AM = {
   bgDeep:     '#050403',
 
   // Ink — cream, the text/stroke color on dark surfaces
-  ink:        '#E8E0D0',
-  inkMid:     'rgba(232, 224, 208, 0.62)',
-  inkDim:     'rgba(232, 224, 208, 0.38)',
-  inkGhost:   'rgba(232, 224, 208, 0.12)',
+  ink:        '#F4ECDC',
+  inkMid:     'rgba(244, 236, 220, 0.80)',
+  inkDim:     'rgba(244, 236, 220, 0.58)',
+  inkGhost:   'rgba(244, 236, 220, 0.20)',
 
   // Amber — late-night signal, secondary accent
   amber:      '#E8A24B',
@@ -34,13 +34,13 @@ export const AM = {
   oxbloodDim: 'rgba(164, 58, 46, 0.55)',
 
   // Cream + paper — inverted surfaces (library card etc.)
-  cream:      '#E8E0D0',
+  cream:      '#F4ECDC',
   paper:      '#F2E7CF',
   paperInk:   '#2A1510',
 
   // Hairline rules
-  rule:       'rgba(232, 224, 208, 0.18)',
-  ruleStrong: 'rgba(232, 224, 208, 0.38)',
+  rule:       'rgba(244, 236, 220, 0.26)',
+  ruleStrong: 'rgba(244, 236, 220, 0.50)',
 } as const;
 
 export const Fonts = {

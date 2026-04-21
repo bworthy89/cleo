@@ -37,9 +37,7 @@ export default function RootLayout() {
         <Stack.Screen name="(onboarding)" />
         <Stack.Screen name="(main)" />
       </Stack>
-      {isOffline && (
-        <OfflineBanner isOffline={isOffline} />
-      )}
+      <OfflineBanner isOffline={isOffline} />
     </View>
   );
 }
