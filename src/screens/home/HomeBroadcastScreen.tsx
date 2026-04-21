@@ -37,6 +37,8 @@ import type { Manifest } from '../../engines/BroadcastPlayer.types';
 import {
   getBroadcastHistory,
   getCachedPlaylists,
+  removeBroadcastFromHistory,
+  clearPersistedBroadcast,
   type BroadcastHistoryEntry,
 } from '../../services/Storage';
 import { useAppActive } from '../../hooks/useAppActive';
@@ -61,6 +63,11 @@ const LENGTH_LABEL: Record<Length, string> = {
 };
 
 const ACTIVE_STATES = new Set(['loading', 'playing_segment', 'playing_track', 'paused']);
+
+type HomeCtaMode =
+  | { kind: 'fresh' }
+  | { kind: 'resume'; manifest: Manifest; trackCursor: number }
+  | { kind: 'now-playing'; manifest: Manifest; trackIndex: number };
 
 // ───────────────────────── Helpers ─────────────────────────
 
@@ -118,16 +125,56 @@ export default function HomeBroadcastScreen() {
   const [recent, setRecent] = useState<BroadcastHistoryEntry[]>([]);
 
   const [broadcastActive, setBroadcastActive] = useState(false);
+  const [mode, setMode] = useState<HomeCtaMode>({ kind: 'fresh' });
+
   useEffect(() => {
     if (!appActive) return;
-    const tick = () => setBroadcastActive(ACTIVE_STATES.has(broadcastPlayer.getStatus().state));
+    const tick = () => {
+      const status = broadcastPlayer.getStatus();
+      const active = ACTIVE_STATES.has(status.state);
+      setBroadcastActive(active);
+      // Keep mode.now-playing track index in sync with the live player;
+      // drop to fresh when the player stops.
+      setMode(prev => {
+        if (prev.kind !== 'now-playing') return prev;
+        if (!active) return { kind: 'fresh' };
+        if (status.currentTrackIndex === prev.trackIndex) return prev;
+        return { ...prev, trackIndex: Math.max(0, status.currentTrackIndex) };
+      });
+    };
     tick();
     const id = setInterval(tick, 2000);
     return () => clearInterval(id);
   }, [appActive]);
 
   const refreshRecent = useCallback(() => setRecent(getBroadcastHistory()), []);
-  useFocusEffect(useCallback(() => refreshRecent(), [refreshRecent]));
+
+  // On focus: show cached history immediately, then verify each entry
+  // against the server in parallel. Entries whose broadcast returned 404
+  // are pruned (R2 eviction, server-side wipe, etc.). Non-404 errors keep
+  // the entry so we don't destroy history on a flaky connection.
+  useFocusEffect(useCallback(() => {
+    let cancelled = false;
+    const initial = getBroadcastHistory();
+    setRecent(initial);
+    if (initial.length === 0) return;
+    const client = new BroadcastManifestClient();
+    (async () => {
+      const deadIds: string[] = [];
+      await Promise.all(initial.map(async (entry) => {
+        try {
+          await client.fetchManifest(entry.manifest.broadcastId);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          if (msg.includes('404')) deadIds.push(entry.manifest.broadcastId);
+        }
+      }));
+      if (cancelled || deadIds.length === 0) return;
+      deadIds.forEach(id => removeBroadcastFromHistory(id));
+      setRecent(getBroadcastHistory());
+    })();
+    return () => { cancelled = true; };
+  }, []));
 
   const loadPlaylists = useCallback(async () => {
     setPlaylistsLoading(true);
@@ -144,6 +191,10 @@ export default function HomeBroadcastScreen() {
     }
   }, []);
 
+  // Derive the primary-CTA mode from two signals:
+  //  (a) is the BroadcastPlayer singleton currently active in memory, and
+  //  (b) is there a resumable persisted record that passes freshness.
+  // Alert.alert is gone — mode changes the StampButton copy instead.
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -158,30 +209,41 @@ export default function HomeBroadcastScreen() {
       }
       await loadPlaylists();
 
-      const resumer = new BroadcastResumer();
-      const persisted = await resumer.check();
-      if (!mounted || !persisted) return;
-      const firstReadySlot = persisted.segmentSlots.find(s => s.status === 'ready');
-      const urls = firstReadySlot?.audioUrls ?? [];
-      Alert.alert(
-        'Resume broadcast?',
-        `${persisted.tracks.length} tracks left in your session.`,
-        [
-          { text: 'Start fresh', style: 'cancel', onPress: () => { resumer.decline(); } },
-          {
-            text: 'Resume',
-            onPress: () => {
-              router.push('/(main)/(broadcast)/player');
-              broadcastPlayer.start(persisted, urls).catch((e: unknown) =>
-                console.warn('[HomeBroadcast] resume failed', e),
-              );
-            },
-          },
-        ],
-      );
+      // If a broadcast is already active in memory, show Now Playing and
+      // skip the resume check — the live player is authoritative.
+      const status = broadcastPlayer.getStatus();
+      if (ACTIVE_STATES.has(status.state) && status.broadcastId) {
+        try {
+          const m = await new BroadcastManifestClient().fetchManifest(status.broadcastId);
+          if (!mounted) return;
+          setMode({
+            kind: 'now-playing',
+            manifest: m,
+            trackIndex: Math.max(0, status.currentTrackIndex),
+          });
+          return;
+        } catch (err) {
+          console.warn('[HomeBroadcast] live-manifest fetch failed', err);
+        }
+      }
+
+      try {
+        const resumer = new BroadcastResumer();
+        const result = await resumer.check();
+        if (!mounted) return;
+        if (result) {
+          setMode({
+            kind: 'resume',
+            manifest: result.manifest,
+            trackCursor: result.trackCursor,
+          });
+        }
+      } catch (err) {
+        console.warn('[HomeBroadcast] resumer.check failed', err);
+      }
     })();
     return () => { mounted = false; };
-  }, [router, loadPlaylists]);
+  }, [loadPlaylists]);
 
   const playlistName = useMemo(() => {
     if (!playlistId) return null;
@@ -244,13 +306,49 @@ export default function HomeBroadcastScreen() {
     void playUserSourced(r);
   }, [playUserSourced]);
 
-  const playRecent = useCallback((entry: BroadcastHistoryEntry) => {
+  const onResume = useCallback(() => {
+    if (mode.kind !== 'resume') return;
+    const { manifest: m, trackCursor } = mode;
+    router.push('/(main)/(broadcast)/player');
+    broadcastPlayer.resume(m, trackCursor).catch((err: unknown) => {
+      const msg = err instanceof Error ? err.message : 'Playback failed';
+      Alert.alert('Broadcast error', msg);
+    });
+  }, [mode, router]);
+
+  const onStartFresh = useCallback(() => {
+    clearPersistedBroadcast();
+    setMode({ kind: 'fresh' });
+  }, []);
+
+  const onOpenNowPlaying = useCallback(() => {
+    router.push('/(main)/(broadcast)/player');
+  }, [router]);
+
+  const playRecent = useCallback(async (entry: BroadcastHistoryEntry) => {
+    // Verify the broadcast still exists server-side before trying to play.
+    // If the manifest is 404 the backing R2 audio is gone and playback would
+    // fail opaquely — prune from history and tell the user directly.
+    try {
+      await new BroadcastManifestClient().fetchManifest(entry.manifest.broadcastId);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('404')) {
+        removeBroadcastFromHistory(entry.manifest.broadcastId);
+        refreshRecent();
+        Alert.alert('Broadcast unavailable', 'This broadcast is no longer on the server. Removed from your history.');
+        return;
+      }
+      // Transient error: let the user try anyway; start() will surface any
+      // real playback issue.
+      console.warn('[HomeBroadcast] recent verify failed (playing anyway):', msg);
+    }
     router.push('/(main)/(broadcast)/player');
     broadcastPlayer.start(entry.manifest, entry.firstSegmentUrls).catch((err: unknown) => {
       const msg = err instanceof Error ? err.message : 'Playback failed';
       Alert.alert('Broadcast error', msg);
     });
-  }, [router]);
+  }, [router, refreshRecent]);
 
   const playFeatured = useCallback((fb: FeaturedBroadcast) => {
     const firstSlot = fb.manifest.segmentSlots[0];
