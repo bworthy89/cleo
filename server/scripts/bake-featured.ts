@@ -32,9 +32,6 @@ async function main() {
     path.resolve(__dirname, '../.enrichment-cache/tracks.json'),
   );
   await enrichmentCache.load();
-  const backgroundEnricher = new BackgroundEnricher(
-    enrichmentCache, new DefaultEnrichmentFetcher(),
-  );
   const recco = new ReccoBeatsFetcher();
   const deezer = new DeezerFeaturesFetcher();
   const lastFmTags = {
@@ -44,6 +41,9 @@ async function main() {
     },
   };
   const featureFetchChain = new FeatureFetchChain({ recco, deezer, lastFmTags });
+  const backgroundEnricher = new BackgroundEnricher(
+    enrichmentCache, new DefaultEnrichmentFetcher(), featureFetchChain,
+  );
   const orch = new BroadcastOrchestrator(
     llmProvider, ttsProvider, storage, store,
     enrichmentCache, backgroundEnricher, featureFetchChain,
