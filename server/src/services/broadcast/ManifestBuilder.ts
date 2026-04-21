@@ -25,6 +25,9 @@ export function buildManifest(input: BuildManifestInput): Manifest {
   if (input.tracks.length === 0) {
     throw new Error('buildManifest requires at least one track');
   }
+  if (input.broadcastId !== undefined && input.broadcastId.trim() === '') {
+    throw new Error('buildManifest requires a non-blank broadcastId');
+  }
 
   const tracks = input.tracks;
   const featureSlots = input.featureSlots ?? [];

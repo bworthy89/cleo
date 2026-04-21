@@ -83,11 +83,15 @@ export function sanitizeTracksForBake(
         ? t.genreNames.filter(g => g && g.length <= 100).slice(0, 10)
         : undefined,
       // ISRC is 12 chars: 2-letter country + 3-alphanumeric registrant + 7 digits
-      // (5-digit year-of-reference + designation). Reject anything that doesn't
-      // match the canonical shape so the server's Zod length check passes.
-      isrc: t.isrc && /^[A-Z]{2}[A-Z0-9]{3}\d{7}$/.test(t.isrc)
-        ? t.isrc
-        : undefined,
+      // (5-digit year-of-reference + designation). Normalize first (strip
+      // whitespace/spaces/hyphens, uppercase) so variants like "us-rc1-76-07839"
+      // or "USRC1 7607839" still validate, then test canonical shape. Reject
+      // anything that still doesn't match so the server's Zod regex passes.
+      isrc: (() => {
+        if (!t.isrc) return undefined;
+        const normalized = t.isrc.trim().replace(/[\s-]/g, '').toUpperCase();
+        return /^[A-Z]{2}[A-Z0-9]{3}\d{7}$/.test(normalized) ? normalized : undefined;
+      })(),
     }));
 }
 

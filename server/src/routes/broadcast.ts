@@ -2,7 +2,26 @@ import { Router, type Request, type RequestHandler, type Response } from 'expres
 import { z } from 'zod';
 import type { BroadcastOrchestrator } from '../services/broadcast/BroadcastOrchestrator';
 import type { BroadcastStore } from '../services/broadcast/BroadcastStore';
-import { vibeSchema, lengthSchema, trackSchema } from './shared-schemas';
+
+const vibeSchema = z.enum([
+  'morning', 'focus', 'workout', 'feelGood',
+  'lateNight', 'melancholy', 'party',
+]);
+
+const lengthSchema = z.enum(['quick', 'standard', 'long']);
+
+// Exported so the Zod ISRC-format tests can exercise the route schema directly.
+export const trackSchema = z.object({
+  id: z.string().min(1).max(80),
+  title: z.string().min(1).max(200),
+  artistName: z.string().min(1).max(200),
+  albumTitle: z.string().max(200),
+  duration: z.number().positive().max(7200),
+  artworkUrl: z.string().url().max(2048).optional(),
+  genreNames: z.array(z.string().max(100)).max(10).optional(),
+  // ISO 3901: 2-letter country + 3-alphanumeric registrant + 7 digits.
+  isrc: z.string().regex(/^[A-Z]{2}[A-Z0-9]{3}\d{7}$/).optional(),
+});
 
 const contextSchema = z.object({
   timeOfDay: z.string(),

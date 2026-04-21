@@ -1,11 +1,6 @@
 import { DeterministicTrackSequencer } from '../../src/services/broadcast/DeterministicTrackSequencer';
 import { NEUTRAL_FEATURES } from '../../src/services/broadcast/audio-features';
-import type { Vibe } from '../../src/services/broadcast/types';
-
-const ALL_VIBES: Vibe[] = [
-  'morning', 'focus', 'workout', 'feelGood',
-  'lateNight', 'melancholy', 'party',
-];
+import { VIBE_LIST, type Vibe } from '../../src/services/broadcast/types';
 
 const POOL = Array.from({ length: 20 }, (_, i) => ({
   id: String(i), title: `t${i}`, artistName: `artist-${i % 5}`,
@@ -43,7 +38,7 @@ const fakeCache = { get: () => null } as any;
 
 describe('REGRESSION: different vibes → different orders', () => {
   it.each(
-    ALL_VIBES.flatMap(v1 => ALL_VIBES.filter(v2 => v2 !== v1).map(v2 => [v1, v2]))
+    VIBE_LIST.flatMap(v1 => VIBE_LIST.filter(v2 => v2 !== v1).map(v2 => [v1, v2]))
   )('vibe %s differs from vibe %s', async (v1, v2) => {
     const s = new DeterministicTrackSequencer(fakeCache, fakeChain as any);
     const ctx = { timeOfDay: '12:00', dayOfWeek: 'Mon' };
