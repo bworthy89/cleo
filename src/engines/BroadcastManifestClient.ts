@@ -1,4 +1,4 @@
-import { authenticatedFetch } from '../services/api';
+import { authenticatedFetch, API_BASE_URL } from '../services/api';
 import type { Manifest } from './BroadcastPlayer.types';
 
 // Chunked base64 encoder that works in Node (Jest) and React Native.
@@ -32,6 +32,9 @@ export interface CreateBroadcastRequest {
     genreNames?: string[];
     isrc?: string;
   }>;
+  /** Ask ONAY sets this to true — Groq already curated the sequence, so
+   *  the server should NOT re-order via its deterministic sequencer. */
+  preserveOrder?: boolean;
 }
 
 export interface CreateBroadcastResponse {
@@ -117,14 +120,35 @@ export class BroadcastManifestClient {
   }
 
   async fetchSegmentAudio(urlOrPath: string): Promise<string> {
-    // R2 presigned URLs (and any other absolute URL) carry their own auth in
-    // the query string — fetch them directly. Relative paths point at the
-    // API server's local-FS asset mount (dev) and need our JWT.
+    // URL dispatch:
+    //  - Relative path → authenticatedFetch (JWT attached, API_BASE_URL prepended).
+    //  - Absolute URL at our own API origin (local-FS dev mode) → strip the origin
+    //    and authenticatedFetch, since /broadcast-asset/* requires requireAuth.
+    //  - Absolute URL at a different origin (R2 presigned) → plain fetch; the
+    //    URL carries its own auth in the query string.
+    //
+    // Origin comparison (not startsWith) prevents attaching the JWT to a
+    // lookalike host like "https://api.worthymedia.tech.evil.com/..." which
+    // would pass a naive prefix match and leak the bearer token.
     const res = isAbsoluteUrl(urlOrPath)
-      ? await fetch(urlOrPath)
+      ? await this.fetchAbsolute(urlOrPath)
       : await authenticatedFetch(urlOrPath);
     if (!res.ok) throw new Error(`fetchSegmentAudio failed: ${res.status}`);
     const buffer = await res.arrayBuffer();
     return arrayBufferToBase64(buffer);
+  }
+
+  private async fetchAbsolute(url: string): Promise<Response> {
+    try {
+      const target = new URL(url);
+      const apiOrigin = new URL(API_BASE_URL).origin;
+      if (target.origin === apiOrigin) {
+        return authenticatedFetch(target.pathname + target.search + target.hash);
+      }
+    } catch {
+      // Malformed URL (shouldn't happen after isAbsoluteUrl check) — fall
+      // through to plain fetch rather than risk attaching auth to garbage.
+    }
+    return fetch(url);
   }
 }

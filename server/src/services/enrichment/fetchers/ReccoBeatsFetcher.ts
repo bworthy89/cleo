@@ -39,7 +39,10 @@ export class ReccoBeatsFetcher {
   private async fetchBatch(
     isrcs: string[],
   ): Promise<Map<string, AudioFeatures>> {
-    const url = `${BASE_URL}?${isrcs.map(i => `ids[]=${encodeURIComponent(i)}`).join('&')}`;
+    // ReccoBeats expects `?ids=a,b,c` (comma-separated), NOT `?ids[]=a&ids[]=b`.
+    // Passing `ids[]=…` returns HTTP 400 on every call. Confirmed against the
+    // live endpoint during smoke test 2026-04-21.
+    const url = `${BASE_URL}?ids=${isrcs.map(i => encodeURIComponent(i)).join(',')}`;
     let lastErr: unknown;
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
