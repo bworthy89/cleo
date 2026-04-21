@@ -99,6 +99,10 @@ export function createFeaturedRouter(
             firstTimeUser: false,
             listenerName: 'tonight\u2019s listener',
           },
+          // Curator already hand-picked the track order (via Ask ONAY's
+          // LLM curation or a direct config). Skip the deterministic
+          // sequencer's re-shuffle.
+          preserveOrder: true,
         });
 
         await orchestrator.waitForCompletion(initial.broadcastId);

@@ -5,7 +5,13 @@ import { buildSegmentPrompts, type SegmentContext } from './SegmentScriptBuilder
 import { SegmentGenerator, type LLMCaller, type TTSCaller } from './SegmentGenerator';
 import type {
   BroadcastCreateRequest, BroadcastCreateResponse, Manifest,
+  ManifestTrack, BroadcastLength,
 } from './types';
+import { nominateDeepDives } from './deep-dives';
+
+const LENGTH_TO_N: Record<BroadcastLength, number> = {
+  quick: 5, standard: 9, long: 15,
+};
 import { BroadcastStore } from './BroadcastStore';
 import { LLMTrackSequencer, type ITrackSequencer } from './TrackSequencer';
 import { DeterministicTrackSequencer } from './DeterministicTrackSequencer';
@@ -118,17 +124,36 @@ export class BroadcastOrchestrator {
     //    produce the same track order.
     const broadcastId = randomUUID();
 
-    // 1. Sequence the pool (uses any cached enrichment as hints).
-    const seq = await this.sequencer.sequence({
-      pool: input.tracks,
-      vibe: input.vibe,
-      length: input.length,
-      userContext: {
-        timeOfDay: input.userContext.timeOfDay,
-        dayOfWeek: input.userContext.dayOfWeek,
-      },
-      broadcastId,
-    });
+    // 1. Sequence the pool. When `preserveOrder` is set (Ask ONAY flow),
+    //    skip the DeterministicTrackSequencer's score-and-place and use the
+    //    caller's track order directly — Groq already curated the sequence
+    //    and re-ordering here would disrupt the LLM's intent. Feature-slot
+    //    nomination still runs via nominateDeepDives.
+    let seq: { orderedTracks: ManifestTrack[]; featureSlots: number[] };
+    if (input.preserveOrder) {
+      const N = LENGTH_TO_N[input.length];
+      if (input.tracks.length < N) {
+        throw new Error(`insufficient tracks: need ${N}, got ${input.tracks.length}`);
+      }
+      const orderedTracks = input.tracks.slice(0, N);
+      const featureSlots = nominateDeepDives(orderedTracks, this.enrichmentCache);
+      seq = { orderedTracks, featureSlots };
+      const orderLines = orderedTracks
+        .map((t, i) => `  [${i}] ${t.id}  ${t.title} — ${t.artistName}`)
+        .join('\n');
+      console.log(`[Sequencer] source=preserved vibe=${input.vibe} N=${N} poolSize=${input.tracks.length}\n${orderLines}`);
+    } else {
+      seq = await this.sequencer.sequence({
+        pool: input.tracks,
+        vibe: input.vibe,
+        length: input.length,
+        userContext: {
+          timeOfDay: input.userContext.timeOfDay,
+          dayOfWeek: input.userContext.dayOfWeek,
+        },
+        broadcastId,
+      });
+    }
 
     // 2. Build the manifest immediately — enrichment isn't needed to know
     //    which slots exist and which tracks they target.
@@ -142,6 +167,14 @@ export class BroadcastOrchestrator {
       featureSlots: seq.featureSlots,
     });
     this.store.put(manifest);
+
+    // Log the full manifest track order so we can verify client playback
+    // matches what the sequencer produced. Format: one line per track with
+    // zero-indexed position, Apple Music id, and "Title — Artist".
+    const orderLines = seq.orderedTracks
+      .map((t, i) => `  [${i}] ${t.id}  ${t.title} — ${t.artistName}`)
+      .join('\n');
+    console.log(`[Manifest] ${manifest.broadcastId} track order:\n${orderLines}`);
 
     // 3. Fire enrichment drain and slot 0 bake in parallel.
     //    Slot 0 is the cold_open — it sets the scene and names the first

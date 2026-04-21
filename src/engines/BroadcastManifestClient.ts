@@ -1,4 +1,4 @@
-import { authenticatedFetch } from '../services/api';
+import { authenticatedFetch, API_BASE_URL } from '../services/api';
 import type { Manifest } from './BroadcastPlayer.types';
 
 // Chunked base64 encoder that works in Node (Jest) and React Native.
@@ -32,6 +32,9 @@ export interface CreateBroadcastRequest {
     genreNames?: string[];
     isrc?: string;
   }>;
+  /** Ask ONAY sets this to true — Groq already curated the sequence, so
+   *  the server should NOT re-order via its deterministic sequencer. */
+  preserveOrder?: boolean;
 }
 
 export interface CreateBroadcastResponse {
@@ -117,11 +120,16 @@ export class BroadcastManifestClient {
   }
 
   async fetchSegmentAudio(urlOrPath: string): Promise<string> {
-    // R2 presigned URLs (and any other absolute URL) carry their own auth in
-    // the query string — fetch them directly. Relative paths point at the
-    // API server's local-FS asset mount (dev) and need our JWT.
+    // URL dispatch:
+    //  - Relative path → authenticatedFetch (JWT attached, API_BASE_URL prepended).
+    //  - Absolute URL at our own API host (local-FS dev mode) → strip the origin
+    //    and authenticatedFetch, since /broadcast-asset/* requires requireAuth.
+    //  - Absolute URL at a different host (R2 presigned) → plain fetch; the
+    //    URL carries its own auth in the query string.
     const res = isAbsoluteUrl(urlOrPath)
-      ? await fetch(urlOrPath)
+      ? urlOrPath.startsWith(API_BASE_URL)
+        ? await authenticatedFetch(urlOrPath.slice(API_BASE_URL.length))
+        : await fetch(urlOrPath)
       : await authenticatedFetch(urlOrPath);
     if (!res.ok) throw new Error(`fetchSegmentAudio failed: ${res.status}`);
     const buffer = await res.arrayBuffer();
