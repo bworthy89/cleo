@@ -6,7 +6,9 @@ export class OllamaProvider implements LLMProvider {
   private model: string;
 
   constructor() {
-    this.baseUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
+    const baseUrl = process.env.OLLAMA_BASE_URL;
+    if (!baseUrl) throw new Error('Ollama not configured (missing OLLAMA_BASE_URL)');
+    this.baseUrl = baseUrl;
     this.model = process.env.OLLAMA_MODEL || 'llama3.1:8b';
   }
 

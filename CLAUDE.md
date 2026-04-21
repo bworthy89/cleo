@@ -33,21 +33,41 @@ running as a rollback safety net — Caddy routes away from it.
 
 ### AI & Voice (server-side only)
 - Gemini 2.5 Flash — LLM (was fallback; now primary since Ollama disabled)
-- Ollama — **disabled in prod**, GPU reserved for F5-TTS. `OLLAMA_BASE_URL` is now a
-  required env var; leaving it unset → Ollama provider fails to construct, Gemini
-  becomes the active primary
-- F5-TTS (self-hosted FastAPI wrapper on the Linux box via Pangolin at
-  `f5tts.worthymedia.online`) — **primary TTS**, voice-cloned from a Cartesia sample.
-  `tts://tts` endpoint accepts JSON `{ text, ref_id, speed, nfe_step, cfg_strength }`
-- Cartesia (`sonic-3`) — fallback TTS
-- ElevenLabs (`eleven_turbo_v2_5`) — tertiary TTS
-- Orpheus (self-hosted) — quaternary (kept in the provider list for now)
-- Filesystem TTS cache dedupes identical text across bakes
+- Ollama — **disabled in prod**, GPU reserved for CosyVoice + F5. `OLLAMA_BASE_URL`
+  is now a required env var; leaving it unset → Ollama provider fails to construct,
+  Gemini becomes the active primary.
+- **Fun-CosyVoice3-0.5B** (self-hosted FastAPI wrapper on the Linux box,
+  port 8001, proxied via `f5tts.worthymedia.online/cosy/*`) — **primary TTS**
+  as of 2026-04-20. System prompt `"You are ONAY, a warm radio DJ."` baked into
+  the wrapper (winning variant from A/B testing). Startup warmup runs 3
+  representative inferences (short/medium/long shapes) to prime MIOpen kernels;
+  adds ~47s to boot but saves ~15s on first user bake.
+- **F5-TTS** (same Linux box, port 8000, `f5tts.worthymedia.online`) — **fallback
+  TTS**. Settings: NFE=20, CFG=2.3, speed=1.05. Leading-silence trim patched
+  into the wrapper since F5's `remove_silence=True` is a no-op unless `file_wave`
+  is provided (our wrapper writes to buffer instead). F5 wrapper also hosts the
+  `/cosy/*` proxy endpoints forwarding to CosyVoice on port 8001 — reuses the
+  single Pangolin tunnel rather than adding a second.
+- Cartesia (`sonic-3`) — tertiary TTS (paid API, used only when both self-hosted
+  providers fail health checks).
+- ElevenLabs (`eleven_turbo_v2_5`) — quaternary
+- Orpheus (self-hosted) — quinternary (kept in the provider list for now)
+- `TTS_PRIMARY=cosyvoice TTS_FALLBACK=f5tts` → chain is cosyvoice → f5tts →
+  cartesia. `TTS_FALLBACK` is a new explicit override that lets self-hosted
+  primaries chain to another self-hosted provider before hitting a paid API.
+- **CosyVoice "empty generation" failure** (intermittent): model occasionally
+  yields no `tts_speech` chunks for some texts. Wrapper returns HTTP 502; the
+  factory fallback chain picks up that segment with F5. Silent quality
+  degradation, not a user-visible failure.
+- Filesystem TTS cache at `~/.cache/cleo-tts` (falls back from `TTS_CACHE_DIR`
+  env) dedupes identical text across bakes. Must be cleared whenever TTS
+  settings or reference changes — otherwise stale audio gets served.
 - **Pronunciation dict** ported from Cartesia's server-side dict to
-  `server/src/providers/tts/pronunciations.json` (146 entries, artist names →
-  phonetic forms). Applied locally in `preprocessForTTS` so F5-TTS (which has no
-  dict API) gets the same phonetic corrections as the paid providers; Cartesia
-  receives pre-substituted text so its own dict becomes a no-op for these entries
+  `server/src/providers/tts/pronunciations.json` (146 entries). Applied locally
+  in `preprocessForTTS`. **All hyphens stripped from substitutions** as of
+  2026-04-20 — F5 and CosyVoice both read hyphens as sharp syllable breaks that
+  distort prosody. Entries concatenate instead: `Bee-yon-say → Beeyonsay`,
+  `Boss Man D-Low → Boss Man DLow`.
 
 ### Backend
 - **Local dev:** Node.js + Express (`server/`) on port 3001. Jest + ts-jest test suite
@@ -122,10 +142,12 @@ cleo-app/
 │       ├── providers/
 │       │   ├── llm/              ← Gemini (primary, since Ollama requires explicit
 │       │   │                       OLLAMA_BASE_URL and isn't configured in prod)
-│       │   └── tts/              ← F5-TTS primary / Cartesia fallback / ElevenLabs
-│       │                           tertiary (reorderable via TTS_PRIMARY env),
-│       │                           wrapped in CachingTTSProvider. pronunciations.json
-│       │                           holds 146 artist-name entries ported from Cartesia
+│       │   └── tts/              ← CosyVoice3 primary / F5 fallback / Cartesia
+│       │                           tertiary (reorderable via TTS_PRIMARY +
+│       │                           TTS_FALLBACK env), wrapped in CachingTTSProvider.
+│       │                           pronunciations.json holds 146 artist-name entries
+│       │                           (hyphens stripped from all values so F5/CosyVoice
+│       │                           don't read them as stress markers)
 │       ├── routes/
 │       │   ├── broadcast.ts      ← POST /broadcast/create, GET /broadcast/:id/manifest
 │       │   ├── featured.ts       ← GET /broadcast/featured, POST /broadcast/featured/publish
@@ -340,8 +362,11 @@ BroadcastOrchestrator.waitForCompletion(id) — awaits the inFlight promise (use
 ### Caches
 - **`server/.broadcast-cache/broadcast/<id>/segment/<slot>/v<v>.mp3`** — persists on disk
   indefinitely; gitignored. No automatic cleanup yet.
-- **`server/.tts-cache/`** — pre-existing `CachingTTSProvider` hashes text + voice
-  params; dedupes identical TTS calls across bakes.
+- **`~/.cache/cleo-tts/`** — `CachingTTSProvider` hashes text + voice params;
+  dedupes identical TTS calls across bakes. Default location (override with
+  `TTS_CACHE_DIR`). Must be cleared whenever TTS settings, reference audio, or
+  transcript change — otherwise stale audio under old settings gets served
+  indefinitely. Cleared most recently on 2026-04-20.
 - **`server/.enrichment-cache/tracks.json`** — persistent `EnrichmentCache`, keyed on
   normalized `title|artist` (strips `(feat. X)` / `(Remastered YYYY)` / `- Deluxe`),
   values are `EnrichmentRecord { genre, moodTags, releaseYear, producer, sample,
@@ -387,7 +412,7 @@ BroadcastOrchestrator.waitForCompletion(id) — awaits the inFlight promise (use
 ## Environment Variables
 
 `server/.env` (gitignored):
-```
+```env
 GEMINI_API_KEY
 CARTESIA_API_KEY, CARTESIA_VOICE_ID, CARTESIA_MODEL_ID
 CARTESIA_PRONUNCIATION_DICT_ID            ← source dict; synced locally to
@@ -401,16 +426,25 @@ HEALTH_CHECK_INTERVAL_MS, HEALTH_CHECK_TIMEOUT_MS
 BROADCAST_ASSET_BASE_URL                  ← dev: http://<LAN-IP>:3001
 CURATOR_EMAILS                            ← comma-separated; authoritative publish gate
 
-# TTS provider ordering (factory reads this to reorder the primary slot)
-TTS_PRIMARY=f5tts
+# TTS provider chain. TTS_PRIMARY = first try; TTS_FALLBACK = second try
+# (new env var for self-hosted → self-hosted fallback before paid API).
+TTS_PRIMARY=cosyvoice
+TTS_FALLBACK=f5tts
 
-# F5-TTS (self-hosted FastAPI wrapper on the Linux box via Pangolin)
+# CosyVoice3 (self-hosted on Linux box:8001, proxied via F5 tunnel /cosy/*)
+COSYVOICE_BASE_URL=https://f5tts.worthymedia.online/cosy
+COSYVOICE_VOICE_REF=onay-cartesia         ← ref audio + transcript shared with F5
+COSYVOICE_SPEED=1.0
+COSYVOICE_TIMEOUT_MS=180000
+
+# F5-TTS (same Linux box, port 8000)
 F5TTS_BASE_URL=https://f5tts.worthymedia.online
 F5TTS_VOICE_REF=onay-cartesia             ← ref audio + transcript saved on the server
-F5TTS_NFE_STEP=12                         ← diffusion steps; 12 is the sweet spot on
-                                            6700XT (~7s/call, close to nfe=16 quality)
-F5TTS_CFG_STRENGTH=2.5
-F5TTS_SPEED=0.9                           ← used when caller passes default 1.0
+F5TTS_NFE_STEP=20                         ← paper-tested floor; 12 was below range and
+                                            produced inconsistent output
+F5TTS_CFG_STRENGTH=2.3                    ← stability bump from default 2.0 after
+                                            A/B listening (2.0 was too expressive)
+F5TTS_SPEED=1.05                          ← faster pace; 0.9 was too slow
 F5TTS_TIMEOUT_MS=180000                   ← lifted from 60s so async slot 1..N queue
                                             doesn't flip to Cartesia under the asyncio
                                             serialize lock
@@ -420,7 +454,7 @@ R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET, R2_PUBLIC_BASE
 ```
 
 Project root `.env`:
-```
+```env
 EXPO_PUBLIC_API_URL           ← dev: http://<LAN-IP>:3001; prod: https://api.worthymedia.tech
 EXPO_PUBLIC_SENTRY_DSN
 ```
@@ -476,8 +510,9 @@ EXPO_PUBLIC_SENTRY_DSN
   `featureSlots` overrides specific indices to `deep_dive` and consumes an alternation
   step. Client `BroadcastPlayer` uses the `nextSegmentIdx` dual-cursor walk that
   only advances on `beforeTrackId` match — don't regress to the old `i+1` lockstep.
-- **Tier shapes live in `SegmentScriptBuilder.TIER_SHAPES`** — `cold_open` 55-80
-  words, `fact_bridge` 45-55, `tight_bridge` 30-40, `deep_dive` 80-120, `sign_off`
+- **Tier shapes live in `SegmentScriptBuilder.TIER_SHAPES`** — `cold_open` 35-50
+  words (shrunk from 55-80 on 2026-04-20 to reduce cold-open TTFT under CosyVoice's
+  RTF ~2), `fact_bridge` 45-55, `tight_bridge` 30-40, `deep_dive` 80-120, `sign_off`
   35-55. The FACT DISCIPLINE rule forbids weaving multiple enrichment facts:
   "Pick the single most interesting fact. Don't try to weave multiple."
 - **Transition prompts are hybrid-editorial** — drop the `Outgoing: …` line; only
@@ -505,11 +540,18 @@ EXPO_PUBLIC_SENTRY_DSN
   a woman using she/her pronouns and forbids masculine DJ phrasing ("your boy", "my
   man", "the homie", "this guy"). When tuning voice or prompts, don't remove these
   guards.
-- **Host name phonetic substitution.** `SegmentGenerator.phoneticizeHostName` rewrites
-  `\bONAY\b → Oh-nay` on the LLM script text before handing it to TTS, so Cartesia /
-  ElevenLabs pronounce it correctly. Word-bounded so `BALONAY` / `ONAYS` aren't
-  touched. If we ever rename the host again, update both the regex and the system
-  prompt in lockstep.
+- **Host name phonetic substitution.** `preprocessForTTS` rewrites
+  `\bONAY\b → Ohnay` (no hyphen, as of 2026-04-20) on LLM script text before handing
+  to TTS. The hyphen caused F5/CosyVoice to read the name as two emphatic
+  syllables. Word-bounded so `BALONAY` / `ONAYS` aren't touched.
+  `SegmentScriptBuilder` system prompt also says `(pronounced "Ohnay")` so Gemini
+  writes the unhyphenated form in scripts. If we ever rename the host again,
+  update the regex, the system prompt hint, and the reference transcript in
+  lockstep.
+- **Never add hyphens to phonetic substitutions for F5 or CosyVoice.** F5's
+  character-level tokenizer and CosyVoice's tokenizer both treat `-` as a stress
+  marker — `Bee-yon-say` reads as three emphatic syllables (staccato / "excited").
+  `pronunciations.json` entries are all hyphen-free now; don't re-add them.
 - **TrackSequencer prompt hints are sanitized.** Enrichment fields (`genre`,
   `moodTags`, `producer`) come from third-party APIs — always run through
   `sanitizeHint` before interpolation, mirroring `sanitizeForPrompt`'s control-char /
@@ -525,6 +567,27 @@ EXPO_PUBLIC_SENTRY_DSN
   by running multiple uvicorn workers — on the 6700XT the GPU is compute-bound
   and time-slicing across workers doesn't help; each worker also has its own
   MODEL instance, bypassing the lock.
+- **F5 `remove_silence=True` is a no-op in our wrapper.** F5's api.py only calls
+  `remove_silence_for_generated_wav` inside `export_wav`, which only runs when
+  `file_wave` is provided. Our wrapper writes via `sf.write` to a buffer, skipping
+  `export_wav` entirely. Fix is an in-wrapper `_trim_silence` numpy step before
+  encoding — takes ~60ms leading + ~120ms trailing, drops from 528ms leading
+  silence down to 60ms.
+- **CosyVoice wrapper also `asyncio.Lock`-serialized** for the same reason.
+  First call after boot pays MIOpen tuner cost (~30s cold); wrapper runs a
+  3-shape startup warmup to amortize. MIOpen tuner cache persists to
+  `~/.cache/miopen/` across restarts.
+- **F5 wrapper exposes `/cosy/*` proxy endpoints.** `GET /cosy/health` and
+  `POST /cosy/tts` forward to `127.0.0.1:8001` via an httpx async client so
+  only one Pangolin tunnel is needed. The proxy uses `Request.json()` instead
+  of a typed body param — `from __future__ import annotations` stringifies
+  type hints and FastAPI can't resolve `TTSRequest` at route-registration time.
+- **`preprocessForTTS` strips markdown emphasis.** Gemini occasionally emits
+  `*word*` or `**word**` as prosody hints. F5/CosyVoice read them literally
+  (either pronouncing the asterisks or distorting prosody), which reads as
+  "too excited" delivery. Strip regex lives in `SegmentGenerator.preprocessForTTS`.
+  Also normalizes curly double quotes `""` → `"` (F5's tokenizer mishandles
+  U+201C/U+201D).
 
 ---
 
@@ -573,8 +636,16 @@ EXPO_PUBLIC_SENTRY_DSN
   pure class without pulling Firebase / native module dependencies.
 - **Persisted manifest is cleared on `end()`** so resume doesn't offer a finished
   session.
-- **Resume manifest URLs can 404** if the server restarted or the 2h TTL evicted the
-  backing files. `BroadcastResumer.check()` doesn't verify URL freshness.
+- **`BroadcastResumer.check()` now verifies freshness.** As of 2026-04-20 it
+  pings `/broadcast/:id/manifest` before returning the cached manifest; 404
+  clears the persisted record and returns null (no misleading "Resume?" prompt).
+  Non-404 errors (network/timeout) keep the cached manifest — don't want to
+  destroy a legit resume on a flaky connection.
+- **Earlier Tonight list verifies on focus.** `HomeBroadcastScreen` `useFocusEffect`
+  renders the cached `BROADCAST_HISTORY` immediately, then hits
+  `/broadcast/:id/manifest` for each entry in parallel and prunes 404s via
+  `removeBroadcastFromHistory()`. Playback tap also re-verifies (handles tap-
+  during-verify race).
 
 ### Build / deployment
 - **Xcode team ID drift**: project file sometimes shows `5MQ5ZR66YN` instead of
@@ -629,5 +700,36 @@ Segment cadence spec (2026-04-20): `docs/superpowers/specs/2026-04-20-segment-ca
 Plans: `docs/superpowers/plans/2026-04-12-pre-baked-broadcast-plan-{1..4}-*.md`
 Curation plan: `docs/superpowers/plans/2026-04-16-curation-implementation.md`
 Segment cadence plan: `docs/superpowers/plans/2026-04-20-segment-cadence.md`
+**TTS tuning log (2026-04-20): `docs/f5-tts-tuning-log.md`** — living record of
+F5 parameter tuning, reference audio changes, CosyVoice3 integration, and the
+A/B listening rounds that locked in the current voice recipe. Includes rollback
+one-liners and all backup filenames for safe revert.
 Legacy PRD: `cleo-prd.md` at repo root — predates the pre-baked pivot; reference only
 for vibe/fallback library content that still informs `SegmentScriptBuilder`.
+
+---
+
+## Self-hosted TTS infrastructure (Linux box at 192.168.8.229)
+
+Separate from the Hostinger VPS. Hosts both F5 and CosyVoice3.
+
+- **SSH:** `ssh kari@192.168.8.229` — AMD 6700XT GPU via ROCm 6.2
+- **F5-TTS wrapper:** `~/f5tts-server/` — systemd unit `f5tts`, port 8000,
+  managed service. Patched 2026-04-20 with leading-silence trim and `/cosy/*`
+  reverse-proxy endpoints.
+- **CosyVoice3 wrapper:** `~/cosyvoice-server/` — currently runs via `nohup`
+  uvicorn on port 8001; systemd unit staged at `~/cosyvoice-server/cosyvoice.service`
+  but not installed (needs sudo: `sudo cp ... && sudo systemctl enable --now`).
+  Restarts are manual until the unit is installed.
+- **Shared reference:** `~/f5tts-server/refs/onay-cartesia.wav` + `.txt` is the
+  canonical voice. CosyVoice symlinks it from `~/cosyvoice-server/refs/`.
+  Audio is 9.56s (cropped 2026-04-20 to remove self-introduction — reference no
+  longer says "Oh-nay").
+- **Pangolin tunnel:** `f5tts.worthymedia.online` → port 8000 on this host.
+  CosyVoice reached via `f5tts.worthymedia.online/cosy/*` proxy rather than a
+  second tunnel rule.
+- **ROCm quirk:** both services need `HSA_OVERRIDE_GFX_VERSION=10.3.0` set
+  (the 6700XT reports as gfx1031 but ROCm wheels were built for gfx1030).
+- **MIOpen tuner cache:** `~/.cache/miopen/` persists kernel selections across
+  restarts. CosyVoice wrapper runs a 3-shape startup warmup to prime the cache
+  before serving real traffic.

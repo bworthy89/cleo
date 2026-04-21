@@ -1,4 +1,4 @@
-import { createHash } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { mkdir, readFile, writeFile, rename, unlink, stat } from 'fs/promises';
 import { join } from 'path';
 import { homedir } from 'os';
@@ -58,8 +58,9 @@ export class CachingTTSProvider implements TTSProvider {
     console.log(`[TTS:cache] MISS ${hash.slice(0, 8)} — synthesizing`);
     const result = await this.inner.synthesize(request);
 
-    // Atomic write: temp file then rename
-    const tmpPath = `${cachePath}.tmp.${process.pid}`;
+    // Atomic write: temp file then rename. Per-write UUID suffix prevents
+    // intra-process collisions when the same text is synthesized concurrently.
+    const tmpPath = `${cachePath}.tmp.${process.pid}.${randomUUID()}`;
     try {
       await writeFile(tmpPath, result.audioContent, 'utf-8');
       await rename(tmpPath, cachePath);

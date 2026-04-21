@@ -24,6 +24,10 @@ export class CartesiaProvider implements TTSProvider {
     try {
       const speed = Math.max(0.6, Math.min(1.5, request.speed));
 
+      // TEMP DEBUG: log the exact transcript sent to Cartesia so we can inspect
+      // pronunciation issues by correlating text → audio output.
+      console.log(`[DEBUG-TTS] transcript: ${JSON.stringify(request.text)}`);
+
       const response = await fetch('https://api.cartesia.ai/tts/bytes', {
         method: 'POST',
         headers: {

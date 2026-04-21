@@ -1,140 +1,90 @@
 import { TTSProvider, TTSRequest, TTSResponse } from './types';
 
 /**
- * Chatterbox TTS via Replicate's hosted model (resemble-ai/chatterbox).
+ * Chatterbox TTS via self-hosted devnen/Chatterbox-TTS-Server.
+ *
+ * Expected server: HTTP POST /tts returning raw audio bytes.
  *
  * Environment:
- * - REPLICATE_API_TOKEN                  — required
- * - CHATTERBOX_REFERENCE_AUDIO_URL       — optional; a public URL to a reference
- *                                          clip for voice cloning. Without it,
- *                                          Chatterbox uses its default voice.
- * - CHATTERBOX_EXAGGERATION              — optional, 0-1, defaults 0.5
- * - CHATTERBOX_CFG                       — optional, 0-1, defaults 0.5
- * - CHATTERBOX_TEMPERATURE               — optional, 0-1, defaults 0.8
- * - CHATTERBOX_WAIT_TIMEOUT_MS           — optional, default 60000 (Replicate's
- *                                          Prefer: wait=60s cap); overall
- *                                          request timeout is this value + a
- *                                          small buffer.
- *
- * Replicate's API is async: POST returns a prediction object; we use the
- * `Prefer: wait=60` header to make it synchronous-ish within 60s. If the
- * prediction isn't done within that window, we poll until it is (or time out).
+ * - CHATTERBOX_BASE_URL         — required, e.g. https://chatterbox.worthymedia.online
+ * - CHATTERBOX_VOICE_REF        — reference filename registered on the server
+ *                                 (default: onay-voice.wav)
+ * - CHATTERBOX_EXAGGERATION     — 0..1, default 1.0 (higher = more expressive)
+ * - CHATTERBOX_CFG_WEIGHT       — 0..1, default 0.15
+ * - CHATTERBOX_TEMPERATURE      — default 0.95
+ * - CHATTERBOX_CHUNK_SIZE       — default 500 (the server's max). Chatterbox splits
+ *                                 text at this char boundary. Larger = fewer chunks
+ *                                 = lower total latency. Most ONAY segments are
+ *                                 ≤400 chars so 500 avoids splitting.
+ * - CHATTERBOX_TIMEOUT_MS       — default 90000. Bake parallelism queues multiple
+ *                                 TTS calls on one GPU, so individual calls can wait
+ *                                 5-7x the solo latency.
  */
-
-const MODEL_PATH = 'resemble-ai/chatterbox';
-const BASE_URL = 'https://api.replicate.com/v1';
-const DEFAULT_WAIT_SECONDS = 60;
-
-interface ReplicatePrediction {
-  id: string;
-  status: 'starting' | 'processing' | 'succeeded' | 'failed' | 'canceled';
-  output: string | string[] | null;
-  error: string | null;
-  urls: { get: string; cancel: string };
-}
 
 export class ChatterboxProvider implements TTSProvider {
   readonly name = 'chatterbox';
-  private readonly token: string;
-  private readonly referenceUrl?: string;
+  private readonly baseUrl: string;
+  private readonly voiceRef: string;
   private readonly exaggeration: number;
-  private readonly cfg: number;
+  private readonly cfgWeight: number;
   private readonly temperature: number;
-  private readonly waitTimeoutMs: number;
+  private readonly chunkSize: number;
+  private readonly timeoutMs: number;
 
   constructor() {
-    const token = process.env.REPLICATE_API_TOKEN;
-    if (!token) throw new Error('Chatterbox not configured (missing REPLICATE_API_TOKEN)');
-    this.token = token;
-    this.referenceUrl = process.env.CHATTERBOX_REFERENCE_AUDIO_URL || undefined;
-    this.exaggeration = Number(process.env.CHATTERBOX_EXAGGERATION ?? 0.5);
-    this.cfg = Number(process.env.CHATTERBOX_CFG ?? 0.5);
-    this.temperature = Number(process.env.CHATTERBOX_TEMPERATURE ?? 0.8);
-    this.waitTimeoutMs = Number(process.env.CHATTERBOX_WAIT_TIMEOUT_MS ?? 60_000);
+    const baseUrl = process.env.CHATTERBOX_BASE_URL;
+    if (!baseUrl) throw new Error('Chatterbox not configured (missing CHATTERBOX_BASE_URL)');
+    this.baseUrl = baseUrl.replace(/\/$/, '');
+    this.voiceRef = process.env.CHATTERBOX_VOICE_REF || 'onay-voice.wav';
+    this.exaggeration = Number(process.env.CHATTERBOX_EXAGGERATION ?? 1.0);
+    this.cfgWeight = Number(process.env.CHATTERBOX_CFG_WEIGHT ?? 0.15);
+    this.temperature = Number(process.env.CHATTERBOX_TEMPERATURE ?? 0.95);
+    this.chunkSize = Number(process.env.CHATTERBOX_CHUNK_SIZE ?? 500);
+    this.timeoutMs = Number(process.env.CHATTERBOX_TIMEOUT_MS ?? 90_000);
   }
 
   async synthesize(request: TTSRequest): Promise<TTSResponse> {
-    const input: Record<string, unknown> = {
-      prompt: request.text,
-      exaggeration: this.exaggeration,
-      cfg_weight: this.cfg,
-      temperature: this.temperature,
-    };
-    if (this.referenceUrl) {
-      input.audio_prompt = this.referenceUrl;
-    }
+    console.log(`[DEBUG-TTS] transcript: ${JSON.stringify(request.text)}`);
 
-    const prediction = await this.createPrediction(input);
-    const final = prediction.status === 'succeeded' || prediction.status === 'failed'
-      ? prediction
-      : await this.pollPrediction(prediction);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
 
-    if (final.status !== 'succeeded') {
-      console.error(`[TTS:chatterbox] prediction ${final.status}: ${final.error ?? 'unknown'}`);
-      throw new Error(`Chatterbox prediction ${final.status}: ${final.error ?? 'unknown'}`);
-    }
-
-    const outputUrl = Array.isArray(final.output) ? final.output[0] : final.output;
-    if (!outputUrl) {
-      throw new Error('Chatterbox returned no output URL');
-    }
-
-    const audioRes = await fetch(outputUrl, {
-      signal: AbortSignal.timeout(this.waitTimeoutMs),
-    });
-    if (!audioRes.ok) {
-      throw new Error(`Chatterbox output fetch failed: ${audioRes.status}`);
-    }
-    const audioBuffer = await audioRes.arrayBuffer();
-    const sizeKB = Math.round(audioBuffer.byteLength / 1024);
-    console.log(`[TTS:chatterbox] Audio: ${sizeKB}KB`);
-    return { audioContent: Buffer.from(audioBuffer).toString('base64') };
-  }
-
-  private async createPrediction(input: Record<string, unknown>): Promise<ReplicatePrediction> {
-    const waitSeconds = Math.min(60, Math.floor(this.waitTimeoutMs / 1000));
-    const res = await fetch(`${BASE_URL}/models/${MODEL_PATH}/predictions`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${this.token}`,
-        'Content-Type': 'application/json',
-        Prefer: `wait=${waitSeconds}`,
-      },
-      body: JSON.stringify({ input }),
-      signal: AbortSignal.timeout(this.waitTimeoutMs + 5_000),
-    });
-    if (!res.ok) {
-      const body = await res.text().catch(() => '');
-      console.error(`[TTS:chatterbox] Create error (${res.status}): ${body.substring(0, 300)}`);
-      throw new Error(`Chatterbox create ${res.status}`);
-    }
-    return (await res.json()) as ReplicatePrediction;
-  }
-
-  private async pollPrediction(initial: ReplicatePrediction): Promise<ReplicatePrediction> {
-    const deadline = Date.now() + this.waitTimeoutMs;
-    let current = initial;
-    while (Date.now() < deadline) {
-      if (current.status === 'succeeded' || current.status === 'failed' || current.status === 'canceled') {
-        return current;
-      }
-      await new Promise(r => setTimeout(r, 1000));
-      const res = await fetch(current.urls.get, {
-        headers: { Authorization: `Bearer ${this.token}` },
-        signal: AbortSignal.timeout(10_000),
+    try {
+      const res = await fetch(`${this.baseUrl}/tts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+          text: request.text,
+          voice_mode: 'clone',
+          reference_audio_filename: this.voiceRef,
+          output_format: 'wav',
+          exaggeration: this.exaggeration,
+          cfg_weight: this.cfgWeight,
+          temperature: this.temperature,
+          chunk_size: this.chunkSize,
+        }),
       });
+
       if (!res.ok) {
-        throw new Error(`Chatterbox poll ${res.status}`);
+        const body = await res.text().catch(() => '');
+        console.error(`[TTS:chatterbox] Error (${res.status}): ${body.substring(0, 300)}`);
+        throw new Error(`Chatterbox ${res.status}`);
       }
-      current = (await res.json()) as ReplicatePrediction;
+
+      const audioBuffer = await res.arrayBuffer();
+      const sizeKB = Math.round(audioBuffer.byteLength / 1024);
+      console.log(`[TTS:chatterbox] Audio: ${sizeKB}KB`);
+      return { audioContent: Buffer.from(audioBuffer).toString('base64') };
+    } finally {
+      clearTimeout(timeout);
     }
-    throw new Error('Chatterbox prediction timed out');
   }
 
   async healthCheck(): Promise<boolean> {
     try {
-      const res = await fetch(`${BASE_URL}/account`, {
-        headers: { Authorization: `Bearer ${this.token}` },
+      const res = await fetch(`${this.baseUrl}/get_predefined_voices`, {
+        method: 'GET',
         signal: AbortSignal.timeout(Number(process.env.HEALTH_CHECK_TIMEOUT_MS) || 2000),
       });
       return res.ok;

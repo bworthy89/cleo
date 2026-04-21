@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { Redirect } from 'expo-router';
 import { Colors, Surface } from '../src/tokens/design-tokens';
-import { getUser, setUser } from '../src/services/Storage';
+import { getUser, setUser, clearUserData } from '../src/services/Storage';
 import { onAuthStateChanged, type AuthUser } from '../src/services/AuthService';
 import { UITEST_MODE } from '../src/config/featureFlags';
 import { UITEST_USER_DATA } from '../src/config/uitestFixtures';
@@ -12,10 +12,12 @@ export default function Index() {
 
   useEffect(() => {
     if (UITEST_MODE) {
-      // Seed a local UserData so the "needs onboarding" branch is skipped,
-      // then hop straight to the main app. Firebase auth is short-circuited
-      // below via a synthetic AuthUser.
-      if (!getUser()) setUser(UITEST_USER_DATA);
+      // Reset all persisted user state (broadcast history, resume cursor,
+      // playlist cache, ONAY suggestion) so every screenshot run starts
+      // from the same fixture state, then seed the UserData and synthetic
+      // AuthUser so onboarding is skipped and Firebase auth is bypassed.
+      clearUserData('uitest-user-0001');
+      setUser(UITEST_USER_DATA);
       setAuthUser({ uid: 'uitest-user-0001' } as unknown as AuthUser);
       return;
     }
