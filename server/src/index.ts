@@ -110,9 +110,6 @@ const broadcastStore = new BroadcastStore();
 const enrichmentCache = new EnrichmentCache(
   path.resolve(__dirname, '../.enrichment-cache/tracks.json'),
 );
-const backgroundEnricher = new BackgroundEnricher(
-  enrichmentCache, new DefaultEnrichmentFetcher(),
-);
 
 async function bootstrap(): Promise<void> {
   await enrichmentCache.load();
@@ -131,6 +128,10 @@ async function bootstrap(): Promise<void> {
     },
   };
   const featureFetchChain = new FeatureFetchChain({ recco, deezer, lastFmTags });
+
+  const backgroundEnricher = new BackgroundEnricher(
+    enrichmentCache, new DefaultEnrichmentFetcher(), featureFetchChain,
+  );
 
   const broadcastOrchestrator = new BroadcastOrchestrator(
     llmProvider, ttsProvider, broadcastStorage, broadcastStore,
