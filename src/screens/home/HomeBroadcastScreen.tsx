@@ -375,6 +375,17 @@ export default function HomeBroadcastScreen() {
   const legacyCards = featured.filter(b => !b.slot);
   const lead = morningCard ?? eveningCard ?? null;
 
+  // Hide the resumable broadcast from "Earlier Tonight" — it's already
+  // surfaced at the top as the Resume (or Now Playing) CTA, so showing
+  // it twice is confusing.
+  const hiddenBroadcastId =
+    mode.kind === 'resume' ? mode.manifest.broadcastId
+    : mode.kind === 'now-playing' ? mode.manifest.broadcastId
+    : null;
+  const visibleRecent = hiddenBroadcastId
+    ? recent.filter(e => e.manifest.broadcastId !== hiddenBroadcastId)
+    : recent;
+
   return (
     <BroadcastBackdrop>
       <ScrollView
@@ -575,10 +586,10 @@ export default function HomeBroadcastScreen() {
         </Pressable>
 
         {/* Earlier tonight */}
-        {recent.length > 0 && (
+        {visibleRecent.length > 0 && (
           <>
             <SectionMarker num="B·03" title="EARLIER TONIGHT" side="24 HOURS" />
-            {recent.map((entry, i) => (
+            {visibleRecent.map((entry, i) => (
               <Pressable
                 key={entry.manifest.broadcastId}
                 onPress={() => playRecent(entry)}
@@ -586,7 +597,7 @@ export default function HomeBroadcastScreen() {
                 accessibilityLabel={`Replay ${titleFor(entry, playlists)}`}
                 style={({ pressed }) => [styles.recentRow, pressed && { opacity: 0.7 }]}
               >
-                <Text style={styles.recentNum}>{padIndex(recent.length - i)}</Text>
+                <Text style={styles.recentNum}>{padIndex(visibleRecent.length - i)}</Text>
                 <View style={styles.recentBody}>
                   <Text style={styles.recentTitle} numberOfLines={1}>
                     {titleFor(entry, playlists)}
