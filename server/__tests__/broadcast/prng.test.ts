@@ -46,5 +46,41 @@ describe('prng', () => {
         expect(Number.isInteger(idx)).toBe(true);
       }
     });
+
+    it('produces identical index sequences for the same seed', () => {
+      const a = seededPRNG('broadcast-xyz');
+      const b = seededPRNG('broadcast-xyz');
+      const seqA = Array.from({ length: 20 }, () => a.pickIndex(7));
+      const seqB = Array.from({ length: 20 }, () => b.pickIndex(7));
+      expect(seqA).toEqual(seqB);
+    });
+
+    it('produces different index sequences for different seeds', () => {
+      const a = seededPRNG('broadcast-aaa');
+      const b = seededPRNG('broadcast-bbb');
+      const seqA = Array.from({ length: 20 }, () => a.pickIndex(7));
+      const seqB = Array.from({ length: 20 }, () => b.pickIndex(7));
+      // 20 picks over 7 bins — collision probability ≈ 7^-20, effectively 0.
+      expect(seqA).not.toEqual(seqB);
+    });
+
+    it('throws RangeError on invalid n (0, negative, non-integer, NaN)', () => {
+      const rng = seededPRNG('broadcast-xyz');
+      expect(() => rng.pickIndex(0)).toThrow(RangeError);
+      expect(() => rng.pickIndex(-1)).toThrow(RangeError);
+      expect(() => rng.pickIndex(1.5)).toThrow(RangeError);
+      expect(() => rng.pickIndex(Number.NaN)).toThrow(RangeError);
+      expect(() => rng.pickIndex(Number.POSITIVE_INFINITY)).toThrow(RangeError);
+    });
+
+    it('does not advance the PRNG state on invalid n', () => {
+      const rng = seededPRNG('broadcast-xyz');
+      try { rng.pickIndex(0); } catch { /* expected */ }
+      try { rng.pickIndex(-5); } catch { /* expected */ }
+      // First valid call should match a fresh PRNG with the same seed,
+      // proving the invalid calls didn't consume any random values.
+      const fresh = seededPRNG('broadcast-xyz');
+      expect(rng.pickIndex(100)).toBe(fresh.pickIndex(100));
+    });
   });
 });

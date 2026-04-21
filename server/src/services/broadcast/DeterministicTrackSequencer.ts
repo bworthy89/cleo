@@ -66,13 +66,29 @@ export class DeterministicTrackSequencer implements ITrackSequencer {
     const featureMap = await this.fetchChain.fetchBatch(cappedPool);
     const stats = this.collectStats(featureMap);
 
+    // FeatureFetchChain.fetchBatch is contractually required to return an
+    // entry for every input track (tier 5 neutrals is the last-resort). If
+    // that invariant breaks, fail loud with the offending track id so the
+    // root cause surfaces in a debuggable form rather than as a cryptic
+    // `Cannot read property 'features' of undefined`.
+    const getFeatures = (t: ManifestTrack): AudioFeatures => {
+      const fetched = featureMap.get(t.id);
+      if (!fetched) {
+        throw new Error(
+          `DeterministicTrackSequencer: FeatureFetchChain did not return features for track id=${t.id}. ` +
+          `This violates the tier-5 neutrals contract — check FeatureFetchChain.fetchBatch.`,
+        );
+      }
+      return fetched.features;
+    };
+
     const curve = VIBE_CURVES[req.vibe];
     const rng = seededPRNG(req.broadcastId);
     const K = K_FOR_LENGTH[req.length];
 
     const remaining = cappedPool.map((t): { track: ManifestTrack; features: AudioFeatures } => ({
       track: t,
-      features: featureMap.get(t.id)!.features,
+      features: getFeatures(t),
     }));
     const result: ManifestTrack[] = [];
 
@@ -104,7 +120,7 @@ export class DeterministicTrackSequencer implements ITrackSequencer {
     for (let i = 0; i < result.length; i++) {
       const p = result.length === 1 ? 0 : i / (result.length - 1);
       const target = interpolateKeyframes(curve.keyframes, p);
-      const features = featureMap.get(result[i].id)!.features;
+      const features = getFeatures(result[i]);
       totalDistance += weightedDistance(features, target, curve.weights);
     }
     const meanDistance = totalDistance / result.length;
