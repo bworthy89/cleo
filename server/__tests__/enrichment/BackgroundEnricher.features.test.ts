@@ -9,7 +9,7 @@ describe('BackgroundEnricher features stage', () => {
   let cache: EnrichmentCache;
 
   beforeEach(async () => {
-    tmp = path.join(os.tmpdir(), `enrich-bg-${Date.now()}`);
+    tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'enrich-bg-'));
     cache = new EnrichmentCache(path.join(tmp, 'tracks.json'));
     await cache.load();
   });

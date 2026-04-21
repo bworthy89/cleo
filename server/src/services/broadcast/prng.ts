@@ -29,6 +29,15 @@ export function seededPRNG(seed: string): SeededPRNG {
   const gen = mulberry32(hashToUint32(seed));
   return {
     next: gen,
-    pickIndex: (n: number) => Math.floor(gen() * n),
+    pickIndex: (n: number) => {
+      // Validate BEFORE advancing the PRNG state so invalid inputs don't
+      // corrupt the deterministic sequence visible to downstream callers.
+      if (!Number.isInteger(n) || n <= 0) {
+        throw new RangeError(
+          `seededPRNG.pickIndex: n must be a positive integer, got ${n}`,
+        );
+      }
+      return Math.floor(gen() * n);
+    },
   };
 }

@@ -8,7 +8,7 @@ describe('EnrichmentCache — extended fields', () => {
   let cache: EnrichmentCache;
 
   beforeEach(async () => {
-    tmp = path.join(os.tmpdir(), `enrich-test-${Date.now()}`);
+    tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'enrich-test-'));
     cache = new EnrichmentCache(path.join(tmp, 'tracks.json'));
     await cache.load();
   });
