@@ -93,7 +93,7 @@ function isPersistedBroadcast(v: unknown): v is PersistedBroadcast {
   if (!v || typeof v !== 'object') return false;
   const o = v as Record<string, unknown>;
   return (
-    typeof o.manifest === 'object' && o.manifest !== null &&
+    typeof o.manifest === 'object' && o.manifest !== null && !Array.isArray(o.manifest) &&
     typeof o.trackCursor === 'number' &&
     typeof o.updatedAt === 'number'
   );
