@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# scripts/env-dev.sh — auto-detect the laptop's LAN IP and write dev env files.
+# scripts/env-dev.sh — auto-detect the laptop's LAN IP and write dev env config.
 #
 # Run from project root. Writes:
-#   - .env.development             (root, read by Metro on `expo start`)
-#   - server/.env.development      (server, read when NODE_ENV=development)
+#   - .env.development   (root, read by Metro on `expo start`)
+#   - server/.env        (BROADCAST_ASSET_BASE_URL patched in place — Node
+#                         dotenv only reads .env, not .env.development)
 #
-# Metro/dotenv precedence: .env.development (dev builds) overrides .env (prod).
-# Production builds (EAS, `npx expo run:ios --configuration Release`) never see
-# .env.development — they fall back to .env, which points at api.worthymedia.tech.
+# Metro/dotenv precedence: .env.development (dev builds) overrides .env (prod
+# defaults). Production builds (EAS, Release) ignore .env.development entirely.
 
 set -euo pipefail
 
@@ -26,6 +26,16 @@ detect_ip() {
     | awk '/inet / && $2 != "127.0.0.1" { print $2; exit }'
 }
 
+# macOS (BSD) sed takes `-i ''`; GNU sed takes `-i` alone. Detect which we have
+# and stash the correct flag as an array so the call site can expand it safely.
+if sed --version >/dev/null 2>&1; then
+  # GNU sed — supports --version.
+  SED_INPLACE=(-i)
+else
+  # BSD/macOS sed — requires an empty backup extension after -i.
+  SED_INPLACE=(-i '')
+fi
+
 IP=$(detect_ip)
 
 if [[ -z "$IP" ]]; then
@@ -42,21 +52,26 @@ cat > "${ROOT_DIR}/.env.development" <<EOF
 EXPO_PUBLIC_API_URL=http://${IP}:3001
 EOF
 
-# server/.env — Node dotenv only reads .env (not .env.development), so we
-# patch the BROADCAST_ASSET_BASE_URL line in place. server/.env is local-dev
-# only (prod runs on the VPS with its own .env), so this clobbering is safe.
-# If the line is missing, append it.
+# server/.env — patch BROADCAST_ASSET_BASE_URL in place. server/.env is
+# local-dev only (prod runs on the VPS with its own .env), so clobbering this
+# single line is safe. If the line is missing, append it.
 SERVER_ENV="${ROOT_DIR}/server/.env"
+server_patched=false
 if [[ -f "$SERVER_ENV" ]]; then
   if grep -q '^BROADCAST_ASSET_BASE_URL=' "$SERVER_ENV"; then
-    sed -i '' "s|^BROADCAST_ASSET_BASE_URL=.*|BROADCAST_ASSET_BASE_URL=http://${IP}:3001|" "$SERVER_ENV"
+    sed "${SED_INPLACE[@]}" \
+      "s|^BROADCAST_ASSET_BASE_URL=.*|BROADCAST_ASSET_BASE_URL=http://${IP}:3001|" \
+      "$SERVER_ENV"
   else
     echo "BROADCAST_ASSET_BASE_URL=http://${IP}:3001" >> "$SERVER_ENV"
   fi
+  server_patched=true
 else
   echo "env-dev: WARNING — server/.env not found; skipping server asset URL patch" >&2
 fi
 
 echo "env-dev: LAN IP ${IP}"
 echo "  wrote .env.development"
-echo "  patched server/.env BROADCAST_ASSET_BASE_URL"
+if [[ "$server_patched" == true ]]; then
+  echo "  patched server/.env BROADCAST_ASSET_BASE_URL"
+fi

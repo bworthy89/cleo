@@ -103,9 +103,13 @@ class LLMProviderFactory {
   }
 
   getStatus(): ProviderStatus {
-    const active = this.primary && this.primaryHealthy
-      ? this.primary.name
-      : this.fallback?.name ?? 'none';
+    // Only report a provider as active when its most-recent health check
+    // passed. Otherwise return 'none' so /health accurately reflects that
+    // no provider is currently serving requests.
+    const active =
+      this.primary && this.primaryHealthy ? this.primary.name
+      : this.fallback && this.fallbackHealthy ? this.fallback.name
+      : 'none';
 
     return {
       active,
