@@ -609,4 +609,164 @@ describe('BroadcastPlayer', () => {
       await player.end();
     });
   });
+
+  describe('resume', () => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { __resetAllStores } = require('../../__mocks__/react-native-mmkv');
+
+    beforeEach(() => { __resetAllStores(); });
+
+    // 5-track sparse manifest: cold_open → t0 → t1 → trans(before t2) → t2 → t3 → trans(before t4) → t4 → sign_off
+    const make5Manifest = (): Manifest => ({
+      broadcastId: 'bR', userId: 'u1', playlistId: 'p1',
+      vibe: 'lateNight', length: 'quick', createdAt: Date.now(),
+      tracks: Array.from({ length: 5 }, (_, i) => ({
+        id: `t${i}`, title: `T${i}`, artistName: 'A', albumTitle: '', duration: 1,
+      })),
+      segmentSlots: [
+        { index: 0, kind: 'cold_open', beforeTrackId: 't0',
+          variantCount: 1, status: 'ready', audioUrls: ['https://cdn/seg0-v0.mp3'] },
+        { index: 1, kind: 'transition', afterTrackId: 't1', beforeTrackId: 't2',
+          variantCount: 1, status: 'ready', audioUrls: ['https://cdn/seg1-v0.mp3'] },
+        { index: 2, kind: 'transition', afterTrackId: 't3', beforeTrackId: 't4',
+          variantCount: 1, status: 'ready', audioUrls: ['https://cdn/seg2-v0.mp3'] },
+        { index: 3, kind: 'sign_off', afterTrackId: 't4',
+          variantCount: 1, status: 'ready', audioUrls: ['https://cdn/seg3-v0.mp3'] },
+      ],
+    });
+
+    const makeDriver = () => {
+      const deps = makeDeps();
+      const music = {
+        ...deps.music,
+        getPlaybackStatus: jest.fn(async () => 'stopped'),
+        getPlaybackTime: jest.fn(async () => 1),
+      };
+      const driveTrackEnd = async () => {
+        for (let i = 0; i < 80; i++) await Promise.resolve();
+        deps.listeners.state?.({ status: 'playing', playbackTime: 0.1 });
+        deps.listeners.state?.({ status: 'stopped', playbackTime: 1 });
+      };
+      return { deps, music, driveTrackEnd };
+    };
+
+    it('cursor === -1 behaves identically to start (plays cold_open then all 5 tracks)', async () => {
+      const { deps, music, driveTrackEnd } = makeDriver();
+      const player = new BroadcastPlayer(
+        music, deps.native, deps.manifestClient, deps.stingers,
+      );
+      player.resume(make5Manifest(), -1);
+      for (let t = 0; t < 5; t++) await driveTrackEnd();
+      for (let i = 0; i < 80; i++) await Promise.resolve();
+
+      const order = deps.logs.filter(
+        l => l.startsWith('tts:BASE64_seg') || l.startsWith('play:'),
+      );
+      expect(order).toEqual([
+        'tts:BASE64_seg0-v0.m',
+        'play:t0',
+        'play:t1',
+        'tts:BASE64_seg1-v0.m',
+        'play:t2',
+        'play:t3',
+        'tts:BASE64_seg2-v0.m',
+        'play:t4',
+        'tts:BASE64_seg3-v0.m',
+      ]);
+      await player.end();
+    });
+
+    it('cursor=2 (transition precedes t2) replays seg1 then plays t2 onward — cold_open NOT replayed', async () => {
+      const { deps, music, driveTrackEnd } = makeDriver();
+      const player = new BroadcastPlayer(
+        music, deps.native, deps.manifestClient, deps.stingers,
+      );
+      player.resume(make5Manifest(), 2);
+      // Remaining flow: seg1 → t2 → t3 → seg2 → t4 → seg3
+      for (let t = 0; t < 3; t++) await driveTrackEnd();
+      for (let i = 0; i < 80; i++) await Promise.resolve();
+
+      const order = deps.logs.filter(
+        l => l.startsWith('tts:BASE64_seg') || l.startsWith('play:'),
+      );
+      expect(order).toEqual([
+        'tts:BASE64_seg1-v0.m',
+        'play:t2',
+        'play:t3',
+        'tts:BASE64_seg2-v0.m',
+        'play:t4',
+        'tts:BASE64_seg3-v0.m',
+      ]);
+      expect(order).not.toContain('tts:BASE64_seg0-v0.m');
+      expect(order).not.toContain('play:t0');
+      expect(order).not.toContain('play:t1');
+
+      await player.end();
+    });
+
+    it('cursor=3 (no transition precedes t3) starts at t3 without any intro segment', async () => {
+      const { deps, music, driveTrackEnd } = makeDriver();
+      const player = new BroadcastPlayer(
+        music, deps.native, deps.manifestClient, deps.stingers,
+      );
+      player.resume(make5Manifest(), 3);
+      // Remaining flow: t3 → seg2 → t4 → seg3
+      for (let t = 0; t < 2; t++) await driveTrackEnd();
+      for (let i = 0; i < 80; i++) await Promise.resolve();
+
+      const order = deps.logs.filter(
+        l => l.startsWith('tts:BASE64_seg') || l.startsWith('play:'),
+      );
+      expect(order).toEqual([
+        'play:t3',
+        'tts:BASE64_seg2-v0.m',
+        'play:t4',
+        'tts:BASE64_seg3-v0.m',
+      ]);
+      await player.end();
+    });
+
+    it('cursor=1 (no transition precedes t1) starts at t1 — nextSegmentIdx skips past the cold_open slot', async () => {
+      const { deps, music, driveTrackEnd } = makeDriver();
+      const player = new BroadcastPlayer(
+        music, deps.native, deps.manifestClient, deps.stingers,
+      );
+      player.resume(make5Manifest(), 1);
+      // Remaining: t1 → seg1 → t2 → t3 → seg2 → t4 → seg3
+      for (let t = 0; t < 4; t++) await driveTrackEnd();
+      for (let i = 0; i < 80; i++) await Promise.resolve();
+
+      const order = deps.logs.filter(
+        l => l.startsWith('tts:BASE64_seg') || l.startsWith('play:'),
+      );
+      expect(order).toEqual([
+        'play:t1',
+        'tts:BASE64_seg1-v0.m',
+        'play:t2',
+        'play:t3',
+        'tts:BASE64_seg2-v0.m',
+        'play:t4',
+        'tts:BASE64_seg3-v0.m',
+      ]);
+      await player.end();
+    });
+
+    it('cursor out of bounds clears persistence and does nothing', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { setPersistedBroadcast, getPersistedBroadcast } =
+        require('../../src/services/Storage');
+      const manifest = make5Manifest();
+      setPersistedBroadcast({ manifest, trackCursor: 99, updatedAt: Date.now() });
+
+      const { deps, music } = makeDriver();
+      const player = new BroadcastPlayer(
+        music, deps.native, deps.manifestClient, deps.stingers,
+      );
+      await player.resume(manifest, 99);
+
+      expect(getPersistedBroadcast()).toBeUndefined();
+      expect(player.getStatus().state).toBe('idle');
+      expect(deps.logs.some(l => l.startsWith('play:'))).toBe(false);
+    });
+  });
 });
