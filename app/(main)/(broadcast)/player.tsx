@@ -112,7 +112,7 @@ export default function BroadcastPlayerScreen() {
   };
   const onResume = () => {
     Haptics.selectionAsync().catch(() => {});
-    broadcastPlayer.resume().catch(() => {});
+    broadcastPlayer.resumeFromPause().catch(() => {});
   };
   const onEnd = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});

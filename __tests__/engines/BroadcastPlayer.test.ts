@@ -142,7 +142,7 @@ describe('BroadcastPlayer', () => {
     for (let i = 0; i < 20; i++) await Promise.resolve();
     await player.pause();
     expect(player.getStatus().state).toBe('paused');
-    await player.resume();
+    await player.resumeFromPause();
     expect(player.getStatus().state).not.toBe('paused');
   });
 
