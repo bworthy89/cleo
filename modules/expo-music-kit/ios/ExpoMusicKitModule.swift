@@ -10,17 +10,11 @@ public class ExpoMusicKitModule: Module {
   private var lastTrackId: String?
   private var audioPlayer: AVAudioPlayer?
   private var audioDelegate: AudioPlayerDelegate?
-  private var crossfadeTimer: Timer?
-  private var crossfadeActive: Bool = false
   private var ttsVolume: Float = 1.0
   private var cachedTracks: [String: Track] = [:]
   private var cachedSongs: [String: Song] = [:]
   private var cachedPlaylists: [String: Playlist] = [:]
   private var lastPlaybackStatus: ApplicationMusicPlayer.PlaybackStatus?
-  private var ejectTransitionInProgress: Bool = false
-  private var ejectSuppressedTrackInfo: [String: Any]? = nil
-  private var ejectTrackIdBeforeSkip: String? = nil
-  private var ejectPromiseResolve: (() -> Void)? = nil
   private var ttsPromiseResolve: (() -> Void)? = nil
   private var backgroundTaskId: UIBackgroundTaskIdentifier = .invalid
   private var lifecycleObservers: [Any] = []
@@ -35,7 +29,7 @@ public class ExpoMusicKitModule: Module {
   public func definition() -> ModuleDefinition {
     Name("ExpoMusicKit")
 
-    Events("onTrackChanged", "onPlaybackStateChanged", "onEjectTrackChanged")
+    Events("onTrackChanged", "onPlaybackStateChanged")
 
     // MARK: - Authorization
 
@@ -494,63 +488,24 @@ public class ExpoMusicKitModule: Module {
         self.audioDelegate = AudioPlayerDelegate(player: newPlayer) { [weak self] in
           self?.audioPlayer = nil
           self?.audioDelegate = nil
-          self?.crossfadeTimer?.invalidate()
-          self?.crossfadeTimer = nil
-
-          if self?.crossfadeActive == true {
-            // Crossfade already removed duckOthers — ensure MusicKit is playing
-            // (ducking activation can occasionally pause MusicKit instead of just lowering volume)
-            self?.crossfadeActive = false
-            Task {
-              try? await self?.player.play()
-              // no-op: background task removed
-            }
-            self?.ttsPromiseResolve?()
-            self?.ttsPromiseResolve = nil
-          } else {
-            // No crossfade — hard transition (short segment or timer didn't fire)
-            // Remove duckOthers but keep session active — setActive(false) would kill MusicKit playback
-            try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
-            Task {
-              try? await self?.player.play()
-              // no-op: background task removed
-            }
-            self?.ttsPromiseResolve?()
-            self?.ttsPromiseResolve = nil
+          // Remove duckOthers but keep session active — setActive(false) would kill MusicKit playback
+          try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
+          Task {
+            try? await self?.player.play()
           }
+          self?.ttsPromiseResolve?()
+          self?.ttsPromiseResolve = nil
         }
         self.audioPlayer?.delegate = self.audioDelegate
-        // Fade-in: start silent, ramp to ttsVolume over 0.3s to soften ducking onset
-        newPlayer.volume = 0.0
+        self.audioPlayer?.volume = self.ttsVolume
         self.audioPlayer?.prepareToPlay()
 
         if let dur = self.audioPlayer?.duration {
-          print("[ExpoMusicKit] Audio duration: \(String(format: "%.1f", dur))s, crossfade: \(dur > 2.0 ? "yes (fade at \(String(format: "%.1f", dur - 0.5))s)" : "no (too short)")")
-        }
-
-        // Crossfade: schedule ducking deactivation 0.5s before audio ends
-        self.crossfadeActive = false
-        self.crossfadeTimer?.invalidate()
-        self.crossfadeTimer = nil
-
-        if let duration = self.audioPlayer?.duration, duration > 2.0 {
-          let fadePoint = duration - 0.5
-          // Schedule on main thread to ensure RunLoop is active
-          DispatchQueue.main.async {
-            self.crossfadeTimer = Timer.scheduledTimer(withTimeInterval: fadePoint, repeats: false) { [weak self] _ in
-              guard let self = self, self.audioPlayer?.isPlaying == true else { return }
-              self.crossfadeActive = true
-              // Remove duckOthers but keep session active — un-ducks music without stopping Cleo's audio
-              try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
-            }
-          }
+          print("[ExpoMusicKit] Audio duration: \(String(format: "%.1f", dur))s")
         }
 
         self.audioPlayer?.play()
-        // Ramp from silent to target volume over 0.3s
-        self.audioPlayer?.setVolume(self.ttsVolume, fadeDuration: 0.3)
       } catch {
-        // no-op: background task removed
         promise.reject("ERR", error.localizedDescription)
       }
     }
@@ -561,9 +516,6 @@ public class ExpoMusicKitModule: Module {
     }
 
     AsyncFunction("stopAudio") {
-      self.crossfadeTimer?.invalidate()
-      self.crossfadeTimer = nil
-      self.crossfadeActive = false
       // Resolve dangling TTS promise before stop() — stop() won't trigger the delegate
       self.ttsPromiseResolve?()
       self.ttsPromiseResolve = nil
@@ -572,7 +524,6 @@ public class ExpoMusicKitModule: Module {
       self.audioDelegate = nil
       // Remove duckOthers but keep session active — setActive(false) would kill MusicKit playback
       try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
-      // no-op: background task removed
     }
 
     AsyncFunction("activateDuckingSession") {
@@ -610,168 +561,6 @@ public class ExpoMusicKitModule: Module {
       if active && self.playbackTimer == nil {
         DispatchQueue.main.async { self.startPlaybackTimer() }
       }
-    }
-
-    // MARK: - Eject Transition
-
-    AsyncFunction("playEjectTransition") { (ttsBase64: String, fadeInDelayMs: Int, promise: Promise) in
-      guard let data = Data(base64Encoded: ttsBase64) else {
-        promise.reject("ERR", "Invalid base64 audio data")
-        return
-      }
-
-      // Protect entire eject lifecycle from iOS background suspension
-      // Background task removed — it prevents iOS from throttling CPU
-
-      do {
-        // Record current track ID so we can detect if it auto-advances
-        let currentTrackId: String? = {
-          guard let entry = self.player.queue.currentEntry else { return nil }
-          if case .song(let song) = entry.item { return song.id.rawValue }
-          return nil
-        }()
-        self.ejectTrackIdBeforeSkip = currentTrackId
-        self.ejectTransitionInProgress = true
-        self.ejectSuppressedTrackInfo = nil
-
-        // Stop any currently playing TTS
-        if let existing = self.audioPlayer, existing.isPlaying {
-          existing.stop()
-        }
-        self.audioPlayer = nil
-        self.audioDelegate = nil
-
-        // Activate ducking
-        try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers, .duckOthers])
-        try AVAudioSession.sharedInstance().setActive(true)
-
-        let newPlayer = try AVAudioPlayer(data: data)
-        self.audioPlayer = newPlayer
-
-        let ttsDuration = newPlayer.duration
-
-        // Resolve any dangling promise from a previous eject before overwriting
-        self.ejectPromiseResolve?()
-        self.ejectPromiseResolve = { promise.resolve(nil) }
-
-        self.audioDelegate = AudioPlayerDelegate(player: newPlayer) { [weak self] in
-          guard let self = self else { return }
-          self.audioPlayer = nil
-          self.audioDelegate = nil
-          self.crossfadeTimer?.invalidate()
-          self.crossfadeTimer = nil
-
-          if self.crossfadeActive {
-            // Crossfade already removed duckOthers — ensure MusicKit is playing
-            self.crossfadeActive = false
-            Task {
-              try? await self.player.play()
-              // no-op: background task removed
-            }
-          } else {
-            // No crossfade — hard transition
-            try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
-            Task {
-              try? await self.player.play()
-              // no-op: background task removed
-            }
-          }
-
-          // Clear eject state
-          self.ejectTransitionInProgress = false
-
-          // Emit synthetic event with suppressed track info or current state
-          if let suppressed = self.ejectSuppressedTrackInfo {
-            self.sendEvent("onEjectTrackChanged", suppressed)
-            self.ejectSuppressedTrackInfo = nil
-          } else {
-            // Build event from current queue state
-            var event: [String: Any] = [:]
-            if let entry = self.player.queue.currentEntry {
-              if case .song(let song) = entry.item {
-                event["trackId"] = song.id.rawValue
-              }
-            }
-            if let prevId = self.ejectTrackIdBeforeSkip {
-              event["previousTrackId"] = prevId
-            }
-            self.sendEvent("onEjectTrackChanged", event)
-          }
-
-          self.ejectTrackIdBeforeSkip = nil
-          self.ejectPromiseResolve?()
-          self.ejectPromiseResolve = nil
-        }
-        self.audioPlayer?.delegate = self.audioDelegate
-        // Fade-in: start silent, ramp to ttsVolume over 0.3s
-        newPlayer.volume = 0.0
-        self.audioPlayer?.prepareToPlay()
-
-        // Schedule track skip
-        let fadeInDelaySec = Double(fadeInDelayMs) / 1000.0
-        let skipDelay = min(fadeInDelaySec, max(ttsDuration * 0.5, 1.0))
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + skipDelay) { [weak self] in
-          guard let self = self, self.ejectTransitionInProgress else { return }
-          // Check if track already auto-advanced
-          let nowTrackId: String? = {
-            guard let entry = self.player.queue.currentEntry else { return nil }
-            if case .song(let song) = entry.item { return song.id.rawValue }
-            return nil
-          }()
-          if nowTrackId == self.ejectTrackIdBeforeSkip {
-            // Track hasn't changed — skip it
-            Task {
-              try? await self.player.skipToNextEntry()
-            }
-          }
-        }
-
-        // Crossfade: schedule ducking deactivation 0.5s before audio ends
-        self.crossfadeActive = false
-        self.crossfadeTimer?.invalidate()
-        self.crossfadeTimer = nil
-
-        if ttsDuration > 2.0 {
-          let fadePoint = ttsDuration - 0.5
-          DispatchQueue.main.async {
-            self.crossfadeTimer = Timer.scheduledTimer(withTimeInterval: fadePoint, repeats: false) { [weak self] _ in
-              guard let self = self, self.audioPlayer?.isPlaying == true else { return }
-              self.crossfadeActive = true
-              try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
-            }
-          }
-        }
-
-        self.audioPlayer?.play()
-        // Ramp from silent to target volume over 0.3s
-        self.audioPlayer?.setVolume(self.ttsVolume, fadeDuration: 0.3)
-      } catch {
-        self.ejectTransitionInProgress = false
-        self.ejectSuppressedTrackInfo = nil
-        self.ejectTrackIdBeforeSkip = nil
-        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
-        // no-op: background task removed
-        promise.reject("ERR", error.localizedDescription)
-      }
-    }
-
-    AsyncFunction("cancelEjectTransition") {
-      guard self.ejectTransitionInProgress else { return }
-      self.crossfadeTimer?.invalidate()
-      self.crossfadeTimer = nil
-      self.crossfadeActive = false
-      self.audioPlayer?.stop()
-      self.audioPlayer = nil
-      self.audioDelegate = nil
-      self.ejectTransitionInProgress = false
-      self.ejectSuppressedTrackInfo = nil
-      self.ejectTrackIdBeforeSkip = nil
-      // Resolve the dangling playEjectTransition promise so it doesn't leak
-      self.ejectPromiseResolve?()
-      self.ejectPromiseResolve = nil
-      try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
-      // no-op: background task removed
     }
 
     // MARK: - Observation Lifecycle
@@ -991,11 +780,7 @@ public class ExpoMusicKitModule: Module {
           if let previousTrackId = previousTrackId {
             event["previousTrackId"] = previousTrackId
           }
-          if self.ejectTransitionInProgress {
-            self.ejectSuppressedTrackInfo = event
-          } else {
-            self.sendEvent("onTrackChanged", event)
-          }
+          self.sendEvent("onTrackChanged", event)
         }
     }
 
@@ -1044,31 +829,19 @@ public class ExpoMusicKitModule: Module {
       // Stop TTS when music is paused/stopped externally (Lock Screen, AirPods, Control Center)
       if let last = self.lastPlaybackStatus, last == .playing,
          (currentStatus == .paused || currentStatus == .stopped) {
-        // Only stop TTS if we're not currently in a ducking session or crossfade.
+        // Only stop TTS if we're not currently in a ducking session.
         // Ducking can cause brief playback status changes that shouldn't interrupt TTS.
-        // During crossfade (last 2s of TTS), duckOthers is already removed but TTS is
-        // still playing — don't treat brief MusicKit glitches as external pauses.
         let isDucking = (try? AVAudioSession.sharedInstance().category == .playback &&
           AVAudioSession.sharedInstance().categoryOptions.contains(.duckOthers)) ?? false
-        if let ttsPlayer = self.audioPlayer, ttsPlayer.isPlaying, !isDucking, !self.crossfadeActive {
-          self.crossfadeTimer?.invalidate()
-          self.crossfadeTimer = nil
-          self.crossfadeActive = false
+        if let ttsPlayer = self.audioPlayer, ttsPlayer.isPlaying, !isDucking {
           ttsPlayer.stop()
           // AVAudioPlayer.stop() does NOT call audioPlayerDidFinishPlaying,
           // so we must manually clean up and resolve any pending promise.
           self.audioPlayer = nil
           self.audioDelegate = nil
           try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
-          if self.ejectTransitionInProgress {
-            self.ejectTransitionInProgress = false
-            self.ejectSuppressedTrackInfo = nil
-            self.ejectTrackIdBeforeSkip = nil
-          }
           self.ttsPromiseResolve?()
           self.ttsPromiseResolve = nil
-          self.ejectPromiseResolve?()
-          self.ejectPromiseResolve = nil
         }
       }
       self.lastPlaybackStatus = currentStatus
