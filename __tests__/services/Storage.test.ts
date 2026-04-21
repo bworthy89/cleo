@@ -151,6 +151,21 @@ describe('broadcast storage', () => {
     });
     expect(getPersistedBroadcast()).toBeUndefined();
   });
+
+  it('returns undefined and clears MMKV when legacy raw-Manifest shape is stored', () => {
+    // Simulate an install-upgrade where the old shape is still on disk.
+    // Write the raw manifest directly under CURRENT_BROADCAST via the
+    // low-level JSON helper — bypassing setPersistedBroadcast, which now
+    // enforces the new shape.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { setObject, StorageKeys } = require('../../src/services/Storage');
+    setObject(StorageKeys.CURRENT_BROADCAST, makeManifest('legacy'));
+
+    const result = getPersistedBroadcast();
+    expect(result).toBeUndefined();
+    // MMKV key should have been wiped as a side effect.
+    expect(getPersistedBroadcast()).toBeUndefined();
+  });
 });
 
 describe('updatePersistedCursor', () => {
