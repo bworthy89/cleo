@@ -91,16 +91,84 @@ export class BroadcastPlayer {
   }
 
   async start(manifest: Manifest, firstSegmentUrls: string[]): Promise<void> {
+    await this.initPlayback(manifest, { resumeFromIndex: -1, firstSegmentUrls });
+    if (!this.manifest) return;
+
+    // Fresh start: play cold_open (slot 0), then enter the main loop at track 0.
+    await this.runSegmentAt(0);
+    if (!this.manifest) return;
+    await this.waitIfPaused();
+    if (!this.manifest) return;
+
+    await this.runMainLoop(0, 1);
+  }
+
+  async resume(manifest: Manifest, trackCursor: number): Promise<void> {
+    // Out-of-bounds cursor — nothing meaningful to resume into. Clear and bail.
+    if (trackCursor >= manifest.tracks.length) {
+      console.warn(`[BroadcastPlayer] resume called with cursor ${trackCursor} >= tracks.length ${manifest.tracks.length}; clearing`);
+      clearPersistedBroadcast();
+      return;
+    }
+
+    await this.initPlayback(manifest, { resumeFromIndex: trackCursor });
+    if (!this.manifest) return;
+
+    if (trackCursor < 0) {
+      // Never reached a track — behave exactly like a fresh start.
+      await this.runSegmentAt(0);
+      if (!this.manifest) return;
+      await this.waitIfPaused();
+      if (!this.manifest) return;
+      await this.runMainLoop(0, 1);
+      return;
+    }
+
+    // Find the transition segment that introduces tracks[trackCursor], if any.
+    // Exclude cold_open so a cursor-at-track-0 path doesn't accidentally pick it.
+    const resumeTrack = manifest.tracks[trackCursor];
+    const introSlotIdx = manifest.segmentSlots.findIndex(
+      s => s.beforeTrackId === resumeTrack.id && s.kind !== 'cold_open',
+    );
+
+    if (introSlotIdx >= 0) {
+      // Ensure the intro segment audio is cached, then play it.
+      const slot = manifest.segmentSlots[introSlotIdx];
+      if (slot.status === 'ready' && slot.audioUrls) {
+        for (let v = 0; v < slot.audioUrls.length; v++) {
+          try {
+            const b64 = await this.manifestClient.fetchSegmentAudio(slot.audioUrls[v]);
+            this.cache.put(introSlotIdx, v, b64);
+          } catch { /* one variant failure is not fatal */ }
+        }
+      }
+      await this.runSegmentAt(introSlotIdx);
+      if (!this.manifest) return;
+      await this.waitIfPaused();
+      if (!this.manifest) return;
+      await this.runMainLoop(trackCursor, introSlotIdx + 1);
+    } else {
+      // No preceding segment — start directly at the track.
+      const nextSegmentIdx = this.computeNextSegmentIdxAfter(trackCursor, manifest);
+      await this.runMainLoop(trackCursor, nextSegmentIdx);
+    }
+  }
+
+  /** Shared prelude: manifest + persistence + history + cache clear +
+   *  stingers + background fetch + polling + music subscriptions. After
+   *  this runs, the player is ready for the first `runSegmentAt` or
+   *  `runTrackAt` call. */
+  private async initPlayback(
+    manifest: Manifest,
+    opts: { resumeFromIndex: number; firstSegmentUrls?: string[] },
+  ): Promise<void> {
     this.manifest = manifest;
     setPersistedBroadcast({
       manifest,
-      trackCursor: -1,
+      trackCursor: opts.resumeFromIndex,
       updatedAt: Date.now(),
     });
-    // Save to history at start (option A): the user sees the broadcast
-    // in their list as soon as it begins, and it persists through manual
-    // or natural end so they can re-listen within the retention window.
-    addBroadcastToHistory(manifest, firstSegmentUrls);
+    addBroadcastToHistory(manifest, opts.firstSegmentUrls ?? this.inferFirstSegmentUrls(manifest));
     this.cache.clear();
     this.state = 'loading';
     if (this.native.setBroadcastActive) {
@@ -108,12 +176,14 @@ export class BroadcastPlayer {
     }
     await this.stingers.preloadStingers();
 
-    for (let v = 0; v < firstSegmentUrls.length; v++) {
-      try {
-        const b64 = await this.manifestClient.fetchSegmentAudio(firstSegmentUrls[v]);
-        this.cache.put(0, v, b64);
-      } catch {
-        // one variant failure is not fatal
+    // Prime slot 0's variants only on a fresh start — on resume we
+    // either skip cold_open entirely or load the intro slot on demand.
+    if (opts.resumeFromIndex < 0 && opts.firstSegmentUrls) {
+      for (let v = 0; v < opts.firstSegmentUrls.length; v++) {
+        try {
+          const b64 = await this.manifestClient.fetchSegmentAudio(opts.firstSegmentUrls[v]);
+          this.cache.put(0, v, b64);
+        } catch { /* one variant failure is not fatal */ }
       }
     }
 
@@ -124,18 +194,16 @@ export class BroadcastPlayer {
       this.music.onPlaybackStateChanged(this.handlePlaybackState),
       this.music.onTrackChanged(this.handleTrackChanged),
     );
+  }
 
-    await this.runSegmentAt(0);
+  /** Shared main loop + natural end-of-broadcast teardown. Walks tracks
+   *  in order starting at `startTrack`, firing the dual-cursor
+   *  `beforeTrackId` check against `nextSegmentIdx` to decide whether to
+   *  play a transition between consecutive tracks. */
+  private async runMainLoop(startTrack: number, startSegIdx: number): Promise<void> {
     if (!this.manifest) return;
-    await this.waitIfPaused();
-    if (!this.manifest) return;
-
-    // Walk tracks in order. After each track, check whether the next segment
-    // in the manifest targets the upcoming track (beforeTrackId match) or is
-    // the sign_off. If neither, play the next track directly — adjacent
-    // tracks with no transition between them play back-to-back.
-    let nextSegmentIdx = 1;
-    for (let i = 0; i < this.manifest.tracks.length; i++) {
+    let nextSegmentIdx = startSegIdx;
+    for (let i = startTrack; i < this.manifest.tracks.length; i++) {
       await this.runTrackAt(i);
       if (!this.manifest) return;
       await this.waitIfPaused();
@@ -146,7 +214,6 @@ export class BroadcastPlayer {
       const nextSlot = slots[nextSegmentIdx];
 
       if (!nextTrack) {
-        // Last track just ended — play sign_off if present.
         if (nextSlot && nextSlot.kind === 'sign_off') {
           await this.runSegmentAt(nextSegmentIdx);
           if (!this.manifest) return;
@@ -156,7 +223,6 @@ export class BroadcastPlayer {
         break;
       }
 
-      // Run the next segment only if it introduces the upcoming track.
       if (nextSlot && nextSlot.beforeTrackId === nextTrack.id) {
         await this.runSegmentAt(nextSegmentIdx);
         if (!this.manifest) return;
@@ -176,6 +242,36 @@ export class BroadcastPlayer {
     clearPersistedBroadcast();
   }
 
+  /** Resume fallback: no segment precedes `startTrack`, so we need to
+   *  find the earliest slot index we'd still need to run. That's the
+   *  lowest i where segmentSlots[i].beforeTrackId maps to a track at
+   *  position > startTrack, or where kind === 'sign_off'. Returns
+   *  segmentSlots.length as a defensive fallback (nothing left to
+   *  play). */
+  private computeNextSegmentIdxAfter(startTrack: number, manifest: Manifest): number {
+    const trackIndexById = new Map(
+      manifest.tracks.map((t, idx) => [t.id, idx]),
+    );
+    for (let i = 0; i < manifest.segmentSlots.length; i++) {
+      const slot = manifest.segmentSlots[i];
+      if (slot.kind === 'sign_off') return i;
+      if (slot.beforeTrackId) {
+        const tIdx = trackIndexById.get(slot.beforeTrackId);
+        if (tIdx !== undefined && tIdx > startTrack) return i;
+      }
+    }
+    return manifest.segmentSlots.length;
+  }
+
+  /** When resuming, we don't have firstSegmentUrls handy from the
+   *  server response — infer them from the manifest's slot 0 so history
+   *  still gets a useful record. Returns [] if slot 0 isn't ready. */
+  private inferFirstSegmentUrls(manifest: Manifest): string[] {
+    const slot0 = manifest.segmentSlots[0];
+    if (slot0?.status === 'ready' && slot0.audioUrls) return slot0.audioUrls;
+    return [];
+  }
+
   /**
    * Pause the broadcast. Behavior is deliberately kind to in-flight segments:
    * if ONAY is mid-sentence we let her finish (AVAudioPlayer doesn't have a
@@ -192,7 +288,7 @@ export class BroadcastPlayer {
     this.state = 'paused';
   }
 
-  async resume(): Promise<void> {
+  async resumeFromPause(): Promise<void> {
     if (!this.isPaused) return;
     this.isPaused = false;
     // Restore state + restart music if we paused mid-track.
