@@ -77,9 +77,13 @@ describe('clearUserData', () => {
     setUser(user);
     setCachedPlaylists([makePlaylist('p1')]);
     setPersistedBroadcast({
-      broadcastId: 'b1', userId: 'u1', playlistId: 'p1',
-      vibe: 'morning', length: 'quick', createdAt: Date.now(),
-      tracks: [], segmentSlots: [],
+      manifest: {
+        broadcastId: 'b1', userId: 'u1', playlistId: 'p1',
+        vibe: 'morning', length: 'quick', createdAt: Date.now(),
+        tracks: [], segmentSlots: [],
+      },
+      trackCursor: -1,
+      updatedAt: Date.now(),
     });
 
     clearUserData();
@@ -108,9 +112,16 @@ function makeManifest(id: string): Manifest {
 }
 
 describe('broadcast storage', () => {
-  it('stores and retrieves a persisted broadcast manifest', () => {
-    setPersistedBroadcast(makeManifest('b1'));
-    expect(getPersistedBroadcast()?.broadcastId).toBe('b1');
+  it('stores and retrieves a persisted broadcast record', () => {
+    setPersistedBroadcast({
+      manifest: makeManifest('b1'),
+      trackCursor: -1,
+      updatedAt: Date.now(),
+    });
+    const rec = getPersistedBroadcast();
+    expect(rec?.manifest.broadcastId).toBe('b1');
+    expect(rec?.trackCursor).toBe(-1);
+    expect(typeof rec?.updatedAt).toBe('number');
   });
 
   it('returns undefined when no broadcast is persisted', () => {
@@ -118,7 +129,11 @@ describe('broadcast storage', () => {
   });
 
   it('clears the persisted broadcast', () => {
-    setPersistedBroadcast(makeManifest('b2'));
+    setPersistedBroadcast({
+      manifest: makeManifest('b2'),
+      trackCursor: 0,
+      updatedAt: Date.now(),
+    });
     clearPersistedBroadcast();
     expect(getPersistedBroadcast()).toBeUndefined();
   });
