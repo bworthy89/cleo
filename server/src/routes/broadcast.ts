@@ -38,6 +38,9 @@ const createSchema = z.object({
   length: lengthSchema,
   userContext: contextSchema,
   tracks: z.array(trackSchema).min(5).max(100),
+  // Ask ONAY sets this true so the LLM-curated order is preserved verbatim
+  // rather than re-sequenced by DeterministicTrackSequencer.
+  preserveOrder: z.boolean().optional(),
 });
 
 interface AuthenticatedRequest extends Request {

@@ -85,4 +85,22 @@ describe('ReccoBeatsFetcher', () => {
     const out = await f.fetch(['USRC17607839']);
     expect(out.size).toBe(0);
   });
+
+  it('uses comma-separated ?ids= query format (NOT ids[]=)', async () => {
+    // Regression: ReccoBeats returns HTTP 400 for ?ids[]=a&ids[]=b style;
+    // it only accepts ?ids=a,b. A silent format change here would break
+    // Tier 1 entirely in prod (fell through to Deezer+synth on every track).
+    // Verified live against the endpoint 2026-04-21.
+    const spy = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ content: [] }),
+    } as any);
+    global.fetch = spy;
+    const f = new ReccoBeatsFetcher();
+    await f.fetch(['USRC17607839', 'GBUM71807345']);
+    const firstCallUrl = String(spy.mock.calls[0][0]);
+    expect(firstCallUrl).toContain('api.reccobeats.com/v1/audio-features');
+    expect(firstCallUrl).toContain('?ids=USRC17607839,GBUM71807345');
+    expect(firstCallUrl).not.toContain('ids[]=');
+  });
 });

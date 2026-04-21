@@ -286,6 +286,10 @@ export function AskOnayScreen() {
           firstTimeUser: false,
         },
         tracks: sanitized,
+        // Groq's curation LLM already picked this ordering deliberately;
+        // skip the server's deterministic re-sequencing so the set plays
+        // in the order ONAY promised.
+        preserveOrder: true,
       });
 
       router.push('/(main)/(broadcast)/player');

@@ -34,6 +34,10 @@ export async function bakeFeatured(input: {
       firstTimeUser: false,
       listenerName: config.curatorListenerName,
     },
+    // Curator already chose the track order in the config. Skip the
+    // deterministic sequencer's re-shuffle so the featured broadcast
+    // plays as the curator intended.
+    preserveOrder: true,
   });
 
   await input.orchestrator.waitForCompletion(initialManifest.broadcastId);
