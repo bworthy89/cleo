@@ -28,6 +28,14 @@ import type { FeatureFetchChain } from './FeatureFetchChain';
  */
 const SEGMENT_CONCURRENCY = 4;
 
+/** Build the log prefix used to trace one bake across all its log lines.
+ *  `grep "user=tester@x.com"` or `grep "id=A3F9K2X1"` on PM2 output surfaces
+ *  everything the bake emitted. Short id is first 8 of the UUID uppercased
+ *  so grep matches a tester-pasted screenshot of the player display verbatim. */
+function buildBakeTag(broadcastId: string, user: string): string {
+  return `[bake id=${broadcastId.slice(0, 8).toUpperCase()} user=${user}]`;
+}
+
 export class BroadcastOrchestrator {
   private readonly generator: SegmentGenerator;
   private readonly sequencer: ITrackSequencer;
@@ -116,13 +124,20 @@ export class BroadcastOrchestrator {
   }
 
   async create(
-    input: BroadcastCreateRequest & { userId: string },
+    input: BroadcastCreateRequest & { userId: string; userEmail?: string },
   ): Promise<BroadcastCreateResponse> {
     // 0. Generate the broadcast id up front so it can thread through BOTH
     //    the sequencer (as its deterministic PRNG seed) and the manifest
     //    builder. Same id everywhere means re-bakes with the same inputs
     //    produce the same track order.
     const broadcastId = randomUUID();
+    // Tester-triage tag. Prefix all bake-scoped logs so `grep "user=foo@bar"`
+    // or `grep "id=a3f9k2"` surfaces the full lifecycle of one bake.
+    const tag = buildBakeTag(broadcastId, input.userEmail ?? input.userId);
+    console.log(
+      `${tag} start vibe=${input.vibe} length=${input.length} ` +
+      `pool=${input.tracks.length} preserveOrder=${input.preserveOrder ?? false}`,
+    );
 
     // 1. Sequence the pool. When `preserveOrder` is set (Ask ONAY flow),
     //    skip the DeterministicTrackSequencer's score-and-place and use the
@@ -141,7 +156,7 @@ export class BroadcastOrchestrator {
       const orderLines = orderedTracks
         .map((t, i) => `  [${i}] ${t.id}  ${t.title} — ${t.artistName}`)
         .join('\n');
-      console.log(`[Sequencer] source=preserved vibe=${input.vibe} N=${N} poolSize=${input.tracks.length}\n${orderLines}`);
+      console.log(`${tag} [Sequencer] source=preserved vibe=${input.vibe} N=${N} poolSize=${input.tracks.length}\n${orderLines}`);
     } else {
       seq = await this.sequencer.sequence({
         pool: input.tracks,
@@ -174,7 +189,7 @@ export class BroadcastOrchestrator {
     const orderLines = seq.orderedTracks
       .map((t, i) => `  [${i}] ${t.id}  ${t.title} — ${t.artistName}`)
       .join('\n');
-    console.log(`[Manifest] ${manifest.broadcastId} track order:\n${orderLines}`);
+    console.log(`${tag} [Manifest] track order:\n${orderLines}`);
 
     // 3. Fire enrichment drain and slot 0 bake in parallel.
     //    Slot 0 is the cold_open — it sets the scene and names the first
@@ -183,7 +198,7 @@ export class BroadcastOrchestrator {
     //    concurrently and populates the cache in time for slots 1..N.
     const drainP = this.backgroundEnricher.drainNow(seq.orderedTracks).catch(err => {
       const msg = err instanceof Error ? err.message : String(err);
-      console.warn(`[BroadcastOrchestrator] drainNow failed: ${msg}`);
+      console.warn(`${tag} [BroadcastOrchestrator] drainNow failed: ${msg}`);
     });
     const slot0P = this.generateSlot(manifest, 0, input.userContext);
 
@@ -196,7 +211,7 @@ export class BroadcastOrchestrator {
     // 5. Fan out slots 1..N as a background task. Client polls
     //    /broadcast/:id/manifest to pick up audioUrls as slots complete.
     if (manifest.segmentSlots.length > 1) {
-      const backgroundP = this.generateSlotsBackground(manifest, input.userContext)
+      const backgroundP = this.generateSlotsBackground(manifest, input.userContext, tag)
         .finally(() => { this.inFlight.delete(manifest.broadcastId); });
       this.inFlight.set(manifest.broadcastId, backgroundP);
     }
@@ -233,6 +248,7 @@ export class BroadcastOrchestrator {
   private async generateSlotsBackground(
     manifest: Manifest,
     ctx: SegmentContext,
+    tag: string,
   ): Promise<void> {
     // Slots 1..N run with the same concurrency cap as before; slot 0 was
     // already baked synchronously above.
@@ -248,7 +264,7 @@ export class BroadcastOrchestrator {
           await this.generateSlot(manifest, indices[i], ctx);
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
-          console.warn(`[BroadcastOrchestrator] slot ${indices[i]} failed: ${msg}`);
+          console.warn(`${tag} [BroadcastOrchestrator] slot ${indices[i]} failed: ${msg}`);
         }
       }
     };

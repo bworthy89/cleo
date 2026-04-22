@@ -1,7 +1,8 @@
-import { Router, type Request, type RequestHandler, type Response } from 'express';
+import { Router, type RequestHandler, type Response } from 'express';
 import { z } from 'zod';
 import type { BroadcastOrchestrator } from '../services/broadcast/BroadcastOrchestrator';
 import type { BroadcastStore } from '../services/broadcast/BroadcastStore';
+import type { AuthenticatedRequest } from '../middleware/auth';
 
 const vibeSchema = z.enum([
   'morning', 'focus', 'workout', 'feelGood',
@@ -43,10 +44,6 @@ const createSchema = z.object({
   preserveOrder: z.boolean().optional(),
 });
 
-interface AuthenticatedRequest extends Request {
-  uid?: string;
-}
-
 export function createBroadcastRouter(
   orch: BroadcastOrchestrator,
   store: BroadcastStore,
@@ -75,7 +72,11 @@ export function createBroadcastRouter(
     if (!req.uid) return res.status(401).json({ error: 'unauthenticated' });
 
     try {
-      const result = await orch.create({ ...parsed.data, userId: req.uid });
+      const result = await orch.create({
+        ...parsed.data,
+        userId: req.uid,
+        userEmail: req.email,
+      });
       return res.json(result);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'bake failed';

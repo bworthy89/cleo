@@ -26,10 +26,6 @@ function pad2(n: number): string {
   return n.toString().padStart(2, '0');
 }
 
-function pad3(n: number): string {
-  return n.toString().padStart(3, '0');
-}
-
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return '00:00';
   const m = Math.floor(seconds / 60);
@@ -37,16 +33,12 @@ function formatTime(seconds: number): string {
   return `${pad2(m)}:${pad2(s)}`;
 }
 
-/**
- * 1..999 deterministic "show number" for the catalog header. Every UUID has
- * the same character length, so `id.length % 999` collapsed to a constant;
- * a full-string hash preserves the editorial feel while varying per session.
- */
-function hashBroadcastNumber(id: string | null): number {
-  if (!id) return 4;
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = ((h << 5) - h + id.charCodeAt(i)) | 0;
-  return (Math.abs(h) % 999) + 1;
+/** First 8 chars of the broadcast UUID, uppercased. Displayed on the player
+ *  so testers can screenshot and report the ID alongside any issue; server
+ *  logs tag every bake line with the same short id. */
+function shortBroadcastId(id: string | null): string {
+  if (!id) return '────────';
+  return id.slice(0, 8).toUpperCase();
 }
 
 function useLiveClock(enabled: boolean): string {
@@ -123,7 +115,7 @@ export default function BroadcastPlayerScreen() {
     router.back();
   };
 
-  const broadcastNo = pad3(hashBroadcastNumber(status.broadcastId));
+  const broadcastShortId = shortBroadcastId(status.broadcastId);
   const album = (track?.albumTitle ?? '').toUpperCase();
   const artist = track?.artistName ?? '';
 
@@ -156,7 +148,7 @@ export default function BroadcastPlayerScreen() {
 
         {/* Broadcast + track catalog line */}
         <View style={styles.catalogLine}>
-          <Text style={styles.catalogMono}>BROADCAST №{broadcastNo} / SIDE A</Text>
+          <Text style={styles.catalogMono}>BROADCAST {broadcastShortId} / SIDE A</Text>
           <Text style={styles.catalogMono}>TRK {pad2(trackIndex)} / {pad2(totalTracks)}</Text>
         </View>
 
