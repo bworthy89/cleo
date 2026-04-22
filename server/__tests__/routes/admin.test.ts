@@ -3,6 +3,30 @@ import request from 'supertest';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
+
+// Mock requireAuth at module-load time — the real implementation does JWT
+// verification against Firebase JWKS, which tests shouldn't exercise. The
+// stub treats `req.uid` being pre-populated (by our authStub middleware) as
+// the "authenticated" signal; absence → 401 with the same shape the real
+// middleware returns.
+jest.mock('@/middleware/auth', () => {
+  const actual = jest.requireActual('@/middleware/auth');
+  return {
+    ...actual,
+    requireAuth: (
+      req: express.Request & { uid?: string },
+      res: express.Response,
+      next: express.NextFunction,
+    ) => {
+      if (!req.uid) {
+        res.status(401).json({ error: 'Missing or invalid authorization header' });
+        return;
+      }
+      next();
+    },
+  };
+});
+
 import {
   createAdminRouter,
   readLogTail,
@@ -143,16 +167,23 @@ describe('admin router — pure helpers', () => {
 describe('admin router — HTTP', () => {
   let dir: string;
   let origCuratorEmails: string | undefined;
+  let origAdminToken: string | undefined;
 
   beforeEach(async () => {
     dir = await fs.mkdtemp(path.join(os.tmpdir(), 'admin-http-'));
     origCuratorEmails = process.env.CURATOR_EMAILS;
+    origAdminToken = process.env.ADMIN_BEARER_TOKEN;
     process.env.CURATOR_EMAILS = 'curator@x.com';
+    // Leave ADMIN_BEARER_TOKEN unset for the Firebase+curator tests; the
+    // adminGate describe below sets it explicitly for the token-path tests.
+    delete process.env.ADMIN_BEARER_TOKEN;
   });
 
   afterEach(async () => {
     if (origCuratorEmails === undefined) delete process.env.CURATOR_EMAILS;
     else process.env.CURATOR_EMAILS = origCuratorEmails;
+    if (origAdminToken === undefined) delete process.env.ADMIN_BEARER_TOKEN;
+    else process.env.ADMIN_BEARER_TOKEN = origAdminToken;
     await fs.rm(dir, { recursive: true, force: true });
   });
 
@@ -306,5 +337,90 @@ describe('admin router — HTTP', () => {
   it('/admin/status is curator-gated', async () => {
     const res = await request(buildApp('random@x.com')).get('/admin/status');
     expect(res.status).toBe(403);
+  });
+
+  it('returns 401 when no auth is established and admin token is unset', async () => {
+    // No authStub → requireAuth stub sees no uid → 401. No ADMIN_BEARER_TOKEN
+    // → admin-token path is inactive. This is the "completely unauthenticated"
+    // case mirroring what a random browser hit would produce in production.
+    const app = express();
+    app.use(createAdminRouter({ ...stubDeps(dir), logDir: dir }));
+    const res = await request(app).get('/admin/logs');
+    expect(res.status).toBe(401);
+  });
+});
+
+describe('adminGate — X-Admin-Token path', () => {
+  let dir: string;
+  let origAdminToken: string | undefined;
+  const TOKEN = 'test-admin-token-do-not-use-in-prod';
+
+  beforeEach(async () => {
+    dir = await fs.mkdtemp(path.join(os.tmpdir(), 'admin-tok-'));
+    origAdminToken = process.env.ADMIN_BEARER_TOKEN;
+    process.env.ADMIN_BEARER_TOKEN = TOKEN;
+    // Ensure CURATOR_EMAILS is empty so a leaked request without the token
+    // definitely falls through to 403, not accidentally curator-pass.
+    delete process.env.CURATOR_EMAILS;
+  });
+
+  afterEach(async () => {
+    if (origAdminToken === undefined) delete process.env.ADMIN_BEARER_TOKEN;
+    else process.env.ADMIN_BEARER_TOKEN = origAdminToken;
+    await fs.rm(dir, { recursive: true, force: true });
+  });
+
+  const buildApp = () => {
+    const app = express();
+    // No authStub — the admin token bypasses Firebase entirely.
+    app.use(createAdminRouter({ ...stubDeps(dir), logDir: dir }));
+    return app;
+  };
+
+  it('allows requests with matching X-Admin-Token (no Firebase needed)', async () => {
+    await fs.writeFile(path.join(dir, 'out.log'), 'line\n');
+    const res = await request(buildApp())
+      .get('/admin/logs')
+      .set('X-Admin-Token', TOKEN);
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('line');
+  });
+
+  it('rejects requests with a mismatched X-Admin-Token (falls through to Firebase, which 401s)', async () => {
+    const res = await request(buildApp())
+      .get('/admin/logs')
+      .set('X-Admin-Token', 'wrong-token');
+    expect(res.status).toBe(401);
+  });
+
+  it('rejects requests with no X-Admin-Token (falls through to Firebase, which 401s)', async () => {
+    const res = await request(buildApp()).get('/admin/logs');
+    expect(res.status).toBe(401);
+  });
+
+  it('rejects a trivially-short env token to prevent accidental weak secrets', async () => {
+    process.env.ADMIN_BEARER_TOKEN = 'short';
+    const res = await request(buildApp())
+      .get('/admin/logs')
+      .set('X-Admin-Token', 'short');
+    // Short tokens are ignored — adminGate falls through to Firebase, 401.
+    expect(res.status).toBe(401);
+  });
+
+  it('is timing-safe against length-extension probes (functional check)', async () => {
+    // Functional: a shorter/longer provided token must still be rejected —
+    // safeEqual short-circuits on length mismatch rather than throwing.
+    const res = await request(buildApp())
+      .get('/admin/logs')
+      .set('X-Admin-Token', TOKEN + 'x');
+    expect(res.status).toBe(401);
+  });
+
+  it('/admin/status also accepts X-Admin-Token', async () => {
+    const res = await request(buildApp())
+      .get('/admin/status')
+      .set('X-Admin-Token', TOKEN);
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('ok');
   });
 });

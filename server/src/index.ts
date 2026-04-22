@@ -156,9 +156,11 @@ async function bootstrap(): Promise<void> {
   featuredRegistry.load().catch(err => console.error('[featured] registry load failed', err));
   app.use(requireAuth, createFeaturedRouter(featuredRegistry, broadcastOrchestrator, generationLimiter));
 
-  // Admin surface — curator-gated log tail + richer status. Log dir matches
-  // ecosystem.config.cjs's out_file/error_file (cwd-relative `logs/`).
-  app.use(requireAuth, createAdminRouter({
+  // Admin surface — curator-gated log tail + richer status. The router's
+  // built-in adminGate accepts either X-Admin-Token (when ADMIN_BEARER_TOKEN
+  // is set) or Firebase JWT + curator email, so no outer requireAuth here.
+  // Log dir matches ecosystem.config.cjs's out_file/error_file.
+  app.use(createAdminRouter({
     store: broadcastStore,
     orch: broadcastOrchestrator,
     llm: llmProvider,

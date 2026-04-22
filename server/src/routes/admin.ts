@@ -1,7 +1,8 @@
-import { Router, type Request, type Response } from 'express';
+import { Router, type NextFunction, type Request, type RequestHandler, type Response } from 'express';
+import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
-import { requireCurator, type AuthenticatedRequest } from '../middleware/auth';
+import { requireAuth, requireCurator } from '../middleware/auth';
 import type { BroadcastStore } from '../services/broadcast/BroadcastStore';
 import type { BroadcastOrchestrator } from '../services/broadcast/BroadcastOrchestrator';
 
@@ -84,6 +85,52 @@ export function interleaveByTimestamp(
   return tagged.map(t => `[${t.src}] ${t.line}`);
 }
 
+/** Timing-safe string equality. `crypto.timingSafeEqual` requires equal-
+ *  length buffers, so the length check short-circuits non-matching lengths
+ *  (leaks token length via timing, but not token content). */
+function safeEqual(a: string, b: string): boolean {
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
+/** Combined auth gate for /admin/*. Tries three paths, in order:
+ *
+ *  1. `X-Admin-Token` header matches `ADMIN_BEARER_TOKEN` env — immediate
+ *     pass, bypasses Firebase + curator. Intended for the operator's own
+ *     phone/browser debugging (one saved long-lived token beats juggling
+ *     60-minute Firebase JWTs).
+ *  2. Firebase JWT + curator email allowlist — the existing path.
+ *  3. Neither — 401 from requireAuth or 403 from requireCurator.
+ *
+ *  The admin-token path is only active when `ADMIN_BEARER_TOKEN` is set, so
+ *  leaving the env unset preserves the pre-existing "Firebase only" posture
+ *  with no behavior change. */
+export function adminGate(): RequestHandler {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const envToken = process.env.ADMIN_BEARER_TOKEN;
+    const provided = req.headers['x-admin-token'];
+    if (
+      envToken && envToken.length >= 16 &&
+      typeof provided === 'string' &&
+      safeEqual(envToken, provided)
+    ) {
+      next();
+      return;
+    }
+    // Fall back to the standard Firebase + curator chain.
+    requireAuth(req, res, (err?: unknown) => {
+      if (err) {
+        next(err);
+        return;
+      }
+      if (res.headersSent) return;
+      requireCurator(req, res, next);
+    });
+  };
+}
+
 /** Apply substring filters (user + id) and keep only the last `lines`
  *  matches. Both filters are literal substring matches — no regex — to
  *  sidestep ReDoS and to keep query semantics obvious from a browser URL. */
@@ -107,12 +154,15 @@ export function createAdminRouter(deps: AdminRouterDeps): Router {
   const router = Router();
   const logDir = deps.logDir ?? path.resolve(process.cwd(), 'logs');
 
+  // Gate every admin route with the combined token/Firebase auth chain.
+  router.use(adminGate());
+
   // GET /admin/logs?stream=out|err|all&user=<sub>&id=<short>&lines=<n>
   // Returns text/plain so a browser renders it readably without a JSON
   // viewer. Filters are ANDed. `id` is uppercased before matching — the
   // server tag emits uppercase short ids, and testers will paste uppercase
   // from screenshots of the player display.
-  router.get('/admin/logs', requireCurator, async (req: AuthenticatedRequest, res: Response) => {
+  router.get('/admin/logs', async (req: Request, res: Response) => {
     const streamParam = req.query.stream;
     const stream: Stream = isStream(streamParam) ? streamParam : 'out';
 
@@ -151,8 +201,9 @@ export function createAdminRouter(deps: AdminRouterDeps): Router {
   });
 
   // GET /admin/status — richer /health: adds memory, broadcast store size,
-  // in-flight bakes, and log file sizes on disk. Curator-gated.
-  router.get('/admin/status', requireCurator, async (_req: Request, res: Response) => {
+  // in-flight bakes, and log file sizes on disk. Gated by `adminGate`
+  // (router-level) — accepts either X-Admin-Token or Firebase+curator.
+  router.get('/admin/status', async (_req: Request, res: Response) => {
     const mem = process.memoryUsage();
     let logSizes: { out: number; err: number } = { out: 0, err: 0 };
     try {
