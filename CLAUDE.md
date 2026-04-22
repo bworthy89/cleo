@@ -201,7 +201,7 @@ cleo-app/
 │   │   ├── BroadcastManifestClient.ts   ← HTTP client; strips origin from full URLs
 │   │   │                                   before passing to authenticatedFetch
 │   │   ├── BroadcastCurationClient.ts   ← listFeatured + publishFeatured
-│   │   ├── BroadcastResumer.ts          ← 2h resume window via persisted MMKV manifest
+│   │   ├── BroadcastResumer.ts          ← 24h resume window via persisted MMKV manifest
 │   │   ├── BroadcastStingers.ts         ← stubbed (returns null); pending sound design
 │   │   └── PlaylistCurator.ts           ← Ask ONAY: LLM tracklist → on-device
 │   │                                       catalog search → resolved tracks
