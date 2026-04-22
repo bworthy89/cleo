@@ -38,9 +38,9 @@ describe('BroadcastResumer', () => {
     expect(await resumer.check()).toBeNull();
   });
 
-  it('returns null and clears storage when persisted is older than 2h', async () => {
+  it('returns null and clears storage when persisted is older than 24h', async () => {
     (Storage.getPersistedBroadcast as jest.Mock).mockReturnValue(
-      rec({ manifest: { ...baseManifest, createdAt: Date.now() - (2 * 60 * 60 * 1000 + 1000) } }),
+      rec({ manifest: { ...baseManifest, createdAt: Date.now() - (24 * 60 * 60 * 1000 + 1000) } }),
     );
     const resumer = new BroadcastResumer(ok(baseManifest));
     expect(await resumer.check()).toBeNull();
