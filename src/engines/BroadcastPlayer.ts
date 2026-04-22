@@ -61,6 +61,14 @@ export class BroadcastPlayer {
   private maxPlaybackTimeSeen = 0;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private readonly POLL_INTERVAL_MS = 3000;
+  /** How long runSegmentAt will wait for a pending slot to flip to ready
+   *  before giving up and letting the existing silent-skip path fire.
+   *  20s covers a cold CosyVoice boot + one provider failover; longer than
+   *  that is a worse UX than skipping. */
+  private readonly SEGMENT_READY_TIMEOUT_MS = 20_000;
+  /** Tighter cadence than the 3s background poll so a waiting main loop
+   *  picks up a newly-ready slot promptly. */
+  private readonly SEGMENT_READY_POLL_INTERVAL_MS = 1_500;
   private isPaused = false;
   private resumePromise: Promise<void> | null = null;
   private resumeResolver: (() => void) | null = null;
@@ -370,7 +378,41 @@ export class BroadcastPlayer {
     }
   }
 
+  /** Block until the given slot is no longer in 'pending' state (either
+   *  'ready' or 'failed') or the timeout trips. Forces an immediate manifest
+   *  poll on each tick so we don't wait on the 3s background cadence; cooperates
+   *  with pause via waitIfPaused and bails out if end() nulls the manifest.
+   *
+   *  Timing out is not an error — the caller's downstream cache-miss path
+   *  (pickVariant → undefined) silently skips the segment, which is the same
+   *  behavior the player had before this helper existed. */
+  private async waitForSegmentReady(slotIndex: number): Promise<void> {
+    const deadline = Date.now() + this.SEGMENT_READY_TIMEOUT_MS;
+    while (this.manifest) {
+      const slot = this.manifest.segmentSlots[slotIndex];
+      if (!slot || slot.status !== 'pending') return;
+      if (Date.now() >= deadline) {
+        console.warn(
+          `[BroadcastPlayer] slot ${slotIndex} still pending after ${this.SEGMENT_READY_TIMEOUT_MS}ms — skipping`,
+        );
+        return;
+      }
+      try {
+        await this.pollManifestOnce();
+      } catch {
+        // Transient network error — retry next tick.
+      }
+      if (!this.manifest) return;
+      if (this.manifest.segmentSlots[slotIndex]?.status !== 'pending') return;
+      await this.waitIfPaused();
+      if (!this.manifest) return;
+      await new Promise<void>(r => setTimeout(r, this.SEGMENT_READY_POLL_INTERVAL_MS));
+    }
+  }
+
   private async runSegmentAt(slotIndex: number): Promise<void> {
+    if (!this.manifest) return;
+    await this.waitForSegmentReady(slotIndex);
     if (!this.manifest) return;
     const slot = this.manifest.segmentSlots[slotIndex];
     if (!slot) return;
