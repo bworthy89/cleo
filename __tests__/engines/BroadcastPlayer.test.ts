@@ -197,6 +197,136 @@ describe('BroadcastPlayer', () => {
     await player.end();
   });
 
+  describe('pending-slot wait', () => {
+    // 2-track manifest with cold_open ready + sign_off pending. The main loop
+    // reaches sign_off after both tracks end; waitForSegmentReady must kick in.
+    const makeCold0ReadySignPending = (): Manifest => ({
+      broadcastId: 'bp', userId: 'u1', playlistId: 'p1',
+      vibe: 'morning', length: 'quick', createdAt: Date.now(),
+      tracks: [
+        { id: 't0', title: 'T0', artistName: 'A', albumTitle: '', duration: 1 },
+        { id: 't1', title: 'T1', artistName: 'A', albumTitle: '', duration: 1 },
+      ],
+      segmentSlots: [
+        { index: 0, kind: 'cold_open', beforeTrackId: 't0',
+          variantCount: 1, status: 'ready',
+          audioUrls: ['https://cdn/seg0-v0.mp3'] },
+        { index: 1, kind: 'sign_off', afterTrackId: 't1',
+          variantCount: 1, status: 'pending' },
+      ],
+    });
+
+    const driveBothTracksToEnd = async (deps: ReturnType<typeof makeDeps>) => {
+      for (let t = 0; t < 2; t++) {
+        for (let i = 0; i < 80; i++) await Promise.resolve();
+        deps.listeners.state?.({ status: 'playing', playbackTime: 0.1 });
+        deps.listeners.state?.({ status: 'stopped', playbackTime: 1 });
+      }
+    };
+
+    it('pending→ready while waiting plays the segment', async () => {
+      const deps = makeDeps();
+      const pending = makeCold0ReadySignPending();
+      const ready: Manifest = {
+        ...pending,
+        segmentSlots: [
+          pending.segmentSlots[0],
+          { ...pending.segmentSlots[1], status: 'ready', audioUrls: ['https://cdn/seg1-v0.mp3'] },
+        ],
+      };
+      // First poll returns ready — wait loop exits and runSegmentAt fetches the audio.
+      (deps.manifestClient.fetchManifest as jest.Mock).mockResolvedValue(ready);
+
+      const music = {
+        ...deps.music,
+        getPlaybackStatus: jest.fn(async () => 'stopped'),
+        getPlaybackTime: jest.fn(async () => 1),
+      };
+      const player = new BroadcastPlayer(
+        music, deps.native, deps.manifestClient, deps.stingers,
+      );
+      player.start(pending, ['https://cdn/seg0-v0.mp3']);
+      await driveBothTracksToEnd(deps);
+      for (let i = 0; i < 80; i++) await Promise.resolve();
+
+      // Sign-off played after wait completed.
+      expect(deps.logs.some(l => l.startsWith('tts:BASE64_seg1'))).toBe(true);
+      await player.end();
+    });
+
+    it('pending→failed while waiting skips cleanly (no audio fetched)', async () => {
+      const deps = makeDeps();
+      const pending = makeCold0ReadySignPending();
+      const failed: Manifest = {
+        ...pending,
+        segmentSlots: [
+          pending.segmentSlots[0],
+          { ...pending.segmentSlots[1], status: 'failed' },
+        ],
+      };
+      (deps.manifestClient.fetchManifest as jest.Mock).mockResolvedValue(failed);
+
+      const music = {
+        ...deps.music,
+        getPlaybackStatus: jest.fn(async () => 'stopped'),
+        getPlaybackTime: jest.fn(async () => 1),
+      };
+      const player = new BroadcastPlayer(
+        music, deps.native, deps.manifestClient, deps.stingers,
+      );
+      player.start(pending, ['https://cdn/seg0-v0.mp3']);
+      await driveBothTracksToEnd(deps);
+      for (let i = 0; i < 80; i++) await Promise.resolve();
+
+      // Sign-off was 'failed' — nothing should have been played or fetched for slot 1.
+      expect(deps.logs.some(l => l.startsWith('tts:BASE64_seg1'))).toBe(false);
+      expect(deps.manifestClient.fetchSegmentAudio).not.toHaveBeenCalledWith(
+        expect.stringContaining('seg1'),
+      );
+      // Broadcast reaches 'ended' — the loop didn't hang.
+      expect(player.getStatus().state).toBe('ended');
+      await player.end();
+    });
+
+    it('pending throughout past timeout skips and broadcast still ends (no hang)', async () => {
+      const deps = makeDeps();
+      const pending = makeCold0ReadySignPending();
+      // Always pending — fetchManifest returns the same pending manifest forever.
+      (deps.manifestClient.fetchManifest as jest.Mock).mockResolvedValue(pending);
+
+      const music = {
+        ...deps.music,
+        getPlaybackStatus: jest.fn(async () => 'stopped'),
+        getPlaybackTime: jest.fn(async () => 1),
+      };
+      const player = new BroadcastPlayer(
+        music, deps.native, deps.manifestClient, deps.stingers,
+      );
+      // Compress timeout + poll interval so the test runs in real-time without fake timers.
+      (player as unknown as {
+        SEGMENT_READY_TIMEOUT_MS: number;
+        SEGMENT_READY_POLL_INTERVAL_MS: number;
+      }).SEGMENT_READY_TIMEOUT_MS = 50;
+      (player as unknown as {
+        SEGMENT_READY_TIMEOUT_MS: number;
+        SEGMENT_READY_POLL_INTERVAL_MS: number;
+      }).SEGMENT_READY_POLL_INTERVAL_MS = 5;
+
+      player.start(pending, ['https://cdn/seg0-v0.mp3']);
+      await driveBothTracksToEnd(deps);
+      // Flush through the wait loop's timeout (~50ms + slack) and the
+      // post-sign-off teardown (music.pause, state='ended').
+      await new Promise<void>(r => setTimeout(r, 150));
+      for (let i = 0; i < 80; i++) await Promise.resolve();
+
+      // Sign-off audio was never fetched (slot never left 'pending').
+      expect(deps.logs.some(l => l.startsWith('tts:BASE64_seg1'))).toBe(false);
+      // But the broadcast still reached 'ended' — the wait timed out rather than hanging.
+      expect(player.getStatus().state).toBe('ended');
+      await player.end();
+    });
+  });
+
   describe('background keepalive', () => {
     it('signals native module to keep timer alive when broadcast starts', async () => {
       const deps = makeDeps();
