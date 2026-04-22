@@ -187,7 +187,8 @@ export function createAdminRouter(deps: AdminRouterDeps): Router {
   // viewer. Filters are ANDed. `id` is uppercased before matching — the
   // server tag emits uppercase short ids, and testers will paste uppercase
   // from screenshots of the player display.
-  router.get('/admin/logs', async (req: Request, res: Response) => {
+  // Route path is relative — the router is mounted at `/admin` in index.ts.
+  router.get('/logs', async (req: Request, res: Response) => {
     const parsed = AdminLogsQuerySchema.safeParse(req.query);
     if (!parsed.success) {
       // Only hit when truly invalid input arrives — e.g. `user` exceeds
@@ -223,7 +224,8 @@ export function createAdminRouter(deps: AdminRouterDeps): Router {
   // GET /admin/status — richer /health: adds memory, broadcast store size,
   // in-flight bakes, and log file sizes on disk. Gated by `adminGate`
   // (router-level) — accepts either X-Admin-Token or Firebase+curator.
-  router.get('/admin/status', async (_req: Request, res: Response) => {
+  // Route path is relative — the router is mounted at `/admin` in index.ts.
+  router.get('/status', async (_req: Request, res: Response) => {
     const mem = process.memoryUsage();
     let logSizes: { out: number; err: number } = { out: 0, err: 0 };
     try {
