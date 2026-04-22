@@ -240,6 +240,12 @@ export class BroadcastOrchestrator {
     return this.inFlight.has(broadcastId);
   }
 
+  /** Number of bakes whose background slot generation hasn't yet resolved.
+   *  Used by the admin status endpoint as a liveness signal. */
+  inFlightCount(): number {
+    return this.inFlight.size;
+  }
+
   /** Read the current manifest state (slots include their latest status + urls). */
   getManifest(broadcastId: string): Manifest | undefined {
     return this.store.get(broadcastId);
