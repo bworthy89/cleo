@@ -10,6 +10,7 @@ import { musicbrainzRouter } from './routes/musicbrainz';
 import { curationRouter } from './routes/curation';
 import { createBroadcastRouter } from './routes/broadcast';
 import { createFeaturedRouter } from './routes/featured';
+import { createAdminRouter } from './routes/admin';
 import { requireAuth } from './middleware/auth';
 import { llmProvider } from './providers/llm';
 import { ttsProvider } from './providers/tts';
@@ -154,6 +155,16 @@ async function bootstrap(): Promise<void> {
   );
   featuredRegistry.load().catch(err => console.error('[featured] registry load failed', err));
   app.use(requireAuth, createFeaturedRouter(featuredRegistry, broadcastOrchestrator, generationLimiter));
+
+  // Admin surface — curator-gated log tail + richer status. Log dir matches
+  // ecosystem.config.cjs's out_file/error_file (cwd-relative `logs/`).
+  app.use(requireAuth, createAdminRouter({
+    store: broadcastStore,
+    orch: broadcastOrchestrator,
+    llm: llmProvider,
+    tts: ttsProvider,
+    logDir: process.env.LOG_DIR,
+  }));
 
   // Static asset serving for broadcast audio — only when the storage backend
   // serves bytes from a local path (dev). Remote backends (R2) embed the URL
