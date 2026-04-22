@@ -287,6 +287,8 @@ GENIUS_ACCESS_TOKEN
 HEALTH_CHECK_INTERVAL_MS, HEALTH_CHECK_TIMEOUT_MS
 BROADCAST_ASSET_BASE_URL                  # dev: http://<LAN-IP>:3001
 CURATOR_EMAILS                            # comma-separated
+ADMIN_BEARER_TOKEN                        # optional; ≥16 chars unlocks
+                                          # X-Admin-Token header auth on /admin/*
 
 TTS_PRIMARY=cosyvoice
 TTS_FALLBACK=f5tts

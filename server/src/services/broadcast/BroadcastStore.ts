@@ -33,4 +33,11 @@ export class BroadcastStore {
     if (!slot) throw new Error(`slot ${slotIndex} not found`);
     Object.assign(slot, patch);
   }
+
+  /** Current entry count (includes not-yet-evicted expired entries; TTL is
+   *  applied lazily on `get`). Used by the admin status endpoint for a rough
+   *  memory-footprint signal. */
+  size(): number {
+    return this.entries.size;
+  }
 }
