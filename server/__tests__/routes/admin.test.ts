@@ -216,7 +216,7 @@ describe('admin router — HTTP', () => {
   const buildApp = (email: string) => {
     const app = express();
     app.use(authStub('uid-1', email));
-    app.use(createAdminRouter({ ...stubDeps(dir), logDir: dir }));
+    app.use('/admin', createAdminRouter({ ...stubDeps(dir), logDir: dir }));
     return app;
   };
 
@@ -370,7 +370,7 @@ describe('admin router — HTTP', () => {
     // → admin-token path is inactive. This is the "completely unauthenticated"
     // case mirroring what a random browser hit would produce in production.
     const app = express();
-    app.use(createAdminRouter({ ...stubDeps(dir), logDir: dir }));
+    app.use('/admin', createAdminRouter({ ...stubDeps(dir), logDir: dir }));
     const res = await request(app).get('/admin/logs');
     expect(res.status).toBe(401);
   });
@@ -399,7 +399,7 @@ describe('adminGate — X-Admin-Token path', () => {
   const buildApp = () => {
     const app = express();
     // No authStub — the admin token bypasses Firebase entirely.
-    app.use(createAdminRouter({ ...stubDeps(dir), logDir: dir }));
+    app.use('/admin', createAdminRouter({ ...stubDeps(dir), logDir: dir }));
     return app;
   };
 
@@ -448,5 +448,31 @@ describe('adminGate — X-Admin-Token path', () => {
       .set('X-Admin-Token', TOKEN);
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('ok');
+  });
+
+  it('is not intercepted by a later requireAuth-style middleware mounted at /', async () => {
+    // Regression: production had `app.use(requireAuth, broadcastRouter)`
+    // lines BEFORE the admin mount. Those `app.use(mw, router)` forms
+    // mount mw at / without a path prefix, so mw ran on every request
+    // including /admin/*, 401ing before adminRouter could be reached.
+    // The fix mounts adminRouter at `/admin` AND places it before the
+    // other routers. This test pins down both properties.
+    const app = express();
+    app.use('/admin', createAdminRouter({ ...stubDeps(dir), logDir: dir }));
+    // Simulate the broadcast-style mount AFTER the admin mount. If ordering
+    // regresses (admin moved below), this blanket 401-middleware would
+    // fire first and the X-Admin-Token path wouldn't be reached.
+    app.use((_req, res) => {
+      res.status(401).json({ error: 'Missing or invalid authorization header' });
+    });
+
+    const ok = await request(app)
+      .get('/admin/status')
+      .set('X-Admin-Token', TOKEN);
+    expect(ok.status).toBe(200);
+
+    // Non-admin paths still fall through to the blanket middleware.
+    const other = await request(app).get('/anything-else');
+    expect(other.status).toBe(401);
   });
 });

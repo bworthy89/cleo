@@ -139,6 +139,19 @@ async function bootstrap(): Promise<void> {
     enrichmentCache, backgroundEnricher, featureFetchChain,
   );
 
+  // Admin surface — mounted FIRST so /admin/* is claimed by adminRouter's
+  // own gate (X-Admin-Token or Firebase+curator) before the global
+  // requireAuth middleware on the other routers below would fire on every
+  // path and 401 on missing Bearer. The `/admin` path prefix also keeps
+  // adminRouter from running on non-admin requests.
+  app.use('/admin', createAdminRouter({
+    store: broadcastStore,
+    orch: broadcastOrchestrator,
+    llm: llmProvider,
+    tts: ttsProvider,
+    logDir: process.env.LOG_DIR,
+  }));
+
   // Auth-protected API routes
   app.use(requireAuth, generationLimiter, segmentRouter);
   app.use(requireAuth, generationLimiter, voiceRouter);
@@ -155,18 +168,6 @@ async function bootstrap(): Promise<void> {
   );
   featuredRegistry.load().catch(err => console.error('[featured] registry load failed', err));
   app.use(requireAuth, createFeaturedRouter(featuredRegistry, broadcastOrchestrator, generationLimiter));
-
-  // Admin surface — curator-gated log tail + richer status. The router's
-  // built-in adminGate accepts either X-Admin-Token (when ADMIN_BEARER_TOKEN
-  // is set) or Firebase JWT + curator email, so no outer requireAuth here.
-  // Log dir matches ecosystem.config.cjs's out_file/error_file.
-  app.use(createAdminRouter({
-    store: broadcastStore,
-    orch: broadcastOrchestrator,
-    llm: llmProvider,
-    tts: ttsProvider,
-    logDir: process.env.LOG_DIR,
-  }));
 
   // Static asset serving for broadcast audio — only when the storage backend
   // serves bytes from a local path (dev). Remote backends (R2) embed the URL
