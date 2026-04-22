@@ -37,6 +37,7 @@ import type { Manifest } from '../../engines/BroadcastPlayer.types';
 import {
   getBroadcastHistory,
   getCachedPlaylists,
+  getPersistedBroadcast,
   removeBroadcastFromHistory,
   clearPersistedBroadcast,
   type BroadcastHistoryEntry,
@@ -191,10 +192,9 @@ export default function HomeBroadcastScreen() {
     }
   }, []);
 
-  // Derive the primary-CTA mode from two signals:
-  //  (a) is the BroadcastPlayer singleton currently active in memory, and
-  //  (b) is there a resumable persisted record that passes freshness.
-  // Alert.alert is gone — mode changes the StampButton copy instead.
+  // Load featured broadcasts + playlists. Independent of the CTA mode
+  // resolution below so the Resume card can surface without waiting on
+  // Apple Music / editorial HTTP.
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -208,7 +208,20 @@ export default function HomeBroadcastScreen() {
         if (mounted) setLoading(false);
       }
       await loadPlaylists();
+    })();
+    return () => { mounted = false; };
+  }, [loadPlaylists]);
 
+  // Derive the primary-CTA mode from two signals:
+  //  (a) is the BroadcastPlayer singleton currently active in memory, and
+  //  (b) is there a resumable persisted record that passes freshness.
+  // Runs in parallel with the featured/playlists load above so the Resume
+  // card resolves on its own fast path — otherwise the user can tap the
+  // top "Earlier Tonight" entry before the check finishes and get a
+  // start-from-top replay instead of a true resume.
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
       // If a broadcast is already active in memory, show Now Playing and
       // skip the resume check — the live player is authoritative.
       const status = broadcastPlayer.getStatus();
@@ -243,7 +256,7 @@ export default function HomeBroadcastScreen() {
       }
     })();
     return () => { mounted = false; };
-  }, [loadPlaylists]);
+  }, []);
 
   const playlistName = useMemo(() => {
     if (!playlistId) return null;
@@ -329,8 +342,11 @@ export default function HomeBroadcastScreen() {
     // Verify the broadcast still exists server-side before trying to play.
     // If the manifest is 404 the backing R2 audio is gone and playback would
     // fail opaquely — prune from history and tell the user directly.
+    // Use the fresh manifest when we can get it (slots may have flipped
+    // pending→ready since the history entry was cached).
+    let freshManifest: Manifest | null = null;
     try {
-      await new BroadcastManifestClient().fetchManifest(entry.manifest.broadcastId);
+      freshManifest = await new BroadcastManifestClient().fetchManifest(entry.manifest.broadcastId);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes('404')) {
@@ -339,15 +355,32 @@ export default function HomeBroadcastScreen() {
         Alert.alert('Broadcast unavailable', 'This broadcast is no longer on the server. Removed from your history.');
         return;
       }
-      // Transient error: let the user try anyway; start() will surface any
-      // real playback issue.
+      // Transient error: let the user try anyway; start()/resume() will
+      // surface any real playback issue.
       console.warn('[HomeBroadcast] recent verify failed (playing anyway):', msg);
     }
+    const manifest = freshManifest ?? entry.manifest;
+
+    // If the tapped entry matches the persisted-cursor record, resume from
+    // the last track the user heard instead of replaying from the top.
+    // Catches the common "user taps Earlier Tonight before Resume CTA
+    // resolves on cold launch" case that looked identical to 'start over'.
+    const persisted = getPersistedBroadcast();
+    const isResumable =
+      persisted !== undefined
+      && persisted.manifest.broadcastId === entry.manifest.broadcastId
+      && persisted.trackCursor >= 0;
+
     router.push('/(main)/(broadcast)/player');
-    broadcastPlayer.start(entry.manifest, entry.firstSegmentUrls).catch((err: unknown) => {
+    const onErr = (err: unknown) => {
       const msg = err instanceof Error ? err.message : 'Playback failed';
       Alert.alert('Broadcast error', msg);
-    });
+    };
+    if (isResumable && persisted) {
+      broadcastPlayer.resume(manifest, persisted.trackCursor).catch(onErr);
+    } else {
+      broadcastPlayer.start(manifest, entry.firstSegmentUrls).catch(onErr);
+    }
   }, [router, refreshRecent]);
 
   const playFeatured = useCallback((fb: FeaturedBroadcast) => {
