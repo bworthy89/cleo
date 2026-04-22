@@ -29,11 +29,11 @@ import type { FeatureFetchChain } from './FeatureFetchChain';
 const SEGMENT_CONCURRENCY = 4;
 
 /** Build the log prefix used to trace one bake across all its log lines.
- *  `grep "user=tester@x.com"` or `grep "id=a3f9k2"` on PM2 output surfaces
- *  everything the bake emitted. Short id is first 8 of the UUID — low
- *  collision risk within any practical log window. */
+ *  `grep "user=tester@x.com"` or `grep "id=A3F9K2X1"` on PM2 output surfaces
+ *  everything the bake emitted. Short id is first 8 of the UUID uppercased
+ *  so grep matches a tester-pasted screenshot of the player display verbatim. */
 function buildBakeTag(broadcastId: string, user: string): string {
-  return `[bake id=${broadcastId.slice(0, 8)} user=${user}]`;
+  return `[bake id=${broadcastId.slice(0, 8).toUpperCase()} user=${user}]`;
 }
 
 export class BroadcastOrchestrator {

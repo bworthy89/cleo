@@ -187,7 +187,7 @@ cleo-app/
     `paused` is explicitly excluded so user pauses don't advance.
 
 ### Server flow — BroadcastOrchestrator
-```
+```text
 create(input):
   1. Sequence tracks via DeterministicTrackSequencer (or LLMTrackSequencer if
      SEQUENCER_MODE=llm).
