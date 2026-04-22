@@ -1,4 +1,5 @@
 import { Router, type NextFunction, type Request, type RequestHandler, type Response } from 'express';
+import { z } from 'zod';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -35,11 +36,31 @@ const MAX_LINES = 2000;
 const DEFAULT_LINES = 200;
 
 const STREAM_VALUES = ['out', 'err', 'all'] as const;
-type Stream = typeof STREAM_VALUES[number];
 
-function isStream(v: unknown): v is Stream {
-  return typeof v === 'string' && (STREAM_VALUES as readonly string[]).includes(v);
-}
+/** Zod schema for /admin/logs query params. Permissive on purpose — this is
+ *  an operator triage endpoint, not a user-facing API, so invalid values
+ *  coerce to sensible defaults rather than 400ing.
+ *
+ *  - `stream` unknown value → falls back to 'out' via `.catch`
+ *  - `id` uppercased after slice so tester-pasted screenshots match server
+ *    log lines (which emit uppercase short ids) regardless of the caller's
+ *    casing. Slice before uppercase to cap both bytes and display length.
+ *  - `lines` preprocess handles string/number/missing/negative/NaN in one
+ *    place, always landing on an integer in [1, MAX_LINES]. */
+const AdminLogsQuerySchema = z.object({
+  stream: z.enum(STREAM_VALUES).catch('out'),
+  user: z.string().max(200).optional(),
+  id: z.string().transform(s => s.slice(0, 200).toUpperCase()).optional(),
+  lines: z.preprocess(
+    (v) => {
+      if (v === undefined || v === null) return DEFAULT_LINES;
+      const n = typeof v === 'string' ? Number(v) : typeof v === 'number' ? v : NaN;
+      if (!Number.isFinite(n) || n <= 0) return DEFAULT_LINES;
+      return Math.min(MAX_LINES, Math.floor(n));
+    },
+    z.number().int().positive().max(MAX_LINES),
+  ),
+});
 
 /** Read up to `maxBytes` from the tail of a log file, returning split lines.
  *  When the read is bounded (file larger than the window), the first line is
@@ -55,8 +76,12 @@ export async function readLogTail(
   const fd = await fs.promises.open(logPath, 'r');
   try {
     const buf = Buffer.alloc(bytesToRead);
-    await fd.read(buf, 0, bytesToRead, readFrom);
-    const content = buf.toString('utf8');
+    // `Buffer.alloc` zero-fills; if the file is truncated between stat()
+    // and read() (log rotation mid-request), bytesRead < bytesToRead and
+    // the tail of `buf` would decode as `\0` chars that survive the
+    // newline split. Slice to the actual bytes returned.
+    const { bytesRead } = await fd.read(buf, 0, bytesToRead, readFrom);
+    const content = buf.slice(0, bytesRead).toString('utf8');
     const lines = content.split('\n');
     // Drop the partial first line only when we didn't start at byte 0.
     if (readFrom > 0) lines.shift();
@@ -163,20 +188,15 @@ export function createAdminRouter(deps: AdminRouterDeps): Router {
   // server tag emits uppercase short ids, and testers will paste uppercase
   // from screenshots of the player display.
   router.get('/admin/logs', async (req: Request, res: Response) => {
-    const streamParam = req.query.stream;
-    const stream: Stream = isStream(streamParam) ? streamParam : 'out';
-
-    const user = typeof req.query.user === 'string'
-      ? req.query.user.slice(0, 200)
-      : undefined;
-    const id = typeof req.query.id === 'string'
-      ? req.query.id.slice(0, 200).toUpperCase()
-      : undefined;
-
-    const linesRaw = Number(req.query.lines);
-    const lines = Number.isFinite(linesRaw) && linesRaw > 0
-      ? Math.min(MAX_LINES, Math.floor(linesRaw))
-      : DEFAULT_LINES;
+    const parsed = AdminLogsQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      // Only hit when truly invalid input arrives — e.g. `user` exceeds
+      // max(200). Most malformed params are coerced to defaults by the
+      // schema and never reach this branch.
+      return res.status(400).type('text/plain')
+        .send(`invalid query: ${parsed.error.issues.map(i => i.path.join('.')).join(',')}\n`);
+    }
+    const { stream, user, id, lines } = parsed.data;
 
     try {
       let all: string[];

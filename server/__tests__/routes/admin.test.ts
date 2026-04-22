@@ -1,6 +1,7 @@
 import express from 'express';
 import request from 'supertest';
 import * as fs from 'fs/promises';
+import * as fsSync from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 
@@ -99,6 +100,31 @@ describe('admin router — pure helpers', () => {
     it('throws when the file does not exist', async () => {
       await expect(readLogTail(path.join(dir, 'nope.log'), 1024))
         .rejects.toThrow();
+    });
+
+    it('does not emit null bytes if the file is truncated between stat() and read()', async () => {
+      // Buffer.alloc zero-fills the read buffer. If read() returns fewer
+      // bytes than the pre-sized buffer (race with log rotation, concurrent
+      // truncate, etc.), the unread tail becomes \0 chars in the decoded
+      // string. The fix slices to bytesRead; this regression test pins it.
+      const realStat = fsSync.promises.stat;
+      const spy = jest.spyOn(fsSync.promises, 'stat').mockImplementation(async (p: fsSync.PathLike) => {
+        const s = await realStat(p);
+        // Inflate the reported size so bytesToRead overshoots the real file.
+        (s as fsSync.Stats & { size: number }).size = s.size + 64;
+        return s;
+      });
+      try {
+        const file = path.join(dir, 'truncated.log');
+        await fs.writeFile(file, 'line1\nline2\n');
+        const lines = await readLogTail(file, 1024);
+        expect(lines).toEqual(['line1', 'line2']);
+        for (const line of lines) {
+          expect(line.includes('\0')).toBe(false);
+        }
+      } finally {
+        spy.mockRestore();
+      }
     });
   });
 
