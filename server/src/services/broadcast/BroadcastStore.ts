@@ -1,6 +1,9 @@
 import type { Manifest, SegmentSlot } from './types';
 
-const TTL_MS = 2 * 60 * 60 * 1000;
+// 24h matches the client's BROADCAST_HISTORY_RETENTION_MS. R2 presigned
+// audio URLs live 7 days, so the manifest was the artificially short leg;
+// widening lets a user come back the next morning and still resume.
+const TTL_MS = 24 * 60 * 60 * 1000;
 
 export class BroadcastStore {
   private readonly entries = new Map<string, Manifest>();
