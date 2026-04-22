@@ -166,7 +166,7 @@ cleo-app/
 │       │   │   │                                 injection-prone metadata
 │       │   │   ├── SegmentGenerator.ts         ← LLM → TTS → ObjectStorage per variant
 │       │   │   │                                 (parallel variant generation)
-│       │   │   ├── BroadcastStore.ts           ← in-memory 2h-TTL manifest state
+│       │   │   ├── BroadcastStore.ts           ← in-memory 24h-TTL manifest state
 │       │   │   ├── BroadcastOrchestrator.ts    ← slot 0 + drainNow race in parallel;
 │       │   │   │                                 HTTP response gated on both. Slots
 │       │   │   │                                 1..N fan out as a 4-worker background
@@ -201,7 +201,7 @@ cleo-app/
 │   │   ├── BroadcastManifestClient.ts   ← HTTP client; strips origin from full URLs
 │   │   │                                   before passing to authenticatedFetch
 │   │   ├── BroadcastCurationClient.ts   ← listFeatured + publishFeatured
-│   │   ├── BroadcastResumer.ts          ← 2h resume window via persisted MMKV manifest
+│   │   ├── BroadcastResumer.ts          ← 24h resume window via persisted MMKV manifest
 │   │   ├── BroadcastStingers.ts         ← stubbed (returns null); pending sound design
 │   │   └── PlaylistCurator.ts           ← Ask ONAY: LLM tracklist → on-device
 │   │                                       catalog search → resolved tracks
@@ -406,10 +406,12 @@ when mean distance exceeds 0.7 — indicates the pool doesn't match the vibe.
   re-bakes skip the LLM entirely. Not used on the deterministic path.
 - **`server/featured-broadcasts/registry.json`** — gitignored; holds baked featured
   records. Atomic write via `.tmp` + rename.
-- **`BroadcastStore`** — in-memory, 2h TTL, lazy eviction on access.
+- **`BroadcastStore`** — in-memory, 24h TTL, lazy eviction on access. Bumped from
+  2h on 2026-04-22; audio lives 7 days in R2 so the manifest was the artificially
+  short leg — users couldn't resume the next morning.
 - **Client `BroadcastSegmentCache`** — in-memory base64 cache, cleared on `start`/`end`.
 - **MMKV `CURRENT_BROADCAST`** — persisted manifest for resume-after-terminate
-  (2h window via `BroadcastResumer`).
+  (24h window via `BroadcastResumer`, matches server TTL).
 
 ### Native audio session discipline
 - `activateDuckingSession` — `.playback + .mixWithOthers + .duckOthers`, setActive(true)
@@ -725,7 +727,7 @@ EXPO_PUBLIC_SENTRY_DSN
 - **Rollback Fastify decommission** — `pm2 delete cleo-api` after the new server
   proves stable on TestFlight for ~1 week.
 - **R2 presign TTL tightening** — currently 7 days; could be tightened to match the
-  `BroadcastStore` 2h TTL to reduce blast radius if a manifest ever leaks.
+  `BroadcastStore` 24h TTL to reduce blast radius if a manifest ever leaks.
 
 ---
 
