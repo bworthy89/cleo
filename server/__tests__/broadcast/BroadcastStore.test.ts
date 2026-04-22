@@ -48,10 +48,10 @@ describe('BroadcastStore', () => {
     expect(store.get('b1')!.segmentSlots[0].status).toBe('pending');
   });
 
-  it('evicts entries older than 2h on access', () => {
+  it('evicts entries older than 24h on access', () => {
     const store = new BroadcastStore();
     const m = baseManifest();
-    m.createdAt = Date.now() - (2 * 60 * 60 * 1000 + 1000);
+    m.createdAt = Date.now() - (24 * 60 * 60 * 1000 + 1000);
     store.put(m);
     expect(store.get('b1')).toBeUndefined();
   });

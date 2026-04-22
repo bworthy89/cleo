@@ -2,7 +2,9 @@ import { getPersistedBroadcast, clearPersistedBroadcast } from '../services/Stor
 import type { Manifest } from './BroadcastPlayer.types';
 import { BroadcastManifestClient } from './BroadcastManifestClient';
 
-const RESUME_WINDOW_MS = 2 * 60 * 60 * 1000;
+// Matches server BroadcastStore TTL_MS. Audio lives 7 days in R2; the
+// manifest is the gating leg, so client and server both allow 24h.
+const RESUME_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 export interface ResumeCheckResult {
   /** Freshest manifest from the server — slots may have flipped
