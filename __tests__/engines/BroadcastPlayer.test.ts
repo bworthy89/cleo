@@ -303,14 +303,12 @@ describe('BroadcastPlayer', () => {
         music, deps.native, deps.manifestClient, deps.stingers,
       );
       // Compress timeout + poll interval so the test runs in real-time without fake timers.
-      (player as unknown as {
+      const tuning = player as unknown as {
         SEGMENT_READY_TIMEOUT_MS: number;
         SEGMENT_READY_POLL_INTERVAL_MS: number;
-      }).SEGMENT_READY_TIMEOUT_MS = 50;
-      (player as unknown as {
-        SEGMENT_READY_TIMEOUT_MS: number;
-        SEGMENT_READY_POLL_INTERVAL_MS: number;
-      }).SEGMENT_READY_POLL_INTERVAL_MS = 5;
+      };
+      tuning.SEGMENT_READY_TIMEOUT_MS = 50;
+      tuning.SEGMENT_READY_POLL_INTERVAL_MS = 5;
 
       player.start(pending, ['https://cdn/seg0-v0.mp3']);
       await driveBothTracksToEnd(deps);
