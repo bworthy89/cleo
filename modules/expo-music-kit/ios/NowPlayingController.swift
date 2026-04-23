@@ -9,13 +9,20 @@ final class NowPlayingController {
     private var current: [String: Any] = [:]
     private var lastVibe: String = "feelGood"
 
-    /// Wire iOS remote-command events into RN-emitted callbacks. Call once on
-    /// module init. Skip / prev / scrub commands are intentionally left
-    /// unregistered so iOS hides those buttons. ChangePlaybackPosition is
-    /// explicitly registered + rejected so a drag gesture is a no-op rather
-    /// than letting iOS guess.
+    /// Wire iOS remote-command events into RN-emitted callbacks. Skip / prev /
+    /// scrub commands are intentionally left unregistered so iOS hides those
+    /// buttons. ChangePlaybackPosition is explicitly registered + rejected so
+    /// a drag gesture is a no-op rather than letting iOS guess.
+    ///
+    /// Idempotent: removes any previously registered targets first so repeated
+    /// calls (e.g. a future module re-instantiation) don't stack duplicate
+    /// handlers on the shared MPRemoteCommandCenter singleton.
     func activate(onPlay: @escaping () -> Void,
                   onPause: @escaping () -> Void) {
+        commands.playCommand.removeTarget(nil)
+        commands.pauseCommand.removeTarget(nil)
+        commands.changePlaybackPositionCommand.removeTarget(nil)
+
         commands.playCommand.isEnabled = true
         commands.playCommand.addTarget { _ in onPlay(); return .success }
         commands.pauseCommand.isEnabled = true

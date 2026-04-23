@@ -578,12 +578,19 @@ public class ExpoMusicKitModule: Module {
       }
     }
 
+    // NowPlaying writes must land on the main thread before the JS promise
+    // resolves — otherwise `await setNowPlayingTrack(...)` returns while the
+    // native update is still queued, and MusicKit's stock artwork can paint
+    // first when the next music.play fires. `runOnMainSync` blocks the
+    // caller's background thread until the main-queue work completes, with a
+    // same-thread fast-path to avoid deadlock if the handler ever runs on
+    // main itself.
     AsyncFunction("setNowPlayingTrack") { (payload: [String: Any]) in
       let title    = payload["title"]    as? String ?? ""
       let artist   = payload["artist"]   as? String ?? ""
       let vibe     = payload["vibe"]     as? String ?? "feelGood"
       let duration = payload["duration"] as? Double ?? 0
-      DispatchQueue.main.async {
+      self.runOnMainSync {
         self.nowPlaying.setTrack(title: title, artist: artist,
                                  vibe: vibe, duration: duration)
       }
@@ -592,7 +599,7 @@ public class ExpoMusicKitModule: Module {
     AsyncFunction("setNowPlayingSegment") { (payload: [String: Any]) in
       let vibe = payload["vibe"] as? String ?? "feelGood"
       let kind = payload["kind"] as? String ?? "transition"
-      DispatchQueue.main.async {
+      self.runOnMainSync {
         self.nowPlaying.setSegment(vibe: vibe, kind: kind)
       }
     }
@@ -600,13 +607,13 @@ public class ExpoMusicKitModule: Module {
     AsyncFunction("setNowPlayingElapsed") { (payload: [String: Any]) in
       let elapsed = payload["elapsed"] as? Double ?? 0
       let playing = payload["playing"] as? Bool   ?? true
-      DispatchQueue.main.async {
+      self.runOnMainSync {
         self.nowPlaying.setElapsed(elapsed, playing: playing)
       }
     }
 
     AsyncFunction("clearNowPlaying") {
-      DispatchQueue.main.async {
+      self.runOnMainSync {
         self.nowPlaying.clear()
       }
     }
@@ -620,6 +627,18 @@ public class ExpoMusicKitModule: Module {
     OnStopObserving {
       self.stopObserving()
     }
+  }
+
+  // MARK: - Main-thread helper
+
+  /// Run `block` on the main thread, blocking the caller until it completes.
+  /// Used by the NowPlaying AsyncFunction handlers so the JS promise does
+  /// not resolve until the native mutation has actually landed (required for
+  /// the "set metadata BEFORE music.play" guarantee). Same-thread fast-path
+  /// avoids a deadlock if the handler is ever invoked on main.
+  private func runOnMainSync(_ block: () -> Void) {
+    if Thread.isMainThread { block() }
+    else { DispatchQueue.main.sync(execute: block) }
   }
 
   // MARK: - Memory Management
