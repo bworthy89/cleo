@@ -103,7 +103,7 @@ private extension VibeArtworkRenderer {
 private extension VibeArtworkRenderer {
     func paintAvatar(in ctx: CGContext, size: CGSize) {
         guard let avatar = UIImage(named: "onay-avatar",
-                                   in: Bundle(for: ExpoMusicKitModule.self),
+                                   in: Bundle(for: NowPlayingController.self),
                                    with: nil) else {
             // Fallback: draw an amber-bordered placeholder square so the
             // image still has structure if the asset is missing.
