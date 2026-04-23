@@ -487,6 +487,18 @@ export class BroadcastPlayer {
     this.currentTrackIndex = trackIndex;
     updatePersistedCursor(trackIndex);
     this.state = 'playing_track';
+
+    // Lock-screen tile — set ONAY-branded metadata BEFORE music.play so the
+    // tile paints the moment the audio session goes active. The 1Hz pump
+    // (started below) re-asserts the full dict every second to overwrite
+    // any MusicKit clobber.
+    await this.music.setNowPlayingTrack({
+      title: track.title,
+      artist: track.artistName,
+      vibe: this.manifest.vibe,
+      duration: track.duration ?? 180,
+    }).catch(() => {});
+
     console.log(`[BroadcastPlayer] runTrackAt(${trackIndex}) id=${track.id} "${track.title}"`);
     try {
       await this.music.play([track.id]);

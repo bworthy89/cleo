@@ -191,6 +191,22 @@ describe('BroadcastPlayer', () => {
     expect(persisted.manifest.broadcastId).toBe('b1');
   });
 
+  it('runTrackAt sets NowPlaying track metadata before music.play', async () => {
+    const deps = makeDeps();
+    const player = new BroadcastPlayer(
+      deps.music, deps.native, deps.manifestClient, deps.stingers,
+    );
+    player.start(makeManifest(), ['https://cdn/seg0-v0.mp3']);
+    // Drive past cold_open to hit runTrackAt(0).
+    for (let i = 0; i < 80; i++) await Promise.resolve();
+    const trackIdx = deps.logs.findIndex(l => l === 'play:t0');
+    const npIdx = deps.logs.findIndex(l => l.startsWith('np.track:T0'));
+    expect(npIdx).toBeGreaterThanOrEqual(0);
+    expect(trackIdx).toBeGreaterThanOrEqual(0);
+    expect(npIdx).toBeLessThan(trackIdx);
+    await player.end();
+  });
+
   it('wraps native listener errors so one throwing callback does not kill the player', async () => {
     const deps = makeDeps();
     const player = new BroadcastPlayer(
