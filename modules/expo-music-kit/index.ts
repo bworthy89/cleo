@@ -225,3 +225,41 @@ export function addPlaybackStateListener(
 ): EventSubscription {
   return emitter.addListener('onPlaybackStateChanged', listener);
 }
+
+// ── Now Playing (lock-screen tile) ─────────────────────────────────────
+
+export type NowPlayingTrackPayload = {
+  title: string;
+  artist: string;
+  vibe: string;
+  duration: number;
+};
+
+export type NowPlayingSegmentPayload = {
+  vibe: string;
+  kind: 'cold_open' | 'transition' | 'sign_off';
+};
+
+export async function setNowPlayingTrack(payload: NowPlayingTrackPayload): Promise<void> {
+  return await ExpoMusicKit.setNowPlayingTrack(payload);
+}
+
+export async function setNowPlayingSegment(payload: NowPlayingSegmentPayload): Promise<void> {
+  return await ExpoMusicKit.setNowPlayingSegment(payload);
+}
+
+export async function setNowPlayingElapsed(elapsed: number, playing: boolean): Promise<void> {
+  return await ExpoMusicKit.setNowPlayingElapsed({ elapsed, playing });
+}
+
+export async function clearNowPlaying(): Promise<void> {
+  return await ExpoMusicKit.clearNowPlaying();
+}
+
+export function addRemotePlayListener(listener: () => void): EventSubscription {
+  return emitter.addListener('onRemotePlay', listener);
+}
+
+export function addRemotePauseListener(listener: () => void): EventSubscription {
+  return emitter.addListener('onRemotePause', listener);
+}
