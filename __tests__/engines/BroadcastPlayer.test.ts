@@ -43,6 +43,8 @@ const makeManifest3 = (): Manifest => ({
 type Listeners = {
   track?: (e: { trackId?: string }) => void;
   state?: (e: { status: string; playbackTime: number }) => void;
+  remotePlay?: () => void;
+  remotePause?: () => void;
 };
 
 const makeDeps = () => {
@@ -64,6 +66,15 @@ const makeDeps = () => {
         listeners.state = cb;
         return () => { listeners.state = undefined; };
       }),
+      setNowPlayingTrack:   jest.fn(async (p: any) => { logs.push(`np.track:${p.title}|${p.vibe}`); }),
+      setNowPlayingSegment: jest.fn(async (p: any) => { logs.push(`np.segment:${p.kind}|${p.vibe}`); }),
+      setNowPlayingElapsed: jest.fn(async (e: number, playing: boolean) => { logs.push(`np.elapsed:${e}|${playing}`); }),
+      clearNowPlaying:      jest.fn(async () => { logs.push('np.clear'); }),
+      subscribeRemoteCommands: jest.fn((h: { onPlay: () => void; onPause: () => void }) => {
+        listeners.remotePlay  = h.onPlay;
+        listeners.remotePause = h.onPause;
+        return () => { listeners.remotePlay = undefined; listeners.remotePause = undefined; };
+      }),
     },
     native: {
       activateDuckingSession: jest.fn(async () => { logs.push('duck.on'); }),
@@ -84,6 +95,8 @@ const makeDeps = () => {
     },
     fireTrackChanged: (trackId?: string) => listeners.track?.({ trackId }),
     fireStateChanged: (status: string) => listeners.state?.({ status, playbackTime: 0 }),
+    fireRemotePlay:  () => listeners.remotePlay?.(),
+    fireRemotePause: () => listeners.remotePause?.(),
   };
 };
 
