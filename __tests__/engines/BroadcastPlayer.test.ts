@@ -1003,4 +1003,19 @@ describe('BroadcastPlayer', () => {
       expect(deps.logs.some(l => l.startsWith('play:'))).toBe(false);
     });
   });
+
+  it('remote pause from lock screen pauses the broadcast', async () => {
+    const deps = makeDeps();
+    const player = new BroadcastPlayer(
+      deps.music, deps.native, deps.manifestClient, deps.stingers,
+    );
+    player.start(makeManifest(), ['https://cdn/seg0-v0.mp3']);
+    for (let i = 0; i < 20; i++) await Promise.resolve();
+    expect(deps.music.subscribeRemoteCommands).toHaveBeenCalled();
+    deps.fireRemotePause();
+    expect(player.getStatus().state).toBe('paused');
+    deps.fireRemotePlay();
+    expect(player.getStatus().state).not.toBe('paused');
+    await player.end();
+  });
 });

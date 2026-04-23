@@ -214,6 +214,13 @@ export class BroadcastPlayer {
       this.music.onPlaybackStateChanged(this.handlePlaybackState),
       this.music.onTrackChanged(this.handleTrackChanged),
     );
+
+    this.subscriptions.push(
+      this.music.subscribeRemoteCommands({
+        onPlay:  () => { this.resumeFromPause().catch(() => {}); },
+        onPause: () => { this.pause().catch(() => {}); },
+      }),
+    );
   }
 
   /** Shared main loop + natural end-of-broadcast teardown. Walks tracks
