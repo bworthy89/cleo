@@ -352,7 +352,12 @@ export class BroadcastPlayer {
     this.trackEndedResolve?.();
     this.trackEndedResolve = null;
     this.state = 'idle';
-    clearPersistedBroadcast();
+    // Deliberately do NOT clearPersistedBroadcast() here. end() is a user-
+    // initiated bookmark ("stop for now"), not a completion signal — the
+    // persisted cursor must survive so the Home screen can offer a Resume
+    // card on re-entry. Natural completion (sign_off finishes in
+    // runMainLoop) still clears the record. User-explicit teardown of the
+    // resume offer is handled by the "Start Fresh" path on the Home screen.
   }
 
   private schedulePolling(): void {
