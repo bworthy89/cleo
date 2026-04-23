@@ -433,10 +433,16 @@ export class BroadcastPlayer {
     if (!this.manifest) return;
     const slot = this.manifest.segmentSlots[slotIndex];
     if (!slot) return;
+    const vibe = this.manifest.vibe;
+
+    await this.music.setNowPlayingSegment({
+      vibe,
+      kind: slot.kind as 'cold_open' | 'transition' | 'sign_off',
+    }).catch(() => {});
+    if (!this.manifest) return;
 
     this.currentSegmentIndex = slotIndex;
     this.state = 'playing_segment';
-    const vibe = this.manifest.vibe;
 
     if (slot.status === 'failed') {
       // Slot failed at bake time — skip silently, continue broadcast.
