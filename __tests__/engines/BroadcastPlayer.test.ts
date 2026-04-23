@@ -1050,8 +1050,11 @@ describe('BroadcastPlayer', () => {
     for (let i = 0; i < 20; i++) await Promise.resolve();
     expect(deps.music.subscribeRemoteCommands).toHaveBeenCalled();
     deps.fireRemotePause();
+    for (let i = 0; i < 10; i++) await Promise.resolve();
     expect(player.getStatus().state).toBe('paused');
+
     deps.fireRemotePlay();
+    for (let i = 0; i < 10; i++) await Promise.resolve();
     expect(player.getStatus().state).not.toBe('paused');
     await player.end();
   });
