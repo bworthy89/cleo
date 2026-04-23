@@ -72,6 +72,7 @@ export class BroadcastPlayer {
    *  longer 'playing', the track ended — even if current time reports 0. */
   private maxPlaybackTimeSeen = 0;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private elapsedPumpTimer: ReturnType<typeof setInterval> | null = null;
   private readonly POLL_INTERVAL_MS = 3000;
   /** How long runSegmentAt will wait for a pending slot to flip to ready
    *  before giving up and letting the existing silent-skip path fire.
@@ -314,6 +315,11 @@ export class BroadcastPlayer {
       await this.music.pause().catch(() => {});
     }
     this.state = 'paused';
+    try {
+      const t = this.music.getPlaybackTime ? await this.music.getPlaybackTime() : 0;
+      await this.music.setNowPlayingElapsed(t, false).catch(() => {});
+    } catch { /* swallow */ }
+    this.stopElapsedPump();
   }
 
   async resumeFromPause(): Promise<void> {
@@ -323,6 +329,7 @@ export class BroadcastPlayer {
     if (this.currentTrackIndex >= 0 && this.currentSegmentIndex < 0) {
       this.state = 'playing_track';
       await this.music.play().catch(() => {});
+      this.startElapsedPump();
     } else if (this.currentSegmentIndex >= 0) {
       this.state = 'playing_segment';
     } else {
@@ -362,6 +369,7 @@ export class BroadcastPlayer {
     });
     this.subscriptions = [];
     if (this.pollTimer) { clearInterval(this.pollTimer); this.pollTimer = null; }
+    this.stopElapsedPump();
     this.cache.clear();
     this.manifest = null;
     this.currentTrackIndex = -1;
@@ -389,6 +397,25 @@ export class BroadcastPlayer {
     this.pollTimer = setInterval(() => {
       this.pollManifestOnce().catch(() => { /* transient — retry next tick */ });
     }, this.POLL_INTERVAL_MS);
+  }
+
+  private startElapsedPump(): void {
+    if (this.elapsedPumpTimer) return;
+    this.elapsedPumpTimer = setInterval(async () => {
+      if (!this.manifest || this.currentTrackIndex < 0) return;
+      const playing = !this.isPaused && this.state === 'playing_track';
+      try {
+        const t = this.music.getPlaybackTime ? await this.music.getPlaybackTime() : 0;
+        await this.music.setNowPlayingElapsed(t, playing).catch(() => {});
+      } catch { /* one tick failure is not fatal */ }
+    }, 1000);
+  }
+
+  private stopElapsedPump(): void {
+    if (this.elapsedPumpTimer) {
+      clearInterval(this.elapsedPumpTimer);
+      this.elapsedPumpTimer = null;
+    }
   }
 
   async pollManifestOnce(): Promise<void> {
@@ -513,6 +540,7 @@ export class BroadcastPlayer {
       vibe: this.manifest.vibe,
       duration: track.duration ?? 180,
     }).catch(() => {});
+    this.startElapsedPump();
 
     console.log(`[BroadcastPlayer] runTrackAt(${trackIndex}) id=${track.id} "${track.title}"`);
     try {
@@ -520,9 +548,11 @@ export class BroadcastPlayer {
       console.log(`[BroadcastPlayer] music.play resolved for ${track.id}`);
     } catch (err) {
       console.warn(`[BroadcastPlayer] music.play threw for ${track.id}:`, err);
+      this.stopElapsedPump();
       return;
     }
     await this.waitForTrackEnd();
+    this.stopElapsedPump();
     console.log(`[BroadcastPlayer] track ended: ${track.id}`);
   }
 

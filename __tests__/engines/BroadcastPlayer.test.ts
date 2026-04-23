@@ -1004,6 +1004,43 @@ describe('BroadcastPlayer', () => {
     });
   });
 
+  it('elapsed pump pushes NowPlaying elapsed while playing and stops on pause', async () => {
+    jest.useFakeTimers();
+    const deps = makeDeps();
+    let t = 0;
+    const music = {
+      ...deps.music,
+      getPlaybackStatus: jest.fn(async () => 'playing'),
+      getPlaybackTime:   jest.fn(async () => { t += 1; return t; }),
+    };
+    const player = new BroadcastPlayer(
+      music, deps.native, deps.manifestClient, deps.stingers,
+    );
+    player.start(makeManifest(), ['https://cdn/seg0-v0.mp3']);
+    // Allow cold_open + runTrackAt(0) to be reached.
+    for (let i = 0; i < 80; i++) { await Promise.resolve(); }
+    // Advance fake time by 3s — pump should have fired ~3 times.
+    for (let i = 0; i < 3; i++) {
+      jest.advanceTimersByTime(1000);
+      for (let j = 0; j < 5; j++) await Promise.resolve();
+    }
+    const playingTicks = (deps.music.setNowPlayingElapsed as jest.Mock).mock.calls
+      .filter(c => c[1] === true).length;
+    expect(playingTicks).toBeGreaterThanOrEqual(2);
+
+    await player.pause();
+    const beforePause = (deps.music.setNowPlayingElapsed as jest.Mock).mock.calls.length;
+    jest.advanceTimersByTime(3000);
+    for (let j = 0; j < 5; j++) await Promise.resolve();
+    const afterPause = (deps.music.setNowPlayingElapsed as jest.Mock).mock.calls.length;
+    // Pump may push a single playing:false tick when pause runs, but should
+    // not keep ticking after — so afterPause - beforePause ≤ 1.
+    expect(afterPause - beforePause).toBeLessThanOrEqual(1);
+
+    await player.end();
+    jest.useRealTimers();
+  });
+
   it('remote pause from lock screen pauses the broadcast', async () => {
     const deps = makeDeps();
     const player = new BroadcastPlayer(
