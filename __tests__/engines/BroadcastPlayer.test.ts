@@ -953,6 +953,17 @@ describe('BroadcastPlayer', () => {
     await player.end();
   });
 
+  it('end() clears the NowPlaying tile', async () => {
+    const deps = makeDeps();
+    const player = new BroadcastPlayer(
+      deps.music, deps.native, deps.manifestClient, deps.stingers,
+    );
+    player.start(makeManifest(), ['https://cdn/seg0-v0.mp3']);
+    for (let i = 0; i < 20; i++) await Promise.resolve();
+    await player.end();
+    expect(deps.music.clearNowPlaying).toHaveBeenCalledTimes(1);
+  });
+
     it('cursor out of bounds clears persistence and does nothing', async () => {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       const { setPersistedBroadcast, getPersistedBroadcast } =

@@ -363,6 +363,7 @@ export class BroadcastPlayer {
     // loop and its Promise leak indefinitely).
     this.trackEndedResolve?.();
     this.trackEndedResolve = null;
+    await this.music.clearNowPlaying().catch(() => {});
     this.state = 'idle';
     // Deliberately do NOT clearPersistedBroadcast() here. end() is a user-
     // initiated bookmark ("stop for now"), not a completion signal — the
