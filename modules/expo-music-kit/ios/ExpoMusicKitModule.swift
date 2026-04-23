@@ -26,6 +26,9 @@ public class ExpoMusicKitModule: Module {
   /// CPU (matches the original behavior).
   private var broadcastActive: Bool = false
   private let nowPlaying = NowPlayingController()
+  // Lazily instantiated so the iOS 16.2 guard isn't needed at field
+  // init time. Populated on first use via `getLiveActivity()`.
+  private var _liveActivity: Any?
 
   public func definition() -> ModuleDefinition {
     Name("ExpoMusicKit")
@@ -618,6 +621,33 @@ public class ExpoMusicKitModule: Module {
       }
     }
 
+    // MARK: - Live Activity (ActivityKit, iOS 16.2+)
+
+    AsyncFunction("startBroadcastLiveActivity") { (payload: [String: Any]) in
+      guard #available(iOS 16.2, *) else { return }
+      let bridge = self.getLiveActivity()
+      let state = self.liveActivityStateFrom(payload: payload)
+      await bridge.start(
+        broadcastId: payload["broadcastId"] as? String ?? "",
+        vibe: payload["vibe"] as? String ?? "feelGood",
+        totalTracks: payload["totalTracks"] as? Int ?? 0,
+        state: state
+      )
+    }
+
+    AsyncFunction("updateBroadcastLiveActivity") { (payload: [String: Any]) in
+      guard #available(iOS 16.2, *) else { return }
+      let bridge = self.getLiveActivity()
+      let state = self.liveActivityStateFrom(payload: payload)
+      await bridge.update(state: state)
+    }
+
+    AsyncFunction("endBroadcastLiveActivity") {
+      guard #available(iOS 16.2, *) else { return }
+      let bridge = self.getLiveActivity()
+      await bridge.end()
+    }
+
     // MARK: - Observation Lifecycle
 
     OnStartObserving {
@@ -639,6 +669,35 @@ public class ExpoMusicKitModule: Module {
   private func runOnMainSync(_ block: () -> Void) {
     if Thread.isMainThread { block() }
     else { DispatchQueue.main.sync(execute: block) }
+  }
+
+  // MARK: - Live Activity helpers
+
+  /// Lazily construct the BroadcastActivityBridge. Held via an `Any?`
+  /// stored property since the class itself is iOS 16.2-gated and
+  /// Swift won't let us type the property with `@available`.
+  @available(iOS 16.2, *)
+  private func getLiveActivity() -> BroadcastActivityBridge {
+    if let existing = _liveActivity as? BroadcastActivityBridge {
+      return existing
+    }
+    let bridge = BroadcastActivityBridge()
+    _liveActivity = bridge
+    return bridge
+  }
+
+  /// Translate the JS payload dict into a strongly-typed ContentState.
+  @available(iOS 16.2, *)
+  private func liveActivityStateFrom(payload: [String: Any])
+    -> BroadcastActivityAttributes.ContentState
+  {
+    return BroadcastActivityAttributes.ContentState(
+      kind:     payload["kind"]     as? String ?? "track",
+      title:    payload["title"]    as? String ?? "",
+      subtitle: payload["subtitle"] as? String ?? "",
+      trackNumber: payload["trackNumber"] as? Int ?? 0,
+      playing:  payload["playing"]  as? Bool ?? true
+    )
   }
 
   // MARK: - Memory Management

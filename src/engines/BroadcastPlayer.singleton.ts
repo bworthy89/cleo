@@ -26,6 +26,9 @@ export const broadcastPlayer = new BroadcastPlayer(
     setNowPlayingElapsed: (e, p) => musicKitPlayer.setNowPlayingElapsed(e, p),
     clearNowPlaying:      ()  => musicKitPlayer.clearNowPlaying(),
     subscribeRemoteCommands: (h) => musicKitPlayer.subscribeRemoteCommands(h),
+    startBroadcastLiveActivity:  (a, s) => musicKitPlayer.startBroadcastLiveActivity(a, s),
+    updateBroadcastLiveActivity: (s)    => musicKitPlayer.updateBroadcastLiveActivity(s),
+    endBroadcastLiveActivity:    ()     => musicKitPlayer.endBroadcastLiveActivity(),
   },
   {
     activateDuckingSession, deactivateDuckingSession, playAudioFromBase64,

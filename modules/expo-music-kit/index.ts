@@ -275,3 +275,36 @@ export function addRemotePlayListener(listener: () => void): EventSubscription {
 export function addRemotePauseListener(listener: () => void): EventSubscription {
   return emitter.addListener('onRemotePause', listener);
 }
+
+// ── Live Activity (ActivityKit, iOS 16.2+) ─────────────────────────────
+
+export type BroadcastLiveActivityAttributes = {
+  broadcastId: string;
+  vibe: string;
+  totalTracks: number;
+};
+
+export type BroadcastLiveActivityState = {
+  kind: 'track' | 'cold_open' | 'transition' | 'sign_off';
+  title: string;
+  subtitle: string;
+  trackNumber: number;
+  playing: boolean;
+};
+
+export async function startBroadcastLiveActivity(
+  attrs: BroadcastLiveActivityAttributes,
+  state: BroadcastLiveActivityState,
+): Promise<void> {
+  return await ExpoMusicKit.startBroadcastLiveActivity({ ...attrs, ...state });
+}
+
+export async function updateBroadcastLiveActivity(
+  state: BroadcastLiveActivityState,
+): Promise<void> {
+  return await ExpoMusicKit.updateBroadcastLiveActivity(state);
+}
+
+export async function endBroadcastLiveActivity(): Promise<void> {
+  return await ExpoMusicKit.endBroadcastLiveActivity();
+}

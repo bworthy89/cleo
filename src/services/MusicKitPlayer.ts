@@ -20,6 +20,9 @@ import {
   clearNowPlaying,
   addRemotePlayListener,
   addRemotePauseListener,
+  startBroadcastLiveActivity,
+  updateBroadcastLiveActivity,
+  endBroadcastLiveActivity,
   type AuthResult,
   type MusicPlaylist,
   type MusicTrack,
@@ -29,6 +32,8 @@ import {
   type PlaybackStatus,
   type NowPlayingTrackPayload,
   type NowPlayingSegmentPayload,
+  type BroadcastLiveActivityAttributes,
+  type BroadcastLiveActivityState,
 } from '../../modules/expo-music-kit';
 import type { EventSubscription } from 'expo-modules-core';
 import { UITEST_MODE } from '../config/featureFlags';
@@ -133,6 +138,23 @@ class MusicKitPlayerService {
       }
     });
     return () => { playSub.remove(); pauseSub.remove(); };
+  }
+
+  // ── Live Activity (iOS 16.2+; older iOS silently no-ops) ────────────
+
+  async startBroadcastLiveActivity(
+    attrs: BroadcastLiveActivityAttributes,
+    state: BroadcastLiveActivityState,
+  ): Promise<void> {
+    return startBroadcastLiveActivity(attrs, state);
+  }
+
+  async updateBroadcastLiveActivity(state: BroadcastLiveActivityState): Promise<void> {
+    return updateBroadcastLiveActivity(state);
+  }
+
+  async endBroadcastLiveActivity(): Promise<void> {
+    return endBroadcastLiveActivity();
   }
 
   onTrackChanged(callback: TrackChangeCallback): () => void {

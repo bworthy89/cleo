@@ -75,6 +75,13 @@ const makeDeps = () => {
         listeners.remotePause = h.onPause;
         return () => { listeners.remotePlay = undefined; listeners.remotePause = undefined; };
       }),
+      startBroadcastLiveActivity: jest.fn(async (a: any, s: any) => {
+        logs.push(`la.start:${a.vibe}|${s.kind}`);
+      }),
+      updateBroadcastLiveActivity: jest.fn(async (s: any) => {
+        logs.push(`la.update:${s.kind}|tn=${s.trackNumber}`);
+      }),
+      endBroadcastLiveActivity: jest.fn(async () => { logs.push('la.end'); }),
     },
     native: {
       activateDuckingSession: jest.fn(async () => { logs.push('duck.on'); }),
