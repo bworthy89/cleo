@@ -157,6 +157,27 @@ describe('BroadcastPlayer', () => {
     expect(player.getStatus().state).toBe('idle');
   });
 
+  it('end() preserves the persisted broadcast so the Home screen can offer Resume', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { getPersistedBroadcast, clearPersistedBroadcast } =
+      require('../../src/services/Storage');
+    clearPersistedBroadcast();
+    const deps = makeDeps();
+    const player = new BroadcastPlayer(
+      deps.music, deps.native, deps.manifestClient, deps.stingers,
+    );
+    player.start(makeManifest(), ['https://cdn/seg0-v0.mp3']);
+    // Let initPlayback seed the persisted record.
+    for (let i = 0; i < 20; i++) await Promise.resolve();
+    expect(getPersistedBroadcast()).toBeDefined();
+    await player.end();
+    // End is a bookmark, not a completion — the Resume CTA on Home depends
+    // on this record surviving.
+    const persisted = getPersistedBroadcast();
+    expect(persisted).toBeDefined();
+    expect(persisted.manifest.broadcastId).toBe('b1');
+  });
+
   it('wraps native listener errors so one throwing callback does not kill the player', async () => {
     const deps = makeDeps();
     const player = new BroadcastPlayer(
