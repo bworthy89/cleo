@@ -17,6 +17,18 @@ export interface MusicDeps {
   onPlaybackStateChanged: (cb: (e: { status: string; playbackTime: number }) => void) => () => void;
   getPlaybackStatus?: () => Promise<string>;
   getPlaybackTime?: () => Promise<number>;
+  // Lock-screen NowPlaying tile.
+  setNowPlayingTrack: (payload: {
+    title: string; artist: string; vibe: string; duration: number;
+  }) => Promise<void>;
+  setNowPlayingSegment: (payload: {
+    vibe: string; kind: 'cold_open' | 'transition' | 'sign_off';
+  }) => Promise<void>;
+  setNowPlayingElapsed: (elapsed: number, playing: boolean) => Promise<void>;
+  clearNowPlaying: () => Promise<void>;
+  subscribeRemoteCommands: (handlers: {
+    onPlay: () => void; onPause: () => void;
+  }) => () => void;
 }
 
 export interface NativeDeps {
