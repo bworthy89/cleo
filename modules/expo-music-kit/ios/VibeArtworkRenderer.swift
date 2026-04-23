@@ -34,18 +34,19 @@ struct VibeArtworkRenderer {
 // MARK: - Background + Brand
 
 private extension VibeArtworkRenderer {
+    static let warmBlack = UIColor(red: 0.043, green: 0.035, blue: 0.027, alpha: 1)
+    static let amber     = UIColor(red: 0.910, green: 0.635, blue: 0.294, alpha: 1)
+    static let ink       = UIColor(red: 0.957, green: 0.925, blue: 0.863, alpha: 1)
+    static let onAirRed  = UIColor(red: 0.643, green: 0.227, blue: 0.180, alpha: 1)
     static let accent: [String: UIColor] = [
         "morning":    UIColor(red: 0.957, green: 0.780, blue: 0.478, alpha: 1),
         "focus":      UIColor(red: 0.435, green: 0.722, blue: 0.608, alpha: 1),
         "workout":    UIColor(red: 0.769, green: 0.271, blue: 0.192, alpha: 1),
-        "feelGood":   UIColor(red: 0.910, green: 0.635, blue: 0.294, alpha: 1),
+        "feelGood":   amber,
         "lateNight":  UIColor(red: 0.431, green: 0.310, blue: 0.557, alpha: 1),
         "melancholy": UIColor(red: 0.420, green: 0.482, blue: 0.557, alpha: 1),
         "party":      UIColor(red: 0.878, green: 0.306, blue: 0.518, alpha: 1),
     ]
-    static let warmBlack = UIColor(red: 0.043, green: 0.035, blue: 0.027, alpha: 1)
-    static let amber     = UIColor(red: 0.910, green: 0.635, blue: 0.294, alpha: 1)
-    static let ink       = UIColor(red: 0.957, green: 0.925, blue: 0.863, alpha: 1)
 
     func vibeAccent(_ vibe: String) -> UIColor {
         Self.accent[vibe] ?? Self.accent["feelGood"]!
@@ -88,7 +89,7 @@ private extension VibeArtworkRenderer {
             y: 80))
 
         // ON-AIR dot to the left of wordmark
-        ctx.setFillColor(UIColor(red: 0.643, green: 0.227, blue: 0.180, alpha: 1).cgColor)
+        ctx.setFillColor(Self.onAirRed.cgColor)
         let dotR: CGFloat = 14
         ctx.fillEllipse(in: CGRect(
             x: (size.width - bounds.width) / 2 - dotR * 2.5,
