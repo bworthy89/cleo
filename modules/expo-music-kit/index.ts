@@ -228,6 +228,18 @@ export function addPlaybackStateListener(
 
 // ── Now Playing (lock-screen tile) ─────────────────────────────────────
 
+// Runtime diagnostic — verify the native bindings were picked up by the
+// build. Remove after lock-screen QA lands.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const _mk = ExpoMusicKit as any;
+console.log(
+  '[LockScreenDiag] native bindings:',
+  'setNowPlayingTrack=',   typeof _mk.setNowPlayingTrack,
+  'setNowPlayingSegment=', typeof _mk.setNowPlayingSegment,
+  'setNowPlayingElapsed=', typeof _mk.setNowPlayingElapsed,
+  'clearNowPlaying=',      typeof _mk.clearNowPlaying,
+);
+
 export type NowPlayingTrackPayload = {
   title: string;
   artist: string;

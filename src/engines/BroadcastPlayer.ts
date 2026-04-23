@@ -534,12 +534,16 @@ export class BroadcastPlayer {
     // tile paints the moment the audio session goes active. The 1Hz pump
     // (started below) re-asserts the full dict every second to overwrite
     // any MusicKit clobber.
+    console.log(`[LockScreenDiag] calling setNowPlayingTrack title="${track.title}" vibe=${this.manifest.vibe}`);
     await this.music.setNowPlayingTrack({
       title: track.title,
       artist: track.artistName,
       vibe: this.manifest.vibe,
       duration: track.duration ?? 180,
-    }).catch(() => {});
+    }).then(
+      () => console.log('[LockScreenDiag] setNowPlayingTrack resolved'),
+      (err) => console.warn('[LockScreenDiag] setNowPlayingTrack REJECTED:', err),
+    );
     this.startElapsedPump();
 
     console.log(`[BroadcastPlayer] runTrackAt(${trackIndex}) id=${track.id} "${track.title}"`);
