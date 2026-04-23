@@ -14,5 +14,6 @@ Pod::Spec.new do |s|
   s.dependency 'ExpoModulesCore'
 
   s.source_files = '**/*.{h,m,mm,swift,hpp,cpp}'
+  s.resources    = 'Resources/**/*'
   s.frameworks = 'MusicKit', 'MediaPlayer'
 end
