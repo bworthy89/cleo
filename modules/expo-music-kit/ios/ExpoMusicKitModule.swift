@@ -25,11 +25,20 @@ public class ExpoMusicKitModule: Module {
   /// phone is locked. When false, the timer is paused on background to save
   /// CPU (matches the original behavior).
   private var broadcastActive: Bool = false
+  private let nowPlaying = NowPlayingController()
 
   public func definition() -> ModuleDefinition {
     Name("ExpoMusicKit")
 
-    Events("onTrackChanged", "onPlaybackStateChanged")
+    Events("onTrackChanged", "onPlaybackStateChanged",
+           "onRemotePlay", "onRemotePause")
+
+    OnCreate {
+      self.nowPlaying.activate(
+        onPlay:  { [weak self] in self?.sendEvent("onRemotePlay",  [:]) },
+        onPause: { [weak self] in self?.sendEvent("onRemotePause", [:]) }
+      )
+    }
 
     // MARK: - Authorization
 
@@ -566,6 +575,39 @@ public class ExpoMusicKitModule: Module {
       // timer immediately rather than waiting for foreground.
       if active && self.playbackTimer == nil {
         DispatchQueue.main.async { self.startPlaybackTimer() }
+      }
+    }
+
+    AsyncFunction("setNowPlayingTrack") { (payload: [String: Any]) in
+      let title    = payload["title"]    as? String ?? ""
+      let artist   = payload["artist"]   as? String ?? ""
+      let vibe     = payload["vibe"]     as? String ?? "feelGood"
+      let duration = payload["duration"] as? Double ?? 0
+      DispatchQueue.main.async {
+        self.nowPlaying.setTrack(title: title, artist: artist,
+                                 vibe: vibe, duration: duration)
+      }
+    }
+
+    AsyncFunction("setNowPlayingSegment") { (payload: [String: Any]) in
+      let vibe = payload["vibe"] as? String ?? "feelGood"
+      let kind = payload["kind"] as? String ?? "transition"
+      DispatchQueue.main.async {
+        self.nowPlaying.setSegment(vibe: vibe, kind: kind)
+      }
+    }
+
+    AsyncFunction("setNowPlayingElapsed") { (payload: [String: Any]) in
+      let elapsed = payload["elapsed"] as? Double ?? 0
+      let playing = payload["playing"] as? Bool   ?? true
+      DispatchQueue.main.async {
+        self.nowPlaying.setElapsed(elapsed, playing: playing)
+      }
+    }
+
+    AsyncFunction("clearNowPlaying") {
+      DispatchQueue.main.async {
+        self.nowPlaying.clear()
       }
     }
 
