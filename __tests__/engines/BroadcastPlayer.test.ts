@@ -964,6 +964,27 @@ describe('BroadcastPlayer', () => {
     expect(deps.music.clearNowPlaying).toHaveBeenCalledTimes(1);
   });
 
+  it('natural broadcast completion clears the NowPlaying tile', async () => {
+    const deps = makeDeps();
+    const music = {
+      ...deps.music,
+      getPlaybackStatus: jest.fn(async () => 'stopped'),
+      getPlaybackTime: jest.fn(async () => 1),
+    };
+    const player = new BroadcastPlayer(
+      music, deps.native, deps.manifestClient, deps.stingers,
+    );
+    player.start(makeManifest(), ['https://cdn/seg0-v0.mp3']);
+    for (let t = 0; t < 2; t++) {
+      for (let i = 0; i < 80; i++) await Promise.resolve();
+      deps.listeners.state?.({ status: 'playing', playbackTime: 0.1 });
+      deps.listeners.state?.({ status: 'stopped', playbackTime: 1 });
+    }
+    for (let i = 0; i < 120; i++) await Promise.resolve();
+    expect(deps.music.clearNowPlaying).toHaveBeenCalledTimes(1);
+    await player.end();
+  });
+
     it('cursor out of bounds clears persistence and does nothing', async () => {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       const { setPersistedBroadcast, getPersistedBroadcast } =

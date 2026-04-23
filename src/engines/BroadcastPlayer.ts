@@ -258,6 +258,7 @@ export class BroadcastPlayer {
     // hears the last track start over. Explicit pause marks the MusicKit
     // player user-paused so the auto-resume is suppressed.
     await this.music.pause().catch(() => {});
+    await this.music.clearNowPlaying().catch(() => {});
     this.state = 'ended';
     clearPersistedBroadcast();
   }
