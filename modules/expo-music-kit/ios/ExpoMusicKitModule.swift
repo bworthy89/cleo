@@ -919,6 +919,13 @@ public class ExpoMusicKitModule: Module {
       }
       self.lastPlaybackStatus = currentStatus
 
+      // Stomp on MusicKit's continuous nowPlayingInfo rewrites. MusicKit's
+      // ApplicationMusicPlayer auto-writes the tile on every state tick; if
+      // we only write on runTrackAt + via the 1Hz JS pump, MusicKit wins the
+      // race every time and the lock-screen card never flips to ONAY. Native
+      // re-assertion at 0.5s cadence is the cheap, robust override.
+      self.nowPlaying.reassert()
+
       self.sendEvent("onPlaybackStateChanged", [
         "status": statusStr,
         "playbackTime": time

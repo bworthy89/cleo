@@ -95,4 +95,14 @@ final class NowPlayingController {
         current[MPNowPlayingInfoPropertyPlaybackRate] = playing ? 1.0 : 0.0
         center.nowPlayingInfo = current
     }
+
+    /// Re-assert the stored dict. Called from the module's 0.5s playback
+    /// timer to stomp on MusicKit's continuous `nowPlayingInfo` rewrites —
+    /// `ApplicationMusicPlayer` auto-populates the tile on every state tick
+    /// and will overwrite our branded card otherwise. No-op when we have
+    /// nothing staged (pre-start or post-clear).
+    func reassert() {
+        guard !current.isEmpty else { return }
+        center.nowPlayingInfo = current
+    }
 }
