@@ -308,11 +308,35 @@ fires at meanDistance > 0.7.
 - **Dev server**: `cd server && npm run dev` on port 3001.
 - **LAN setup**: set `EXPO_PUBLIC_API_URL=http://<LAN-IP>:3001` in project root `.env`
   and `BROADCAST_ASSET_BASE_URL=http://<LAN-IP>:3001` in `server/.env`.
-- **TestFlight builds**: `SENTRY_DISABLE_AUTO_UPLOAD=true npx expo run:ios --device`.
+- **Bare workflow — `ios/` is tracked in git.** Committed in build-59 cleanup after
+  discovering that EAS cloud builds never received the `ONAYWidgets` target (Live
+  Activities) because the directory had been blanket-ignored. Excludes
+  `ios/Pods/`, `ios/build/`, `ios/**/xcuserdata/`, `*.xcuserstate`, and
+  `ios/.xcode.env.local` (user-specific NODE_BINARY path).
+- **Local-device install**: `SENTRY_DISABLE_AUTO_UPLOAD=true npx expo run:ios --device`.
   Auto-managed signing, team `8F2VWCN5KF`. iOS platform SDK must match device iOS.
+- **TestFlight submission (EAS)**:
+  1. Bump `CURRENT_PROJECT_VERSION` in `ios/ONAY.xcodeproj/project.pbxproj` (all 4
+     occurrences; `Info.plist` + `MARKETING_VERSION` inherit via substitution vars).
+     Also bump `ios.buildNumber` in `app.json` for parity — `eas.json`
+     `appVersionSource: "local"` reads pbxproj as truth, so the pbxproj number
+     is what ships.
+  2. `eas build --profile production --platform ios [--non-interactive]` —
+     first time per new target needs interactive mode so EAS can provision the
+     Apple App ID for the widget extension (`com.worthymedia.cleo.ONAYWidgets`);
+     subsequent builds can use `--non-interactive`.
+  3. `eas submit --profile production --platform ios --latest` — uploads the
+     .ipa to App Store Connect (ASC app ID `6760923768`, team `8F2VWCN5KF`).
+- **Icon + splash sync**: after editing `assets/icon.png` directly run
+  `npm run icons:sync` to copy the PNG into `ios/ONAY/Images.xcassets` slots.
+  After editing `scripts/icons/master.html` run `npm run icons` for the full
+  puppeteer render + sync. Skipping this ships stale artwork — the asset catalog
+  is the source of truth for bare-workflow builds; `app.json` `expo.icon` is
+  only consulted by `expo prebuild`, which no longer runs in EAS.
 - **Team ID drift**: project file sometimes shows `5MQ5ZR66YN` — fix in Xcode >
   target > Signing & Capabilities.
-- **iOS deployment target**: 16.0 (MusicLibraryRequest requirement).
+- **iOS deployment target**: 16.2 (MusicLibraryRequest requirement + Live
+  Activities + iOS 16.2-gated APIs in ONAYWidgets).
 
 ---
 
@@ -515,9 +539,29 @@ EXPO_PUBLIC_SENTRY_DSN
 
 ### Build / deployment
 - **Sentry source-map upload fails** without org config — always build with
-  `SENTRY_DISABLE_AUTO_UPLOAD=true`.
+  `SENTRY_DISABLE_AUTO_UPLOAD=true` (already set in `eas.json` production profile).
 - **iOS platform SDK** must match device iOS version. New iOS releases require Xcode >
   Settings > Platforms download (~8GB) before `expo run:ios --device` works.
+- **pbxproj `objectVersion = 56` pin.** Xcode 26 writes `objectVersion = 70`, but
+  EAS's CocoaPods 1.16.2 (xcodeproj gem 1.27.0) can only parse up to 56 ("Unable
+  to find compatibility version string for object version 70"). If a local Xcode
+  run bumps it back to 70, re-pin to 56 before committing — the pbxproj schema
+  is backward-compatible even with the lower version marker.
+- **`CURRENT_PROJECT_VERSION` is the build-number source of truth.** Since `ios/`
+  is tracked + `eas.json` uses `appVersionSource: "local"`, EAS reads pbxproj
+  directly. `Info.plist` uses `$(CURRENT_PROJECT_VERSION)` / `$(MARKETING_VERSION)`
+  substitution so a single pbxproj edit propagates. Bumping only `app.json`
+  silently ships the old build number — ASC then rejects the duplicate.
+- **Widget extension provisioning** (`com.worthymedia.cleo.ONAYWidgets`) lives on
+  EAS credentials alongside the main app. First-time setup per machine needs an
+  interactive `eas build` so EAS can mint the Apple App ID + profile; after that,
+  non-interactive builds succeed from the cached credentials.
+- **Stale iOS asset catalog** ships when editing `assets/icon.png` without running
+  `npm run icons:sync`. Symptom: TestFlight build carries the old/scaffold icon
+  even though `assets/icon.png` is correct. The asset catalog PNGs
+  (`ios/ONAY/Images.xcassets/AppIcon.appiconset/...` and the three
+  `SplashScreenLegacy.imageset/image*.png` files) are the actual source of truth
+  for the compiled app; `expo prebuild` no longer runs on EAS to regenerate them.
 
 ### Deprecated / stripped
 Don't reintroduce: live-generation engines (`QueueManager`, `SessionEngine`,
