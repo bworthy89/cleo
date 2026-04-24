@@ -112,15 +112,17 @@ export function PublishFeaturedSheet(props: Props) {
   return (
     <Modal visible={props.visible} animationType="slide" transparent={false} onRequestClose={props.onClose}>
       <View style={styles.root}>
-        <View style={styles.header}>
-          <Pressable
-            onPress={props.onClose}
-            accessibilityRole="button"
-            accessibilityLabel="Close publish sheet"
-            style={({ pressed }) => [styles.close, pressed && { opacity: 0.6 }]}
-          >
-            <Text style={styles.closeGlyph}>×</Text>
-          </Pressable>
+        <View style={styles.chrome}>
+          <View style={styles.closeRow}>
+            <Pressable
+              onPress={props.onClose}
+              accessibilityRole="button"
+              accessibilityLabel="Close publish sheet"
+              style={({ pressed }) => [styles.close, pressed && { opacity: 0.6 }]}
+            >
+              <Text style={styles.closeGlyph}>×</Text>
+            </Pressable>
+          </View>
           <SectionMarker num="P·01" title="PUBLISH AS FEATURED" side="AS TONIGHT ON ONAY" />
         </View>
 
@@ -352,9 +354,13 @@ function SlotTile(p: SlotTileProps) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: AM.bg },
-  header: {
-    paddingTop: Space.s20, paddingHorizontal: Space.s16, paddingBottom: Space.s12,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+  chrome: {
+    paddingHorizontal: Space.s16,
+  },
+  closeRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    paddingTop: Space.s20,
   },
   close: { padding: Space.s8 },
   closeGlyph: { color: AM.ink, fontSize: TypeScale.s26, fontFamily: Fonts.display },
