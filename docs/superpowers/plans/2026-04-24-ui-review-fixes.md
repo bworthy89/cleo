@@ -855,7 +855,7 @@ to bail out of the overlay.
 
 ### Task 13: START FRESH under Resume — confirm + strengthen affordance
 
-**Why:** `src/screens/home/HomeBroadcastScreen.tsx:521-528, 731-743` — START FRESH sits at 11px amber, 0.6 opacity, below the RESUME button. Calls `clearPersistedBroadcast()` silently. Wiping progress with one tap on a barely-visible link is the exact opposite of what the affordance warrants.
+**Why:** `src/screens/home/HomeBroadcastScreen.tsx:521-528, 731-743` — START FRESH sits at 11px amber, 0.6 opacity, below the RESUME button. Calls `clearPersistedBroadcast()` silently. Wiping progress with one tap on a barely-visible link is the opposite of what the affordance warrants.
 
 **Files:**
 - Modify: `src/screens/home/HomeBroadcastScreen.tsx`

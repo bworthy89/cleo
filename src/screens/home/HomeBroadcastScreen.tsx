@@ -545,7 +545,7 @@ export default function HomeBroadcastScreen() {
               onPress={onStartFresh}
               accessibilityRole="button"
               accessibilityLabel="Start a fresh broadcast"
-              hitSlop={{ top: 12, bottom: 12, left: 16, right: 16 }}
+              hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
               style={({ pressed }) => [styles.startFresh, pressed && { opacity: 0.6 }]}
             >
               <Text style={styles.startFreshText}>START FRESH</Text>
