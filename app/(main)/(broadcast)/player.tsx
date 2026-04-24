@@ -403,6 +403,7 @@ const styles = StyleSheet.create({
   heroFallbackText: {
     fontFamily: Fonts.display,
     fontSize: 80,
+    lineHeight: 96,
     color: AM.amberDim,
     letterSpacing: 2,
   },
