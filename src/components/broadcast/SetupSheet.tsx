@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { AM, Fonts, Space, TypeScale } from '../../tokens/design-tokens';
-import { AmberCTA } from '../AmberCTA';
+import { StampButton } from '../crate';
 import { BroadcastBackdrop } from '../BroadcastBackdrop';
 import { HairlineRow } from '../HairlineRow';
 import type { MusicPlaylist } from '../../../modules/expo-music-kit';
@@ -384,10 +384,13 @@ function LengthStep({
         })}
       </View>
       <View style={{ height: Space.s34 }} />
-      <AmberCTA
-        label="Begin broadcast"
+      <StampButton
+        label="BEGIN BROADCAST"
+        sub="NO SKIPS · SIT WITH IT"
+        kind="amber"
         onPress={onSubmit}
         disabled={!canSubmit}
+        accessibilityLabel="Begin broadcast"
         accessibilityHint={canSubmit ? 'Starts your broadcast' : 'Finish picking a length first'}
       />
     </>
