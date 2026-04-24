@@ -13,7 +13,9 @@
     "typecheck": "tsc --noEmit",
     "test": "jest --runInBand",
     "env:dev": "./scripts/env-dev.sh",
-    "dev:app": "./scripts/env-dev.sh && expo start"
+    "dev:app": "./scripts/env-dev.sh && expo start",
+    "icons": "node scripts/generate-icons.mjs",
+    "icons:sync": "node scripts/generate-icons.mjs --sync-only"
   },
   "dependencies": {
     "@expo-google-fonts/anton": "^0.4.2",
