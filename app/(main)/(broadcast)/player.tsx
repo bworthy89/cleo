@@ -119,9 +119,9 @@ export default function BroadcastPlayerScreen() {
         {
           text: 'End broadcast',
           style: 'destructive',
-          onPress: () => {
+          onPress: async () => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-            broadcastPlayer.end();
+            await broadcastPlayer.end().catch(() => {});
             router.back();
           },
         },
