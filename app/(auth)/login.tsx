@@ -14,7 +14,8 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { AM, Fonts, Space, TypeScale, ZIndex } from '../../src/tokens/design-tokens';
+import { AM, Fonts, Space, TypeScale, ZIndex, withAlpha } from '../../src/tokens/design-tokens';
+import { BroadcastBackdrop } from '../../src/components/BroadcastBackdrop';
 import { SleeveArt, SpinningRecord, Tick } from '../../src/components/crate';
 import {
   signInWithEmail,
@@ -95,11 +96,12 @@ export default function LoginScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
+    <BroadcastBackdrop>
+      <SafeAreaView style={styles.container}>
+        <KeyboardAvoidingView
+          style={styles.flex}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
@@ -252,17 +254,18 @@ export default function LoginScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Auth overlay — spinning vinyl while we hit Firebase. Blocks the form. */}
-      {loading && (
-        <View style={styles.authOverlay} pointerEvents="auto">
-          <SpinningRecord size={160} />
-          <View style={styles.authTextBlock}>
-            <Text style={styles.authLabel}>CHECKING YOUR MEMBERSHIP</Text>
-            <Text style={styles.authVoice}>“the librarian’s on it…”</Text>
+        {/* Auth overlay — spinning vinyl while we hit Firebase. Blocks the form. */}
+        {loading && (
+          <View style={styles.authOverlay} pointerEvents="auto">
+            <SpinningRecord size={160} />
+            <View style={styles.authTextBlock}>
+              <Text style={styles.authLabel}>CHECKING YOUR MEMBERSHIP</Text>
+              <Text style={styles.authVoice}>“the librarian’s on it…”</Text>
+            </View>
           </View>
-        </View>
-      )}
-    </SafeAreaView>
+        )}
+      </SafeAreaView>
+    </BroadcastBackdrop>
   );
 }
 
@@ -357,7 +360,7 @@ function Field({
 // ─────────────── Styles ───────────────
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: AM.bg },
+  container: { flex: 1 },
   flex: { flex: 1 },
   scrollContent: {
     flexGrow: 1,
@@ -572,7 +575,7 @@ const styles = StyleSheet.create({
 
   authOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(5, 4, 3, 0.94)',
+    backgroundColor: withAlpha(AM.bgDeep, 0.94),
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: ZIndex.tuning,
