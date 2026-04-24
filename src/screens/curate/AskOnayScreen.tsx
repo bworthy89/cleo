@@ -697,6 +697,7 @@ const styles = StyleSheet.create({
     fontSize: TypeScale.s16,
     color: AM.ink,
     letterSpacing: 2,
+    lineHeight: 19,
   },
 
   list: { flex: 1 },
@@ -926,6 +927,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.display,
     fontSize: TypeScale.s16,
     color: AM.amber,
+    lineHeight: 19,
   },
 
   // Thinking indicator

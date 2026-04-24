@@ -728,6 +728,7 @@ const styles = StyleSheet.create({
     fontSize: TypeScale.s18,
     color: AM.ink,
     letterSpacing: 0.5,
+    lineHeight: 22,
   },
   featuredEmptySub: {
     fontFamily: Fonts.mono,

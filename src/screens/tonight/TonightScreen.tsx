@@ -398,6 +398,7 @@ const styles = StyleSheet.create({
     fontSize: TypeScale.s18,
     color: AM.ink,
     letterSpacing: 0.5,
+    lineHeight: 22,
   },
   emptySub: {
     fontFamily: Fonts.mono,
@@ -497,6 +498,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.display,
     fontSize: TypeScale.s20,
     color: AM.amber,
+    lineHeight: 24,
   },
 
   upcoming: {
@@ -515,6 +517,7 @@ const styles = StyleSheet.create({
     fontSize: TypeScale.s14,
     color: AM.inkMid,
     letterSpacing: 0.4,
+    lineHeight: 17,
   },
   upcomingDrops: {
     fontFamily: Fonts.mono,
