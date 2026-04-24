@@ -44,6 +44,6 @@ const styles = StyleSheet.create({
     minHeight: 120, justifyContent: 'center',
   },
   meta: {},
-  title:   { fontFamily: Fonts.display, fontSize: TypeScale.s22, color: AM.inkMid, letterSpacing: 0.3 },
+  title:   { fontFamily: Fonts.display, fontSize: TypeScale.s22, color: AM.inkMid, letterSpacing: 0.3, lineHeight: 26 },
   tagline: { marginTop: 6, fontFamily: Fonts.serif, fontStyle: 'italic', fontSize: TypeScale.s12, color: AM.inkMid },
 });

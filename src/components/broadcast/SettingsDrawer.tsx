@@ -467,6 +467,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     textAlign: 'right',
     flexShrink: 1,
+    lineHeight: 17,
   },
   rowDetail: {
     fontFamily: Fonts.mono,
@@ -539,6 +540,7 @@ const styles = StyleSheet.create({
     fontSize: TypeScale.s15,
     color: AM.oxblood,
     letterSpacing: 2,
+    lineHeight: 18,
   },
   signOutSub: {
     fontFamily: Fonts.mono,

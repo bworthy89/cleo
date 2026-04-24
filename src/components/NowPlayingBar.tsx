@@ -83,6 +83,7 @@ const styles = StyleSheet.create({
     fontSize: TypeScale.s15,
     color: AM.ink,
     letterSpacing: 0.3,
+    lineHeight: 18,
   },
   artist: {
     marginTop: 2,
@@ -95,5 +96,6 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.display,
     fontSize: TypeScale.s18,
     color: AM.amberDim,
+    lineHeight: 22,
   },
 });

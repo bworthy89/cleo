@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { AM, Fonts, Space, TypeScale } from '../../tokens/design-tokens';
 import { BroadcastBackdrop } from '../../components/BroadcastBackdrop';
 import { TuningInOverlay } from '../../components/broadcast/TuningInOverlay';
@@ -304,12 +305,20 @@ export default function HomeBroadcastScreen() {
         Alert.alert('Broadcast error', msg);
       });
     } catch (err) {
+      if (err instanceof Error && /playable tracks?/i.test(err.message)) {
+        Alert.alert(
+          'Playlist changed',
+          'This playlist no longer has enough playable tracks. Pick another.',
+          [{ text: 'OK', onPress: () => openSheetAt(0) }],
+        );
+        return;
+      }
       const msg = err instanceof Error ? err.message : 'Try again.';
       Alert.alert('Broadcast unavailable', msg);
     } finally {
       setTuning(false);
     }
-  }, [router]);
+  }, [router, openSheetAt]);
 
   const onSheetSubmit = useCallback((r: SetupResult) => {
     setSheetOpen(false);
@@ -330,8 +339,22 @@ export default function HomeBroadcastScreen() {
   }, [mode, router]);
 
   const onStartFresh = useCallback(() => {
-    clearPersistedBroadcast();
-    setMode({ kind: 'fresh' });
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    Alert.alert(
+      'Start a new broadcast?',
+      "You'll lose your place in tonight's set.",
+      [
+        { text: 'Keep current', style: 'cancel' },
+        {
+          text: 'Start fresh',
+          style: 'destructive',
+          onPress: () => {
+            clearPersistedBroadcast();
+            setMode({ kind: 'fresh' });
+          },
+        },
+      ],
+    );
   }, []);
 
   const onOpenNowPlaying = useCallback(() => {
@@ -458,7 +481,7 @@ export default function HomeBroadcastScreen() {
 
         {legacyCards.length > 0 && (
           <>
-            <Text style={styles.moreLabel}>MORE FROM ONAY</Text>
+            <SectionMarker num="B·04" title="MORE FROM ONAY" side="ARCHIVE" />
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -522,6 +545,7 @@ export default function HomeBroadcastScreen() {
               onPress={onStartFresh}
               accessibilityRole="button"
               accessibilityLabel="Start a fresh broadcast"
+              hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
               style={({ pressed }) => [styles.startFresh, pressed && { opacity: 0.6 }]}
             >
               <Text style={styles.startFreshText}>START FRESH</Text>
@@ -675,7 +699,7 @@ export default function HomeBroadcastScreen() {
         onSubmit={onSheetSubmit}
       />
 
-      <TuningInOverlay visible={tuning} />
+      <TuningInOverlay visible={tuning} onCancel={() => setTuning(false)} />
     </BroadcastBackdrop>
   );
 }
@@ -698,36 +722,6 @@ const styles = StyleSheet.create({
     paddingRight: Space.s10,
   },
 
-  moreLabel: {
-    marginTop: Space.s22,
-    marginBottom: Space.s6,
-    color: AM.amber,
-    fontFamily: Fonts.mono,
-    fontSize: TypeScale.s9,
-    letterSpacing: 2.5,
-  },
-
-  featuredEmpty: {
-    marginTop: Space.s22,
-    paddingTop: Space.s22,
-    paddingBottom: Space.s22,
-    borderTopWidth: 1,
-    borderTopColor: AM.amberFaint,
-    gap: Space.s6,
-  },
-  featuredEmptyHead: {
-    fontFamily: Fonts.display,
-    fontSize: TypeScale.s18,
-    color: AM.ink,
-    letterSpacing: 0.5,
-  },
-  featuredEmptySub: {
-    fontFamily: Fonts.mono,
-    fontSize: TypeScale.s10,
-    letterSpacing: 1.5,
-    color: AM.inkDim,
-  },
-
   startFresh: {
     marginTop: 8,
     alignSelf: 'center',
@@ -736,10 +730,10 @@ const styles = StyleSheet.create({
   },
   startFreshText: {
     fontFamily: Fonts.mono,
-    fontSize: 11,
-    letterSpacing: 2.5,
+    fontSize: TypeScale.s12,
+    letterSpacing: 2,
     color: AM.amber,
-    opacity: 0.6,
+    textDecorationLine: 'underline',
   },
 
   askCard: {

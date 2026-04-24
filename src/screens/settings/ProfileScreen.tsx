@@ -176,6 +176,7 @@ const styles = StyleSheet.create({
     fontSize: TypeScale.s14,
     color: AM.cream,
     letterSpacing: 2,
+    lineHeight: 17,
   },
   cardName: {
     marginTop: 14,
@@ -261,6 +262,7 @@ const styles = StyleSheet.create({
     fontSize: TypeScale.s16,
     color: AM.ink,
     letterSpacing: 1.5,
+    lineHeight: 19,
   },
   settingsSub: {
     marginTop: 4,
@@ -273,6 +275,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.display,
     fontSize: TypeScale.s18,
     color: AM.amber,
+    lineHeight: 22,
   },
 
   colophon: {
