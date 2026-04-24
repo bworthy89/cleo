@@ -72,7 +72,7 @@ const styles = StyleSheet.create({
     color: AM.ink,
     letterSpacing: 0.8,
     // Anton needs 1.2x line-box on iOS to avoid top-clipping.
-    lineHeight: 20,
+    lineHeight: 19,
   },
   valueDim: { color: AM.inkDim },
   trail: {

@@ -24,6 +24,7 @@ import {
 } from '../../config/tonightOnOnay';
 import type { Manifest } from '../../engines/BroadcastPlayer.types';
 import type { PublishFeaturedRequest } from '../../engines/BroadcastCurationClient';
+import { SectionMarker } from '../crate';
 
 type Selection =
   | { kind: 'none' }
@@ -111,19 +112,18 @@ export function PublishFeaturedSheet(props: Props) {
   return (
     <Modal visible={props.visible} animationType="slide" transparent={false} onRequestClose={props.onClose}>
       <View style={styles.root}>
-        <View style={styles.header}>
-          <Pressable
-            onPress={props.onClose}
-            accessibilityRole="button"
-            accessibilityLabel="Close publish sheet"
-            style={({ pressed }) => [styles.close, pressed && { opacity: 0.6 }]}
-          >
-            <Text style={styles.closeGlyph}>×</Text>
-          </Pressable>
-          <View style={styles.headerRight}>
-            <Text style={styles.headerLabel}>PUBLISH AS FEATURED</Text>
-            <View style={styles.headerRule} />
+        <View style={styles.chrome}>
+          <View style={styles.closeRow}>
+            <Pressable
+              onPress={props.onClose}
+              accessibilityRole="button"
+              accessibilityLabel="Close publish sheet"
+              style={({ pressed }) => [styles.close, pressed && { opacity: 0.6 }]}
+            >
+              <Text style={styles.closeGlyph}>×</Text>
+            </Pressable>
           </View>
+          <SectionMarker num="P·01" title="PUBLISH AS FEATURED" side="AS TONIGHT ON ONAY" />
         </View>
 
         <ScrollView contentContainerStyle={styles.body}>
@@ -354,15 +354,16 @@ function SlotTile(p: SlotTileProps) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: AM.bg },
-  header: {
-    paddingTop: Space.s20, paddingHorizontal: Space.s16, paddingBottom: Space.s12,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+  chrome: {
+    paddingHorizontal: Space.s16,
+  },
+  closeRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    paddingTop: Space.s20,
   },
   close: { padding: Space.s8 },
-  closeGlyph: { color: AM.ink, fontSize: TypeScale.s26, fontFamily: Fonts.display },
-  headerRight: { alignItems: 'flex-end' },
-  headerLabel: { color: AM.amber, fontFamily: Fonts.mono, fontSize: TypeScale.s10, letterSpacing: 2.5 },
-  headerRule: { width: 40, height: 2, backgroundColor: AM.amber, marginTop: 4 },
+  closeGlyph: { color: AM.ink, fontSize: TypeScale.s26, fontFamily: Fonts.display, lineHeight: 31 },
 
   body: { paddingHorizontal: Space.s16, paddingBottom: Space.s40 },
 
@@ -372,9 +373,9 @@ const styles = StyleSheet.create({
     borderLeftWidth: 2, borderLeftColor: AM.amber,
     backgroundColor: AM.bgDeep,
   },
-  tileSelected: { ...AMGlow.cta, borderLeftColor: AM.amber, backgroundColor: '#111'  },
+  tileSelected: { ...AMGlow.cta, borderLeftColor: AM.amber, backgroundColor: AM.bgDeep  },
   tileEyebrow: { color: AM.amber, fontFamily: Fonts.mono, fontSize: TypeScale.s10, letterSpacing: 2.5 },
-  tileTitle: { marginTop: 6, color: AM.ink, fontFamily: Fonts.display, fontSize: TypeScale.s22, letterSpacing: 0.3 },
+  tileTitle: { marginTop: 6, color: AM.ink, fontFamily: Fonts.display, fontSize: TypeScale.s22, letterSpacing: 0.3, lineHeight: 26 },
   tileBody: { marginTop: 6, color: AM.inkMid, fontFamily: Fonts.serif, fontSize: TypeScale.s13, lineHeight: TypeScale.s13 * 1.45 },
   vibeChip: { marginTop: Space.s10, color: AM.amberDim, fontFamily: Fonts.mono, fontSize: TypeScale.s9, letterSpacing: 2 },
 

@@ -46,6 +46,34 @@ function isAbsoluteUrl(s: string): boolean {
   return /^https?:\/\//i.test(s);
 }
 
+export interface SanitizeInputTrack {
+  id: string; title: string; artistName: string;
+  albumTitle?: string | null; duration?: number | null;
+  artworkUrl?: string | null; genreNames?: string[] | null;
+  isrc?: string | null;
+}
+
+/** Shared drop-rule predicate used by both `sanitizeTracksForBake` and
+ *  `countPlayableTracks`. Keep these in lockstep — drift here would make
+ *  row-level playability counts disagree with the server's schema. */
+function isPlayableTrack(t: SanitizeInputTrack): boolean {
+  return !!(
+    t.id && t.id.length <= 80
+    && t.title && t.title.length > 0
+    && t.artistName && t.artistName.length > 0
+    && typeof t.duration === 'number' && t.duration > 0 && t.duration <= 7200
+  );
+}
+
+/**
+ * Count how many tracks pass the same drop rules as sanitizeTracksForBake
+ * without performing the string clamp pass. Cheap — callable per row when
+ * full track metadata is available.
+ */
+export function countPlayableTracks(tracks: readonly SanitizeInputTrack[]): number {
+  return tracks.filter(isPlayableTrack).length;
+}
+
 /**
  * Filter raw MusicKit tracks down to ones the bake server will accept and
  * normalize borderline fields. Matches the Zod schema on `POST /broadcast/create`:
@@ -59,20 +87,10 @@ function isAbsoluteUrl(s: string): boolean {
  * actionable signal.
  */
 export function sanitizeTracksForBake(
-  input: Array<{
-    id: string; title: string; artistName: string;
-    albumTitle?: string | null; duration?: number | null;
-    artworkUrl?: string | null; genreNames?: string[] | null;
-    isrc?: string | null;
-  }>,
+  input: SanitizeInputTrack[],
 ): CreateBroadcastRequest['tracks'] {
   return input
-    .filter(t =>
-      t.id && t.id.length <= 80
-      && t.title && t.title.length > 0
-      && t.artistName && t.artistName.length > 0
-      && typeof t.duration === 'number' && t.duration > 0 && t.duration <= 7200,
-    )
+    .filter(isPlayableTrack)
     .map(t => ({
       id: t.id,
       title: t.title.slice(0, 200),

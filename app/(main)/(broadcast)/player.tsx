@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -7,7 +7,7 @@ import * as Haptics from 'expo-haptics';
 import { AM, Fonts, Space, TypeScale } from '../../../src/tokens/design-tokens';
 import { BroadcastBackdrop } from '../../../src/components/BroadcastBackdrop';
 import { TuningInOverlay } from '../../../src/components/broadcast/TuningInOverlay';
-import { Tick, VUMeter, LinerNotes } from '../../../src/components/crate';
+import { Tick, VUMeter } from '../../../src/components/crate';
 import { broadcastPlayer } from '../../../src/engines/BroadcastPlayer.singleton';
 import type { PlayerStatus } from '../../../src/engines/BroadcastPlayer.types';
 import { useAppActive } from '../../../src/hooks/useAppActive';
@@ -109,10 +109,24 @@ export default function BroadcastPlayerScreen() {
     Haptics.selectionAsync().catch(() => {});
     broadcastPlayer.resumeFromPause().catch(() => {});
   };
-  const onEnd = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-    await broadcastPlayer.end().catch(() => {});
-    router.back();
+  const onEnd = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    Alert.alert(
+      "End tonight's broadcast?",
+      "You won't be able to pick it up where you left off.",
+      [
+        { text: 'Keep listening', style: 'cancel' },
+        {
+          text: 'End broadcast',
+          style: 'destructive',
+          onPress: async () => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+            await broadcastPlayer.end().catch(() => {});
+            router.back();
+          },
+        },
+      ],
+    );
   };
 
   const broadcastShortId = shortBroadcastId(status.broadcastId);
@@ -135,8 +149,8 @@ export default function BroadcastPlayerScreen() {
             onPress={onEnd}
             accessibilityRole="button"
             accessibilityLabel="End broadcast"
-            hitSlop={12}
-            style={({ pressed }) => [pressed && { opacity: 0.6 }]}
+            hitSlop={{ top: 12, bottom: 12, left: 16, right: 16 }}
+            style={({ pressed }) => [styles.endPressable, pressed && { opacity: 0.6 }]}
           >
             <Text style={styles.stripEnd}>← END BROADCAST</Text>
           </Pressable>
@@ -207,20 +221,10 @@ export default function BroadcastPlayerScreen() {
           </View>
         </View>
 
-        {/* Transport — previous/next are decorative. ONAY broadcasts are
-            no-skip by design, so both side buttons are intentionally
-            non-interactive. Flagged disabled so VoiceOver announces them
-            correctly instead of implying a tappable control. */}
+        {/* Transport — ONAY broadcasts are no-skip by design. Only the
+            center play/pause is interactive; the commitment line below
+            carries the philosophy. */}
         <View style={styles.transport}>
-          <View
-            style={styles.smallBtn}
-            accessible
-            accessibilityRole="button"
-            accessibilityLabel="Previous — not available during this broadcast"
-            accessibilityState={{ disabled: true }}
-          >
-            <Text style={styles.smallBtnText}>‖</Text>
-          </View>
           <Pressable
             onPress={paused ? onResume : onPause}
             disabled={ended || warming}
@@ -231,26 +235,9 @@ export default function BroadcastPlayerScreen() {
             <Text style={styles.bigBtnText}>{paused ? '▶' : '❙❙'}</Text>
             <Text style={styles.bigBtnSub}>{paused ? 'PLAY' : 'PAUSE'}</Text>
           </Pressable>
-          <View
-            style={styles.smallBtn}
-            accessible
-            accessibilityRole="button"
-            accessibilityLabel="Skip forward — not available during this broadcast"
-            accessibilityState={{ disabled: true }}
-          >
-            <Text style={[styles.smallBtnText, { color: AM.inkGhost }]}>⟶|</Text>
-          </View>
         </View>
 
         <Text style={styles.commitment}>NO SKIPS · SIT WITH IT</Text>
-
-        {/* Liner notes — ONAY between tracks */}
-        <View style={styles.linerBlock}>
-          <Text style={styles.linerHeader}>BETWEEN TRACKS</Text>
-          <LinerNotes>
-            Coming up — a Philly Groove single from 1970, and it still hits.
-          </LinerNotes>
-        </View>
 
         {/* Host volume — notched dial */}
         <View style={styles.volumeBlock}>
@@ -272,11 +259,12 @@ export default function BroadcastPlayerScreen() {
               onValueChange={onChangeVolume}
               minimumTrackTintColor="transparent"
               maximumTrackTintColor="transparent"
-              thumbTintColor="transparent"
+              thumbTintColor={AM.amber}
               accessibilityRole="adjustable"
-              accessibilityLabel="ONAY host volume"
+              accessibilityLabel="Host voice volume"
             />
           </View>
+          <Text style={styles.volumeHint}>DRAG TO ADJUST</Text>
           <View style={styles.volumeScale}>
             <Text style={styles.volumeScaleLabel}>QUIET</Text>
             <Text style={styles.volumeScaleLabel}>BETWEEN</Text>
@@ -331,7 +319,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 10,
+    paddingVertical: 12,
+  },
+  endPressable: {
+    minHeight: 44,
+    justifyContent: 'center',
   },
   stripEnd: {
     fontFamily: Fonts.mono,
@@ -393,6 +385,7 @@ const styles = StyleSheet.create({
   heroFallbackText: {
     fontFamily: Fonts.display,
     fontSize: 80,
+    lineHeight: 96,
     color: AM.amberDim,
     letterSpacing: 2,
   },
@@ -473,18 +466,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 22,
   },
-  smallBtn: {
-    width: 44, height: 44,
-    borderWidth: 1,
-    borderColor: AM.inkGhost,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  smallBtnText: {
-    fontFamily: Fonts.mono,
-    fontSize: 14,
-    color: AM.inkDim,
-  },
   bigBtn: {
     width: 76, height: 76,
     borderWidth: 1.5,
@@ -515,17 +496,6 @@ const styles = StyleSheet.create({
     fontSize: 8,
     color: AM.inkDim,
     letterSpacing: 3,
-  },
-
-  linerBlock: {
-    marginTop: Space.s30,
-  },
-  linerHeader: {
-    fontFamily: Fonts.mono,
-    fontSize: TypeScale.s9,
-    color: AM.oxblood,
-    letterSpacing: 2.5,
-    marginBottom: Space.s10,
   },
 
   volumeBlock: {
@@ -561,7 +531,14 @@ const styles = StyleSheet.create({
   },
   sliderOverlay: {
     ...StyleSheet.absoluteFillObject,
-    opacity: 0,
+  },
+  volumeHint: {
+    marginTop: Space.s4,
+    alignSelf: 'center',
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s9,
+    letterSpacing: 2,
+    color: AM.inkDim,
   },
   volumeScale: {
     marginTop: Space.s8,

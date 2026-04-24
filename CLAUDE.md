@@ -124,33 +124,75 @@ cleo-app/
 │   │   ├── onboarding/CleoOnboarding.tsx
 │   │   └── settings/ProfileScreen.tsx
 │   └── components/
-│       ├── AppHeader.tsx, TabBar.tsx, TabIcon.tsx
-│       ├── OnayCharacter.tsx, CleoOrb.tsx, CleoPulseDot.tsx
-│       ├── VibePicker.tsx
-│       ├── OfflineBanner.tsx, ErrorBoundary.tsx, ErrorState.tsx
-│       └── broadcast/           ← FeaturedBroadcastCard, YourBroadcastSetup,
-│                                   SetupSheet, TuningInOverlay
+│       ├── AppHeader.tsx, TabBar.tsx
+│       ├── AmberCTA.tsx, BroadcastBackdrop.tsx, Grain.tsx
+│       ├── HairlineRow.tsx, NowPlayingBar.tsx, OnAirIndicator.tsx
+│       ├── OfflineBanner.tsx, ErrorBoundary.tsx
+│       ├── crate/               ← shared Crate Digger chrome:
+│       │                          Tick, StampButton, SectionMarker, CatalogRow,
+│       │                          LinerNotes, SleeveArt, SpinningRecord, Halftone,
+│       │                          VUMeter, StatusStrip, SettingsCog
+│       └── broadcast/           ← FeaturedBroadcastCard, FeaturedRailCard,
+│                                   SetupSheet, SettingsDrawer, TuningInOverlay,
+│                                   SlotPlaceholderCard, PublishFeaturedSheet
 ```
 
 ---
 
-## UI Design System — "Sonic Ether" Gold Edition
+## UI Design System — "Crate Digger" (late-night record-shop)
 
-- **Black base** (`Colors.base.black`) + **gold accent** (`Colors.accent = #C8832A`).
-- **Typography roles:**
-  - Display (Playfair) — screen titles, track names
-  - Body (Inter 400/500/600) — descriptions, secondary
-  - Mono (DM Mono) — ALL CAPS labels, metadata, button text, wide tracking
-  - ONAY Voice (EB Garamond Italic) — spoken captions ("Between the tracks…")
-- **Gold-edge cards** (2px `Colors.accent` borderLeft on `Surface.container`) for
-  secondary cards. **Primary CTA** uses `Gradient.cta` + `Glow.ctaShadow` with icon
-  and chevron.
-- **Vibe accents** per vibe (`Colors.vibe.lateNight.accent` etc.) — progress bar,
-  status orb, setup sheet chips. Get via `getVibeAccent(vibe)`.
-- **Section labels** — DM Mono 10px letterSpacing 2.5, `Colors.accent`, 2×40 gold
-  bar underneath. Editorial sections add a pulsing gold `LiveDot`.
-- **Press feedback** — Pressable style callbacks returning `opacity: 0.75` (0.85 for
-  colored buttons). Haptic feedback on every tap via `expo-haptics`.
+Evolved from the earlier "Sonic Ether Gold" → "Analog Midnight" → "Crate Digger"
+overhaul (commit `7d96f3be`). All tokens in `src/tokens/design-tokens.ts`. No inline
+styles — everything flows from tokens. Rule still stands: components use `AM` /
+`Fonts` / `TypeScale` / `Space` directly. Legacy aliases (`Colors`, `Typography`,
+`Surface`, `Spacing`, `TextColors`, `Radius`) are `@deprecated` shims that remap to
+`AM` — fine for unmigrated surfaces, don't use in new code.
+
+- **Palette (`AM`):**
+  - `bg: #0B0907`, `bgDeep: #050403` — warm black base (not pure black)
+  - `ink: #F4ECDC` (cream) + `inkMid / inkDim / inkGhost` at 0.80 / 0.58 / 0.20
+  - `amber: #E8A24B` + `amberDim / amberFaint` — secondary signal accent
+  - `oxblood: #A43A2E` + `oxbloodDim` — primary editorial stamp (record-label red)
+  - `cream: #F4ECDC` / `paper: #F2E7CF` / `paperInk: #2A1510` — inverted surfaces
+    (library-card plate etc.)
+  - `rule / ruleStrong` — 26% / 50% cream hairlines
+- **Typography roles (`Fonts`):**
+  - Display — **Anton** (condensed poster face). Screen titles, section headers,
+    CTA labels, big numerals. UPPERCASE with `letterSpacing` 0.5–2. Anton's
+    cap-height clips tight line-boxes on iOS; always set `lineHeight ≈ 1.2× fontSize`.
+  - Liner-notes voice — **Fraunces italic** (400 and 300 Light). ONAY's spoken
+    captions, soft-editorial copy, sheet titles.
+  - Mono — **JetBrains Mono** (400 + 500). ALL-CAPS labels, catalog numbers,
+    metadata, timestamps, buttons' sub-labels, kickers. Wide tracking.
+- **Scales:** `TypeScale` (s8–s76), `Space` (s2–s72), `Radius` (mostly 0 — primary
+  surfaces are sharp-cornered). `AMGlow` for amber/oxblood shadows, `AMBloom`
+  for the radial amber gradient, `Halftone` + `GrainOpacity = 0.06` for the
+  film-grain + dot-pattern overlays.
+- **Shared chrome components (`src/components/crate/`):**
+  - `Tick` — corner-mark for stamp-plate framing (4 corners on a `StampButton`)
+  - `StampButton` — primary CTA. Outlined rectangle + 4 corner Ticks + Anton label +
+    mono sub-label + arrow. Two kinds: `amber` (default) / `oxblood`. The filled
+    "DROP THE NEEDLE" play strip is a bespoke variant, not a StampButton.
+  - `SectionMarker` — numbered catalog-style section header. `num` prop (e.g.
+    `"B·01"`) in amber-dim mono + Anton title + hairline rule + right-side mono
+    label. This is the ONLY way to title a section — do not reintroduce the old
+    "small-caps amber label + 2×40 gold bar" pattern.
+  - `CatalogRow` — tappable row item in catalog style
+  - `LinerNotes` — Fraunces-italic block for ONAY's voice
+  - `SleeveArt` / `SpinningRecord` — album-art + rotating vinyl treatments
+  - `Halftone` — dot-pattern overlay (inline SVG data-URI from `HALFTONE_SVG`),
+    typically laid under oxblood plates for editorial grit
+  - `VUMeter`, `StatusStrip`, `SettingsCog`
+- **Backdrop chrome:** `BroadcastBackdrop` stacks warm-black `bg` + `AMBloom`
+  radial amber + `Grain` noise at 0.06. Most screens sit on top of this — do
+  not paint a solid background that covers it.
+- **Vibes.** Per-vibe accents were deleted in commit `d7193096` ("delete vibe
+  color system, unify on amber"). Every vibe surface uses amber now. Do NOT
+  reintroduce `Colors.vibe.*` or `getVibeAccent()`. Taxonomy shrank 12 → 7 vibes
+  in commit `9804f997`.
+- **Press feedback** — `Pressable` with `style={({ pressed }) => ...}` returning
+  `opacity: 0.8` for stamp/outlined CTAs, `0.6-0.7` for ghost/text. Haptics on
+  every tap via `expo-haptics`.
 - **Animations** must respect `useAppActive()` — loops pause when backgrounded.
 
 ---
