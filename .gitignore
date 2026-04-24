@@ -45,9 +45,15 @@ server/.env.production
 # typescript
 *.tsbuildinfo
 
-# generated native folders
-/ios/
+# native platform — bare workflow (custom Swift in ONAYWidgets + modules/expo-music-kit)
+# Track ios/ so EAS cloud builds include the widget target + custom pbxproj settings.
 /android/
+/ios/Pods/
+/ios/build/
+/ios/DerivedData/
+/ios/.xcode.env.local
+/ios/**/xcuserdata/
+/ios/**/*.xcuserstate
 # GoogleService-Info.plist is safe to commit (contains no private keys)
 firebase-debug.log
 

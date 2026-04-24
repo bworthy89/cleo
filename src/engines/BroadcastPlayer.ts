@@ -673,12 +673,18 @@ export class BroadcastPlayer {
           if (this.sawPlayingForCurrentTrack && time !== null && time >= duration - 0.5) {
             return done(`poll(position ${time.toFixed(1)}/${duration})`);
           }
+          // Reset-to-0 requires playbackTime to actually be ≈0 — MusicKit's
+          // single-track queue sets time=0 at end-of-track. A user pause near
+          // the end of a track leaves time at the pause position (>0), so
+          // without this guard we'd falsely advance the loop on a late-track
+          // user pause and ONAY would start talking over the silence.
           if (
             this.sawPlayingForCurrentTrack &&
             this.maxPlaybackTimeSeen >= duration - 2 &&
-            status !== null && status !== 'playing'
+            status !== null && status !== 'playing' &&
+            time !== null && time < 1
           ) {
-            return done(`poll(reset maxTime=${this.maxPlaybackTimeSeen.toFixed(1)}/${duration} status=${status})`);
+            return done(`poll(reset maxTime=${this.maxPlaybackTimeSeen.toFixed(1)}/${duration} status=${status} time=${time.toFixed(1)})`);
           }
           if (this.sawPlayingForCurrentTrack && status === 'stopped') {
             return done(`poll(status=${status})`);
@@ -719,13 +725,16 @@ export class BroadcastPlayer {
       }
       // Reset-to-0 detection: ApplicationMusicPlayer with a single-track queue
       // transitions to `paused` with playbackTime=0 at end-of-track faster
-      // than the 0.5s tick can catch time >= duration. If we saw the track
-      // get close to duration and now status is not 'playing', it ended.
+      // than the 0.5s tick can catch time >= duration. The playbackTime<1
+      // guard disambiguates this from a user pause near end-of-track (where
+      // time stays at the pause position) — without it, pausing in the last
+      // 2s of any track falsely marks the track as ended.
       if (
         this.sawPlayingForCurrentTrack &&
         duration > 0 &&
         this.maxPlaybackTimeSeen >= duration - 2 &&
-        e.status !== 'playing'
+        e.status !== 'playing' &&
+        e.playbackTime < 1
       ) {
         this.trackEndedResolve?.();
         return;
