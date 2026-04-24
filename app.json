@@ -23,7 +23,8 @@
         "UIBackgroundModes": [
           "audio"
         ],
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSSupportsLiveActivities": true
       },
       "entitlements": {
         "com.apple.developer.applesignin": [
@@ -31,7 +32,7 @@
         ]
       },
       "googleServicesFile": "./GoogleService-Info.plist",
-      "deploymentTarget": "16.0"
+      "deploymentTarget": "16.2"
     },
     "android": {
       "adaptiveIcon": {
@@ -60,7 +61,7 @@
         {
           "ios": {
             "useFrameworks": "static",
-            "deploymentTarget": "16.0"
+            "deploymentTarget": "16.2"
           }
         }
       ],

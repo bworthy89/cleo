@@ -17,6 +17,31 @@ export interface MusicDeps {
   onPlaybackStateChanged: (cb: (e: { status: string; playbackTime: number }) => void) => () => void;
   getPlaybackStatus?: () => Promise<string>;
   getPlaybackTime?: () => Promise<number>;
+  // Lock-screen NowPlaying tile.
+  setNowPlayingTrack: (payload: {
+    title: string; artist: string; vibe: string; duration: number;
+  }) => Promise<void>;
+  setNowPlayingSegment: (payload: {
+    vibe: string; kind: 'cold_open' | 'transition' | 'sign_off';
+  }) => Promise<void>;
+  setNowPlayingElapsed: (elapsed: number, playing: boolean) => Promise<void>;
+  clearNowPlaying: () => Promise<void>;
+  subscribeRemoteCommands: (handlers: {
+    onPlay: () => void; onPause: () => void;
+  }) => () => void;
+  // Lock-screen Live Activity (iOS 16.2+; older iOS silently no-ops).
+  startBroadcastLiveActivity: (
+    attrs: { broadcastId: string; vibe: string; totalTracks: number },
+    state: {
+      kind: 'track' | 'cold_open' | 'transition' | 'sign_off';
+      title: string; subtitle: string; trackNumber: number; playing: boolean;
+    },
+  ) => Promise<void>;
+  updateBroadcastLiveActivity: (state: {
+    kind: 'track' | 'cold_open' | 'transition' | 'sign_off';
+    title: string; subtitle: string; trackNumber: number; playing: boolean;
+  }) => Promise<void>;
+  endBroadcastLiveActivity: () => Promise<void>;
 }
 
 export interface NativeDeps {
@@ -60,6 +85,7 @@ export class BroadcastPlayer {
    *  longer 'playing', the track ended — even if current time reports 0. */
   private maxPlaybackTimeSeen = 0;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private elapsedPumpTimer: ReturnType<typeof setInterval> | null = null;
   private readonly POLL_INTERVAL_MS = 3000;
   /** How long runSegmentAt will wait for a pending slot to flip to ready
    *  before giving up and letting the existing silent-skip path fire.
@@ -202,6 +228,32 @@ export class BroadcastPlayer {
       this.music.onPlaybackStateChanged(this.handlePlaybackState),
       this.music.onTrackChanged(this.handleTrackChanged),
     );
+
+    this.subscriptions.push(
+      this.music.subscribeRemoteCommands({
+        onPlay:  () => { this.resumeFromPause().catch(() => {}); },
+        onPause: () => { this.pause().catch(() => {}); },
+      }),
+    );
+
+    // Kick off the Lock Screen / Dynamic Island Live Activity with the
+    // cold_open segment as the initial state. Updates follow from
+    // runTrackAt / runSegmentAt; dismissal happens in end() + runMainLoop's
+    // natural-completion path.
+    await this.music.startBroadcastLiveActivity(
+      {
+        broadcastId: manifest.broadcastId,
+        vibe: manifest.vibe,
+        totalTracks: manifest.tracks.length,
+      },
+      {
+        kind: 'cold_open',
+        title: 'Cold open',
+        subtitle: `ONAY · ${manifest.vibe.toUpperCase()}`,
+        trackNumber: 0,
+        playing: true,
+      },
+    ).catch(() => {});
   }
 
   /** Shared main loop + natural end-of-broadcast teardown. Walks tracks
@@ -246,6 +298,8 @@ export class BroadcastPlayer {
     // hears the last track start over. Explicit pause marks the MusicKit
     // player user-paused so the auto-resume is suppressed.
     await this.music.pause().catch(() => {});
+    await this.music.clearNowPlaying().catch(() => {});
+    await this.music.endBroadcastLiveActivity().catch(() => {});
     this.state = 'ended';
     clearPersistedBroadcast();
   }
@@ -294,6 +348,11 @@ export class BroadcastPlayer {
       await this.music.pause().catch(() => {});
     }
     this.state = 'paused';
+    try {
+      const t = this.music.getPlaybackTime ? await this.music.getPlaybackTime() : 0;
+      await this.music.setNowPlayingElapsed(t, false).catch(() => {});
+    } catch { /* swallow */ }
+    this.stopElapsedPump();
   }
 
   async resumeFromPause(): Promise<void> {
@@ -303,6 +362,7 @@ export class BroadcastPlayer {
     if (this.currentTrackIndex >= 0 && this.currentSegmentIndex < 0) {
       this.state = 'playing_track';
       await this.music.play().catch(() => {});
+      this.startElapsedPump();
     } else if (this.currentSegmentIndex >= 0) {
       this.state = 'playing_segment';
     } else {
@@ -342,6 +402,7 @@ export class BroadcastPlayer {
     });
     this.subscriptions = [];
     if (this.pollTimer) { clearInterval(this.pollTimer); this.pollTimer = null; }
+    this.stopElapsedPump();
     this.cache.clear();
     this.manifest = null;
     this.currentTrackIndex = -1;
@@ -351,6 +412,8 @@ export class BroadcastPlayer {
     // loop and its Promise leak indefinitely).
     this.trackEndedResolve?.();
     this.trackEndedResolve = null;
+    await this.music.clearNowPlaying().catch(() => {});
+    await this.music.endBroadcastLiveActivity().catch(() => {});
     this.state = 'idle';
     // Deliberately do NOT clearPersistedBroadcast() here. end() is a user-
     // initiated bookmark ("stop for now"), not a completion signal — the
@@ -368,6 +431,25 @@ export class BroadcastPlayer {
     this.pollTimer = setInterval(() => {
       this.pollManifestOnce().catch(() => { /* transient — retry next tick */ });
     }, this.POLL_INTERVAL_MS);
+  }
+
+  private startElapsedPump(): void {
+    if (this.elapsedPumpTimer) return;
+    this.elapsedPumpTimer = setInterval(async () => {
+      if (!this.manifest || this.currentTrackIndex < 0) return;
+      const playing = !this.isPaused && this.state === 'playing_track';
+      try {
+        const t = this.music.getPlaybackTime ? await this.music.getPlaybackTime() : 0;
+        await this.music.setNowPlayingElapsed(t, playing).catch(() => {});
+      } catch { /* one tick failure is not fatal */ }
+    }, 1000);
+  }
+
+  private stopElapsedPump(): void {
+    if (this.elapsedPumpTimer) {
+      clearInterval(this.elapsedPumpTimer);
+      this.elapsedPumpTimer = null;
+    }
   }
 
   async pollManifestOnce(): Promise<void> {
@@ -421,10 +503,32 @@ export class BroadcastPlayer {
     if (!this.manifest) return;
     const slot = this.manifest.segmentSlots[slotIndex];
     if (!slot) return;
+    const vibe = this.manifest.vibe;
+
+    await this.music.setNowPlayingSegment({
+      vibe,
+      kind: slot.kind as 'cold_open' | 'transition' | 'sign_off',
+    }).catch(() => {});
+    if (!this.manifest) return;
+
+    // Live Activity — flip to the segment state. cold_open uses its own
+    // title; transitions / sign-offs share the "Between tracks" frame
+    // with the outgoing track index so users can still glance at how
+    // deep into the episode they are.
+    const kind = slot.kind as 'cold_open' | 'transition' | 'sign_off';
+    const segTitle =
+      kind === 'cold_open' ? 'Cold open' :
+      kind === 'sign_off'  ? 'Sign-off'  : 'Between tracks';
+    await this.music.updateBroadcastLiveActivity({
+      kind,
+      title: segTitle,
+      subtitle: `ONAY · ${vibe.toUpperCase()}`,
+      trackNumber: Math.max(0, this.currentTrackIndex + 1),
+      playing: true,
+    }).catch(() => {});
 
     this.currentSegmentIndex = slotIndex;
     this.state = 'playing_segment';
-    const vibe = this.manifest.vibe;
 
     if (slot.status === 'failed') {
       // Slot failed at bake time — skip silently, continue broadcast.
@@ -475,15 +579,44 @@ export class BroadcastPlayer {
     this.currentTrackIndex = trackIndex;
     updatePersistedCursor(trackIndex);
     this.state = 'playing_track';
+
+    // Lock-screen tile — set ONAY-branded metadata BEFORE music.play so the
+    // tile paints the moment the audio session goes active. The 1Hz pump
+    // (started below) re-asserts the full dict every second to overwrite
+    // any MusicKit clobber.
+    console.log(`[LockScreenDiag] calling setNowPlayingTrack title="${track.title}" vibe=${this.manifest.vibe}`);
+    await this.music.setNowPlayingTrack({
+      title: track.title,
+      artist: track.artistName,
+      vibe: this.manifest.vibe,
+      duration: track.duration ?? 180,
+    }).then(
+      () => console.log('[LockScreenDiag] setNowPlayingTrack resolved'),
+      (err) => console.warn('[LockScreenDiag] setNowPlayingTrack REJECTED:', err),
+    );
+
+    // Live Activity — flip to the now-playing track state.
+    await this.music.updateBroadcastLiveActivity({
+      kind: 'track',
+      title: track.title,
+      subtitle: track.artistName,
+      trackNumber: trackIndex + 1,
+      playing: true,
+    }).catch(() => {});
+
+    this.startElapsedPump();
+
     console.log(`[BroadcastPlayer] runTrackAt(${trackIndex}) id=${track.id} "${track.title}"`);
     try {
       await this.music.play([track.id]);
       console.log(`[BroadcastPlayer] music.play resolved for ${track.id}`);
     } catch (err) {
       console.warn(`[BroadcastPlayer] music.play threw for ${track.id}:`, err);
+      this.stopElapsedPump();
       return;
     }
     await this.waitForTrackEnd();
+    this.stopElapsedPump();
     console.log(`[BroadcastPlayer] track ended: ${track.id}`);
   }
 

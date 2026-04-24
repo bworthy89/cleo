@@ -7,12 +7,13 @@ Pod::Spec.new do |s|
   s.description    = 'Custom Expo native module providing MusicKit authorization, playlist fetching, playback control, and song-change events'
   s.author         = 'Cleo'
   s.homepage       = 'https://github.com/placeholder'
-  s.platforms      = { :ios => '16.0' }
+  s.platforms      = { :ios => '16.2' }
   s.source         = { git: '' }
   s.static_framework = true
 
   s.dependency 'ExpoModulesCore'
 
   s.source_files = '**/*.{h,m,mm,swift,hpp,cpp}'
+  s.resources    = 'Resources/**/*'
   s.frameworks = 'MusicKit', 'MediaPlayer'
 end

@@ -25,11 +25,23 @@ public class ExpoMusicKitModule: Module {
   /// phone is locked. When false, the timer is paused on background to save
   /// CPU (matches the original behavior).
   private var broadcastActive: Bool = false
+  private let nowPlaying = NowPlayingController()
+  // Lazily instantiated so the iOS 16.2 guard isn't needed at field
+  // init time. Populated on first use via `getLiveActivity()`.
+  private var _liveActivity: Any?
 
   public func definition() -> ModuleDefinition {
     Name("ExpoMusicKit")
 
-    Events("onTrackChanged", "onPlaybackStateChanged")
+    Events("onTrackChanged", "onPlaybackStateChanged",
+           "onRemotePlay", "onRemotePause")
+
+    OnCreate {
+      self.nowPlaying.activate(
+        onPlay:  { [weak self] in self?.sendEvent("onRemotePlay",  [:]) },
+        onPause: { [weak self] in self?.sendEvent("onRemotePause", [:]) }
+      )
+    }
 
     // MARK: - Authorization
 
@@ -569,6 +581,73 @@ public class ExpoMusicKitModule: Module {
       }
     }
 
+    // NowPlaying writes must land on the main thread before the JS promise
+    // resolves — otherwise `await setNowPlayingTrack(...)` returns while the
+    // native update is still queued, and MusicKit's stock artwork can paint
+    // first when the next music.play fires. `runOnMainSync` blocks the
+    // caller's background thread until the main-queue work completes, with a
+    // same-thread fast-path to avoid deadlock if the handler ever runs on
+    // main itself.
+    AsyncFunction("setNowPlayingTrack") { (payload: [String: Any]) in
+      let title    = payload["title"]    as? String ?? ""
+      let artist   = payload["artist"]   as? String ?? ""
+      let vibe     = payload["vibe"]     as? String ?? "feelGood"
+      let duration = payload["duration"] as? Double ?? 0
+      self.runOnMainSync {
+        self.nowPlaying.setTrack(title: title, artist: artist,
+                                 vibe: vibe, duration: duration)
+      }
+    }
+
+    AsyncFunction("setNowPlayingSegment") { (payload: [String: Any]) in
+      let vibe = payload["vibe"] as? String ?? "feelGood"
+      let kind = payload["kind"] as? String ?? "transition"
+      self.runOnMainSync {
+        self.nowPlaying.setSegment(vibe: vibe, kind: kind)
+      }
+    }
+
+    AsyncFunction("setNowPlayingElapsed") { (payload: [String: Any]) in
+      let elapsed = payload["elapsed"] as? Double ?? 0
+      let playing = payload["playing"] as? Bool   ?? true
+      self.runOnMainSync {
+        self.nowPlaying.setElapsed(elapsed, playing: playing)
+      }
+    }
+
+    AsyncFunction("clearNowPlaying") {
+      self.runOnMainSync {
+        self.nowPlaying.clear()
+      }
+    }
+
+    // MARK: - Live Activity (ActivityKit, iOS 16.2+)
+
+    AsyncFunction("startBroadcastLiveActivity") { (payload: [String: Any]) in
+      guard #available(iOS 16.2, *) else { return }
+      let bridge = self.getLiveActivity()
+      let state = self.liveActivityStateFrom(payload: payload)
+      await bridge.start(
+        broadcastId: payload["broadcastId"] as? String ?? "",
+        vibe: payload["vibe"] as? String ?? "feelGood",
+        totalTracks: payload["totalTracks"] as? Int ?? 0,
+        state: state
+      )
+    }
+
+    AsyncFunction("updateBroadcastLiveActivity") { (payload: [String: Any]) in
+      guard #available(iOS 16.2, *) else { return }
+      let bridge = self.getLiveActivity()
+      let state = self.liveActivityStateFrom(payload: payload)
+      await bridge.update(state: state)
+    }
+
+    AsyncFunction("endBroadcastLiveActivity") {
+      guard #available(iOS 16.2, *) else { return }
+      let bridge = self.getLiveActivity()
+      await bridge.end()
+    }
+
     // MARK: - Observation Lifecycle
 
     OnStartObserving {
@@ -578,6 +657,47 @@ public class ExpoMusicKitModule: Module {
     OnStopObserving {
       self.stopObserving()
     }
+  }
+
+  // MARK: - Main-thread helper
+
+  /// Run `block` on the main thread, blocking the caller until it completes.
+  /// Used by the NowPlaying AsyncFunction handlers so the JS promise does
+  /// not resolve until the native mutation has actually landed (required for
+  /// the "set metadata BEFORE music.play" guarantee). Same-thread fast-path
+  /// avoids a deadlock if the handler is ever invoked on main.
+  private func runOnMainSync(_ block: () -> Void) {
+    if Thread.isMainThread { block() }
+    else { DispatchQueue.main.sync(execute: block) }
+  }
+
+  // MARK: - Live Activity helpers
+
+  /// Lazily construct the BroadcastActivityBridge. Held via an `Any?`
+  /// stored property since the class itself is iOS 16.2-gated and
+  /// Swift won't let us type the property with `@available`.
+  @available(iOS 16.2, *)
+  private func getLiveActivity() -> BroadcastActivityBridge {
+    if let existing = _liveActivity as? BroadcastActivityBridge {
+      return existing
+    }
+    let bridge = BroadcastActivityBridge()
+    _liveActivity = bridge
+    return bridge
+  }
+
+  /// Translate the JS payload dict into a strongly-typed ContentState.
+  @available(iOS 16.2, *)
+  private func liveActivityStateFrom(payload: [String: Any])
+    -> BroadcastActivityAttributes.ContentState
+  {
+    return BroadcastActivityAttributes.ContentState(
+      kind:     payload["kind"]     as? String ?? "track",
+      title:    payload["title"]    as? String ?? "",
+      subtitle: payload["subtitle"] as? String ?? "",
+      trackNumber: payload["trackNumber"] as? Int ?? 0,
+      playing:  payload["playing"]  as? Bool ?? true
+    )
   }
 
   // MARK: - Memory Management
@@ -857,6 +977,13 @@ public class ExpoMusicKitModule: Module {
         }
       }
       self.lastPlaybackStatus = currentStatus
+
+      // Stomp on MusicKit's continuous nowPlayingInfo rewrites. MusicKit's
+      // ApplicationMusicPlayer auto-writes the tile on every state tick; if
+      // we only write on runTrackAt + via the 1Hz JS pump, MusicKit wins the
+      // race every time and the lock-screen card never flips to ONAY. Native
+      // re-assertion at 0.5s cadence is the cheap, robust override.
+      self.nowPlaying.reassert()
 
       self.sendEvent("onPlaybackStateChanged", [
         "status": statusStr,

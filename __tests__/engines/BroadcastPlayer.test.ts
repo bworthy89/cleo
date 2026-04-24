@@ -43,6 +43,8 @@ const makeManifest3 = (): Manifest => ({
 type Listeners = {
   track?: (e: { trackId?: string }) => void;
   state?: (e: { status: string; playbackTime: number }) => void;
+  remotePlay?: () => void;
+  remotePause?: () => void;
 };
 
 const makeDeps = () => {
@@ -64,6 +66,22 @@ const makeDeps = () => {
         listeners.state = cb;
         return () => { listeners.state = undefined; };
       }),
+      setNowPlayingTrack:   jest.fn(async (p: any) => { logs.push(`np.track:${p.title}|${p.vibe}`); }),
+      setNowPlayingSegment: jest.fn(async (p: any) => { logs.push(`np.segment:${p.kind}|${p.vibe}`); }),
+      setNowPlayingElapsed: jest.fn(async (e: number, playing: boolean) => { logs.push(`np.elapsed:${e}|${playing}`); }),
+      clearNowPlaying:      jest.fn(async () => { logs.push('np.clear'); }),
+      subscribeRemoteCommands: jest.fn((h: { onPlay: () => void; onPause: () => void }) => {
+        listeners.remotePlay  = h.onPlay;
+        listeners.remotePause = h.onPause;
+        return () => { listeners.remotePlay = undefined; listeners.remotePause = undefined; };
+      }),
+      startBroadcastLiveActivity: jest.fn(async (a: any, s: any) => {
+        logs.push(`la.start:${a.vibe}|${s.kind}`);
+      }),
+      updateBroadcastLiveActivity: jest.fn(async (s: any) => {
+        logs.push(`la.update:${s.kind}|tn=${s.trackNumber}`);
+      }),
+      endBroadcastLiveActivity: jest.fn(async () => { logs.push('la.end'); }),
     },
     native: {
       activateDuckingSession: jest.fn(async () => { logs.push('duck.on'); }),
@@ -84,6 +102,8 @@ const makeDeps = () => {
     },
     fireTrackChanged: (trackId?: string) => listeners.track?.({ trackId }),
     fireStateChanged: (status: string) => listeners.state?.({ status, playbackTime: 0 }),
+    fireRemotePlay:  () => listeners.remotePlay?.(),
+    fireRemotePause: () => listeners.remotePause?.(),
   };
 };
 
@@ -176,6 +196,22 @@ describe('BroadcastPlayer', () => {
     const persisted = getPersistedBroadcast();
     expect(persisted).toBeDefined();
     expect(persisted.manifest.broadcastId).toBe('b1');
+  });
+
+  it('runTrackAt sets NowPlaying track metadata before music.play', async () => {
+    const deps = makeDeps();
+    const player = new BroadcastPlayer(
+      deps.music, deps.native, deps.manifestClient, deps.stingers,
+    );
+    player.start(makeManifest(), ['https://cdn/seg0-v0.mp3']);
+    // Drive past cold_open to hit runTrackAt(0).
+    for (let i = 0; i < 80; i++) await Promise.resolve();
+    const trackIdx = deps.logs.findIndex(l => l === 'play:t0');
+    const npIdx = deps.logs.findIndex(l => l.startsWith('np.track:T0'));
+    expect(npIdx).toBeGreaterThanOrEqual(0);
+    expect(trackIdx).toBeGreaterThanOrEqual(0);
+    expect(npIdx).toBeLessThan(trackIdx);
+    await player.end();
   });
 
   it('wraps native listener errors so one throwing callback does not kill the player', async () => {
@@ -900,6 +936,62 @@ describe('BroadcastPlayer', () => {
       await player.end();
     });
 
+  it('runSegmentAt pushes NowPlaying segment metadata for cold_open / transition / sign_off', async () => {
+    const deps = makeDeps();
+    const music = {
+      ...deps.music,
+      getPlaybackStatus: jest.fn(async () => 'stopped'),
+      getPlaybackTime: jest.fn(async () => 1),
+    };
+    const player = new BroadcastPlayer(
+      music, deps.native, deps.manifestClient, deps.stingers,
+    );
+    player.start(makeManifest3(), ['https://cdn/seg0-v0.mp3']);
+    // Drive all 3 tracks through to sign-off.
+    for (let t = 0; t < 3; t++) {
+      for (let i = 0; i < 80; i++) await Promise.resolve();
+      deps.listeners.state?.({ status: 'playing', playbackTime: 0.1 });
+      deps.listeners.state?.({ status: 'stopped', playbackTime: 1 });
+    }
+    for (let i = 0; i < 80; i++) await Promise.resolve();
+
+    const kinds = deps.logs.filter(l => l.startsWith('np.segment:')).map(l => l.split(':')[1].split('|')[0]);
+    expect(kinds).toEqual(['cold_open', 'transition', 'sign_off']);
+    await player.end();
+  });
+
+  it('end() clears the NowPlaying tile', async () => {
+    const deps = makeDeps();
+    const player = new BroadcastPlayer(
+      deps.music, deps.native, deps.manifestClient, deps.stingers,
+    );
+    player.start(makeManifest(), ['https://cdn/seg0-v0.mp3']);
+    for (let i = 0; i < 20; i++) await Promise.resolve();
+    await player.end();
+    expect(deps.music.clearNowPlaying).toHaveBeenCalledTimes(1);
+  });
+
+  it('natural broadcast completion clears the NowPlaying tile', async () => {
+    const deps = makeDeps();
+    const music = {
+      ...deps.music,
+      getPlaybackStatus: jest.fn(async () => 'stopped'),
+      getPlaybackTime: jest.fn(async () => 1),
+    };
+    const player = new BroadcastPlayer(
+      music, deps.native, deps.manifestClient, deps.stingers,
+    );
+    player.start(makeManifest(), ['https://cdn/seg0-v0.mp3']);
+    for (let t = 0; t < 2; t++) {
+      for (let i = 0; i < 80; i++) await Promise.resolve();
+      deps.listeners.state?.({ status: 'playing', playbackTime: 0.1 });
+      deps.listeners.state?.({ status: 'stopped', playbackTime: 1 });
+    }
+    for (let i = 0; i < 120; i++) await Promise.resolve();
+    expect(deps.music.clearNowPlaying).toHaveBeenCalledTimes(1);
+    await player.end();
+  });
+
     it('cursor out of bounds clears persistence and does nothing', async () => {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       const { setPersistedBroadcast, getPersistedBroadcast } =
@@ -917,5 +1009,65 @@ describe('BroadcastPlayer', () => {
       expect(player.getStatus().state).toBe('idle');
       expect(deps.logs.some(l => l.startsWith('play:'))).toBe(false);
     });
+  });
+
+  it('elapsed pump pushes NowPlaying elapsed while playing and stops on pause', async () => {
+    jest.useFakeTimers();
+    let player: BroadcastPlayer | null = null;
+    try {
+      const deps = makeDeps();
+      let t = 0;
+      const music = {
+        ...deps.music,
+        getPlaybackStatus: jest.fn(async () => 'playing'),
+        getPlaybackTime:   jest.fn(async () => { t += 1; return t; }),
+      };
+      player = new BroadcastPlayer(
+        music, deps.native, deps.manifestClient, deps.stingers,
+      );
+      player.start(makeManifest(), ['https://cdn/seg0-v0.mp3']);
+      // Allow cold_open + runTrackAt(0) to be reached.
+      for (let i = 0; i < 80; i++) { await Promise.resolve(); }
+      // Advance fake time by 3s — pump should have fired ~3 times.
+      for (let i = 0; i < 3; i++) {
+        jest.advanceTimersByTime(1000);
+        for (let j = 0; j < 5; j++) await Promise.resolve();
+      }
+      const playingTicks = (deps.music.setNowPlayingElapsed as jest.Mock).mock.calls
+        .filter(c => c[1] === true).length;
+      expect(playingTicks).toBeGreaterThanOrEqual(2);
+
+      await player.pause();
+      const beforePause = (deps.music.setNowPlayingElapsed as jest.Mock).mock.calls.length;
+      jest.advanceTimersByTime(3000);
+      for (let j = 0; j < 5; j++) await Promise.resolve();
+      const afterPause = (deps.music.setNowPlayingElapsed as jest.Mock).mock.calls.length;
+      // Pump may push a single playing:false tick when pause runs, but should
+      // not keep ticking after — so afterPause - beforePause ≤ 1.
+      expect(afterPause - beforePause).toBeLessThanOrEqual(1);
+    } finally {
+      // Always tear down: an assertion failure above must not leave fake
+      // timers installed for subsequent tests, or spill a live BroadcastPlayer.
+      if (player) await player.end();
+      jest.useRealTimers();
+    }
+  });
+
+  it('remote pause from lock screen pauses the broadcast', async () => {
+    const deps = makeDeps();
+    const player = new BroadcastPlayer(
+      deps.music, deps.native, deps.manifestClient, deps.stingers,
+    );
+    player.start(makeManifest(), ['https://cdn/seg0-v0.mp3']);
+    for (let i = 0; i < 20; i++) await Promise.resolve();
+    expect(deps.music.subscribeRemoteCommands).toHaveBeenCalled();
+    deps.fireRemotePause();
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+    expect(player.getStatus().state).toBe('paused');
+
+    deps.fireRemotePlay();
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+    expect(player.getStatus().state).not.toBe('paused');
+    await player.end();
   });
 });
