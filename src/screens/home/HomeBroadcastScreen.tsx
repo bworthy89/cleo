@@ -304,12 +304,20 @@ export default function HomeBroadcastScreen() {
         Alert.alert('Broadcast error', msg);
       });
     } catch (err) {
+      if (err instanceof Error && /playable tracks/i.test(err.message)) {
+        Alert.alert(
+          'Playlist changed',
+          'This playlist no longer has enough playable tracks. Pick another.',
+          [{ text: 'OK', onPress: () => openSheetAt(0) }],
+        );
+        return;
+      }
       const msg = err instanceof Error ? err.message : 'Try again.';
       Alert.alert('Broadcast unavailable', msg);
     } finally {
       setTuning(false);
     }
-  }, [router]);
+  }, [router, openSheetAt]);
 
   const onSheetSubmit = useCallback((r: SetupResult) => {
     setSheetOpen(false);

@@ -254,18 +254,38 @@ function PlaylistStep({
 
         {playlists.map((p, idx) => {
           const selected = p.id === playlistId;
+          const count = p.trackCount;
+          const tooFew = typeof count === 'number' && count < 5;
+          const countText =
+            typeof count === 'number'
+              ? tooFew
+                ? `${count} TRACKS · NEED 5+`
+                : `${count} TRACKS`
+              : 'TRACKS UNKNOWN';
+          const countLabel = typeof count === 'number' ? `${count} tracks.` : '';
+          const accessibilityLabel = `${p.name}. ${countLabel}${
+            tooFew ? ' Not enough to start a broadcast.' : ''
+          }`
+            .replace(/\s+/g, ' ')
+            .trim();
           return (
             <HairlineRow
               key={p.id}
               topRule={idx === 0 && !onAskOnay}
               verticalPadding={Space.s16}
+              style={tooFew ? styles.playlistRowDisabled : undefined}
               value={
-                <Text
-                  style={[styles.playlistName, selected && styles.playlistNameSelected]}
-                  numberOfLines={1}
-                >
-                  {p.name}
-                </Text>
+                <View>
+                  <Text
+                    style={[styles.playlistName, selected && styles.playlistNameSelected]}
+                    numberOfLines={1}
+                  >
+                    {p.name}
+                  </Text>
+                  <Text style={[styles.playlistMeta, tooFew && { color: AM.oxblood }]}>
+                    {countText}
+                  </Text>
+                </View>
               }
               trailing={
                 selected ? (
@@ -274,8 +294,16 @@ function PlaylistStep({
                   <Text style={styles.chev}>{'›'}</Text>
                 )
               }
-              onPress={() => onPick(p.id)}
-              accessibilityLabel={`Pick playlist ${p.name}`}
+              onPress={
+                tooFew
+                  ? () => {
+                      Haptics.notificationAsync(
+                        Haptics.NotificationFeedbackType.Warning,
+                      ).catch(() => {});
+                    }
+                  : () => onPick(p.id)
+              }
+              accessibilityLabel={accessibilityLabel}
             />
           );
         })}
@@ -458,6 +486,16 @@ const styles = StyleSheet.create({
   },
   playlistNameSelected: {
     color: AM.amber,
+  },
+  playlistRowDisabled: {
+    opacity: 0.5,
+  },
+  playlistMeta: {
+    marginTop: 4,
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s10,
+    letterSpacing: 2,
+    color: AM.inkDim,
   },
 
   // Vibe / length list items
