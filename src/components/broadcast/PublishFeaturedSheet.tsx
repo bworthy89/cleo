@@ -24,6 +24,7 @@ import {
 } from '../../config/tonightOnOnay';
 import type { Manifest } from '../../engines/BroadcastPlayer.types';
 import type { PublishFeaturedRequest } from '../../engines/BroadcastCurationClient';
+import { SectionMarker } from '../crate';
 
 type Selection =
   | { kind: 'none' }
@@ -120,10 +121,7 @@ export function PublishFeaturedSheet(props: Props) {
           >
             <Text style={styles.closeGlyph}>×</Text>
           </Pressable>
-          <View style={styles.headerRight}>
-            <Text style={styles.headerLabel}>PUBLISH AS FEATURED</Text>
-            <View style={styles.headerRule} />
-          </View>
+          <SectionMarker num="P·01" title="PUBLISH AS FEATURED" side="AS TONIGHT ON ONAY" />
         </View>
 
         <ScrollView contentContainerStyle={styles.body}>
@@ -360,9 +358,6 @@ const styles = StyleSheet.create({
   },
   close: { padding: Space.s8 },
   closeGlyph: { color: AM.ink, fontSize: TypeScale.s26, fontFamily: Fonts.display },
-  headerRight: { alignItems: 'flex-end' },
-  headerLabel: { color: AM.amber, fontFamily: Fonts.mono, fontSize: TypeScale.s10, letterSpacing: 2.5 },
-  headerRule: { width: 40, height: 2, backgroundColor: AM.amber, marginTop: 4 },
 
   body: { paddingHorizontal: Space.s16, paddingBottom: Space.s40 },
 
@@ -372,7 +367,7 @@ const styles = StyleSheet.create({
     borderLeftWidth: 2, borderLeftColor: AM.amber,
     backgroundColor: AM.bgDeep,
   },
-  tileSelected: { ...AMGlow.cta, borderLeftColor: AM.amber, backgroundColor: '#111'  },
+  tileSelected: { ...AMGlow.cta, borderLeftColor: AM.amber, backgroundColor: AM.bgDeep  },
   tileEyebrow: { color: AM.amber, fontFamily: Fonts.mono, fontSize: TypeScale.s10, letterSpacing: 2.5 },
   tileTitle: { marginTop: 6, color: AM.ink, fontFamily: Fonts.display, fontSize: TypeScale.s22, letterSpacing: 0.3 },
   tileBody: { marginTop: 6, color: AM.inkMid, fontFamily: Fonts.serif, fontSize: TypeScale.s13, lineHeight: TypeScale.s13 * 1.45 },
