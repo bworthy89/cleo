@@ -221,20 +221,10 @@ export default function BroadcastPlayerScreen() {
           </View>
         </View>
 
-        {/* Transport — previous/next are decorative. ONAY broadcasts are
-            no-skip by design, so both side buttons are intentionally
-            non-interactive. Flagged disabled so VoiceOver announces them
-            correctly instead of implying a tappable control. */}
+        {/* Transport — ONAY broadcasts are no-skip by design. Only the
+            center play/pause is interactive; the commitment line below
+            carries the philosophy. */}
         <View style={styles.transport}>
-          <View
-            style={styles.smallBtn}
-            accessible
-            accessibilityRole="button"
-            accessibilityLabel="Previous — not available during this broadcast"
-            accessibilityState={{ disabled: true }}
-          >
-            <Text style={styles.smallBtnText}>‖</Text>
-          </View>
           <Pressable
             onPress={paused ? onResume : onPause}
             disabled={ended || warming}
@@ -245,15 +235,6 @@ export default function BroadcastPlayerScreen() {
             <Text style={styles.bigBtnText}>{paused ? '▶' : '❙❙'}</Text>
             <Text style={styles.bigBtnSub}>{paused ? 'PLAY' : 'PAUSE'}</Text>
           </Pressable>
-          <View
-            style={styles.smallBtn}
-            accessible
-            accessibilityRole="button"
-            accessibilityLabel="Skip forward — not available during this broadcast"
-            accessibilityState={{ disabled: true }}
-          >
-            <Text style={[styles.smallBtnText, { color: AM.inkGhost }]}>⟶|</Text>
-          </View>
         </View>
 
         <Text style={styles.commitment}>NO SKIPS · SIT WITH IT</Text>
@@ -483,18 +464,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 22,
-  },
-  smallBtn: {
-    width: 44, height: 44,
-    borderWidth: 1,
-    borderColor: AM.inkGhost,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  smallBtnText: {
-    fontFamily: Fonts.mono,
-    fontSize: 14,
-    color: AM.inkDim,
   },
   bigBtn: {
     width: 76, height: 76,
