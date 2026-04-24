@@ -304,7 +304,7 @@ export default function HomeBroadcastScreen() {
         Alert.alert('Broadcast error', msg);
       });
     } catch (err) {
-      if (err instanceof Error && /playable tracks/i.test(err.message)) {
+      if (err instanceof Error && /playable tracks?/i.test(err.message)) {
         Alert.alert(
           'Playlist changed',
           'This playlist no longer has enough playable tracks. Pick another.',
