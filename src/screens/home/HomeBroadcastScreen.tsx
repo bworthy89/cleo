@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { AM, Fonts, Space, TypeScale } from '../../tokens/design-tokens';
 import { BroadcastBackdrop } from '../../components/BroadcastBackdrop';
 import { TuningInOverlay } from '../../components/broadcast/TuningInOverlay';
@@ -338,8 +339,22 @@ export default function HomeBroadcastScreen() {
   }, [mode, router]);
 
   const onStartFresh = useCallback(() => {
-    clearPersistedBroadcast();
-    setMode({ kind: 'fresh' });
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    Alert.alert(
+      'Start a new broadcast?',
+      "You'll lose your place in tonight's set.",
+      [
+        { text: 'Keep current', style: 'cancel' },
+        {
+          text: 'Start fresh',
+          style: 'destructive',
+          onPress: () => {
+            clearPersistedBroadcast();
+            setMode({ kind: 'fresh' });
+          },
+        },
+      ],
+    );
   }, []);
 
   const onOpenNowPlaying = useCallback(() => {
@@ -530,6 +545,7 @@ export default function HomeBroadcastScreen() {
               onPress={onStartFresh}
               accessibilityRole="button"
               accessibilityLabel="Start a fresh broadcast"
+              hitSlop={{ top: 12, bottom: 12, left: 16, right: 16 }}
               style={({ pressed }) => [styles.startFresh, pressed && { opacity: 0.6 }]}
             >
               <Text style={styles.startFreshText}>START FRESH</Text>
@@ -714,10 +730,10 @@ const styles = StyleSheet.create({
   },
   startFreshText: {
     fontFamily: Fonts.mono,
-    fontSize: 11,
-    letterSpacing: 2.5,
+    fontSize: TypeScale.s12,
+    letterSpacing: 2,
     color: AM.amber,
-    opacity: 0.6,
+    textDecorationLine: 'underline',
   },
 
   askCard: {
