@@ -149,6 +149,7 @@ const styles = StyleSheet.create({
     fontSize: TypeScale.s22,
     color: AM.ink,
     letterSpacing: 0.5,
+    lineHeight: 26,
   },
   voice: {
     marginTop: Space.s10,

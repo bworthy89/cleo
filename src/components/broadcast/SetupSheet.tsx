@@ -476,6 +476,7 @@ const styles = StyleSheet.create({
     color: AM.ink,
     letterSpacing: 0.5,
     textTransform: 'uppercase',
+    lineHeight: 20,
   },
   playlistNameSelected: {
     color: AM.amber,
@@ -499,6 +500,7 @@ const styles = StyleSheet.create({
     color: AM.inkMid,
     letterSpacing: 0.5,
     textTransform: 'uppercase',
+    lineHeight: 22,
   },
   vibeLabelSelected: {
     color: AM.ink,
@@ -516,6 +518,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.display,
     fontSize: TypeScale.s16,
     color: AM.inkDim,
+    lineHeight: 20,
   },
   selectDot: {
     fontFamily: Fonts.mono,

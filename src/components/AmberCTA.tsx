@@ -91,6 +91,7 @@ const styles = StyleSheet.create({
     color: AM.amber,
     letterSpacing: 2,
     textTransform: 'uppercase',
+    lineHeight: 22,
   },
   disabled: {
     opacity: 0.4,

@@ -363,7 +363,7 @@ const styles = StyleSheet.create({
     paddingTop: Space.s20,
   },
   close: { padding: Space.s8 },
-  closeGlyph: { color: AM.ink, fontSize: TypeScale.s26, fontFamily: Fonts.display },
+  closeGlyph: { color: AM.ink, fontSize: TypeScale.s26, fontFamily: Fonts.display, lineHeight: 31 },
 
   body: { paddingHorizontal: Space.s16, paddingBottom: Space.s40 },
 
@@ -375,7 +375,7 @@ const styles = StyleSheet.create({
   },
   tileSelected: { ...AMGlow.cta, borderLeftColor: AM.amber, backgroundColor: AM.bgDeep  },
   tileEyebrow: { color: AM.amber, fontFamily: Fonts.mono, fontSize: TypeScale.s10, letterSpacing: 2.5 },
-  tileTitle: { marginTop: 6, color: AM.ink, fontFamily: Fonts.display, fontSize: TypeScale.s22, letterSpacing: 0.3 },
+  tileTitle: { marginTop: 6, color: AM.ink, fontFamily: Fonts.display, fontSize: TypeScale.s22, letterSpacing: 0.3, lineHeight: 26 },
   tileBody: { marginTop: 6, color: AM.inkMid, fontFamily: Fonts.serif, fontSize: TypeScale.s13, lineHeight: TypeScale.s13 * 1.45 },
   vibeChip: { marginTop: Space.s10, color: AM.amberDim, fontFamily: Fonts.mono, fontSize: TypeScale.s9, letterSpacing: 2 },
 

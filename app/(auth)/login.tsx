@@ -402,7 +402,7 @@ const styles = StyleSheet.create({
     fontSize: TypeScale.s56,
     color: AM.ink,
     letterSpacing: 1,
-    lineHeight: TypeScale.s56 * 0.9,
+    lineHeight: 67,
   },
   tagline: {
     marginTop: Space.s8,
@@ -430,6 +430,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.display,
     fontSize: TypeScale.s14,
     letterSpacing: 1.5,
+    lineHeight: 17,
   },
 
   divider: {
@@ -488,6 +489,7 @@ const styles = StyleSheet.create({
     fontSize: TypeScale.s18,
     color: AM.ink,
     letterSpacing: 1,
+    lineHeight: 22,
     padding: 0,
     margin: 0,
   },
@@ -511,6 +513,7 @@ const styles = StyleSheet.create({
     fontSize: TypeScale.s20,
     color: AM.amber,
     letterSpacing: 2,
+    lineHeight: 24,
   },
   enterBtnSub: {
     marginTop: 4,
@@ -523,6 +526,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.display,
     fontSize: 24,
     color: AM.amber,
+    lineHeight: 29,
   },
 
   backBtn: {
