@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -109,10 +109,24 @@ export default function BroadcastPlayerScreen() {
     Haptics.selectionAsync().catch(() => {});
     broadcastPlayer.resumeFromPause().catch(() => {});
   };
-  const onEnd = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-    await broadcastPlayer.end().catch(() => {});
-    router.back();
+  const onEnd = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    Alert.alert(
+      "End tonight's broadcast?",
+      "You won't be able to pick it up where you left off.",
+      [
+        { text: 'Keep listening', style: 'cancel' },
+        {
+          text: 'End broadcast',
+          style: 'destructive',
+          onPress: () => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+            broadcastPlayer.end();
+            router.back();
+          },
+        },
+      ],
+    );
   };
 
   const broadcastShortId = shortBroadcastId(status.broadcastId);
@@ -135,8 +149,8 @@ export default function BroadcastPlayerScreen() {
             onPress={onEnd}
             accessibilityRole="button"
             accessibilityLabel="End broadcast"
-            hitSlop={12}
-            style={({ pressed }) => [pressed && { opacity: 0.6 }]}
+            hitSlop={{ top: 12, bottom: 12, left: 16, right: 16 }}
+            style={({ pressed }) => [styles.endPressable, pressed && { opacity: 0.6 }]}
           >
             <Text style={styles.stripEnd}>← END BROADCAST</Text>
           </Pressable>
@@ -323,7 +337,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 10,
+    paddingVertical: 12,
+  },
+  endPressable: {
+    minHeight: 44,
+    justifyContent: 'center',
   },
   stripEnd: {
     fontFamily: Fonts.mono,
