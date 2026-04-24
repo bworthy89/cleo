@@ -225,3 +225,88 @@ export function addPlaybackStateListener(
 ): EventSubscription {
   return emitter.addListener('onPlaybackStateChanged', listener);
 }
+
+// ── Now Playing (lock-screen tile) ─────────────────────────────────────
+
+// Runtime diagnostic — verify the native bindings were picked up by the
+// build. Dev-only; stripped in production bundles where `__DEV__` is false.
+if (__DEV__) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const _mk = ExpoMusicKit as any;
+  console.log(
+    '[LockScreenDiag] native bindings:',
+    'setNowPlayingTrack=',   typeof _mk.setNowPlayingTrack,
+    'setNowPlayingSegment=', typeof _mk.setNowPlayingSegment,
+    'setNowPlayingElapsed=', typeof _mk.setNowPlayingElapsed,
+    'clearNowPlaying=',      typeof _mk.clearNowPlaying,
+  );
+}
+
+export type NowPlayingTrackPayload = {
+  title: string;
+  artist: string;
+  vibe: string;
+  duration: number;
+};
+
+export type NowPlayingSegmentPayload = {
+  vibe: string;
+  kind: 'cold_open' | 'transition' | 'sign_off';
+};
+
+export async function setNowPlayingTrack(payload: NowPlayingTrackPayload): Promise<void> {
+  return await ExpoMusicKit.setNowPlayingTrack(payload);
+}
+
+export async function setNowPlayingSegment(payload: NowPlayingSegmentPayload): Promise<void> {
+  return await ExpoMusicKit.setNowPlayingSegment(payload);
+}
+
+export async function setNowPlayingElapsed(elapsed: number, playing: boolean): Promise<void> {
+  return await ExpoMusicKit.setNowPlayingElapsed({ elapsed, playing });
+}
+
+export async function clearNowPlaying(): Promise<void> {
+  return await ExpoMusicKit.clearNowPlaying();
+}
+
+export function addRemotePlayListener(listener: () => void): EventSubscription {
+  return emitter.addListener('onRemotePlay', listener);
+}
+
+export function addRemotePauseListener(listener: () => void): EventSubscription {
+  return emitter.addListener('onRemotePause', listener);
+}
+
+// ── Live Activity (ActivityKit, iOS 16.2+) ─────────────────────────────
+
+export type BroadcastLiveActivityAttributes = {
+  broadcastId: string;
+  vibe: string;
+  totalTracks: number;
+};
+
+export type BroadcastLiveActivityState = {
+  kind: 'track' | 'cold_open' | 'transition' | 'sign_off';
+  title: string;
+  subtitle: string;
+  trackNumber: number;
+  playing: boolean;
+};
+
+export async function startBroadcastLiveActivity(
+  attrs: BroadcastLiveActivityAttributes,
+  state: BroadcastLiveActivityState,
+): Promise<void> {
+  return await ExpoMusicKit.startBroadcastLiveActivity({ ...attrs, ...state });
+}
+
+export async function updateBroadcastLiveActivity(
+  state: BroadcastLiveActivityState,
+): Promise<void> {
+  return await ExpoMusicKit.updateBroadcastLiveActivity(state);
+}
+
+export async function endBroadcastLiveActivity(): Promise<void> {
+  return await ExpoMusicKit.endBroadcastLiveActivity();
+}

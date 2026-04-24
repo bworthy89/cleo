@@ -14,6 +14,15 @@ import {
   addTrackChangedListener,
   addPlaybackStateListener,
   getNextInQueue,
+  setNowPlayingTrack,
+  setNowPlayingSegment,
+  setNowPlayingElapsed,
+  clearNowPlaying,
+  addRemotePlayListener,
+  addRemotePauseListener,
+  startBroadcastLiveActivity,
+  updateBroadcastLiveActivity,
+  endBroadcastLiveActivity,
   type AuthResult,
   type MusicPlaylist,
   type MusicTrack,
@@ -21,6 +30,10 @@ import {
   type TrackChangedEvent,
   type PlaybackStateEvent,
   type PlaybackStatus,
+  type NowPlayingTrackPayload,
+  type NowPlayingSegmentPayload,
+  type BroadcastLiveActivityAttributes,
+  type BroadcastLiveActivityState,
 } from '../../modules/expo-music-kit';
 import type { EventSubscription } from 'expo-modules-core';
 import { UITEST_MODE } from '../config/featureFlags';
@@ -91,6 +104,57 @@ class MusicKitPlayerService {
 
   async getNextInQueue(): Promise<{ id?: string; title: string; artistName: string } | null> {
     return getNextInQueue();
+  }
+
+  // ── Now Playing (lock-screen tile) ───────────────────────────────────
+  async setNowPlayingTrack(payload: NowPlayingTrackPayload): Promise<void> {
+    return setNowPlayingTrack(payload);
+  }
+
+  async setNowPlayingSegment(payload: NowPlayingSegmentPayload): Promise<void> {
+    return setNowPlayingSegment(payload);
+  }
+
+  async setNowPlayingElapsed(elapsed: number, playing: boolean): Promise<void> {
+    return setNowPlayingElapsed(elapsed, playing);
+  }
+
+  async clearNowPlaying(): Promise<void> {
+    return clearNowPlaying();
+  }
+
+  /** Subscribe to lock-screen / control-center / headphone play & pause taps.
+   *  Returns an unsubscribe closure. Same throwing-listener safety as the
+   *  existing track/state subscriptions. */
+  subscribeRemoteCommands(handlers: { onPlay: () => void; onPause: () => void }): () => void {
+    const playSub = addRemotePlayListener(() => {
+      try { handlers.onPlay(); } catch (e) {
+        console.error('[MusicKitPlayer] onRemotePlay handler error:', e);
+      }
+    });
+    const pauseSub = addRemotePauseListener(() => {
+      try { handlers.onPause(); } catch (e) {
+        console.error('[MusicKitPlayer] onRemotePause handler error:', e);
+      }
+    });
+    return () => { playSub.remove(); pauseSub.remove(); };
+  }
+
+  // ── Live Activity (iOS 16.2+; older iOS silently no-ops) ────────────
+
+  async startBroadcastLiveActivity(
+    attrs: BroadcastLiveActivityAttributes,
+    state: BroadcastLiveActivityState,
+  ): Promise<void> {
+    return startBroadcastLiveActivity(attrs, state);
+  }
+
+  async updateBroadcastLiveActivity(state: BroadcastLiveActivityState): Promise<void> {
+    return updateBroadcastLiveActivity(state);
+  }
+
+  async endBroadcastLiveActivity(): Promise<void> {
+    return endBroadcastLiveActivity();
   }
 
   onTrackChanged(callback: TrackChangeCallback): () => void {
