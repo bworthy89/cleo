@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import auth from '@react-native-firebase/auth';
-import { AM, Fonts, Space, TypeScale } from '../../tokens/design-tokens';
+import { AM, Fonts, Space, TypeScale, withAlpha } from '../../tokens/design-tokens';
 import { BroadcastBackdrop } from '../../components/BroadcastBackdrop';
 import { TuningInOverlay } from '../../components/broadcast/TuningInOverlay';
 import { StampButton, SectionMarker, LinerNotes, SleeveArt, Tick, SettingsCog } from '../../components/crate';
@@ -106,8 +106,27 @@ export function AskOnayScreen() {
   const [publishSheetFor, setPublishSheetFor] = useState<CuratedPlaylist | null>(null);
   const [publishError, setPublishError] = useState<string | null>(null);
   const [tuning, setTuning] = useState(false);
+  const [subscriptionOk, setSubscriptionOk] = useState<boolean | null>(null);
 
   const canCurate = isCurator(auth().currentUser?.email);
+
+  // Pre-send subscription probe — surfaces the Apple Music requirement as a
+  // banner before the user types + taps PULL, so they don't sit through ~8s
+  // of LLM generation only to get an error at the end.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const result = await authorize();
+        if (!cancelled) setSubscriptionOk(!!result.canPlayCatalog);
+      } catch {
+        if (!cancelled) setSubscriptionOk(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const nextId = () => String(messageIdCounter.current++);
 
@@ -185,7 +204,6 @@ export function AskOnayScreen() {
     if (!text || isGenerating) return;
     if (!(await checkGuards())) return;
 
-    setInputText('');
     addMessage({ role: 'user', text });
     setIsGenerating(true);
     const loadingId = addMessage({ role: 'loading' });
@@ -212,6 +230,9 @@ export function AskOnayScreen() {
       setCurrentPlaylist(result);
       addMessage({ role: 'onay', text: result.conversationalResponse });
       addMessage({ role: 'playlist', playlist: result });
+      // Only clear the prompt on a successful pull — on failure, leave it
+      // populated so the user can retry without retyping.
+      setInputText('');
     } catch (err: any) {
       removeMessage(loadingId);
       addMessage({ role: 'error', text: err?.message || 'Something went wrong. Try again.' });
@@ -562,6 +583,14 @@ export function AskOnayScreen() {
           Tell me a mood, a weather, a memory — or name a record and I&rsquo;ll find its neighbors.
         </LinerNotes>
       </View>
+      {subscriptionOk === false && (
+        <View style={styles.guardBanner} accessibilityRole="alert">
+          <Text style={styles.guardBannerTitle}>APPLE MUSIC SUBSCRIPTION REQUIRED</Text>
+          <Text style={styles.guardBannerBody}>
+            ONAY can browse and pull, but you&rsquo;ll need an active subscription to play what she picks.
+          </Text>
+        </View>
+      )}
     </View>
   );
 
@@ -928,6 +957,29 @@ const styles = StyleSheet.create({
     fontSize: TypeScale.s16,
     color: AM.amber,
     lineHeight: 19,
+  },
+
+  // Subscription guard banner
+  guardBanner: {
+    marginBottom: Space.s16,
+    padding: Space.s14,
+    borderWidth: 1,
+    borderColor: AM.oxbloodDim,
+    backgroundColor: withAlpha(AM.oxblood, 0.06),
+  },
+  guardBannerTitle: {
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s10,
+    letterSpacing: 3,
+    color: AM.oxblood,
+    marginBottom: Space.s4,
+  },
+  guardBannerBody: {
+    fontFamily: Fonts.serif,
+    fontStyle: 'italic',
+    fontSize: TypeScale.s13,
+    lineHeight: 17,
+    color: AM.inkMid,
   },
 
   // Thinking indicator
