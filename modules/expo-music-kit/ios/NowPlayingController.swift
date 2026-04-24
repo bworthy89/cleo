@@ -41,7 +41,6 @@ final class NowPlayingController {
     /// the audio session becomes active. The 1Hz elapsed pump re-asserts the
     /// full dict every second to overwrite any MusicKit clobber.
     func setTrack(title: String, artist: String, vibe: String, duration: Double) {
-        print("[LockScreenDiag][Swift] setTrack title=\(title) vibe=\(vibe) duration=\(duration) mainThread=\(Thread.isMainThread)")
         lastVibe = vibe
         let art = renderer.render(vibe: vibe, kind: .track)
         current = [
@@ -55,7 +54,6 @@ final class NowPlayingController {
                 boundsSize: art.size, requestHandler: { _ in art }),
         ]
         center.nowPlayingInfo = current
-        print("[LockScreenDiag][Swift] setTrack WROTE nowPlayingInfo, dict-keys=\(current.keys.count), title-now=\(center.nowPlayingInfo?[MPMediaItemPropertyTitle] ?? "nil")")
     }
 
     /// Configure the tile for a voice segment (cold_open, transition, sign_off).
