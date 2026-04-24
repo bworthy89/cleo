@@ -259,11 +259,12 @@ export default function BroadcastPlayerScreen() {
               onValueChange={onChangeVolume}
               minimumTrackTintColor="transparent"
               maximumTrackTintColor="transparent"
-              thumbTintColor="transparent"
+              thumbTintColor={AM.amber}
               accessibilityRole="adjustable"
-              accessibilityLabel="ONAY host volume"
+              accessibilityLabel="Host voice volume"
             />
           </View>
+          <Text style={styles.volumeHint}>DRAG TO ADJUST</Text>
           <View style={styles.volumeScale}>
             <Text style={styles.volumeScaleLabel}>QUIET</Text>
             <Text style={styles.volumeScaleLabel}>BETWEEN</Text>
@@ -530,7 +531,14 @@ const styles = StyleSheet.create({
   },
   sliderOverlay: {
     ...StyleSheet.absoluteFillObject,
-    opacity: 0,
+  },
+  volumeHint: {
+    marginTop: Space.s4,
+    alignSelf: 'center',
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s9,
+    letterSpacing: 2,
+    color: AM.inkDim,
   },
   volumeScale: {
     marginTop: Space.s8,
