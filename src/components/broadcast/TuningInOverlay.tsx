@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useAppActive } from '../../hooks/useAppActive';
 import { AM, Fonts, Space, TypeScale, ZIndex } from '../../tokens/design-tokens';
 import { SpinningRecord } from '../crate/SpinningRecord';
@@ -12,6 +12,13 @@ interface Props {
   headline?: string;
   /** Override ONAY's italic line. */
   voiceLine?: string;
+  /**
+   * Optional cancel handler. When provided, a TAKE IT BACK pressable
+   * renders below the status label so the user can bail out of the
+   * overlay on slow networks. Hiding the overlay does NOT abort the
+   * in-flight createBroadcast — the server-side bake continues.
+   */
+  onCancel?: () => void;
 }
 
 /**
@@ -26,9 +33,11 @@ export function TuningInOverlay({
   label = 'CUING UP',
   headline = 'DROPPING THE NEEDLE…',
   voiceLine = 'Give me a second. I want to start this one right.',
+  onCancel,
 }: Props) {
   const opacity = useRef(new Animated.Value(visible ? 1 : 0)).current;
   const [mounted, setMounted] = useState(visible);
+  const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
     if (visible) {
@@ -49,6 +58,17 @@ export function TuningInOverlay({
     }
   }, [visible, mounted, opacity]);
 
+  // Reset elapsed when the overlay becomes invisible so each bake starts
+  // at 0. Tick once per second while the overlay is visible.
+  useEffect(() => {
+    if (!visible) {
+      setElapsed(0);
+      return;
+    }
+    const id = setInterval(() => setElapsed((s) => s + 1), 1000);
+    return () => clearInterval(id);
+  }, [visible]);
+
   if (!mounted) return null;
 
   return (
@@ -62,7 +82,23 @@ export function TuningInOverlay({
         <Text style={styles.label}>{label}</Text>
         <Text style={styles.headline}>{headline}</Text>
         <Text style={styles.voice}>&ldquo;{voiceLine}&rdquo;</Text>
+        {elapsed >= 20 && (
+          <Text style={styles.reassurance}>
+            Still writing &mdash; long sets take a minute.
+          </Text>
+        )}
         <CyclingStatusLabel active={visible} />
+        {onCancel && (
+          <Pressable
+            onPress={onCancel}
+            accessibilityRole="button"
+            accessibilityLabel="Cancel tuning in"
+            hitSlop={{ top: 12, bottom: 12, left: 16, right: 16 }}
+            style={({ pressed }) => [styles.cancel, pressed && { opacity: 0.6 }]}
+          >
+            <Text style={styles.cancelLabel}>TAKE IT BACK</Text>
+          </Pressable>
+        )}
       </View>
     </Animated.View>
   );
@@ -167,5 +203,28 @@ const styles = StyleSheet.create({
     color: AM.amber,
     letterSpacing: 2.5,
     textAlign: 'center',
+  },
+  reassurance: {
+    marginTop: Space.s10,
+    alignSelf: 'center',
+    fontFamily: Fonts.serif,
+    fontStyle: 'italic',
+    fontSize: TypeScale.s14,
+    lineHeight: 18,
+    color: AM.inkMid,
+    textAlign: 'center',
+    paddingHorizontal: Space.s20,
+  },
+  cancel: {
+    marginTop: Space.s30,
+    alignSelf: 'center',
+    paddingVertical: Space.s10,
+    paddingHorizontal: Space.s20,
+  },
+  cancelLabel: {
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s10,
+    letterSpacing: 3,
+    color: AM.inkDim,
   },
 });

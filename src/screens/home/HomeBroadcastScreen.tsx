@@ -683,7 +683,7 @@ export default function HomeBroadcastScreen() {
         onSubmit={onSheetSubmit}
       />
 
-      <TuningInOverlay visible={tuning} />
+      <TuningInOverlay visible={tuning} onCancel={() => setTuning(false)} />
     </BroadcastBackdrop>
   );
 }
