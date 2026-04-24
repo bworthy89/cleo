@@ -274,6 +274,7 @@ function PlaylistStep({
               topRule={idx === 0 && !onAskOnay}
               verticalPadding={Space.s16}
               style={tooFew ? styles.playlistRowDisabled : undefined}
+              disabled={tooFew}
               value={
                 <View>
                   <Text
@@ -282,7 +283,7 @@ function PlaylistStep({
                   >
                     {p.name}
                   </Text>
-                  <Text style={[styles.playlistMeta, tooFew && { color: AM.oxblood }]}>
+                  <Text style={[styles.playlistMeta, tooFew && styles.playlistMetaWarn]}>
                     {countText}
                   </Text>
                 </View>
@@ -294,15 +295,7 @@ function PlaylistStep({
                   <Text style={styles.chev}>{'›'}</Text>
                 )
               }
-              onPress={
-                tooFew
-                  ? () => {
-                      Haptics.notificationAsync(
-                        Haptics.NotificationFeedbackType.Warning,
-                      ).catch(() => {});
-                    }
-                  : () => onPick(p.id)
-              }
+              onPress={() => onPick(p.id)}
               accessibilityLabel={accessibilityLabel}
             />
           );
@@ -497,6 +490,7 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     color: AM.inkDim,
   },
+  playlistMetaWarn: { color: AM.oxblood },
 
   // Vibe / length list items
   vibeLabel: {

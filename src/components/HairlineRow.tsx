@@ -19,6 +19,9 @@ interface HairlineRowProps {
   verticalPadding?: number;
   /** Width of the leading column; defaults to auto (content-sized). */
   leadingWidth?: number;
+  /** When true, the row is inert: no haptic, no onPress, Pressable disabled,
+   *  and accessibilityState.disabled is set so VoiceOver announces "dimmed". */
+  disabled?: boolean;
   style?: StyleProp<ViewStyle>;
 }
 
@@ -31,6 +34,7 @@ export function HairlineRow({
   topRule = false,
   verticalPadding = Space.s16,
   leadingWidth,
+  disabled,
   style,
 }: HairlineRowProps) {
   const rowStyle = [
@@ -57,6 +61,7 @@ export function HairlineRow({
   }
 
   const handlePress = () => {
+    if (disabled) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     onPress();
   };
@@ -64,9 +69,11 @@ export function HairlineRow({
   return (
     <Pressable
       onPress={handlePress}
+      disabled={disabled}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
-      style={({ pressed }) => [rowStyle, pressed && { opacity: 0.75 }]}
+      accessibilityState={{ disabled: !!disabled }}
+      style={({ pressed }) => [rowStyle, pressed && !disabled && { opacity: 0.75 }]}
     >
       {content}
     </Pressable>
