@@ -466,7 +466,7 @@ export default function HomeBroadcastScreen() {
 
         {legacyCards.length > 0 && (
           <>
-            <Text style={styles.moreLabel}>MORE FROM ONAY</Text>
+            <SectionMarker num="B·04" title="MORE FROM ONAY" side="ARCHIVE" />
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -704,37 +704,6 @@ const styles = StyleSheet.create({
   rail: {
     paddingVertical: Space.s10,
     paddingRight: Space.s10,
-  },
-
-  moreLabel: {
-    marginTop: Space.s22,
-    marginBottom: Space.s6,
-    color: AM.amber,
-    fontFamily: Fonts.mono,
-    fontSize: TypeScale.s9,
-    letterSpacing: 2.5,
-  },
-
-  featuredEmpty: {
-    marginTop: Space.s22,
-    paddingTop: Space.s22,
-    paddingBottom: Space.s22,
-    borderTopWidth: 1,
-    borderTopColor: AM.amberFaint,
-    gap: Space.s6,
-  },
-  featuredEmptyHead: {
-    fontFamily: Fonts.display,
-    fontSize: TypeScale.s18,
-    color: AM.ink,
-    letterSpacing: 0.5,
-    lineHeight: 22,
-  },
-  featuredEmptySub: {
-    fontFamily: Fonts.mono,
-    fontSize: TypeScale.s10,
-    letterSpacing: 1.5,
-    color: AM.inkDim,
   },
 
   startFresh: {
