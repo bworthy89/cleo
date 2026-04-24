@@ -99,6 +99,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.display,
     fontSize: 13,
     letterSpacing: 0.8,
+    lineHeight: 16,
   },
   labelActive: { color: AM.ink },
   labelInactive: { color: AM.inkMid },

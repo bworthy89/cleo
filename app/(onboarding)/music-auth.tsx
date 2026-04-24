@@ -115,7 +115,7 @@ const styles = StyleSheet.create({
     fontSize: TypeScale.s42,
     color: AM.ink,
     letterSpacing: 0.8,
-    lineHeight: TypeScale.s42 * 0.95,
+    lineHeight: 50,
     textAlign: 'center',
   },
   headlineAmber: {

@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { AM, Fonts, Space, TypeScale } from '../../tokens/design-tokens';
-import { AmberCTA } from '../AmberCTA';
+import { StampButton } from '../crate';
 import { BroadcastBackdrop } from '../BroadcastBackdrop';
 import { HairlineRow } from '../HairlineRow';
 import type { MusicPlaylist } from '../../../modules/expo-music-kit';
@@ -254,18 +254,39 @@ function PlaylistStep({
 
         {playlists.map((p, idx) => {
           const selected = p.id === playlistId;
+          const count = p.trackCount;
+          const tooFew = typeof count === 'number' && count < 5;
+          const countText =
+            typeof count === 'number'
+              ? tooFew
+                ? `${count} TRACKS · NEED 5+`
+                : `${count} TRACKS`
+              : 'TRACKS UNKNOWN';
+          const countLabel = typeof count === 'number' ? `${count} tracks.` : '';
+          const accessibilityLabel = `${p.name}. ${countLabel}${
+            tooFew ? ' Not enough to start a broadcast.' : ''
+          }`
+            .replace(/\s+/g, ' ')
+            .trim();
           return (
             <HairlineRow
               key={p.id}
               topRule={idx === 0 && !onAskOnay}
               verticalPadding={Space.s16}
+              style={tooFew ? styles.playlistRowDisabled : undefined}
+              disabled={tooFew}
               value={
-                <Text
-                  style={[styles.playlistName, selected && styles.playlistNameSelected]}
-                  numberOfLines={1}
-                >
-                  {p.name}
-                </Text>
+                <View>
+                  <Text
+                    style={[styles.playlistName, selected && styles.playlistNameSelected]}
+                    numberOfLines={1}
+                  >
+                    {p.name}
+                  </Text>
+                  <Text style={[styles.playlistMeta, tooFew && styles.playlistMetaWarn]}>
+                    {countText}
+                  </Text>
+                </View>
               }
               trailing={
                 selected ? (
@@ -275,7 +296,7 @@ function PlaylistStep({
                 )
               }
               onPress={() => onPick(p.id)}
-              accessibilityLabel={`Pick playlist ${p.name}`}
+              accessibilityLabel={accessibilityLabel}
             />
           );
         })}
@@ -363,10 +384,13 @@ function LengthStep({
         })}
       </View>
       <View style={{ height: Space.s34 }} />
-      <AmberCTA
-        label="Begin broadcast"
+      <StampButton
+        label="BEGIN BROADCAST"
+        sub="NO SKIPS · SIT WITH IT"
+        kind="amber"
         onPress={onSubmit}
         disabled={!canSubmit}
+        accessibilityLabel="Begin broadcast"
         accessibilityHint={canSubmit ? 'Starts your broadcast' : 'Finish picking a length first'}
       />
     </>
@@ -455,10 +479,22 @@ const styles = StyleSheet.create({
     color: AM.ink,
     letterSpacing: 0.5,
     textTransform: 'uppercase',
+    lineHeight: 20,
   },
   playlistNameSelected: {
     color: AM.amber,
   },
+  playlistRowDisabled: {
+    opacity: 0.5,
+  },
+  playlistMeta: {
+    marginTop: 4,
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s10,
+    letterSpacing: 2,
+    color: AM.inkDim,
+  },
+  playlistMetaWarn: { color: AM.oxblood },
 
   // Vibe / length list items
   vibeLabel: {
@@ -467,6 +503,7 @@ const styles = StyleSheet.create({
     color: AM.inkMid,
     letterSpacing: 0.5,
     textTransform: 'uppercase',
+    lineHeight: 22,
   },
   vibeLabelSelected: {
     color: AM.ink,
@@ -484,6 +521,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.display,
     fontSize: TypeScale.s16,
     color: AM.inkDim,
+    lineHeight: 20,
   },
   selectDot: {
     fontFamily: Fonts.mono,

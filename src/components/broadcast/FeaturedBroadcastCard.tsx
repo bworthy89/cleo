@@ -182,6 +182,7 @@ const styles = StyleSheet.create({
     fontSize: TypeScale.s16,
     color: AM.cream,
     letterSpacing: 2,
+    lineHeight: 19,
   },
   playSub: {
     fontFamily: Fonts.mono,
