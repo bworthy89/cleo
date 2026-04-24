@@ -7,7 +7,7 @@ import * as Haptics from 'expo-haptics';
 import { AM, Fonts, Space, TypeScale } from '../../../src/tokens/design-tokens';
 import { BroadcastBackdrop } from '../../../src/components/BroadcastBackdrop';
 import { TuningInOverlay } from '../../../src/components/broadcast/TuningInOverlay';
-import { Tick, VUMeter, LinerNotes } from '../../../src/components/crate';
+import { Tick, VUMeter } from '../../../src/components/crate';
 import { broadcastPlayer } from '../../../src/engines/BroadcastPlayer.singleton';
 import type { PlayerStatus } from '../../../src/engines/BroadcastPlayer.types';
 import { useAppActive } from '../../../src/hooks/useAppActive';
@@ -243,14 +243,6 @@ export default function BroadcastPlayerScreen() {
         </View>
 
         <Text style={styles.commitment}>NO SKIPS · SIT WITH IT</Text>
-
-        {/* Liner notes — ONAY between tracks */}
-        <View style={styles.linerBlock}>
-          <Text style={styles.linerHeader}>BETWEEN TRACKS</Text>
-          <LinerNotes>
-            Coming up — a Philly Groove single from 1970, and it still hits.
-          </LinerNotes>
-        </View>
 
         {/* Host volume — notched dial */}
         <View style={styles.volumeBlock}>
@@ -515,17 +507,6 @@ const styles = StyleSheet.create({
     fontSize: 8,
     color: AM.inkDim,
     letterSpacing: 3,
-  },
-
-  linerBlock: {
-    marginTop: Space.s30,
-  },
-  linerHeader: {
-    fontFamily: Fonts.mono,
-    fontSize: TypeScale.s9,
-    color: AM.oxblood,
-    letterSpacing: 2.5,
-    marginBottom: Space.s10,
   },
 
   volumeBlock: {
