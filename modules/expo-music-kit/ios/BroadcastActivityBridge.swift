@@ -50,10 +50,16 @@ final class BroadcastActivityBridge {
     }
 
     /// Dismiss the current activity immediately.
+    ///
+    /// Clears `self.activity` BEFORE awaiting `end()` so a concurrent second
+    /// caller (e.g. BroadcastPlayer.end() races the runMainLoop natural-
+    /// completion path) sees `nil` at the guard and bails out — otherwise
+    /// both callers would have captured the same non-nil `activity` and
+    /// double-called `Activity.end`.
     func end() async {
-        guard let activity = activity else { return }
-        await activity.end(nil, dismissalPolicy: .immediate)
+        guard let current = self.activity else { return }
         self.activity = nil
+        await current.end(nil, dismissalPolicy: .immediate)
         print("[BroadcastActivity] ended")
     }
 }
