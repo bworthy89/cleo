@@ -230,7 +230,8 @@ export class BroadcastOrchestrator {
       if (manifest.segmentSlots.length > 1) {
         const backgroundP = this.generateSlotsBackground(manifest, input.userContext, tag)
           .then(() => {
-            handle.endBake({ durationMs: Date.now() - startedAt, status: 'completed' });
+            const status = this.aborted.has(manifest.broadcastId) ? 'aborted' : 'completed';
+            handle.endBake({ durationMs: Date.now() - startedAt, status });
           })
           .catch((err) => {
             handle.endBake({ durationMs: Date.now() - startedAt, status: 'failed' });
@@ -315,6 +316,7 @@ export class BroadcastOrchestrator {
     let nextIndex = 0;
     const runWorker = async (): Promise<void> => {
       while (true) {
+        if (this.aborted.has(manifest.broadcastId)) return;
         const i = nextIndex++;
         if (i >= indices.length) return;
         try {
@@ -346,6 +348,11 @@ export class BroadcastOrchestrator {
         slotIndex,
         prompts,
       });
+      // Cooperative cancellation: if the bake was aborted while this slot's
+      // TTS was in flight, leave the slot's 'aborted' status alone instead of
+      // overwriting it back to 'ready'. The slot's audio bytes are dropped on
+      // the floor — abortBake's whole point is "stop spending on this bake".
+      if (this.aborted.has(manifest.broadcastId)) return urls;
       this.store.updateSlot(manifest.broadcastId, slotIndex, {
         status: 'ready',
         audioUrls: urls,
