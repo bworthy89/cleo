@@ -125,8 +125,13 @@ export default function HomeBroadcastScreen() {
   const [playlistsError, setPlaylistsError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [tuning, setTuning] = useState(false);
+  // Tracks the active bake's AbortController so the TuningInOverlay's onCancel
+  // can call abort() on it. Reset to null only by the *active* attempt's
+  // finally — a stale attempt (one that was superseded by a newer one) leaves
+  // the ref alone; see the abortControllerRef === controller checks inside
+  // playUserSourced. Per-attempt cancel intent lives on the controller's
+  // signal.aborted (synchronously set by .abort()), so no separate flag.
   const abortControllerRef = useRef<AbortController | null>(null);
-  const cancelRequestedRef = useRef<boolean>(false);
   const [recent, setRecent] = useState<BroadcastHistoryEntry[]>([]);
 
   const [broadcastActive, setBroadcastActive] = useState(false);
@@ -281,8 +286,12 @@ export default function HomeBroadcastScreen() {
   }, [playlistId, vibe, length, openSheetAt]);
 
   const playUserSourced = useCallback(async (result: SetupResult) => {
-    abortControllerRef.current = new AbortController();
-    cancelRequestedRef.current = false;
+    // Local controller per attempt — captured in this closure so a later
+    // attempt that overwrites abortControllerRef can't change which signal
+    // *this* attempt's fetch is bound to. signal.aborted is the per-attempt
+    // cancel-intent flag, replacing the prior shared cancelRequestedRef.
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
     setTuning(true);
     try {
       const tracks = await musicKitPlayer.fetchPlaylistTracks(result.playlistId);
@@ -307,7 +316,7 @@ export default function HomeBroadcastScreen() {
             },
             tracks: sanitized,
           },
-          abortControllerRef.current.signal,
+          controller.signal,
         );
       } catch (err) {
         // AbortController.abort() rejects the fetch with an AbortError.
@@ -320,9 +329,20 @@ export default function HomeBroadcastScreen() {
         }
         throw err;
       }
-      // Race: response landed before abort took effect. Fire DELETE to stop
-      // the background slots 1..N, and don't navigate.
-      if (cancelRequestedRef.current) {
+      // Race: response landed before abort took effect. controller.abort()
+      // synchronously sets signal.aborted=true, so this check is reliable
+      // even when the response was already in the resolved-microtask queue.
+      // Per-controller, so a newer attempt that reset abortControllerRef
+      // can't accidentally clear this attempt's cancel intent.
+      if (controller.signal.aborted) {
+        void client.abortBake(response.manifest.broadcastId);
+        return;
+      }
+      // Stale-attempt guard: a newer attempt has superseded this one (user
+      // cancelled and immediately started another bake before our fetch
+      // resolved). Don't navigate away from the new attempt's overlay; clean
+      // up server-side and exit silently.
+      if (abortControllerRef.current !== controller) {
         void client.abortBake(response.manifest.broadcastId);
         return;
       }
@@ -333,6 +353,10 @@ export default function HomeBroadcastScreen() {
         Alert.alert('Broadcast error', msg);
       });
     } catch (err) {
+      // If a newer attempt has superseded this one, swallow the error — the
+      // user has already moved on and an Alert here would pop over the new
+      // attempt's UI.
+      if (abortControllerRef.current !== controller) return;
       if (err instanceof Error && /playable tracks?/i.test(err.message)) {
         Alert.alert(
           'Playlist changed',
@@ -344,8 +368,14 @@ export default function HomeBroadcastScreen() {
       const msg = err instanceof Error ? err.message : 'Try again.';
       Alert.alert('Broadcast unavailable', msg);
     } finally {
-      setTuning(false);
-      abortControllerRef.current = null;
+      // Stale-attempt guard: only the active attempt may clear shared state.
+      // Without this check, attempt A's finally (firing minutes after the
+      // user cancelled and started attempt B) would hide B's TuningInOverlay
+      // and null out B's controller — leaving B uncancellable.
+      if (abortControllerRef.current === controller) {
+        setTuning(false);
+        abortControllerRef.current = null;
+      }
     }
   }, [router, openSheetAt]);
 
@@ -635,6 +665,7 @@ export default function HomeBroadcastScreen() {
                 placeholder="pick a vibe"
                 value={vibe ? VIBE_LABEL[vibe] : null}
                 onPress={() => openSheetAt(1)}
+                testID="home-setup-vibe-row"
               />
               <CatalogRow
                 label="LENGTH"
@@ -732,7 +763,9 @@ export default function HomeBroadcastScreen() {
       <TuningInOverlay
         visible={tuning}
         onCancel={() => {
-          cancelRequestedRef.current = true;
+          // .abort() synchronously sets controller.signal.aborted=true so
+          // the active playUserSourced attempt sees the user's intent on
+          // its next microtask (race-window check or AbortError catch).
           abortControllerRef.current?.abort();
           setTuning(false);
         }}
