@@ -1,0 +1,33 @@
+{
+  "name": "melancholy quick — low-valence emotional arc",
+  "vibe": "melancholy",
+  "length": "quick",
+  "broadcastId": "golden-melancholy-quick",
+  "pool": [
+    { "id": "n0",  "title": "Hush",      "artistName": "NA", "albumTitle": "N1",  "duration": 220,
+      "features": { "tempo": 70, "energy": 0.20, "valence": 0.22, "danceability": 0.28, "acousticness": 0.72, "loudness": 0.28, "instrumentalness": 0.28 } },
+    { "id": "n1",  "title": "Window",    "artistName": "NB", "albumTitle": "N2",  "duration": 230,
+      "features": { "tempo": 74, "energy": 0.24, "valence": 0.20, "danceability": 0.30, "acousticness": 0.66, "loudness": 0.30, "instrumentalness": 0.22 } },
+    { "id": "n2",  "title": "Letter",    "artistName": "NC", "albumTitle": "N3",  "duration": 215,
+      "features": { "tempo": 78, "energy": 0.28, "valence": 0.18, "danceability": 0.32, "acousticness": 0.58, "loudness": 0.34, "instrumentalness": 0.20 } },
+    { "id": "n3",  "title": "Glass",     "artistName": "ND", "albumTitle": "N4",  "duration": 240,
+      "features": { "tempo": 80, "energy": 0.30, "valence": 0.16, "danceability": 0.30, "acousticness": 0.55, "loudness": 0.36, "instrumentalness": 0.20 } },
+    { "id": "n4",  "title": "Storm",     "artistName": "NE", "albumTitle": "N5",  "duration": 225,
+      "features": { "tempo": 84, "energy": 0.40, "valence": 0.16, "danceability": 0.34, "acousticness": 0.48, "loudness": 0.42, "instrumentalness": 0.16 } },
+    { "id": "n5",  "title": "Hold",      "artistName": "NF", "albumTitle": "N6",  "duration": 230,
+      "features": { "tempo": 86, "energy": 0.46, "valence": 0.14, "danceability": 0.36, "acousticness": 0.44, "loudness": 0.46, "instrumentalness": 0.14 } },
+    { "id": "n6",  "title": "Slow",      "artistName": "NG", "albumTitle": "N7",  "duration": 235,
+      "features": { "tempo": 76, "energy": 0.26, "valence": 0.20, "danceability": 0.30, "acousticness": 0.62, "loudness": 0.32, "instrumentalness": 0.24 } },
+    { "id": "n7",  "title": "Settle",    "artistName": "NH", "albumTitle": "N8",  "duration": 245,
+      "features": { "tempo": 68, "energy": 0.18, "valence": 0.26, "danceability": 0.26, "acousticness": 0.74, "loudness": 0.26, "instrumentalness": 0.32 } },
+    { "id": "n8",  "title": "Empty",     "artistName": "NI", "albumTitle": "N9",  "duration": 220,
+      "features": { "tempo": 82, "energy": 0.34, "valence": 0.18, "danceability": 0.32, "acousticness": 0.50, "loudness": 0.40, "instrumentalness": 0.18 } },
+    { "id": "n9",  "title": "Held",      "artistName": "NJ", "albumTitle": "N10", "duration": 235,
+      "features": { "tempo": 72, "energy": 0.22, "valence": 0.24, "danceability": 0.28, "acousticness": 0.68, "loudness": 0.30, "instrumentalness": 0.26 } },
+    { "id": "n10", "title": "Pop",       "artistName": "NK", "albumTitle": "N11", "duration": 200,
+      "features": { "tempo": 115, "energy": 0.70, "valence": 0.78, "danceability": 0.74, "acousticness": 0.20, "loudness": 0.68, "instrumentalness": 0.05 } },
+    { "id": "n11", "title": "Bright",    "artistName": "NL", "albumTitle": "N12", "duration": 210,
+      "features": { "tempo": 120, "energy": 0.75, "valence": 0.82, "danceability": 0.78, "acousticness": 0.15, "loudness": 0.72, "instrumentalness": 0.05 } }
+  ],
+  "expectedOrder": ["n1", "n3", "n4", "n8", "n0"]
+}
