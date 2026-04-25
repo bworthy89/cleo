@@ -294,11 +294,21 @@ describe('BroadcastOrchestrator — sync slot 0 + async slots 1..N', () => {
 });
 
 describe('BroadcastOrchestrator telemetry', () => {
-  it('emits startBake/endSlotZero/endBake on a successful create', async () => {
-    const endSlotZero = jest.fn();
-    const endBake = jest.fn();
-    const startSpy = jest.spyOn(bakeTelemetry, 'startBake').mockReturnValue({ endSlotZero, endBake });
+  let startSpy: jest.SpyInstance;
+  let endSlotZero: jest.Mock;
+  let endBake: jest.Mock;
 
+  beforeEach(() => {
+    endSlotZero = jest.fn();
+    endBake = jest.fn();
+    startSpy = jest.spyOn(bakeTelemetry, 'startBake').mockReturnValue({ endSlotZero, endBake });
+  });
+
+  afterEach(() => {
+    startSpy.mockRestore();
+  });
+
+  it('emits startBake/endSlotZero/endBake on a successful create', async () => {
     // 'quick' requires exactly 5 tracks; preserveOrder skips the sequencer
     // and uses the caller's track order directly.
     const trackPool: ManifestTrack[] = Array.from({ length: 5 }, (_, i) => ({
@@ -331,7 +341,37 @@ describe('BroadcastOrchestrator telemetry', () => {
     expect(endBake).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'completed' }),
     );
+  });
 
-    startSpy.mockRestore();
+  it('emits endBake with status:failed when create throws', async () => {
+    // Stub the sequencer to throw after startBake has already been called.
+    // startBake is invoked at the very top of create(), before the sequencer
+    // runs, so this throw exercises the catch block that closes the span.
+    const throwingSequencer = {
+      sequence: jest.fn().mockRejectedValue(new Error('sequencer boom')),
+    };
+
+    const orch = BroadcastOrchestrator.makeWithDefaults({
+      sequencer: throwingSequencer,
+    });
+
+    await expect(
+      orch.create({
+        userId: 'u1',
+        playlistId: null,
+        vibe: 'lateNight',
+        length: 'quick',
+        userContext: { timeOfDay: '23:00', dayOfWeek: 'Friday', firstTimeUser: false },
+        tracks: Array.from({ length: 5 }, (_, i) => ({
+          id: `t${i}`, title: `Title ${i}`, artistName: `Artist ${i}`,
+          albumTitle: `Album ${i}`, duration: 180,
+        })),
+        // preserveOrder: false so the injected sequencer is actually called
+      }),
+    ).rejects.toThrow('sequencer boom');
+
+    expect(endBake).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'failed' }),
+    );
   });
 });
