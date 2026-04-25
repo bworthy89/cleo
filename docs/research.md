@@ -239,7 +239,7 @@ These are prioritized against the actual code state. Already-shipped items are l
 
 - **WHY:** Already in CLAUDE.md "What's Left." CosyVoice currently runs via `nohup` uvicorn on the LAN box; restarts are manual; if the process dies overnight no alert fires until the next bake hits the F5 fallback. Systemd unit is staged at `~/cosyvoice-server/cosyvoice.service` — install it.
 - **WHAT:** `systemctl enable --now cosyvoice` on <TTS_HOST>. Restart-on-failure, journal logging, auto-start on boot.
-- **HOW:** `systemctl link /home/kari/cosyvoice-server/cosyvoice.service`, then enable + start. Verify via `systemctl status cosyvoice`. Add a simple cron-driven health check that pings `127.0.0.1:8001/healthz` every minute and writes a status file consumed by the public health indicator (MVP-2).
+- **HOW:** `systemctl link /home/kari/cosyvoice-server/cosyvoice.service`, then enable + start. Verify via `systemctl status cosyvoice`. ~~Add a simple cron-driven health check that pings `127.0.0.1:8001/healthz` every minute and writes a status file consumed by the public health indicator (MVP-2).~~ **Superseded by PR #21:** the public health indicator is fed by an in-process 30s loop on the Hostinger VPS (`server/src/providers/tts/index.ts` `HEALTH_CHECK_INTERVAL_MS`) that pings CosyVoice + F5 over the Pangolin tunnel. The in-process check catches both LAN-box-wedged and tunnel-down failures, so the cron + status-file component is no longer needed; see `docs/superpowers/specs/2026-04-24-onay-roadmap-design.md` Phase 1 item 4 for the amended architecture.
 - **COMPETITIVE INSIGHT:** Pure ops; reduces P0 surface area. The LAN box is the structural cost moat; treat it like infrastructure.
 
 ### MVP-7. Onboarding "first-listen" demonstration
