@@ -66,6 +66,7 @@ export function createFeaturedRouter(
   registry: FeaturedBroadcastRegistry,
   orchestrator?: BroadcastOrchestrator,
   bakeLimiter?: RequestHandler,
+  publishBudget?: RequestHandler,
 ): Router {
   const router = Router();
 
@@ -76,6 +77,7 @@ export function createFeaturedRouter(
   if (orchestrator) {
     const publishMiddleware: RequestHandler[] = [
       requireCurator,
+      ...(publishBudget ? [publishBudget] : []),
       ...(bakeLimiter ? [bakeLimiter] : []),
     ];
 
