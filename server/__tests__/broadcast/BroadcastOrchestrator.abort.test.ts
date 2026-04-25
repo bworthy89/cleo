@@ -1,5 +1,13 @@
+import { promises as fs } from 'fs';
+import * as path from 'path';
+import * as os from 'os';
 import { BroadcastOrchestrator } from '@/services/broadcast/BroadcastOrchestrator';
 import { BroadcastStore } from '@/services/broadcast/BroadcastStore';
+import { EnrichmentCache } from '@/services/enrichment/EnrichmentCache';
+import { BackgroundEnricher } from '@/services/enrichment/BackgroundEnricher';
+import { FeatureFetchChain } from '@/services/broadcast/FeatureFetchChain';
+import { makeMockLLM } from '../../__mocks__/llm';
+import type { ObjectStorage } from '@/services/storage/ObjectStorage';
 import type { Manifest } from '@/services/broadcast/types';
 
 function makeManifest(broadcastId: string): Manifest {
@@ -46,5 +54,83 @@ describe('BroadcastOrchestrator.abortBake', () => {
     orch.abortBake('b1');
     const aborted = (orch as unknown as { aborted: Set<string> }).aborted;
     expect(aborted.has('b1')).toBe(true);
+  });
+});
+
+const ORIGINAL_SEQUENCER_MODE = process.env.SEQUENCER_MODE;
+beforeAll(() => { process.env.SEQUENCER_MODE = 'llm'; });
+afterAll(() => {
+  if (ORIGINAL_SEQUENCER_MODE === undefined) delete process.env.SEQUENCER_MODE;
+  else process.env.SEQUENCER_MODE = ORIGINAL_SEQUENCER_MODE;
+});
+
+const SEQUENCER_RESPONSE = JSON.stringify({
+  ordered: ['t0', 't1', 't2', 't3', 't4'],
+});
+
+const noopFetchChain = { fetchBatch: async () => new Map() } as unknown as FeatureFetchChain;
+const makeStorage = (): ObjectStorage => ({
+  put: jest.fn(async (k: string) => `https://cdn/${k}`),
+  getAbsolutePath: jest.fn(),
+});
+
+describe('BroadcastOrchestrator.abortBake — worker integration', () => {
+  it('worker loop exits after abort; remaining slots stay aborted', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'orch-abort-'));
+    const enrichCache = new EnrichmentCache(path.join(tmp, 'tracks.json'));
+    await enrichCache.load();
+    const enricher = new BackgroundEnricher(enrichCache, {
+      fetchGenius: jest.fn(async () => null),
+      fetchMusicBrainz: jest.fn(async () => null),
+      fetchWikipedia: async () => null,
+      fetchLastFm: async () => null,
+    });
+    const store = new BroadcastStore();
+
+    // TTS that takes 50ms per call so we can abort during slot 1's generation.
+    let ttsCallCount = 0;
+    const slowTTS = {
+      synthesize: jest.fn(async () => {
+        ttsCallCount++;
+        await new Promise(r => setTimeout(r, 50));
+        return { audioContent: 'YQ==' };
+      }),
+    };
+
+    const orch = new BroadcastOrchestrator(
+      makeMockLLM(SEQUENCER_RESPONSE), slowTTS, makeStorage(),
+      store, enrichCache, enricher, noopFetchChain,
+    );
+
+    const tracks = Array.from({ length: 5 }, (_, i) => ({
+      id: `t${i}`, title: `T${i}`, artistName: `A${i}`,
+      albumTitle: 'Al', duration: 200,
+    }));
+
+    const createPromise = orch.create({
+      playlistId: 'p1', vibe: 'morning', length: 'quick',
+      tracks, userId: 'u1',
+      userContext: { timeOfDay: '10:00', dayOfWeek: 'Mon', firstTimeUser: false },
+    });
+    const result = await createPromise;
+    const id = result.manifest.broadcastId;
+
+    // Slot 0 has returned but slots 1..N are still in flight. Abort.
+    expect(orch.isInFlight(id)).toBe(true);
+    expect(orch.abortBake(id)).toBe(true);
+
+    // Wait for the background bake to settle.
+    await orch.waitForCompletion(id);
+
+    const finalManifest = store.get(id)!;
+    // At least one pending slot was flipped to aborted.
+    const aborted = finalManifest.segmentSlots.filter(s => s.status === 'aborted');
+    expect(aborted.length).toBeGreaterThan(0);
+    // inFlight + aborted Sets cleaned up.
+    expect(orch.isInFlight(id)).toBe(false);
+    const internalAborted = (orch as unknown as { aborted: Set<string> }).aborted;
+    expect(internalAborted.has(id)).toBe(false);
+
+    await fs.rm(tmp, { recursive: true, force: true });
   });
 });
