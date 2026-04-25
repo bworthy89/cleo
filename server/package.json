@@ -11,7 +11,8 @@
     "start": "node dist/index.js",
     "test": "jest",
     "test:watch": "jest --watch",
-    "bake-featured": "tsx scripts/bake-featured.ts"
+    "bake-featured": "tsx scripts/bake-featured.ts",
+    "eval-sequencer-gate": "tsx scripts/eval-sequencer-gate.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1031.0",
