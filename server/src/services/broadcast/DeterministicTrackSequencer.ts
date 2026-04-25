@@ -11,6 +11,7 @@ import {
 } from './scoring';
 import { seededPRNG } from './prng';
 import { nominateDeepDives } from './deep-dives';
+import { bakeTelemetry } from '../telemetry/BakeTelemetry';
 
 const LENGTH_TO_N: Record<BroadcastLength, number> = {
   quick: 5, standard: 9, long: 15,
@@ -164,5 +165,13 @@ export class DeterministicTrackSequencer implements ITrackSequencer {
       `firstId=${firstId} lastId=${lastId} meanDistance=${meanDistance.toFixed(2)} ` +
       `features: reccobeats=${stats.reccobeats} synthesized=${stats.synthesized} defaults=${stats.defaults}`
     );
+
+    bakeTelemetry.recordSequencerResult({
+      vibe: req.vibe,
+      n: result.length,
+      meanDistance,
+      poolSize: req.pool.length,
+      featureSourceCounts: stats,
+    });
   }
 }
