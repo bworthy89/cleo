@@ -10,6 +10,7 @@ import { makeMockLLM } from '../../__mocks__/llm';
 import { makeMockTTS } from '../../__mocks__/tts';
 import type { ObjectStorage } from '@/services/storage/ObjectStorage';
 import type { ManifestTrack } from '@/services/broadcast/types';
+import { bakeTelemetry } from '@/services/telemetry/BakeTelemetry';
 
 // These tests exercise the LLM sequencer path (mocked LLM returns canned
 // SEQUENCER_RESPONSE). Pin the mode so the orchestrator doesn't fall back to
@@ -289,5 +290,88 @@ describe('BroadcastOrchestrator — sync slot 0 + async slots 1..N', () => {
     // 15 tracks → 9 slots (sparse cadence). Background pool cap is 4.
     expect(maxActive).toBeGreaterThan(1);
     expect(maxActive).toBeLessThanOrEqual(4);
+  });
+});
+
+describe('BroadcastOrchestrator telemetry', () => {
+  let startSpy: jest.SpyInstance;
+  let endSlotZero: jest.Mock;
+  let endBake: jest.Mock;
+
+  beforeEach(() => {
+    endSlotZero = jest.fn();
+    endBake = jest.fn();
+    startSpy = jest.spyOn(bakeTelemetry, 'startBake').mockReturnValue({ endSlotZero, endBake });
+  });
+
+  afterEach(() => {
+    startSpy.mockRestore();
+  });
+
+  it('emits startBake/endSlotZero/endBake on a successful create', async () => {
+    // 'quick' requires exactly 5 tracks; preserveOrder skips the sequencer
+    // and uses the caller's track order directly.
+    const trackPool: ManifestTrack[] = Array.from({ length: 5 }, (_, i) => ({
+      id: `t${i}`, title: `Title ${i}`, artistName: `Artist ${i}`,
+      albumTitle: `Album ${i}`, duration: 180,
+    }));
+
+    const orch = BroadcastOrchestrator.makeWithDefaults();
+
+    const result = await orch.create({
+      userId: 'u1',
+      playlistId: null,
+      vibe: 'lateNight',
+      length: 'quick',
+      userContext: { timeOfDay: '23:00', dayOfWeek: 'Friday', firstTimeUser: false },
+      tracks: trackPool,
+      preserveOrder: true,
+    });
+
+    expect(startSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ vibe: 'lateNight', length: 'quick' }),
+    );
+    expect(endSlotZero).toHaveBeenCalled();
+
+    // endBake fires from the background promise — wait for background slots to settle.
+    // quick/5-track manifest: cold_open + 2 transitions + sign_off = 4 slots;
+    // slots 1..3 run in the background, so waitForCompletion lets endBake fire.
+    await orch.waitForCompletion(result.manifest.broadcastId);
+
+    expect(endBake).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'completed' }),
+    );
+  });
+
+  it('emits endBake with status:failed when create throws', async () => {
+    // Stub the sequencer to throw after startBake has already been called.
+    // startBake is invoked at the very top of create(), before the sequencer
+    // runs, so this throw exercises the catch block that closes the span.
+    const throwingSequencer = {
+      sequence: jest.fn().mockRejectedValue(new Error('sequencer boom')),
+    };
+
+    const orch = BroadcastOrchestrator.makeWithDefaults({
+      sequencer: throwingSequencer,
+    });
+
+    await expect(
+      orch.create({
+        userId: 'u1',
+        playlistId: null,
+        vibe: 'lateNight',
+        length: 'quick',
+        userContext: { timeOfDay: '23:00', dayOfWeek: 'Friday', firstTimeUser: false },
+        tracks: Array.from({ length: 5 }, (_, i) => ({
+          id: `t${i}`, title: `Title ${i}`, artistName: `Artist ${i}`,
+          albumTitle: `Album ${i}`, duration: 180,
+        })),
+        // preserveOrder: false so the injected sequencer is actually called
+      }),
+    ).rejects.toThrow('sequencer boom');
+
+    expect(endBake).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'failed' }),
+    );
   });
 });

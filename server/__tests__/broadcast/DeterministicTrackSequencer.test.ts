@@ -3,6 +3,7 @@ import type { ManifestTrack } from '../../src/services/broadcast/types';
 import { NEUTRAL_FEATURES } from '../../src/services/broadcast/audio-features';
 import type { FeatureFetchChain } from '../../src/services/broadcast/FeatureFetchChain';
 import type { EnrichmentCache } from '../../src/services/enrichment/EnrichmentCache';
+import { bakeTelemetry } from '../../src/services/telemetry/BakeTelemetry';
 
 // Feature-fetch chain that returns deterministic features by track id.
 function makeChain(featureMap: Record<string, Partial<import('../../src/services/broadcast/audio-features').AudioFeatures>>):
@@ -111,5 +112,33 @@ describe('DeterministicTrackSequencer', () => {
     // Ids 0-9 are low-energy; they should dominate a lateNight 5-track set.
     const lowCount = r.orderedTracks.filter((t: ManifestTrack) => Number(t.id) < 10).length;
     expect(lowCount).toBeGreaterThanOrEqual(4);
+  });
+
+  it('emits sequencer-result telemetry with meanDistance and feature-source counts', async () => {
+    const resultSpy = jest.spyOn(bakeTelemetry, 'recordSequencerResult').mockImplementation();
+    try {
+      const s = new DeterministicTrackSequencer(mockEnrich as any, makeChain(features) as any);
+      await s.sequence({
+        pool, vibe: 'lateNight', length: 'quick',
+        userContext: { timeOfDay: '22:00', dayOfWeek: 'Mon' },
+        broadcastId: 'test-abc',
+      });
+
+      expect(resultSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          vibe: 'lateNight',
+          meanDistance: expect.any(Number),
+          n: 5,
+          poolSize: 20,
+          featureSourceCounts: expect.objectContaining({
+            reccobeats: expect.any(Number),
+            synthesized: expect.any(Number),
+            defaults: expect.any(Number),
+          }),
+        }),
+      );
+    } finally {
+      resultSpy.mockRestore();
+    }
   });
 });
