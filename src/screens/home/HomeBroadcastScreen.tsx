@@ -321,9 +321,10 @@ export default function HomeBroadcastScreen() {
       } catch (err) {
         // AbortController.abort() rejects the fetch with an AbortError.
         // The bake may continue server-side as an orphan — accepted tradeoff.
-        if (err instanceof DOMException && err.name === 'AbortError') {
-          return;
-        }
+        // Don't reference DOMException directly — Hermes / older RN can lack
+        // the global; the Error check covers both DOMException (modern spec-
+        // compliant DOMException extends Error) and the plain-Error
+        // AbortError thrown by the whatwg-fetch polyfill.
         if (err instanceof Error && err.name === 'AbortError') {
           return;
         }

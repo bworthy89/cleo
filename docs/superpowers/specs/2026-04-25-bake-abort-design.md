@@ -232,8 +232,10 @@ const playUserSourced = useCallback(async (result: SetupResult) => {
       response = await client.createBroadcast(payload, controller.signal);
     } catch (err) {
       // AbortError from controller.abort(). Server-side bake may continue
-      // as an orphan — accepted tradeoff.
-      if (err instanceof DOMException && err.name === 'AbortError') return;
+      // as an orphan — accepted tradeoff. We don't reference DOMException
+      // directly because Hermes / older RN can lack the global; the Error
+      // check covers both spec-compliant DOMException (extends Error) and
+      // the plain-Error AbortError thrown by the whatwg-fetch polyfill.
       if (err instanceof Error && err.name === 'AbortError') return;
       throw err;
     }
@@ -278,7 +280,7 @@ The overlay's `onCancel` handler is now two lines — `signal.aborted` is set sy
 />
 ```
 
-Two AbortError catch arms (`DOMException` and plain `Error`) cover both fetch implementations (the React Native polyfill historically threw a plain Error with `.name === 'AbortError'`; native fetch throws DOMException). This mirrors the same dual-instanceof guard now used in `src/utils/retry.ts` so `withRetry` doesn't burn through 1s+2s+4s of backoff sleeps before propagating the cancel.
+A single `err instanceof Error && err.name === 'AbortError'` check covers both fetch implementations: native fetch's DOMException extends Error in spec-compliant runtimes, and the whatwg-fetch polyfill throws a plain Error with `name === 'AbortError'`. Referencing `DOMException` directly is avoided because Hermes / older RN can lack the global, which would make the `instanceof DOMException` line throw `ReferenceError` before the check could run. The same guard pattern lives in `src/utils/retry.ts` so `withRetry` doesn't burn through 1s+2s+4s of backoff sleeps before propagating the cancel.
 
 `TuningInOverlay` itself was not restructured. Only its `onCancel` prop's JSDoc was updated to point readers at `HomeBroadcastScreen.playUserSourced` for the actual abort wiring; the overlay is unchanged otherwise.
 
