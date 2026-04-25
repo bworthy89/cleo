@@ -192,29 +192,41 @@ Note: `enrichment.api-timing` does NOT cover ReccoBeats / Deezer — those run i
 
 ### Required dashboard alerts
 
-Configure these in Sentry (Settings → Alerts → Create Alert):
+The three alerts below are codified as alerts-as-config in `server/scripts/sentry-setup-alerts.sh`. Run the script once per Sentry project to create or update them all.
 
-1. **Cartesia fallback rate > 5% in 1 hour**
-   - Trigger: Number of `tts.provider-fallback` events with `tags.to=cartesia` exceeds 5% of total bakes (count of `broadcast.bake` transactions) in a rolling 1-hour window.
-   - Severity: warning.
-   - Action: notify on-call (Slack #onay-alerts).
-   - Reasoning: Cartesia is the paid fallback. Frequent hits = LAN box (CosyVoice on 192.168.8.229) health degraded; investigate before subscriber experience degrades.
+```bash
+export SENTRY_AUTH_TOKEN=<token from sentry.io/settings/account/api/auth-tokens/, scope: project:write + alerts:write>
+export SENTRY_ORG=<org slug>
+export SENTRY_PROJECT=onay-media-server
+./server/scripts/sentry-setup-alerts.sh
+```
 
-2. **Sequencer meanDistance ≥ 0.5 (Phase 1 gate)**
-   - Trigger: `sequencer.result` event with `extra.meanDistance >= 0.5` more than 10% of bakes in 24 hours.
-   - Severity: error.
-   - Action: notify dev (email).
-   - Reasoning: Phase 1 decision gate (issue #20 — meanDistance < 0.5 across all 7 vibes after ReccoBeats integration). Trips → re-brainstorm sequencer redesign before starting Phase 2.
+The script is idempotent — re-running updates existing alerts by name rather than creating duplicates. User ID for email notifications is auto-resolved via `/users/me`.
 
-3. **p95 time-to-slot-zero > 20s**
-   - Trigger: 95th percentile of `bake.time_to_slot_zero_ms` over the last 1 hour exceeds 20000.
-   - Severity: warning.
-   - Action: notify on-call.
-   - Reasoning: Phase 1 success criterion is p95 < 15s. 20s threshold gives headroom but flags trend.
+**Alert 1 — Cartesia fallback rate elevated**
+- Trigger: ≥5 `tts.provider-fallback` events with `tags.to=cartesia` in a rolling 1-hour window.
+- Severity: warning.
+- Action: email the user.
+- Reasoning: Cartesia is the paid fallback. Frequent hits = LAN box (CosyVoice on 192.168.8.229) health degraded; investigate before subscriber experience degrades.
+- Tuning: 5 events/hour is a heuristic; raise once steady-state bake volume is known and 5% of bakes can be expressed in absolute counts.
+
+**Alert 2 — Phase 1 GATE: Sequencer meanDistance ≥ 0.5**
+- Trigger: ≥10 `sequencer.result` events with `tags.poor_fit=true` in a rolling 24-hour window.
+- Severity: error.
+- Action: email the user.
+- Reasoning: Phase 1 decision gate (issue #20 — `meanDistance < 0.5` across all 7 vibes after ReccoBeats integration). Trips → re-brainstorm sequencer redesign before starting Phase 2.
+- Tag-not-extra: Sentry Issue Alerts can't filter on values in `extra.*`, so `BakeTelemetry.recordSequencerResult` writes a binary `poor_fit:true|false` tag at the 0.5 threshold. The exact `meanDistance` value remains in `extra` for dashboards.
+
+**Alert 3 — Bake p95 duration > 20s**
+- Trigger: p95 of `transaction.duration` on `transaction.op:broadcast.bake` exceeds 20000 ms over the last 1-hour window. (Metric Alert — different endpoint from the two Issue Alerts above.)
+- Severity: warning.
+- Action: email the user.
+- Reasoning: Phase 1 success criterion is p95 time-to-slot-zero < 15s. 20s threshold gives headroom but flags trend.
+- **Caveat:** uses overall `transaction.duration` as a proxy — Sentry Metric Alerts can't currently target arbitrary span attributes like `bake.time_to_slot_zero_ms`. Long-bake vibes will skew the p95 upward. Track the proper fix (custom Sentry metric or span-based alert) in issue #23.
 
 ### Setup checklist after first deploy
 
 - [ ] `SENTRY_DSN` set on the production VPS env (not committed to repo).
 - [ ] `SENTRY_TRACES_SAMPLE_RATE` set (recommended: `0.2` initially; tighten down once event volume is calibrated).
-- [ ] Three alerts above configured + on-call Slack webhook attached.
+- [ ] `./server/scripts/sentry-setup-alerts.sh` run successfully (creates the 3 alerts above).
 - [ ] Verified: trigger a bake from a prod TestFlight build; confirm the bake transaction appears in Sentry's Performance tab and `tts.provider-fallback` events appear in Issues when fallback is forced.

@@ -81,9 +81,18 @@ export class BakeTelemetry {
   }
 
   recordSequencerResult(input: SequencerResultInput): void {
+    // Tag poor-fit bakes for the Phase 1 GATE alert (issue #20). Sentry
+    // Issue Alerts can filter on tags but not on extra.* values, so the
+    // GATE evaluator needs this binary signal in tags to drive the alert.
+    // 0.5 here is stricter than DeterministicTrackSequencer's 0.7 warning
+    // log — the warning catches obvious bad fits, the GATE catches drift.
+    const poorFit = input.meanDistance >= 0.5;
     Sentry.captureMessage('sequencer.result', {
       level: 'info',
-      tags: { vibe: input.vibe },
+      tags: {
+        vibe: input.vibe,
+        poor_fit: poorFit ? 'true' : 'false',
+      },
       extra: {
         n: input.n,
         meanDistance: input.meanDistance,
