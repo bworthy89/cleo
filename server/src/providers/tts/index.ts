@@ -6,6 +6,7 @@ import { CosyVoiceProvider } from './cosyvoice';
 import { ElevenLabsProvider } from './elevenlabs';
 import { F5TTSProvider } from './f5tts';
 import { OrpheusProvider } from './orpheus';
+import { bakeTelemetry } from '../../services/telemetry/BakeTelemetry';
 
 export type { TTSRequest, TTSResponse } from './types';
 
@@ -57,7 +58,7 @@ function resolveOrder(): [string, string, string] {
   return [chosen, rest[0] ?? '', rest[1] ?? ''];
 }
 
-class TTSProviderFactory {
+export class TTSProviderFactory {
   private primary: TTSProvider | null = null;
   private fallback: TTSProvider | null = null;
   private tertiary: TTSProvider | null = null;
@@ -160,12 +161,22 @@ class TTSProviderFactory {
         this.primaryHealthy = false;
         if (this.fallback) {
           console.warn(`[TTS] ${provider.name} failed, falling back to ${this.fallback.name}`);
+          bakeTelemetry.recordProviderFallback({
+            from: provider.name,
+            to: this.fallback.name,
+            reason: error instanceof Error ? error.message : String(error),
+          });
           try {
             return await this.fallback.synthesize(request);
           } catch (fallbackError) {
             this.fallbackHealthy = false;
             if (this.tertiary) {
               console.warn(`[TTS] ${this.fallback.name} failed, falling back to ${this.tertiary.name}`);
+              bakeTelemetry.recordProviderFallback({
+                from: this.fallback.name,
+                to: this.tertiary.name,
+                reason: fallbackError instanceof Error ? fallbackError.message : String(fallbackError),
+              });
               return await this.tertiary.synthesize(request);
             }
             throw fallbackError;
@@ -174,6 +185,11 @@ class TTSProviderFactory {
       } else if (provider === this.fallback && this.tertiary) {
         this.fallbackHealthy = false;
         console.warn(`[TTS] ${provider.name} failed, falling back to ${this.tertiary.name}`);
+        bakeTelemetry.recordProviderFallback({
+          from: provider.name,
+          to: this.tertiary.name,
+          reason: error instanceof Error ? error.message : String(error),
+        });
         return await this.tertiary.synthesize(request);
       }
       throw error;
@@ -209,6 +225,33 @@ class TTSProviderFactory {
 
   destroy(): void {
     if (this.healthInterval) clearInterval(this.healthInterval);
+  }
+
+  /**
+   * Test seam — construct a factory with pre-built provider instances, bypassing
+   * env-var resolution and the health-check interval. `primaryHealthy` and
+   * `fallbackHealthy` are pre-set to true so the primary is the active provider
+   * and a thrown error triggers a real fallback transition.
+   */
+  static makeWithProviders(
+    primary: TTSProvider,
+    fallback: TTSProvider,
+    tertiary: TTSProvider,
+  ): TTSProviderFactory {
+    const factory = Object.create(TTSProviderFactory.prototype) as TTSProviderFactory;
+    factory.primary = primary;
+    factory.fallback = fallback;
+    factory.tertiary = tertiary;
+    factory.primaryHealthy = true;
+    factory.fallbackHealthy = true;
+    factory.tertiaryHealthy = true;
+    factory.lastPrimaryCheck = null;
+    factory.lastFallbackCheck = null;
+    factory.lastTertiaryCheck = null;
+    factory.healthInterval = null;
+    (factory as unknown as { order: [string, string, string] }).order =
+      [primary.name, fallback.name, tertiary.name];
+    return factory;
   }
 }
 

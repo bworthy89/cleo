@@ -1,6 +1,24 @@
 import type { EnrichmentCache, EnrichmentRecord } from './EnrichmentCache';
 import type { ManifestTrack } from '../broadcast/types';
 import type { FeatureFetchChain } from '../broadcast/FeatureFetchChain';
+import { bakeTelemetry } from '../telemetry/BakeTelemetry';
+import type { EnrichmentApiTimingInput } from '../telemetry/BakeTelemetry';
+
+async function timed<T>(api: EnrichmentApiTimingInput['api'], fn: () => Promise<T>): Promise<T> {
+  const start = Date.now();
+  try {
+    return await fn();
+  } finally {
+    // Telemetry must never override fn()'s return value or surface as a fetch
+    // failure to enrichOne's outer catch. Sentry.captureMessage is designed not
+    // to throw today, but the guard is cheap and future-proof.
+    try {
+      bakeTelemetry.recordEnrichmentApiTiming({ api, durationMs: Date.now() - start });
+    } catch {
+      // swallow
+    }
+  }
+}
 
 const REFRESH_THRESHOLD_MS = 30 * 24 * 60 * 60 * 1000;
 const FEATURES_VERSION = 1;
@@ -76,10 +94,10 @@ export class BackgroundEnricher {
       return;
     }
     const [genius, mb, wiki, lastfm] = await Promise.all([
-      this.fetcher.fetchGenius(track.title, track.artistName).catch(() => null),
-      this.fetcher.fetchMusicBrainz(track.title, track.artistName).catch(() => null),
-      this.fetcher.fetchWikipedia(track.title, track.artistName).catch(() => null),
-      this.fetcher.fetchLastFm(track.title, track.artistName).catch(() => null),
+      timed('genius', () => this.fetcher.fetchGenius(track.title, track.artistName)).catch(() => null),
+      timed('musicbrainz', () => this.fetcher.fetchMusicBrainz(track.title, track.artistName)).catch(() => null),
+      timed('wikipedia', () => this.fetcher.fetchWikipedia(track.title, track.artistName)).catch(() => null),
+      timed('lastfm', () => this.fetcher.fetchLastFm(track.title, track.artistName)).catch(() => null),
     ]);
     if (!genius && !mb && !wiki && !lastfm) return;
     const merged: Partial<EnrichmentRecord> = {

@@ -85,6 +85,11 @@ R2_PUBLIC_BASE_URL=
 
 # Curator allowlist
 CURATOR_EMAILS=bworthy89@gmail.com
+
+# Sentry observability (Phase 1 telemetry foundation)
+SENTRY_DSN=<from sentry.io project settings>
+SENTRY_TRACES_SAMPLE_RATE=0.2
+SENTRY_RELEASE=<optional; set to ios buildNumber for release tracking>
 ```
 
 **Recommendation:** create a SECOND R2 API token scoped only to this bucket and use those creds on the VPS. Keep the first token for local dev. If either leaks, the other still works.
@@ -172,3 +177,57 @@ Once the new server is proven:
 ssh cleo@<VPS_HOST> 'pm2 stop cleo-api && pm2 delete cleo-api && pm2 save'
 # Leave /home/cleo/cleo-api/ on disk for another month as a safety net
 ```
+
+## Observability — Sentry Alerts
+
+Telemetry events emitted by `BakeTelemetry` (see
+`server/src/services/telemetry/BakeTelemetry.ts`):
+
+- `tts.provider-fallback` (event, level=warning, tags `from`/`to`, extra `reason`) — emitted when TTS chain falls through, e.g., CosyVoice → F5 → Cartesia.
+- `enrichment.api-timing` (event, level=info, tags `api`, extra `durationMs`) — per-API timing for Genius, MusicBrainz, Wikipedia, Last.fm calls inside `BackgroundEnricher.drainNow`.
+- `sequencer.result` (event, level=info, tags `vibe`, extra `meanDistance` + `featureSourceCounts` + `n` + `poolSize`) — emitted once per bake from `DeterministicTrackSequencer.logResult`.
+- Bake span (`broadcast.bake` op, attributes `bake.broadcast_id`, `bake.vibe`, `bake.length`, `bake.time_to_slot_zero_ms`, `bake.time_to_completion_ms`, `bake.status`) — emitted from `BroadcastOrchestrator.create` for every bake; closed on success, failure, or early-exit.
+
+Note: `enrichment.api-timing` does NOT cover ReccoBeats / Deezer — those run inside `FeatureFetchChain.fetchBatch` (a separate concern; future task).
+
+### Required dashboard alerts
+
+The three alerts below are codified as alerts-as-config in `server/scripts/sentry-setup-alerts.sh`. Run the script once per Sentry project to create or update them all.
+
+```bash
+export SENTRY_AUTH_TOKEN=<token from sentry.io/settings/account/api/auth-tokens/, scope: project:write + alerts:write>
+export SENTRY_ORG=<org slug>
+export SENTRY_PROJECT=onay-media-server
+./server/scripts/sentry-setup-alerts.sh
+```
+
+The script is idempotent — re-running updates existing alerts by name rather than creating duplicates. User ID for email notifications is auto-resolved via `/users/me`.
+
+**Alert 1 — Cartesia fallback rate elevated**
+- Trigger: ≥5 `tts.provider-fallback` events with `tags.to=cartesia` in a rolling 1-hour window.
+- Severity: warning.
+- Action: email the user.
+- Reasoning: Cartesia is the paid fallback. Frequent hits = LAN box (CosyVoice on <TTS_HOST>) health degraded; investigate before subscriber experience degrades.
+- Tuning: 5 events/hour is a heuristic; raise once steady-state bake volume is known and 5% of bakes can be expressed in absolute counts.
+
+**Alert 2 — Phase 1 GATE: Sequencer meanDistance ≥ 0.5**
+- Trigger: ≥10 `sequencer.result` events with `tags.poor_fit=true` in a rolling 24-hour window.
+- Severity: error.
+- Action: email the user.
+- Reasoning: Phase 1 decision gate (issue #20 — `meanDistance < 0.5` across all 7 vibes after ReccoBeats integration). Trips → re-brainstorm sequencer redesign before starting Phase 2.
+- Tag-not-extra: Sentry Issue Alerts can't filter on values in `extra.*`, so `BakeTelemetry.recordSequencerResult` writes a binary `poor_fit:true|false` tag at the 0.5 threshold. The exact `meanDistance` value remains in `extra` for dashboards.
+
+**Alert 3 — Bake p95 duration > 20s** (Metric Alert)
+- Trigger: p95 of `transaction.duration` on `transaction.op:broadcast.bake` exceeds 20000 ms over the last 1-hour window.
+- Severity: warning.
+- Action: email the user.
+- Reasoning: Phase 1 success criterion is p95 time-to-slot-zero < 15s. 20s threshold gives headroom but flags trend.
+- **Plan gating:** Sentry's free Developer plan does NOT include Metric Alerts; they require Team plan or higher. The setup script auto-skips this alert on 404 from the metric-alerts API and logs `[metric] skip — endpoint 404 (metric alerts not available on this plan/token)`. Re-run the script after a plan upgrade and it'll create the alert idempotently.
+- **Caveat:** uses overall `transaction.duration` as a proxy — Sentry Metric Alerts can't currently target arbitrary span attributes like `bake.time_to_slot_zero_ms`. Long-bake vibes will skew the p95 upward. Track the proper fix (custom Sentry metric or span-based alert) in issue #23.
+
+### Setup checklist after first deploy
+
+- [ ] `SENTRY_DSN` set on the production VPS env (not committed to repo).
+- [ ] `SENTRY_TRACES_SAMPLE_RATE` set (recommended: `0.2` initially; tighten down once event volume is calibrated).
+- [ ] `./server/scripts/sentry-setup-alerts.sh` run successfully (creates the 3 alerts above).
+- [ ] Verified: trigger a bake from a prod TestFlight build; confirm the bake transaction appears in Sentry's Performance tab and `tts.provider-fallback` events appear in Issues when fallback is forced.

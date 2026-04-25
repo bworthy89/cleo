@@ -1,4 +1,15 @@
 import 'dotenv/config';
+import * as Sentry from '@sentry/node';
+
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.NODE_ENV ?? 'development',
+    tracesSampleRate: Number(process.env.SENTRY_TRACES_SAMPLE_RATE ?? '0.2'),
+    release: process.env.SENTRY_RELEASE,
+  });
+}
+
 import * as path from 'path';
 import express from 'express';
 import cors from 'cors';
@@ -11,6 +22,7 @@ import { curationRouter } from './routes/curation';
 import { createBroadcastRouter } from './routes/broadcast';
 import { createFeaturedRouter } from './routes/featured';
 import { createAdminRouter } from './routes/admin';
+import { createPublicHealthRouter } from './routes/health';
 import { requireAuth } from './middleware/auth';
 import { llmProvider } from './providers/llm';
 import { ttsProvider } from './providers/tts';
@@ -139,6 +151,13 @@ async function bootstrap(): Promise<void> {
     enrichmentCache, backgroundEnricher, featureFetchChain,
   );
 
+  // Public health endpoint — unauthenticated, synthesizes TTS + bake-queue status.
+  // Mounted before requireAuth so the in-app status banner can read it without a JWT.
+  app.use(createPublicHealthRouter({
+    getTtsStatus: () => ttsProvider.getStatus(),
+    getInFlightCount: () => broadcastOrchestrator.inFlightCount,
+  }));
+
   // Admin surface — mounted FIRST so /admin/* is claimed by adminRouter's
   // own gate (X-Admin-Token or Firebase+curator) before the global
   // requireAuth middleware on the other routers below would fire on every
@@ -196,6 +215,12 @@ async function bootstrap(): Promise<void> {
       }
     });
   }
+
+  // Sentry error handler — must come AFTER all routes but BEFORE app.listen
+  // so route handlers that throw or call next(err) get captured. Without
+  // this, 5xx errors are swallowed by Express's default 500 handler and
+  // never reach Sentry.
+  Sentry.setupExpressErrorHandler(app);
 
   const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`Cleo server running on 0.0.0.0:${PORT}`);
