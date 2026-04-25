@@ -42,6 +42,10 @@ export interface SequenceResult {
   orderedTracks: ManifestTrack[];
   featureSlots: number[];
   source: 'deterministic';
+  /** Average weighted L2 distance from each chosen track to its slot's
+   *  vibe-curve target. Lower is a better fit. The Phase 1 GATE
+   *  (issue #20) closes when this is < 0.5 across all 7 vibes. */
+  meanDistance: number;
 }
 
 interface ScoredTrack {
@@ -137,6 +141,7 @@ export class DeterministicTrackSequencer implements ITrackSequencer {
       orderedTracks: result,
       featureSlots,
       source: 'deterministic',
+      meanDistance,
     };
   }
 
