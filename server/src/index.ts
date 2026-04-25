@@ -22,6 +22,7 @@ import { curationRouter } from './routes/curation';
 import { createBroadcastRouter } from './routes/broadcast';
 import { createFeaturedRouter } from './routes/featured';
 import { createAdminRouter } from './routes/admin';
+import { createPublicHealthRouter } from './routes/health';
 import { requireAuth } from './middleware/auth';
 import { llmProvider } from './providers/llm';
 import { ttsProvider } from './providers/tts';
@@ -149,6 +150,13 @@ async function bootstrap(): Promise<void> {
     llmProvider, ttsProvider, broadcastStorage, broadcastStore,
     enrichmentCache, backgroundEnricher, featureFetchChain,
   );
+
+  // Public health endpoint — unauthenticated, synthesizes TTS + bake-queue status.
+  // Mounted before requireAuth so the in-app status banner can read it without a JWT.
+  app.use(createPublicHealthRouter({
+    getTtsStatus: () => ttsProvider.getStatus(),
+    getInFlightCount: () => broadcastOrchestrator.inFlightCount,
+  }));
 
   // Admin surface — mounted FIRST so /admin/* is claimed by adminRouter's
   // own gate (X-Admin-Token or Firebase+curator) before the global
