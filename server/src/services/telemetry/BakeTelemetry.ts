@@ -108,6 +108,9 @@ export class BakeTelemetry {
     });
   }
 
+  // uid in tags so Sentry alert rules can filter on a specific
+  // curator; current and retryAfterMs in extra (diagnostic only,
+  // not filterable in alert rules).
   recordPublishCapHit(input: PublishCapHitInput): void {
     Sentry.captureMessage('curator.publish-cap-hit', {
       level: 'warning',
