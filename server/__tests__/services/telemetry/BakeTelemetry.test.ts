@@ -123,4 +123,52 @@ describe('BakeTelemetry', () => {
       }),
     );
   });
+
+  it('recordSequencerResult tags poor_fit:true when meanDistance >= 0.5', () => {
+    telemetry.recordSequencerResult({
+      vibe: 'late-night',
+      n: 5,
+      meanDistance: 0.62,
+      poolSize: 20,
+      featureSourceCounts: { reccobeats: 4, defaults: 1 },
+    });
+    expect(Sentry.captureMessage).toHaveBeenCalledWith(
+      'sequencer.result',
+      expect.objectContaining({
+        tags: expect.objectContaining({ poor_fit: 'true' }),
+      }),
+    );
+  });
+
+  it('recordSequencerResult tags poor_fit:false when meanDistance < 0.5', () => {
+    telemetry.recordSequencerResult({
+      vibe: 'lush',
+      n: 9,
+      meanDistance: 0.31,
+      poolSize: 50,
+      featureSourceCounts: { reccobeats: 7, deezer: 2 },
+    });
+    expect(Sentry.captureMessage).toHaveBeenCalledWith(
+      'sequencer.result',
+      expect.objectContaining({
+        tags: expect.objectContaining({ poor_fit: 'false' }),
+      }),
+    );
+  });
+
+  it('recordSequencerResult tags poor_fit:true at exact 0.5 boundary', () => {
+    telemetry.recordSequencerResult({
+      vibe: 'amber',
+      n: 5,
+      meanDistance: 0.5,
+      poolSize: 20,
+      featureSourceCounts: { reccobeats: 5 },
+    });
+    expect(Sentry.captureMessage).toHaveBeenCalledWith(
+      'sequencer.result',
+      expect.objectContaining({
+        tags: expect.objectContaining({ poor_fit: 'true' }),
+      }),
+    );
+  });
 });
