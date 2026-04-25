@@ -54,6 +54,13 @@ export class BroadcastOrchestrator {
    */
   private readonly inFlight = new Map<string, Promise<void>>();
 
+  /**
+   * Broadcasts whose background bake has been signalled to stop. Workers
+   * check this Set between slot generations and exit. Cleared in the same
+   * .finally that clears `inFlight`.
+   */
+  private readonly aborted = new Set<string>();
+
   constructor(
     llm: LLMCaller,
     tts: TTSCaller,
@@ -229,7 +236,10 @@ export class BroadcastOrchestrator {
             handle.endBake({ durationMs: Date.now() - startedAt, status: 'failed' });
             throw err;
           })
-          .finally(() => { this.inFlight.delete(manifest.broadcastId); });
+          .finally(() => {
+            this.inFlight.delete(manifest.broadcastId);
+            this.aborted.delete(manifest.broadcastId);
+          });
         this.inFlight.set(manifest.broadcastId, backgroundP);
       } else {
         // Single-slot manifest: no background work, close the span now.
@@ -268,6 +278,23 @@ export class BroadcastOrchestrator {
    *  Used by the admin status endpoint as a liveness signal. */
   get inFlightCount(): number {
     return this.inFlight.size;
+  }
+
+  /**
+   * Cooperative cancellation. Flips the abort flag and marks all pending
+   * slots in the store as 'aborted' so client polling picks up the new
+   * state. The 4-worker pool's loop check (in generateSlotsBackground) will
+   * then exit on its next iteration; the in-flight TTS call holding the
+   * lock is allowed to finish naturally — its slot becomes 'ready'.
+   *
+   * Idempotent: returns false when there is no in-flight bake (already
+   * completed, never created, or already aborted-and-evicted).
+   */
+  abortBake(broadcastId: string): boolean {
+    if (!this.inFlight.has(broadcastId)) return false;
+    this.aborted.add(broadcastId);
+    this.store.markPendingSlotsAborted(broadcastId);
+    return true;
   }
 
   /** Read the current manifest state (slots include their latest status + urls). */
