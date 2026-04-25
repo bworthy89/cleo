@@ -62,10 +62,22 @@ const publishSchema = z.object({
   }
 });
 
+/**
+ * Builds the featured-broadcasts router. The publish route mounts only
+ * when `orchestrator` is supplied; otherwise the router exposes the
+ * read-only `GET /broadcast/featured` endpoint alone.
+ *
+ * @param registry - featured broadcast registry (required)
+ * @param orchestrator - bake orchestrator; omit to skip the publish route
+ * @param bakeLimiter - per-minute generation rate limiter (shared across users)
+ * @param publishBudget - per-curator rolling daily cap; runs after requireCurator
+ *   and before bakeLimiter so exhausted curators don't consume shared capacity
+ */
 export function createFeaturedRouter(
   registry: FeaturedBroadcastRegistry,
   orchestrator?: BroadcastOrchestrator,
   bakeLimiter?: RequestHandler,
+  publishBudget?: RequestHandler,
 ): Router {
   const router = Router();
 
@@ -76,6 +88,7 @@ export function createFeaturedRouter(
   if (orchestrator) {
     const publishMiddleware: RequestHandler[] = [
       requireCurator,
+      ...(publishBudget ? [publishBudget] : []),
       ...(bakeLimiter ? [bakeLimiter] : []),
     ];
 

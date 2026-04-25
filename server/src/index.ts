@@ -37,6 +37,7 @@ import { ReccoBeatsFetcher } from './services/enrichment/fetchers/ReccoBeatsFetc
 import { DeezerFeaturesFetcher } from './services/enrichment/fetchers/DeezerFeaturesFetcher';
 import { FeatureFetchChain } from './services/broadcast/FeatureFetchChain';
 import { gracefulShutdown } from './shutdown';
+import { CuratorPublishBudget, makeCuratorPublishBudgetMiddleware } from './services/curator/CuratorPublishBudget';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3001;
@@ -86,6 +87,26 @@ const enrichmentLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
+
+function parsePositiveInt(raw: string | undefined, fallback: number, name: string): number {
+  if (raw === undefined || raw === '') return fallback;
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n) || n <= 0) {
+    console.warn(`[env] ${name}="${raw}" is not a positive integer; using default ${fallback}`);
+    return fallback;
+  }
+  return n;
+}
+
+const curatorPublishBudget = new CuratorPublishBudget({
+  capPerWindow: parsePositiveInt(process.env.CURATOR_PUBLISH_CAP, 3, 'CURATOR_PUBLISH_CAP'),
+  windowMs: parsePositiveInt(
+    process.env.CURATOR_PUBLISH_WINDOW_MS,
+    24 * 60 * 60 * 1000,
+    'CURATOR_PUBLISH_WINDOW_MS',
+  ),
+});
+const curatorPublishBudgetMiddleware = makeCuratorPublishBudgetMiddleware(curatorPublishBudget);
 
 // Health check — detailed provider info only for authenticated requests
 app.get('/health', async (req, res) => {
@@ -186,7 +207,14 @@ async function bootstrap(): Promise<void> {
     path.resolve(__dirname, '../featured-broadcasts/registry.json'),
   );
   featuredRegistry.load().catch(err => console.error('[featured] registry load failed', err));
-  app.use(requireAuth, createFeaturedRouter(featuredRegistry, broadcastOrchestrator, generationLimiter));
+  // createFeaturedRouter args: registry, orchestrator, bakeLimiter, publishBudget.
+  // Both middlewares are RequestHandler | undefined so TS won't catch a swap.
+  app.use(requireAuth, createFeaturedRouter(
+    featuredRegistry,
+    broadcastOrchestrator,
+    generationLimiter,
+    curatorPublishBudgetMiddleware,
+  ));
 
   // Static asset serving for broadcast audio — only when the storage backend
   // serves bytes from a local path (dev). Remote backends (R2) embed the URL
