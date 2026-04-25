@@ -33,7 +33,13 @@
     { "id": "f13", "title": "PoppedOut",  "artistName": "FN", "albumTitle": "F14", "duration": 215,
       "features": { "tempo": 110, "energy": 0.65, "valence": 0.70, "danceability": 0.60, "acousticness": 0.20, "loudness": 0.65, "instrumentalness": 0.10 } },
     { "id": "f14", "title": "Loud",       "artistName": "FO", "albumTitle": "F15", "duration": 210,
-      "features": { "tempo": 120, "energy": 0.75, "valence": 0.75, "danceability": 0.70, "acousticness": 0.15, "loudness": 0.75, "instrumentalness": 0.05 } }
+      "features": { "tempo": 120, "energy": 0.75, "valence": 0.75, "danceability": 0.70, "acousticness": 0.15, "loudness": 0.75, "instrumentalness": 0.05 } },
+    { "id": "f15", "title": "Slope",     "artistName": "FP", "albumTitle": "F16", "duration": 240,
+      "features": { "tempo": 87, "energy": 0.32, "valence": 0.50, "danceability": 0.34, "acousticness": 0.50, "loudness": 0.38, "instrumentalness": 0.78 } },
+    { "id": "f16", "title": "Patina",    "artistName": "FQ", "albumTitle": "F17", "duration": 235,
+      "features": { "tempo": 91, "energy": 0.36, "valence": 0.50, "danceability": 0.36, "acousticness": 0.46, "loudness": 0.42, "instrumentalness": 0.74 } },
+    { "id": "f17", "title": "Veil",      "artistName": "FR", "albumTitle": "F18", "duration": 245,
+      "features": { "tempo": 89, "energy": 0.34, "valence": 0.50, "danceability": 0.34, "acousticness": 0.48, "loudness": 0.40, "instrumentalness": 0.80 } }
   ],
-  "expectedOrder": ["f8", "f1", "f9", "f4", "f10", "f7", "f3", "f5", "f2", "f0", "f11", "f12", "f14", "f6", "f13"]
+  "expectedOrder": ["f15", "f1", "f9", "f16", "f4", "f5", "f3", "f7", "f10", "f8", "f17", "f2", "f0", "f11", "f12"]
 }
