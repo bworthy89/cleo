@@ -41,7 +41,7 @@ describe('R2ObjectStorage', () => {
 
     expect(uploader.signs).toHaveLength(1);
     expect(uploader.signs[0].key).toBe('a/b.mp3');
-    expect(uploader.signs[0].ttlSeconds).toBe(7 * 24 * 60 * 60);
+    expect(uploader.signs[0].ttlSeconds).toBe(24 * 60 * 60);
     expect(url).toContain('https://signed.example/a/b.mp3');
   });
 
