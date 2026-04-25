@@ -196,44 +196,74 @@ export async function abortBake(broadcastId: string): Promise<void> {
 }
 ```
 
-### `SetupSheet` cancel UI
+### Client cancel UI: `HomeBroadcastScreen` + `TuningInOverlay`
 
-Cancel button: rendered inside the existing loading state, below the "ONAY is curating…" copy. Hidden for the first ~500ms to avoid flicker on warm-cache fast responses.
+Cancel ownership lives in `HomeBroadcastScreen`, not `SetupSheet`. The flow:
+
+1. User taps the final SetupSheet CTA. `SetupSheet` calls `onSubmit({ playlistId, vibe, length })` — its only job is to bubble the result up.
+2. `HomeBroadcastScreen.onSheetSubmit` immediately closes the sheet (`setSheetOpen(false)`) and invokes `playUserSourced(result)`.
+3. `playUserSourced` sets `tuning = true`, which mounts `<TuningInOverlay visible onCancel={…} />`. The overlay is full-bleed (`StyleSheet.absoluteFillObject`, `pointerEvents='auto'`) so it covers the home screen until cancel or response.
+4. The overlay already renders a Pressable labeled "TAKE IT BACK" whenever `onCancel` is provided. That same Pressable now fires the abort.
+
+There is **no backdrop-tap, swipe-down, or back-button dismiss interception**. The overlay does not surface those gestures; the explicit button tap is the only user-driven cancel trigger.
+
+State and signal plumbing in `HomeBroadcastScreen`:
 
 ```tsx
-const controllerRef = useRef<AbortController | null>(null);
-const cancelRequestedRef = useRef(false);
+const abortControllerRef = useRef<AbortController | null>(null);
+const cancelRequestedRef = useRef<boolean>(false);
 
-const handleCancel = () => {
-  cancelRequestedRef.current = true;
-  controllerRef.current?.abort();
-};
-
-const handleSubmit = async () => {
-  controllerRef.current = new AbortController();
+const playUserSourced = useCallback(async (result: SetupResult) => {
+  abortControllerRef.current = new AbortController();
   cancelRequestedRef.current = false;
-  let response: BroadcastCreateResponse | null = null;
+  setTuning(true);
   try {
-    response = await createBroadcast(payload, controllerRef.current.signal);
-  } catch (err) {
-    if (err instanceof DOMException && err.name === 'AbortError') {
-      // Orphan bake on server; nothing more we can do.
-      onDismiss();
+    // ... fetchPlaylistTracks, sanitize, length-check ...
+    let response;
+    try {
+      response = await client.createBroadcast(payload, abortControllerRef.current.signal);
+    } catch (err) {
+      // AbortController.abort() rejects the fetch with AbortError. The bake
+      // may continue server-side as an orphan — accepted tradeoff.
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      if (err instanceof Error && err.name === 'AbortError') return;
+      throw err;
+    }
+    // Race: response landed before abort took effect. Fire DELETE to stop the
+    // background slots 1..N, and don't navigate.
+    if (cancelRequestedRef.current) {
+      void client.abortBake(response.manifest.broadcastId);
       return;
     }
-    throw err;
+    router.push('/(main)/(broadcast)/player');
+    broadcastPlayer.start(response.manifest, response.firstSegmentUrls);
+  } catch (err) {
+    // ... existing playable-tracks / generic-error Alerts ...
+  } finally {
+    setTuning(false);
+    abortControllerRef.current = null;
   }
-  if (cancelRequestedRef.current && response.manifest.broadcastId) {
-    // Race resolved against us: response landed before abort took effect.
-    abortBake(response.manifest.broadcastId);
-    onDismiss();
-    return;
-  }
-  navigateToPlayer(response);
-};
+}, [router, openSheetAt]);
 ```
 
-Dismiss interception: wire `handleCancel()` into the existing back-button / swipe-down / backdrop-tap handlers when `isLoading === true`. When `isLoading === false`, those gestures dismiss normally without firing abort.
+The overlay's `onCancel` handler does three things in this order:
+
+```tsx
+<TuningInOverlay
+  visible={tuning}
+  onCancel={() => {
+    cancelRequestedRef.current = true;
+    abortControllerRef.current?.abort();
+    setTuning(false);
+  }}
+/>
+```
+
+Order matters: `cancelRequestedRef` is flipped *before* `abort()` so the post-success race check (`if (cancelRequestedRef.current) abortBake(...)`) inside `playUserSourced` reliably observes the user's intent even when the response landed before `abort()` took effect.
+
+Two AbortError catch arms (`DOMException` and plain `Error`) cover both fetch implementations (the React Native polyfill historically threw a plain Error with `.name === 'AbortError'`; native fetch throws DOMException). This mirrors the same dual-instanceof guard now used in `src/utils/retry.ts` so `withRetry` doesn't burn through 1s+2s+4s of backoff sleeps before propagating the cancel.
+
+`TuningInOverlay` itself was not restructured. Only its `onCancel` prop's JSDoc was updated to point readers at `HomeBroadcastScreen.playUserSourced` for the actual abort wiring; the overlay is unchanged otherwise.
 
 ## Error handling and edge cases
 
