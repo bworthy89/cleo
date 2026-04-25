@@ -27,11 +27,16 @@ export class CuratorPublishBudget {
 
   tryReserve(uid: string): ReserveResult {
     const now = this.clock();
-    const list = this.entries.get(uid) ?? [];
+    const cutoff = now - this.windowMs;
+    const existing = this.entries.get(uid) ?? [];
+    // Drop entries on or before the cutoff (rolling window: an entry
+    // exactly windowMs old is no longer "in the window").
+    const list = existing.filter(t => t > cutoff);
 
     if (list.length >= this.capPerWindow) {
       const oldest = list[0];
       const retryAfterMs = oldest + this.windowMs - now;
+      this.entries.set(uid, list); // persist the pruned list
       return { ok: false, retryAfterMs, current: list.length };
     }
 
