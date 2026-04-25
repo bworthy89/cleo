@@ -55,7 +55,7 @@ function stubDeps(logDir: string): {
 } {
   return {
     store: { size: () => 3 } as unknown as BroadcastStore,
-    orch: { inFlightCount: () => 1 } as unknown as BroadcastOrchestrator,
+    orch: { inFlightCount: 1 } as unknown as BroadcastOrchestrator,
     llm: { getStatus: () => ({ primary: 'gemini', healthy: true }) },
     tts: { getStatus: () => ({ primary: 'cosyvoice', healthy: true }) },
   };
