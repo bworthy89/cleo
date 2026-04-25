@@ -8,7 +8,12 @@ export interface HealthStatus {
   status: ComponentStatus;
   checkedAt: string;
   components: {
-    tts: { status: ComponentStatus; active: string };
+    tts: {
+      status: ComponentStatus;
+      active: string;
+      primary: { name: string; healthy: boolean };
+      fallback: { name: string; healthy: boolean };
+    };
     bake: { status: ComponentStatus; queueDepth: number };
   };
 }
