@@ -45,7 +45,7 @@ DELETE /broadcast/:id
 
 The 4-worker pool's `runWorker` loop checks `this.aborted.has(broadcastId)` at the top of each iteration. On flag set, every worker exits cleanly on its next iteration. `Promise.all(workers)` resolves; the existing `.finally(() => this.inFlight.delete(id))` runs paired with `this.aborted.delete(id)` so the Set doesn't grow.
 
-The slot the worker happens to be inside at abort time finishes its TTS call and is recorded as `'ready'`. Subsequent slots short-circuit to `'aborted'` (already marked by `markPendingSlotsAborted`).
+In-flight TTS calls finish naturally (CosyVoice/F5 are blocked on their wrapper `asyncio.Lock`; we don't interrupt them — we just let them complete on the LAN box and discard the result). `generateSlot` carries a second abort check after `generator.generateVariants` returns: if the broadcast was aborted while the TTS was in flight, the slot stays `'aborted'` (set by `markPendingSlotsAborted`) and the would-be `'ready'` write is skipped. From the client's perspective, abort is binary — every pending slot at the moment the user tapped cancel becomes `'aborted'`, none accidentally flips back to `'ready'`. The cost of the in-flight TTS call is paid (we can't refund it once the request hit the LAN box) but the result never makes it into the manifest.
 
 ### Client flow
 
@@ -64,7 +64,7 @@ SetupSheet — POST /broadcast/create in flight
   └─ dismiss SetupSheet, no error toast (cancel was intentional)
 ```
 
-The race-window DELETE matters — a fast warm-cache response can land between the user's tap and the abort taking effect. Without it, the background bake of slots 1..N would run uselessly. With it, slot 0 plus the in-flight slot complete and everything else is short-circuited.
+The race-window DELETE matters — a fast warm-cache response can land between the user's tap and the abort taking effect. Without it, the background bake of slots 1..N would run uselessly. With it, slot 0 has already been delivered as part of the response (the user paid for it whether they navigate or not), and every subsequent pending slot becomes `'aborted'` regardless of whether its TTS was already in flight when abort fired.
 
 ## Files touched
 
@@ -115,7 +115,7 @@ abortBake(broadcastId: string): boolean {
 
 Returns `true` if abort was applied, `false` if there was no in-flight bake (idempotent — the route returns 204 either way).
 
-### Worker-loop check
+### Worker-loop check + post-TTS guard
 
 Inside `generateSlotsBackground`, the existing `runWorker`:
 
@@ -133,6 +133,19 @@ const runWorker = async (): Promise<void> => {
   }
 };
 ```
+
+A second guard inside `generateSlot`, after the TTS call returns and before the success-path `store.updateSlot({ status: 'ready', ... })` write:
+
+```ts
+const urls = await this.generator.generateVariants({ ... });
+if (this.aborted.has(manifest.broadcastId)) return urls;  // ← new
+this.store.updateSlot(manifest.broadcastId, slotIndex, {
+  status: 'ready',
+  audioUrls: urls,
+});
+```
+
+Why both guards are needed: with `SEGMENT_CONCURRENCY=4` and a small bake (e.g., 5 tracks → 3 background slots), all 3 workers grab their slot indices on their first loop iteration before the abort flag is set. If the only check is at the top of the loop, every worker still finishes its first iteration — TTS resolves, `updateSlot({ status: 'ready' })` overwrites the `'aborted'` that `markPendingSlotsAborted` had set. The post-TTS guard catches that race and ensures the in-flight slot also stays `'aborted'`.
 
 Telemetry: in the `backgroundP` chain in `create()`, branch on whether abort was set when the promise resolved:
 
@@ -234,7 +247,8 @@ Dismiss interception: wire `handleCancel()` into the existing back-button / swip
 | Cancel-tap as POST resolves (race) | Fetch resolves with broadcastId; client fires DELETE; background slots short-circuit |
 | Cancel-tap after navigate to `/player` | Cannot happen — no cancel UI on `/player` |
 | App backgrounded mid-bake | No DELETE; background bake continues |
-| Cold-open TTS in flight at abort time | Finishes naturally; slot 0 is still `'ready'`; remaining slots are `'aborted'` |
+| Cold-open TTS in flight at abort time | Cannot happen — slot 0 is awaited synchronously inside `POST /broadcast/create` and returns to the client before the broadcastId is known. There is no DELETE path that can fire during slot 0. |
+| Background-slot TTS in flight at abort time | TTS call completes naturally on the LAN box (we don't interrupt it), but the result is discarded — the post-TTS guard skips the `'ready'` write and the slot stays `'aborted'`. |
 
 ## Testing
 
@@ -245,7 +259,7 @@ Dismiss interception: wire `handleCancel()` into the existing back-button / swip
   - `abortBake is idempotent across multiple calls`
   - `abortBake on completed broadcast returns false; manifest unchanged`
   - `abortBake on unknown broadcastId returns false`
-  - `in-flight TTS call completes naturally — its slot ends 'ready' even after abort`
+  - `in-flight TTS call completes naturally on the LAN box but its result is discarded — slot stays 'aborted'`
   - `aborted Set is cleaned up by .finally after worker exit`
   - `telemetry endBake fires with status='aborted' when abort triggered`
 
