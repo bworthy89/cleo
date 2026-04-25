@@ -54,11 +54,10 @@ export class BakeTelemetry {
 
     return {
       endSlotZero(durationMs: number) {
-        Sentry.setMeasurement('bake.time_to_slot_zero_ms', durationMs, 'millisecond');
         span?.setAttribute('bake.time_to_slot_zero_ms', durationMs);
       },
       endBake(end: BakeEndInput) {
-        Sentry.setMeasurement('bake.time_to_completion_ms', end.durationMs, 'millisecond');
+        span?.setAttribute('bake.time_to_completion_ms', end.durationMs);
         span?.setAttribute('bake.status', end.status);
         span?.end();
       },
@@ -74,11 +73,11 @@ export class BakeTelemetry {
   }
 
   recordEnrichmentApiTiming(input: EnrichmentApiTimingInput): void {
-    Sentry.setMeasurement(
-      `enrichment.${input.api}_ms`,
-      input.durationMs,
-      'millisecond',
-    );
+    Sentry.captureMessage('enrichment.api-timing', {
+      level: 'info',
+      tags: { api: input.api },
+      extra: { durationMs: input.durationMs },
+    });
   }
 
   recordSequencerResult(input: SequencerResultInput): void {
@@ -95,5 +94,5 @@ export class BakeTelemetry {
   }
 }
 
-/** Module-level singleton — one Sentry hub per process. */
+/** Module-level singleton — consumers import `bakeTelemetry` rather than constructing their own instance. */
 export const bakeTelemetry = new BakeTelemetry();
