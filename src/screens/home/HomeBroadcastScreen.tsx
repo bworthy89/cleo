@@ -44,6 +44,7 @@ import {
   type BroadcastHistoryEntry,
 } from '../../services/Storage';
 import { useAppActive } from '../../hooks/useAppActive';
+import { HealthStatusBanner } from '../../components/HealthStatusBanner';
 
 type Vibe   = Manifest['vibe'];
 type Length = Manifest['length'];
@@ -454,6 +455,7 @@ export default function HomeBroadcastScreen() {
           },
         ]}
       >
+        <HealthStatusBanner />
         <StatusStrip onAir={broadcastActive} num="004" />
 
         {/* TONIGHT ON ONAY — twin-slot stack */}
