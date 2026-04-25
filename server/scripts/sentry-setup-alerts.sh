@@ -52,6 +52,37 @@ if [[ -z "${SENTRY_USER_ID:-}" ]]; then
 fi
 
 # ────────────────────────────────────────────────────────────────────
+# Helper: send a JSON request, print the response body on any 4xx/5xx
+# so Sentry's error message reaches the user (the default -fsS
+# suppresses the body, leaving you with just "curl: (22) error: 400").
+# ────────────────────────────────────────────────────────────────────
+api_request() {
+  local method="$1"
+  local url="$2"
+  local body="${3:-}"
+  local tmp
+  tmp=$(mktemp)
+  local status
+  if [[ -n "$body" ]]; then
+    status=$(curl -sS -o "$tmp" -w '%{http_code}' -X "$method" "${AUTH[@]}" \
+      -H "Content-Type: application/json" \
+      -d "$body" \
+      "$url")
+  else
+    status=$(curl -sS -o "$tmp" -w '%{http_code}' -X "$method" "${AUTH[@]}" \
+      "$url")
+  fi
+  if [[ "$status" -ge 400 ]]; then
+    echo "    ✗ HTTP $status from $method $url" >&2
+    echo "      Response: $(cat "$tmp")" >&2
+    rm -f "$tmp"
+    return 1
+  fi
+  cat "$tmp"
+  rm -f "$tmp"
+}
+
+# ────────────────────────────────────────────────────────────────────
 # Helper: upsert a project-level Issue Alert by name.
 # ────────────────────────────────────────────────────────────────────
 upsert_issue_alert() {
@@ -59,25 +90,21 @@ upsert_issue_alert() {
   local body="$2"
 
   local existing_id
-  existing_id=$(curl -fsS "${AUTH[@]}" \
+  existing_id=$(api_request GET \
     "$BASE_URL/api/0/projects/$ORG/$PROJECT/rules/" \
     | jq -r --arg n "$name" '.[] | select(.name == $n) | .id' \
     | head -1)
 
   if [[ -n "$existing_id" ]]; then
     echo "  [issue] updating '$name' (id=$existing_id)"
-    curl -fsS -X PUT "${AUTH[@]}" \
-      -H "Content-Type: application/json" \
-      -d "$body" \
+    api_request PUT \
       "$BASE_URL/api/0/projects/$ORG/$PROJECT/rules/$existing_id/" \
-      > /dev/null
+      "$body" > /dev/null
   else
     echo "  [issue] creating '$name'"
-    curl -fsS -X POST "${AUTH[@]}" \
-      -H "Content-Type: application/json" \
-      -d "$body" \
+    api_request POST \
       "$BASE_URL/api/0/projects/$ORG/$PROJECT/rules/" \
-      > /dev/null
+      "$body" > /dev/null
   fi
   echo "    ✓ $name"
 }
@@ -89,26 +116,44 @@ upsert_metric_alert() {
   local name="$1"
   local body="$2"
 
+  # Gracefully skip when metric alerts are unavailable. Sentry's metric
+  # alerts API returns 404 when the org's plan doesn't include them
+  # (Developer/free plan excludes Metric Alerts — Team plan or higher
+  # required) or when an Organization Auth Token can't access the
+  # endpoint. Issue Alerts are sufficient for the Phase 1 GATE; this
+  # alert is a "nice to have" until the plan/token upgrade.
+  local tmp
+  tmp=$(mktemp)
+  local list_status
+  list_status=$(curl -sS -o "$tmp" -w '%{http_code}' "${AUTH[@]}" \
+    "$BASE_URL/api/0/organizations/$ORG/alert-rules/")
+
+  if [[ "$list_status" == "404" ]]; then
+    echo "  [metric] skip '$name' — endpoint 404 (metric alerts not available on this plan/token)"
+    rm -f "$tmp"
+    return 0
+  fi
+  if [[ "$list_status" -ge 400 ]]; then
+    echo "    ✗ HTTP $list_status listing metric alerts" >&2
+    echo "      Response: $(cat "$tmp")" >&2
+    rm -f "$tmp"
+    return 1
+  fi
+
   local existing_id
-  existing_id=$(curl -fsS "${AUTH[@]}" \
-    "$BASE_URL/api/0/organizations/$ORG/alert-rules/" \
-    | jq -r --arg n "$name" '.[] | select(.name == $n) | .id' \
-    | head -1)
+  existing_id=$(jq -r --arg n "$name" '.[] | select(.name == $n) | .id' "$tmp" | head -1)
+  rm -f "$tmp"
 
   if [[ -n "$existing_id" ]]; then
     echo "  [metric] updating '$name' (id=$existing_id)"
-    curl -fsS -X PUT "${AUTH[@]}" \
-      -H "Content-Type: application/json" \
-      -d "$body" \
+    api_request PUT \
       "$BASE_URL/api/0/organizations/$ORG/alert-rules/$existing_id/" \
-      > /dev/null
+      "$body" > /dev/null
   else
     echo "  [metric] creating '$name'"
-    curl -fsS -X POST "${AUTH[@]}" \
-      -H "Content-Type: application/json" \
-      -d "$body" \
+    api_request POST \
       "$BASE_URL/api/0/organizations/$ORG/alert-rules/" \
-      > /dev/null
+      "$body" > /dev/null
   fi
   echo "    ✓ $name"
 }
@@ -132,7 +177,7 @@ GATE_BODY=$(cat <<EOF
   ],
   "filters": [
     {
-      "id": "sentry.rules.filters.event_attribute.EventAttributeCondition",
+      "id": "sentry.rules.filters.event_attribute.EventAttributeFilter",
       "attribute": "message",
       "match": "co",
       "value": "sequencer.result"
@@ -175,7 +220,7 @@ CARTESIA_BODY=$(cat <<EOF
   ],
   "filters": [
     {
-      "id": "sentry.rules.filters.event_attribute.EventAttributeCondition",
+      "id": "sentry.rules.filters.event_attribute.EventAttributeFilter",
       "attribute": "message",
       "match": "co",
       "value": "tts.provider-fallback"
