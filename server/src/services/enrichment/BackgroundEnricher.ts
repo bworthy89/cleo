@@ -9,7 +9,14 @@ async function timed<T>(api: EnrichmentApiTimingInput['api'], fn: () => Promise<
   try {
     return await fn();
   } finally {
-    bakeTelemetry.recordEnrichmentApiTiming({ api, durationMs: Date.now() - start });
+    // Telemetry must never override fn()'s return value or surface as a fetch
+    // failure to enrichOne's outer catch. Sentry.captureMessage is designed not
+    // to throw today, but the guard is cheap and future-proof.
+    try {
+      bakeTelemetry.recordEnrichmentApiTiming({ api, durationMs: Date.now() - start });
+    } catch {
+      // swallow
+    }
   }
 }
 
