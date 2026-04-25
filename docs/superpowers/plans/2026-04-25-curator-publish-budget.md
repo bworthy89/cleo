@@ -294,13 +294,16 @@ Append to the existing `describe('CuratorPublishBudget', ...)` block:
         windowMs,
         clock: () => now,
       });
-      // Three reserves at t=0, t=50, t=100. At t=100 the t=0 entry
-      // is on the boundary and should be pruned, leaving {50, 100}
-      // before the new push, then {50, 100, 100} after.
+      // Four reserves at t=0, t=50, t=100, t=100. At the third
+      // reserve (t=100) the t=0 entry is on the boundary and pruned,
+      // so the list goes [0,50] -> filter -> [50] -> push 100 -> [50,100].
+      // The fourth reserve (also at t=100) keeps both surviving entries
+      // and pushes again: [50,100] -> [50,100,100].
       budget.tryReserve('uid-a');
       now = 50;
       budget.tryReserve('uid-a');
       now = 100;
+      budget.tryReserve('uid-a');
       const result = budget.tryReserve('uid-a');
       expect(result.ok).toBe(true);
       const list = (budget as unknown as { entries: Map<string, number[]> })
