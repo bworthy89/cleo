@@ -85,6 +85,8 @@ R2_PUBLIC_BASE_URL=
 
 # Curator allowlist
 CURATOR_EMAILS=bworthy89@gmail.com
+CURATOR_PUBLISH_CAP=3
+CURATOR_PUBLISH_WINDOW_MS=86400000
 
 # Sentry observability (Phase 1 telemetry foundation)
 SENTRY_DSN=<from sentry.io project settings>

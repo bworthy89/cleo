@@ -64,11 +64,17 @@ export class CuratorPublishBudget {
 
 export function makeCuratorPublishBudgetMiddleware(
   budget: CuratorPublishBudget,
-  telemetry: BakeTelemetry,
 ): RequestHandler;
 ```
 
 `tryReserve` is the single source of truth for both the cap check and the increment, so there's no TOCTOU window between "is there room?" and "I took a slot".
+
+The middleware factory takes only `budget`; it imports the
+`bakeTelemetry` singleton directly rather than accepting it as an
+injected parameter. This matches the codebase pattern (e.g.
+`BroadcastOrchestrator` and `BackgroundEnricher` also import the
+singleton) and keeps the call site in `index.ts` simpler. Tests
+spy on the singleton via `jest.spyOn(bakeTelemetry, ...)`.
 
 ### Server flow
 
