@@ -138,107 +138,116 @@ export class BroadcastOrchestrator {
       vibe: input.vibe,
       length: input.length,
     });
-    // Tester-triage tag. Prefix all bake-scoped logs so `grep "user=foo@bar"`
-    // or `grep "id=a3f9k2"` surfaces the full lifecycle of one bake.
-    const tag = buildBakeTag(broadcastId, input.userEmail ?? input.userId);
-    console.log(
-      `${tag} start vibe=${input.vibe} length=${input.length} ` +
-      `pool=${input.tracks.length} preserveOrder=${input.preserveOrder ?? false}`,
-    );
 
-    // 1. Sequence the pool. When `preserveOrder` is set (Ask ONAY flow),
-    //    skip the DeterministicTrackSequencer's score-and-place and use the
-    //    caller's track order directly — Groq already curated the sequence
-    //    and re-ordering here would disrupt the LLM's intent. Feature-slot
-    //    nomination still runs via nominateDeepDives.
-    let seq: { orderedTracks: ManifestTrack[]; featureSlots: number[] };
-    if (input.preserveOrder) {
-      const N = LENGTH_TO_N[input.length];
-      if (input.tracks.length < N) {
-        throw new Error(`insufficient tracks: need ${N}, got ${input.tracks.length}`);
+    try {
+      // Tester-triage tag. Prefix all bake-scoped logs so `grep "user=foo@bar"`
+      // or `grep "id=a3f9k2"` surfaces the full lifecycle of one bake.
+      const tag = buildBakeTag(broadcastId, input.userEmail ?? input.userId);
+      console.log(
+        `${tag} start vibe=${input.vibe} length=${input.length} ` +
+        `pool=${input.tracks.length} preserveOrder=${input.preserveOrder ?? false}`,
+      );
+
+      // 1. Sequence the pool. When `preserveOrder` is set (Ask ONAY flow),
+      //    skip the DeterministicTrackSequencer's score-and-place and use the
+      //    caller's track order directly — Groq already curated the sequence
+      //    and re-ordering here would disrupt the LLM's intent. Feature-slot
+      //    nomination still runs via nominateDeepDives.
+      let seq: { orderedTracks: ManifestTrack[]; featureSlots: number[] };
+      if (input.preserveOrder) {
+        const N = LENGTH_TO_N[input.length];
+        if (input.tracks.length < N) {
+          throw new Error(`insufficient tracks: need ${N}, got ${input.tracks.length}`);
+        }
+        const orderedTracks = input.tracks.slice(0, N);
+        const featureSlots = nominateDeepDives(orderedTracks, this.enrichmentCache);
+        seq = { orderedTracks, featureSlots };
+        const orderLines = orderedTracks
+          .map((t, i) => `  [${i}] ${t.id}  ${t.title} — ${t.artistName}`)
+          .join('\n');
+        console.log(`${tag} [Sequencer] source=preserved vibe=${input.vibe} N=${N} poolSize=${input.tracks.length}\n${orderLines}`);
+      } else {
+        seq = await this.sequencer.sequence({
+          pool: input.tracks,
+          vibe: input.vibe,
+          length: input.length,
+          userContext: {
+            timeOfDay: input.userContext.timeOfDay,
+            dayOfWeek: input.userContext.dayOfWeek,
+          },
+          broadcastId,
+        });
       }
-      const orderedTracks = input.tracks.slice(0, N);
-      const featureSlots = nominateDeepDives(orderedTracks, this.enrichmentCache);
-      seq = { orderedTracks, featureSlots };
-      const orderLines = orderedTracks
-        .map((t, i) => `  [${i}] ${t.id}  ${t.title} — ${t.artistName}`)
-        .join('\n');
-      console.log(`${tag} [Sequencer] source=preserved vibe=${input.vibe} N=${N} poolSize=${input.tracks.length}\n${orderLines}`);
-    } else {
-      seq = await this.sequencer.sequence({
-        pool: input.tracks,
+
+      // 2. Build the manifest immediately — enrichment isn't needed to know
+      //    which slots exist and which tracks they target.
+      const manifest = buildManifest({
+        broadcastId,
+        userId: input.userId,
+        playlistId: input.playlistId,
         vibe: input.vibe,
         length: input.length,
-        userContext: {
-          timeOfDay: input.userContext.timeOfDay,
-          dayOfWeek: input.userContext.dayOfWeek,
-        },
-        broadcastId,
+        tracks: seq.orderedTracks,
+        featureSlots: seq.featureSlots,
       });
+      this.store.put(manifest);
+
+      // Log the full manifest track order so we can verify client playback
+      // matches what the sequencer produced. Format: one line per track with
+      // zero-indexed position, Apple Music id, and "Title — Artist".
+      const orderLines = seq.orderedTracks
+        .map((t, i) => `  [${i}] ${t.id}  ${t.title} — ${t.artistName}`)
+        .join('\n');
+      console.log(`${tag} [Manifest] track order:\n${orderLines}`);
+
+      // 3. Fire enrichment drain and slot 0 bake in parallel.
+      //    Slot 0 is the cold_open — it sets the scene and names the first
+      //    track. It works fine with an empty enrichment block, so we don't
+      //    block it on the ~10-20s Genius/MusicBrainz fan-out. drainNow runs
+      //    concurrently and populates the cache in time for slots 1..N.
+      const drainP = this.backgroundEnricher.drainNow(seq.orderedTracks).catch(err => {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn(`${tag} [BroadcastOrchestrator] drainNow failed: ${msg}`);
+      });
+      const slot0P = this.generateSlot(manifest, 0, input.userContext);
+
+      // 4. HTTP response is gated on slot 0 audio being baked AND enrichment
+      //    being drained. We wait for drainNow so background slots 1..N have
+      //    a populated cache (richer producer/sample hints); on warm cache
+      //    drainNow returns near-instantly, so tune-in is F5 slot 0 time.
+      await Promise.all([drainP, slot0P]);
+      handle.endSlotZero(Date.now() - startedAt);
+
+      // 5. Fan out slots 1..N as a background task. Client polls
+      //    /broadcast/:id/manifest to pick up audioUrls as slots complete.
+      if (manifest.segmentSlots.length > 1) {
+        const backgroundP = this.generateSlotsBackground(manifest, input.userContext, tag)
+          .then(() => {
+            handle.endBake({ durationMs: Date.now() - startedAt, status: 'completed' });
+          })
+          .catch((err) => {
+            handle.endBake({ durationMs: Date.now() - startedAt, status: 'failed' });
+            throw err;
+          })
+          .finally(() => { this.inFlight.delete(manifest.broadcastId); });
+        this.inFlight.set(manifest.broadcastId, backgroundP);
+      } else {
+        // Single-slot manifest: no background work, close the span now.
+        handle.endBake({ durationMs: Date.now() - startedAt, status: 'completed' });
+      }
+
+      // 6. Return manifest with slot 0 ready; slots 1..N still 'pending'.
+      const finalManifest = this.store.get(manifest.broadcastId)!;
+      const coldOpen = finalManifest.segmentSlots[0];
+      const firstSegmentUrls = coldOpen.audioUrls ?? [];
+      return {
+        manifest: finalManifest,
+        firstSegmentUrls,
+      };
+    } catch (err) {
+      handle.endBake({ durationMs: Date.now() - startedAt, status: 'failed' });
+      throw err;
     }
-
-    // 2. Build the manifest immediately — enrichment isn't needed to know
-    //    which slots exist and which tracks they target.
-    const manifest = buildManifest({
-      broadcastId,
-      userId: input.userId,
-      playlistId: input.playlistId,
-      vibe: input.vibe,
-      length: input.length,
-      tracks: seq.orderedTracks,
-      featureSlots: seq.featureSlots,
-    });
-    this.store.put(manifest);
-
-    // Log the full manifest track order so we can verify client playback
-    // matches what the sequencer produced. Format: one line per track with
-    // zero-indexed position, Apple Music id, and "Title — Artist".
-    const orderLines = seq.orderedTracks
-      .map((t, i) => `  [${i}] ${t.id}  ${t.title} — ${t.artistName}`)
-      .join('\n');
-    console.log(`${tag} [Manifest] track order:\n${orderLines}`);
-
-    // 3. Fire enrichment drain and slot 0 bake in parallel.
-    //    Slot 0 is the cold_open — it sets the scene and names the first
-    //    track. It works fine with an empty enrichment block, so we don't
-    //    block it on the ~10-20s Genius/MusicBrainz fan-out. drainNow runs
-    //    concurrently and populates the cache in time for slots 1..N.
-    const drainP = this.backgroundEnricher.drainNow(seq.orderedTracks).catch(err => {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.warn(`${tag} [BroadcastOrchestrator] drainNow failed: ${msg}`);
-    });
-    const slot0P = this.generateSlot(manifest, 0, input.userContext);
-
-    // 4. HTTP response is gated on slot 0 audio being baked AND enrichment
-    //    being drained. We wait for drainNow so background slots 1..N have
-    //    a populated cache (richer producer/sample hints); on warm cache
-    //    drainNow returns near-instantly, so tune-in is F5 slot 0 time.
-    await Promise.all([drainP, slot0P]);
-    handle.endSlotZero(Date.now() - startedAt);
-
-    // 5. Fan out slots 1..N as a background task. Client polls
-    //    /broadcast/:id/manifest to pick up audioUrls as slots complete.
-    if (manifest.segmentSlots.length > 1) {
-      const backgroundP = this.generateSlotsBackground(manifest, input.userContext, tag)
-        .then(() => {
-          handle.endBake({ durationMs: Date.now() - startedAt, status: 'completed' });
-        })
-        .catch((err) => {
-          handle.endBake({ durationMs: Date.now() - startedAt, status: 'failed' });
-          throw err;
-        })
-        .finally(() => { this.inFlight.delete(manifest.broadcastId); });
-      this.inFlight.set(manifest.broadcastId, backgroundP);
-    }
-
-    // 6. Return manifest with slot 0 ready; slots 1..N still 'pending'.
-    const finalManifest = this.store.get(manifest.broadcastId)!;
-    const coldOpen = finalManifest.segmentSlots[0];
-    const firstSegmentUrls = coldOpen.audioUrls ?? [];
-    return {
-      manifest: finalManifest,
-      firstSegmentUrls,
-    };
   }
 
   /**
