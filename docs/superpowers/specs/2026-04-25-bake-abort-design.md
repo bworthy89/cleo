@@ -83,8 +83,10 @@ The race-window DELETE matters — a fast warm-cache response can land between t
 |---|---|
 | `src/engines/BroadcastPlayer.types.ts` | Mirror server enum extension |
 | `src/engines/BroadcastPlayer.ts` | Treat `'aborted'` like `'failed'` at line 533 (defensive — the player should not encounter aborted slots in the user-driven flow, but must not crash if it does) |
-| `src/engines/BroadcastManifestClient.ts` | New `abortBake(broadcastId)` fire-and-forget DELETE call |
-| `src/components/broadcast/SetupSheet.tsx` | Cancel button; AbortController on the create fetch; `cancelRequested` ref; race-handling on response; dismiss-handler interception |
+| `src/engines/BroadcastManifestClient.ts` | New `abortBake(broadcastId)` fire-and-forget DELETE call; `createBroadcast(req, signal?)` accepts an optional `AbortSignal` |
+| `src/utils/retry.ts` | `withRetry` re-throws `AbortError` immediately rather than retrying — required so `controller.abort()` propagates without spawning duplicate POSTs or burning the backoff sleep |
+| `src/screens/home/HomeBroadcastScreen.tsx` | Per-bake `AbortController` + `cancelRequestedRef`; `playUserSourced` rewritten to swallow `AbortError`, fire race-window `abortBake(broadcastId)` if the response landed before abort took effect, and skip navigation in either cancel path |
+| `src/components/broadcast/TuningInOverlay.tsx` | `onCancel` prop's JSDoc updated — the existing "TAKE IT BACK" button is now wired through `HomeBroadcastScreen.playUserSourced`'s AbortController, so hiding the overlay actually aborts the server-side bake. (Originally the spec named `SetupSheet.tsx` here; the loading state lives in `HomeBroadcastScreen` + `TuningInOverlay` instead, so SetupSheet is untouched.) |
 
 ## Detailed design
 
