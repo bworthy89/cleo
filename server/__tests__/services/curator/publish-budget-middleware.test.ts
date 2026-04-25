@@ -1,5 +1,6 @@
 import express, { type RequestHandler } from 'express';
 import request from 'supertest';
+import type { AuthenticatedRequest } from '@/middleware/auth';
 import {
   CuratorPublishBudget,
   makeCuratorPublishBudgetMiddleware,
@@ -7,7 +8,7 @@ import {
 import { bakeTelemetry } from '@/services/telemetry/BakeTelemetry';
 
 const stubUid = (uid: string | undefined): RequestHandler => (req, _res, next) => {
-  if (uid !== undefined) (req as unknown as { uid: string }).uid = uid;
+  if (uid !== undefined) (req as AuthenticatedRequest).uid = uid;
   next();
 };
 
@@ -65,8 +66,8 @@ describe('makeCuratorPublishBudgetMiddleware', () => {
     expect(typeof res.body.retryAfterMs).toBe('number');
     expect(res.body.retryAfterMs).toBeGreaterThan(0);
     expect(typeof res.body.error).toBe('string');
-    expect(res.body.error).toContain('3');     // cap interpolated
-    expect(res.body.error).toContain('1h');    // window phrasing — see note below
+    expect(res.body.error).toContain('(3 per');  // cap interpolated in semantic context
+    expect(res.body.error).toContain('per 1h');  // window interpolated
   });
 
   it('calls bakeTelemetry.recordPublishCapHit exactly once on rejection', async () => {
@@ -93,7 +94,7 @@ describe('makeCuratorPublishBudgetMiddleware', () => {
     const app = buildApp(undefined, makeCuratorPublishBudgetMiddleware(budget));
     const res = await request(app).post('/test').send({});
     expect(res.status).toBe(500);
-    expect(res.body.error).toMatch(/uid/i);
+    expect(res.body.error).toMatch(/internal server error/i);
     expect(telemetrySpy).not.toHaveBeenCalled();
   });
 });
