@@ -30,6 +30,13 @@ export class CuratorPublishBudget {
   tryReserve(uid: string): ReserveResult {
     const now = this.clock();
     const list = this.entries.get(uid) ?? [];
+
+    if (list.length >= this.capPerWindow) {
+      const oldest = list[0];
+      const retryAfterMs = oldest + this.windowMs - now;
+      return { ok: false, retryAfterMs, current: list.length };
+    }
+
     list.push(now);
     this.entries.set(uid, list);
     return { ok: true };
