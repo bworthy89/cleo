@@ -43,7 +43,15 @@ async function main(): Promise<number> {
   const fixtures: Golden[] = fs
     .readdirSync(FIXTURES_DIR)
     .filter((f) => f.startsWith('pool-') && f.endsWith('.json'))
-    .map((f) => JSON.parse(fs.readFileSync(path.join(FIXTURES_DIR, f), 'utf8')) as Golden);
+    .map((f) => {
+      const fullPath = path.join(FIXTURES_DIR, f);
+      try {
+        return JSON.parse(fs.readFileSync(fullPath, 'utf8')) as Golden;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        throw new Error(`[gate] failed to parse fixture ${f}: ${msg}`);
+      }
+    });
 
   if (fixtures.length === 0) {
     console.error(`[gate] no fixtures found in ${FIXTURES_DIR}`);
