@@ -1,10 +1,10 @@
 # CLAUDE.md — ONAY AI Radio App
 
 ## Current Status
-**Phase 1 of 6** (weeks 1–4, 2026-04-24 → 2026-05-22): stability foundation + curation depth.
+**Between Phase 1 and Phase 2.** Phase 1 (stability foundation + curation depth) closed 2026-04-25 — all 8 milestone items shipped and Phase 1 GATE (#20) is GREEN (sequencer meanDistance 0.019–0.061 across all 7 vibes, well below the 0.5 threshold).
 - Roadmap source of truth: [`docs/superpowers/specs/2026-04-24-onay-roadmap-design.md`](docs/superpowers/specs/2026-04-24-onay-roadmap-design.md)
-- Active milestone: `Phase 1: Stability Foundation` (issues #14–#20 on bworthy89/cleo)
-- Next decision gate: sequencer `meanDistance < 0.5` across all 7 vibes after ReccoBeats integration
+- Closed milestone: `Phase 1: Stability Foundation` (issues #14–#20, #29 — all closed)
+- Phase 2 not yet started; review the roadmap spec's Phase 2 section + Cross-phase concerns table before opening tickets.
 
 ## Project Overview
 React Native / Expo SDK 55 iOS app. AI radio host named **ONAY** (pronounced "Oh-Nay"). The
