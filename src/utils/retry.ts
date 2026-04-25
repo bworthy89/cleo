@@ -28,6 +28,19 @@ export async function withRetry<T>(
     } catch (err) {
       lastError = err;
 
+      // User-cancelled requests (AbortController.abort()) must not retry —
+      // each retry would either (a) spawn a new server-side bake on the next
+      // POST or (b) burn through the backoff sleeps before propagating the
+      // cancel to the caller. Either way the user's cancel button feels
+      // broken. Re-throw immediately.
+      //
+      // Don't reference DOMException directly — Hermes / older RN can lack
+      // the global, which would make this line throw ReferenceError before
+      // the check could run. Modern spec-compliant DOMException extends
+      // Error, so the name check covers both DOMException and the plain-
+      // Error AbortError thrown by the whatwg-fetch polyfill.
+      if (err instanceof Error && err.name === 'AbortError') throw err;
+
       if (attempt >= maxAttempts) break;
 
       const delay =

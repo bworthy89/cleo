@@ -15,8 +15,9 @@ interface Props {
   /**
    * Optional cancel handler. When provided, a TAKE IT BACK pressable
    * renders below the status label so the user can bail out of the
-   * overlay on slow networks. Hiding the overlay does NOT abort the
-   * in-flight createBroadcast — the server-side bake continues.
+   * overlay on slow networks. Wiring this to AbortController + abortBake
+   * (see HomeBroadcastScreen.playUserSourced) is what stops the server-side
+   * bake; this component just surfaces the affordance.
    */
   onCancel?: () => void;
 }
