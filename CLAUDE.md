@@ -359,6 +359,8 @@ GENIUS_ACCESS_TOKEN
 HEALTH_CHECK_INTERVAL_MS, HEALTH_CHECK_TIMEOUT_MS
 BROADCAST_ASSET_BASE_URL                  # dev: http://<LAN-IP>:3001
 CURATOR_EMAILS                            # comma-separated
+CURATOR_PUBLISH_CAP                       # default 3 (per-curator daily publish cap)
+CURATOR_PUBLISH_WINDOW_MS                 # default 86400000 (24h rolling window)
 ADMIN_BEARER_TOKEN                        # optional; ≥16 chars unlocks
                                           # X-Admin-Token header auth on /admin/*
 
