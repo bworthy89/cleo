@@ -85,6 +85,11 @@ R2_PUBLIC_BASE_URL=
 
 # Curator allowlist
 CURATOR_EMAILS=bworthy89@gmail.com
+
+# Sentry observability (Phase 1 telemetry foundation)
+SENTRY_DSN=<from sentry.io project settings>
+SENTRY_TRACES_SAMPLE_RATE=0.2
+SENTRY_RELEASE=<optional; set to ios buildNumber for release tracking>
 ```
 
 **Recommendation:** create a SECOND R2 API token scoped only to this bucket and use those creds on the VPS. Keep the first token for local dev. If either leaks, the other still works.
