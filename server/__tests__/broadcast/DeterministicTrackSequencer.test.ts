@@ -116,28 +116,29 @@ describe('DeterministicTrackSequencer', () => {
 
   it('emits sequencer-result telemetry with meanDistance and feature-source counts', async () => {
     const resultSpy = jest.spyOn(bakeTelemetry, 'recordSequencerResult').mockImplementation();
+    try {
+      const s = new DeterministicTrackSequencer(mockEnrich as any, makeChain(features) as any);
+      await s.sequence({
+        pool, vibe: 'lateNight', length: 'quick',
+        userContext: { timeOfDay: '22:00', dayOfWeek: 'Mon' },
+        broadcastId: 'test-abc',
+      });
 
-    const s = new DeterministicTrackSequencer(mockEnrich as any, makeChain(features) as any);
-    await s.sequence({
-      pool, vibe: 'lateNight', length: 'quick',
-      userContext: { timeOfDay: '22:00', dayOfWeek: 'Mon' },
-      broadcastId: 'test-abc',
-    });
-
-    expect(resultSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        vibe: 'lateNight',
-        meanDistance: expect.any(Number),
-        n: 5,
-        poolSize: 20,
-        featureSourceCounts: expect.objectContaining({
-          reccobeats: expect.any(Number),
-          synthesized: expect.any(Number),
-          defaults: expect.any(Number),
+      expect(resultSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          vibe: 'lateNight',
+          meanDistance: expect.any(Number),
+          n: 5,
+          poolSize: 20,
+          featureSourceCounts: expect.objectContaining({
+            reccobeats: expect.any(Number),
+            synthesized: expect.any(Number),
+            defaults: expect.any(Number),
+          }),
         }),
-      }),
-    );
-
-    resultSpy.mockRestore();
+      );
+    } finally {
+      resultSpy.mockRestore();
+    }
   });
 });
