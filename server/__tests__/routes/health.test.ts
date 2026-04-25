@@ -28,6 +28,7 @@ describe('GET /health/public', () => {
     });
     const res = await request(app).get('/health/public');
     expect(res.status).toBe(200);
+    expect(res.headers['cache-control']).toBe('no-store');
     expect(res.body.status).toBe('operational');
     expect(res.body.components.tts.status).toBe('operational');
     expect(res.body.components.bake.queueDepth).toBe(0);
