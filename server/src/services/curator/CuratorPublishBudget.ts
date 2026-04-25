@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction, RequestHandler } from 'express';
+import type { AuthenticatedRequest } from '../../middleware/auth';
 import { bakeTelemetry } from '../telemetry/BakeTelemetry';
 
 export interface CuratorPublishBudgetOptions {
@@ -61,9 +62,13 @@ export function makeCuratorPublishBudgetMiddleware(
   budget: CuratorPublishBudget,
 ): RequestHandler {
   return (req: Request, res: Response, next: NextFunction) => {
-    const uid = (req as unknown as { uid?: string }).uid;
+    const uid = (req as AuthenticatedRequest).uid;
     if (!uid) {
-      res.status(500).json({ error: 'req.uid not set; auth chain misconfigured' });
+      // Auth chain misconfigured — requireAuth must run before this
+      // middleware. Log the diagnostic and return a generic 500 so the
+      // implementation vocabulary doesn't leak to the client.
+      console.error('[CuratorPublishBudget] req.uid not set — requireAuth must run first');
+      res.status(500).json({ error: 'Internal server error' });
       return;
     }
 
@@ -76,7 +81,7 @@ export function makeCuratorPublishBudgetMiddleware(
     // result is narrowed to { ok: false; retryAfterMs: number; current: number }
     // by the discriminated union — no defensive ?? fallbacks needed.
     const { retryAfterMs, current } = result;
-    const retryAfterSec = Math.max(1, Math.ceil(retryAfterMs / 1000));
+    const retryAfterSec = Math.ceil(retryAfterMs / 1000);
     const cap = budget.capPerWindow;
     const windowHours = Math.round(budget.windowMs / (60 * 60 * 1000));
 
