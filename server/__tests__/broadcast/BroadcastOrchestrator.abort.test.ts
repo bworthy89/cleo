@@ -88,10 +88,8 @@ describe('BroadcastOrchestrator.abortBake — worker integration', () => {
     const store = new BroadcastStore();
 
     // TTS that takes 50ms per call so we can abort during slot 1's generation.
-    let ttsCallCount = 0;
     const slowTTS = {
       synthesize: jest.fn(async () => {
-        ttsCallCount++;
         await new Promise(r => setTimeout(r, 50));
         return { audioContent: 'YQ==' };
       }),
