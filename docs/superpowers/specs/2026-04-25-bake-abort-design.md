@@ -9,7 +9,7 @@
 
 ## Why
 
-When a user starts a bake and changes their mind, the server today has no path to stop. Slot 0 is awaited synchronously inside `POST /broadcast/create` (~11–19s cold cache); slots 1..N then run as a background promise tracked in `BroadcastOrchestrator.inFlight`. A user who dismisses the SetupSheet mid-wait pays for every remaining LLM + TTS call regardless. This is a cost-reduction feature.
+When a user starts a bake and changes their mind, the server today has no path to stop. Slot 0 is awaited synchronously inside `POST /broadcast/create` (~11–19s cold cache); slots 1..N then run as a background promise tracked in `BroadcastOrchestrator.inFlight`. A user who taps cancel mid-wait — `HomeBroadcastScreen` owns the loading state and would-be abort flow — pays for every remaining LLM + TTS call regardless, because nothing on the server is listening for that intent. This is a cost-reduction feature.
 
 ## Scope
 
@@ -18,7 +18,7 @@ The cancel-eligible window is *entirely pre-`/player`*: from when the user taps 
 **In scope:**
 - `DELETE /broadcast/:id` server route with cooperative cancellation
 - Slot status `'aborted'` joining `'pending' | 'ready' | 'failed'` on both sides
-- SetupSheet cancel UI + dismiss interception during the POST wait
+- `TuningInOverlay` "TAKE IT BACK" button (already rendered when `onCancel` is supplied) wired through `HomeBroadcastScreen`'s AbortController. **No** backdrop-tap, swipe-down, or back-button dismiss interception — the explicit Pressable is the only cancel trigger.
 - AbortController on the create fetch + race-handling for response-lands-before-abort
 
 **Out of scope:**
@@ -50,18 +50,28 @@ In-flight TTS calls finish naturally (CosyVoice/F5 are blocked on their wrapper 
 ### Client flow
 
 ```text
-SetupSheet — POST /broadcast/create in flight
-  ├─ AbortController owned by the SetupSheet
-  ├─ user taps Cancel button OR dismisses sheet (back / swipe-down / backdrop)
-  ├─ handleCancel():
-  │     ├─ cancelRequested.current = true
-  │     └─ controller.abort()
+HomeBroadcastScreen.playUserSourced — POST /broadcast/create in flight
+  ├─ owns the AbortController (per-attempt, captured locally in the closure)
+  ├─ TuningInOverlay (visible={tuning}) renders the only cancel trigger:
+  │   the existing "TAKE IT BACK" Pressable. NO backdrop-tap / swipe-down /
+  │   back-button dismiss interception by design — the overlay is full-bleed
+  │   with pointerEvents='auto' while visible.
   │
-  ├─ original await fetch(...) resolves OR rejects:
-  │     ├─ rejected with AbortError → orphan bake on server (accepted tradeoff)
-  │     └─ resolved with broadcastId  → race window: fire abortBake(id)
+  ├─ user taps "TAKE IT BACK" → onCancel:
+  │     ├─ abortControllerRef.current?.abort()
+  │     │     (synchronously sets controller.signal.aborted = true)
+  │     └─ setTuning(false)
   │
-  └─ dismiss SetupSheet, no error toast (cancel was intentional)
+  ├─ original await client.createBroadcast(payload, controller.signal) resolves OR rejects:
+  │     ├─ rejected with AbortError → return (orphan bake on server, accepted tradeoff)
+  │     └─ resolved with broadcastId → check controller.signal.aborted:
+  │           ├─ true (race) → void client.abortBake(id); return
+  │           └─ false       → router.push('/player'); broadcastPlayer.start(...)
+  │
+  └─ finally: only the active attempt clears shared state
+        └─ if (abortControllerRef.current === controller) {
+              setTuning(false); abortControllerRef.current = null;
+           }
 ```
 
 The race-window DELETE matters — a fast warm-cache response can land between the user's tap and the abort taking effect. Without it, the background bake of slots 1..N would run uselessly. With it, slot 0 has already been delivered as part of the response (the user paid for it whether they navigate or not), and every subsequent pending slot becomes `'aborted'` regardless of whether its TTS was already in flight when abort fired.
@@ -85,7 +95,7 @@ The race-window DELETE matters — a fast warm-cache response can land between t
 | `src/engines/BroadcastPlayer.ts` | Treat `'aborted'` like `'failed'` at line 533 (defensive — the player should not encounter aborted slots in the user-driven flow, but must not crash if it does) |
 | `src/engines/BroadcastManifestClient.ts` | New `abortBake(broadcastId)` fire-and-forget DELETE call; `createBroadcast(req, signal?)` accepts an optional `AbortSignal` |
 | `src/utils/retry.ts` | `withRetry` re-throws `AbortError` immediately rather than retrying — required so `controller.abort()` propagates without spawning duplicate POSTs or burning the backoff sleep |
-| `src/screens/home/HomeBroadcastScreen.tsx` | Per-bake `AbortController` + `cancelRequestedRef`; `playUserSourced` rewritten to swallow `AbortError`, fire race-window `abortBake(broadcastId)` if the response landed before abort took effect, and skip navigation in either cancel path |
+| `src/screens/home/HomeBroadcastScreen.tsx` | Owns the per-attempt `AbortController` (captured in a local `const controller` so a newer attempt overwriting `abortControllerRef` can't change which signal the in-flight fetch is bound to). `playUserSourced` swallows `AbortError`, fires race-window `abortBake(broadcastId)` when the response landed before abort took effect, and uses `abortControllerRef.current === controller` identity guards in the outer catch and `finally` so a stale attempt's resolution doesn't clobber a newer one's UI state. The overlay's `onCancel` calls `abortControllerRef.current?.abort()` (which synchronously sets `signal.aborted = true`) and `setTuning(false)`. |
 | `src/components/broadcast/TuningInOverlay.tsx` | `onCancel` prop's JSDoc updated — the existing "TAKE IT BACK" button is now wired through `HomeBroadcastScreen.playUserSourced`'s AbortController, so hiding the overlay actually aborts the server-side bake. (Originally the spec named `SetupSheet.tsx` here; the loading state lives in `HomeBroadcastScreen` + `TuningInOverlay` instead, so SetupSheet is untouched.) |
 
 ## Detailed design
@@ -325,25 +335,25 @@ A single `err instanceof Error && err.name === 'AbortError'` check covers both f
 
 ### Client unit tests
 
-- `src/components/broadcast/__tests__/SetupSheet.cancel.test.tsx` (or wherever component tests live)
-  - `cancel button hidden during initial 500ms; visible after`
-  - `cancel button tap aborts in-flight fetch and dismisses without error`
-  - `cancel-then-fast-response fires DELETE with returned broadcastId`
-  - `back-button dismiss during loading triggers cancel flow`
-  - `swipe-down / backdrop dismiss during loading triggers cancel flow`
-  - `non-loading dismiss does not fire abort`
+No client unit-test infrastructure exists in this repo (no RN test runner is configured). Cancel UX is verified by the manual smoke test below. If/when client tests are introduced, the relevant suites would live alongside the actual components — `src/screens/home/__tests__/HomeBroadcastScreen.cancel.test.tsx` for the AbortController + race + stale-attempt logic, and `src/components/broadcast/__tests__/TuningInOverlay.test.tsx` for the "TAKE IT BACK" Pressable rendering. Cases worth covering:
+
+- `"TAKE IT BACK" Pressable taps fire onCancel, which calls controller.abort() and setTuning(false)`
+- `cancel-then-fetch-rejects with AbortError dismisses without an error Alert`
+- `cancel-then-fast-response fires abortBake with returned broadcastId and skips navigation`
+- `stale attempt's finally does NOT clobber a newer attempt's setTuning / abortControllerRef`
+- `(out of scope) no backdrop-tap, swipe-down, or back-button dismiss test — by design the overlay does not surface those gestures`
 
 ### Manual / smoke
 
-- Real device: tap Build with a 9-track playlist; tap Cancel mid-wait; verify SetupSheet dismisses, no error toast, no orphan in `/player`.
-- Real device: tap Build; immediately swipe down; same outcome.
+- Real device: tap Build with a 9-track playlist; while the `TuningInOverlay` is showing, tap "TAKE IT BACK"; verify the overlay dismisses to home, no error Alert, no navigation to `/player`.
+- Real device: tap Build twice in quick succession with cancel between them; verify the stale first attempt does not later hide the second attempt's overlay (per-attempt state isolation).
 - Server log inspection: confirm `[bake id=…]` lines for an aborted bake stop after the in-flight slot, no `slot N failed` messages for slots that should have been aborted (they should never have been attempted).
 
 ## Telemetry
 
 Existing `BakeTelemetry` already supports `status: 'aborted'` in `BakeEndInput`. The branch in the `backgroundP` chain (above) is the only new emission. No new event types needed.
 
-The ratio of `bake.status='aborted'` to `bake.status='completed'` is a useful product signal — a high abort rate suggests SetupSheet UX problems or insufficient cold-cache response speed. Track in Sentry as a follow-up; not gating Phase 1.
+The ratio of `bake.status='aborted'` to `bake.status='completed'` is a useful product signal — a high abort rate suggests cancel UX issues (`HomeBroadcastScreen` + `TuningInOverlay`) or insufficient cold-cache response speed. Track in Sentry as a follow-up; not gating Phase 1.
 
 ## Migration / backward compatibility
 
@@ -355,7 +365,7 @@ The ratio of `bake.status='aborted'` to `bake.status='completed'` is a useful pr
 
 - [ ] `DELETE /broadcast/:id` implemented + tested
 - [ ] Slot status `'aborted'` propagates to client manifest
-- [ ] SetupSheet cancel button + dismiss interception live
+- [ ] `TuningInOverlay` "TAKE IT BACK" Pressable wired to abort the bake (no backdrop-tap / swipe-down / back-button dismiss interception — by design)
 - [ ] AbortController on create fetch + race-resolved DELETE on response
 - [ ] Broadcast history removes aborted entries on next focus _(already true today — `BROADCAST_HISTORY` only contains entries written after a successful `/player` navigation; aborted bakes never reach `/player`, so no history-eviction code is needed)_
 - [ ] No leak of pending workers after abort (verified by `aborted.size === 0` after Promise.all settles)
