@@ -217,11 +217,12 @@ The script is idempotent — re-running updates existing alerts by name rather t
 - Reasoning: Phase 1 decision gate (issue #20 — `meanDistance < 0.5` across all 7 vibes after ReccoBeats integration). Trips → re-brainstorm sequencer redesign before starting Phase 2.
 - Tag-not-extra: Sentry Issue Alerts can't filter on values in `extra.*`, so `BakeTelemetry.recordSequencerResult` writes a binary `poor_fit:true|false` tag at the 0.5 threshold. The exact `meanDistance` value remains in `extra` for dashboards.
 
-**Alert 3 — Bake p95 duration > 20s**
-- Trigger: p95 of `transaction.duration` on `transaction.op:broadcast.bake` exceeds 20000 ms over the last 1-hour window. (Metric Alert — different endpoint from the two Issue Alerts above.)
+**Alert 3 — Bake p95 duration > 20s** (Metric Alert)
+- Trigger: p95 of `transaction.duration` on `transaction.op:broadcast.bake` exceeds 20000 ms over the last 1-hour window.
 - Severity: warning.
 - Action: email the user.
 - Reasoning: Phase 1 success criterion is p95 time-to-slot-zero < 15s. 20s threshold gives headroom but flags trend.
+- **Plan gating:** Sentry's free Developer plan does NOT include Metric Alerts; they require Team plan or higher. The setup script auto-skips this alert on 404 from the metric-alerts API and logs `[metric] skip — endpoint 404 (metric alerts not available on this plan/token)`. Re-run the script after a plan upgrade and it'll create the alert idempotently.
 - **Caveat:** uses overall `transaction.duration` as a proxy — Sentry Metric Alerts can't currently target arbitrary span attributes like `bake.time_to_slot_zero_ms`. Long-bake vibes will skew the p95 upward. Track the proper fix (custom Sentry metric or span-based alert) in issue #23.
 
 ### Setup checklist after first deploy
