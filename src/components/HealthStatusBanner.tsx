@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { AM, Fonts, Space, TypeScale } from '../tokens/design-tokens';
 import { useHealthStatus, type ComponentStatus } from '../hooks/useHealthStatus';
 
@@ -34,7 +35,10 @@ export function HealthStatusBanner(): React.ReactElement | null {
 
   return (
     <Pressable
-      onPress={() => setDismissedFor(status.checkedAt)}
+      onPress={() => {
+        void Haptics.selectionAsync();
+        setDismissedFor(status.checkedAt);
+      }}
       accessibilityRole="button"
       accessibilityLabel={`${copy.title}. Tap to dismiss.`}
       style={({ pressed }) => [styles.container, pressed && { opacity: 0.8 }]}
