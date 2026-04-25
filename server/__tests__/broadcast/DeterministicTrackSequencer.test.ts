@@ -141,4 +141,16 @@ describe('DeterministicTrackSequencer', () => {
       resultSpy.mockRestore();
     }
   });
+
+  it('exposes meanDistance on the SequenceResult', async () => {
+    const s = new DeterministicTrackSequencer(mockEnrich as any, makeChain(features) as any);
+    const r = await s.sequence({
+      pool, vibe: 'morning', length: 'standard',
+      userContext: { timeOfDay: '08:00', dayOfWeek: 'Mon' },
+      broadcastId: 'mean-distance-exposure-test',
+    });
+    expect(typeof r.meanDistance).toBe('number');
+    expect(Number.isFinite(r.meanDistance)).toBe(true);
+    expect(r.meanDistance).toBeGreaterThan(0);
+  });
 });
