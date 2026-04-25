@@ -33,7 +33,7 @@ The cancel-eligible window is *entirely pre-`/player`*: from when the user taps 
 
 ### Server flow
 
-```
+```text
 DELETE /broadcast/:id
   ├─ ownership gate (req.uid === manifest.userId; curator → 404)
   ├─ orchestrator.abortBake(id):
@@ -49,7 +49,7 @@ In-flight TTS calls finish naturally (CosyVoice/F5 are blocked on their wrapper 
 
 ### Client flow
 
-```
+```text
 SetupSheet — POST /broadcast/create in flight
   ├─ AbortController owned by the SetupSheet
   ├─ user taps Cancel button OR dismisses sheet (back / swipe-down / backdrop)
