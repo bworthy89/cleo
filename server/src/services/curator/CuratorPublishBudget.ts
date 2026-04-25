@@ -85,16 +85,27 @@ export function makeCuratorPublishBudgetMiddleware(
     const cap = budget.capPerWindow;
 
     // Format the window as the most-precise integer-friendly unit:
-    // exact-hour windows render as "Xh", otherwise as "Xm". Avoids
-    // misleading rounding when the window is configured below 1h.
+    // exact-hour windows render as "Xh", sub-minute windows render
+    // as "<1m" to avoid the misleading "0m" / "1m" rounding, otherwise
+    // as "Xm". Avoids misleading rounding when the window is
+    // configured below 1h.
     const windowMs = budget.windowMs;
     const windowLabel = windowMs % (60 * 60 * 1000) === 0
       ? `${windowMs / (60 * 60 * 1000)}h`
-      : `${Math.round(windowMs / (60 * 1000))}m`;
+      : windowMs < 60 * 1000
+        ? '<1m'
+        : `${Math.round(windowMs / (60 * 1000))}m`;
 
+    // Same sub-minute treatment for the retry-after phrase: floor
+    // to minutes, but render "<1m" when both hours and minutes round
+    // to zero so the user doesn't see "0m".
     const hours = Math.floor(retryAfterMs / (60 * 60 * 1000));
     const minutes = Math.floor((retryAfterMs % (60 * 60 * 1000)) / (60 * 1000));
-    const human = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+    const human = hours > 0
+      ? `${hours}h ${minutes}m`
+      : minutes === 0
+        ? '<1m'
+        : `${minutes}m`;
 
     bakeTelemetry.recordPublishCapHit({
       uid,
