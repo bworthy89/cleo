@@ -41,7 +41,11 @@ export class F5TTSProvider implements TTSProvider {
   }
 
   async synthesize(request: TTSRequest): Promise<TTSResponse> {
-    console.log(`[DEBUG-TTS] transcript: ${JSON.stringify(request.text)}`);
+    // Length-only debug trace — gated behind DEBUG_TTS=1 so production logs
+    // don't carry user-derived transcript content.
+    if (process.env.DEBUG_TTS === '1') {
+      console.log(`[DEBUG-TTS] transcript chars=${request.text.length}`);
+    }
 
     // Honor caller's speed when they explicitly override the default (1.0);
     // otherwise use the env-tuned default (F5 voice-clone reads ~0.9 more

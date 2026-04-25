@@ -41,7 +41,11 @@ export class CosyVoiceProvider implements TTSProvider {
   }
 
   async synthesize(request: TTSRequest): Promise<TTSResponse> {
-    console.log(`[DEBUG-TTS] transcript: ${JSON.stringify(request.text)}`);
+    // Length-only debug trace — gated behind DEBUG_TTS=1 so production logs
+    // don't carry user-derived transcript content.
+    if (process.env.DEBUG_TTS === '1') {
+      console.log(`[DEBUG-TTS] transcript chars=${request.text.length}`);
+    }
 
     const speed = request.speed !== 1.0
       ? Math.max(0.6, Math.min(1.5, request.speed))
