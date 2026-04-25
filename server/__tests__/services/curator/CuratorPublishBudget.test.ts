@@ -108,4 +108,24 @@ describe('CuratorPublishBudget', () => {
       expect(list).toEqual([50, 100, 100]);
     });
   });
+
+  describe('tryReserve — per-uid isolation', () => {
+    it('uid A at cap does not block uid B', () => {
+      const now = 1_000_000;
+      const budget = new CuratorPublishBudget({
+        capPerWindow: 3,
+        windowMs: 24 * 60 * 60 * 1000,
+        clock: () => now,
+      });
+      budget.tryReserve('uid-a');
+      budget.tryReserve('uid-a');
+      budget.tryReserve('uid-a');
+      expect(budget.tryReserve('uid-a').ok).toBe(false);
+
+      expect(budget.tryReserve('uid-b').ok).toBe(true);
+      expect(budget.tryReserve('uid-b').ok).toBe(true);
+      expect(budget.tryReserve('uid-b').ok).toBe(true);
+      expect(budget.tryReserve('uid-b').ok).toBe(false);
+    });
+  });
 });
