@@ -595,8 +595,8 @@ describe('makeCuratorPublishBudgetMiddleware', () => {
     expect(typeof res.body.retryAfterMs).toBe('number');
     expect(res.body.retryAfterMs).toBeGreaterThan(0);
     expect(typeof res.body.error).toBe('string');
-    expect(res.body.error).toContain('3');     // cap interpolated
-    expect(res.body.error).toContain('24h');   // window phrasing
+    expect(res.body.error).toContain('(3 per');  // cap interpolated in semantic context
+    expect(res.body.error).toContain('per 1h');  // window interpolated (matches the 1h windowMs)
   });
 
   it('calls bakeTelemetry.recordPublishCapHit exactly once on rejection', async () => {
