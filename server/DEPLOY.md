@@ -172,3 +172,44 @@ Once the new server is proven:
 ssh cleo@187.124.69.95 'pm2 stop cleo-api && pm2 delete cleo-api && pm2 save'
 # Leave /home/cleo/cleo-api/ on disk for another month as a safety net
 ```
+
+## Observability — Sentry Alerts
+
+Telemetry events emitted by `BakeTelemetry` (see
+`server/src/services/telemetry/BakeTelemetry.ts`):
+
+- `tts.provider-fallback` (event, level=warning, tags `from`/`to`, extra `reason`) — emitted when TTS chain falls through, e.g., CosyVoice → F5 → Cartesia.
+- `enrichment.api-timing` (event, level=info, tags `api`, extra `durationMs`) — per-API timing for Genius, MusicBrainz, Wikipedia, Last.fm calls inside `BackgroundEnricher.drainNow`.
+- `sequencer.result` (event, level=info, tags `vibe`, extra `meanDistance` + `featureSourceCounts` + `n` + `poolSize`) — emitted once per bake from `DeterministicTrackSequencer.logResult`.
+- Bake span (`broadcast.bake` op, attributes `bake.broadcast_id`, `bake.vibe`, `bake.length`, `bake.time_to_slot_zero_ms`, `bake.time_to_completion_ms`, `bake.status`) — emitted from `BroadcastOrchestrator.create` for every bake; closed on success, failure, or early-exit.
+
+Note: `enrichment.api-timing` does NOT cover ReccoBeats / Deezer — those run inside `FeatureFetchChain.fetchBatch` (a separate concern; future task).
+
+### Required dashboard alerts
+
+Configure these in Sentry (Settings → Alerts → Create Alert):
+
+1. **Cartesia fallback rate > 5% in 1 hour**
+   - Trigger: Number of `tts.provider-fallback` events with `tags.to=cartesia` exceeds 5% of total bakes (count of `broadcast.bake` transactions) in a rolling 1-hour window.
+   - Severity: warning.
+   - Action: notify on-call (Slack #onay-alerts).
+   - Reasoning: Cartesia is the paid fallback. Frequent hits = LAN box (CosyVoice on 192.168.8.229) health degraded; investigate before subscriber experience degrades.
+
+2. **Sequencer meanDistance ≥ 0.5 (Phase 1 gate)**
+   - Trigger: `sequencer.result` event with `extra.meanDistance >= 0.5` more than 10% of bakes in 24 hours.
+   - Severity: error.
+   - Action: notify dev (email).
+   - Reasoning: Phase 1 decision gate (issue #20 — meanDistance < 0.5 across all 7 vibes after ReccoBeats integration). Trips → re-brainstorm sequencer redesign before starting Phase 2.
+
+3. **p95 time-to-slot-zero > 20s**
+   - Trigger: 95th percentile of `bake.time_to_slot_zero_ms` over the last 1 hour exceeds 20000.
+   - Severity: warning.
+   - Action: notify on-call.
+   - Reasoning: Phase 1 success criterion is p95 < 15s. 20s threshold gives headroom but flags trend.
+
+### Setup checklist after first deploy
+
+- [ ] `SENTRY_DSN` set on the production VPS env (not committed to repo).
+- [ ] `SENTRY_TRACES_SAMPLE_RATE` set (recommended: `0.2` initially; tighten down once event volume is calibrated).
+- [ ] Three alerts above configured + on-call Slack webhook attached.
+- [ ] Verified: trigger a bake from a prod TestFlight build; confirm the bake transaction appears in Sentry's Performance tab and `tts.provider-fallback` events appear in Issues when fallback is forced.
