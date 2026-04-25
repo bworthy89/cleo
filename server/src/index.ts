@@ -207,6 +207,8 @@ async function bootstrap(): Promise<void> {
     path.resolve(__dirname, '../featured-broadcasts/registry.json'),
   );
   featuredRegistry.load().catch(err => console.error('[featured] registry load failed', err));
+  // createFeaturedRouter args: registry, orchestrator, bakeLimiter, publishBudget.
+  // Both middlewares are RequestHandler | undefined so TS won't catch a swap.
   app.use(requireAuth, createFeaturedRouter(
     featuredRegistry,
     broadcastOrchestrator,
