@@ -1,4 +1,15 @@
 import 'dotenv/config';
+import * as Sentry from '@sentry/node';
+
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.NODE_ENV ?? 'development',
+    tracesSampleRate: Number(process.env.SENTRY_TRACES_SAMPLE_RATE ?? '0.2'),
+    release: process.env.SENTRY_RELEASE,
+  });
+}
+
 import * as path from 'path';
 import express from 'express';
 import cors from 'cors';
