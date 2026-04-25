@@ -668,7 +668,9 @@ export function makeCuratorPublishBudgetMiddleware(
       return;
     }
 
-    const retryAfterMs = result.retryAfterMs ?? 0;
+    // result is narrowed to { ok: false; retryAfterMs: number; current: number }
+    // by the discriminated union — no defensive ?? fallbacks needed.
+    const { retryAfterMs, current } = result;
     const retryAfterSec = Math.max(1, Math.ceil(retryAfterMs / 1000));
     const cap = budget.capPerWindow;
     const windowHours = Math.round(budget.windowMs / (60 * 60 * 1000));
@@ -679,7 +681,7 @@ export function makeCuratorPublishBudgetMiddleware(
 
     bakeTelemetry.recordPublishCapHit({
       uid,
-      current: result.current ?? cap,
+      current,
       retryAfterMs,
     });
 
