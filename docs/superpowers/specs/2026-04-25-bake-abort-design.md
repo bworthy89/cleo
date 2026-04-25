@@ -207,59 +207,76 @@ Cancel ownership lives in `HomeBroadcastScreen`, not `SetupSheet`. The flow:
 
 There is **no backdrop-tap, swipe-down, or back-button dismiss interception**. The overlay does not surface those gestures; the explicit button tap is the only user-driven cancel trigger.
 
-State and signal plumbing in `HomeBroadcastScreen`:
+#### Per-attempt state isolation
+
+A naive single-shared-controller design is unsafe across consecutive bake attempts. After the user taps "TAKE IT BACK", the overlay starts fading (`pointerEvents='none'` immediately when `visible=false`) so the user can tap underneath and start another bake before the original fetch has actually rejected with AbortError. Without isolation, two failure modes appear:
+
+- **Stale-finally clobber:** attempt A's `finally` block, firing seconds later when its slow network call finally rejects, would hide attempt B's overlay (`setTuning(false)`) and null out B's controller (`abortControllerRef.current = null`). B becomes uncancellable.
+- **Race-check inversion:** if A's response had already resolved server-side before `.abort()` took effect (raced past the abort), and the user has since reset shared cancel state by starting B, A's race check would read "not cancelled" and navigate to `/player` with A's manifest — yanking the user out of B.
+
+The fix: capture the `AbortController` in a local `const controller` per attempt, not just in the shared ref. Use `controller.signal.aborted` (per-controller, set synchronously by `.abort()`) as the cancel-intent flag instead of a separate shared `cancelRequestedRef`. Add identity guards in the outer catch and the `finally` so a stale attempt's resolution never touches shared UI state.
 
 ```tsx
 const abortControllerRef = useRef<AbortController | null>(null);
-const cancelRequestedRef = useRef<boolean>(false);
 
 const playUserSourced = useCallback(async (result: SetupResult) => {
-  abortControllerRef.current = new AbortController();
-  cancelRequestedRef.current = false;
+  // Local — captured in this closure so a newer attempt that overwrites
+  // abortControllerRef can't change which signal *this* fetch is bound to.
+  const controller = new AbortController();
+  abortControllerRef.current = controller;
   setTuning(true);
   try {
     // ... fetchPlaylistTracks, sanitize, length-check ...
     let response;
     try {
-      response = await client.createBroadcast(payload, abortControllerRef.current.signal);
+      response = await client.createBroadcast(payload, controller.signal);
     } catch (err) {
-      // AbortController.abort() rejects the fetch with AbortError. The bake
-      // may continue server-side as an orphan — accepted tradeoff.
+      // AbortError from controller.abort(). Server-side bake may continue
+      // as an orphan — accepted tradeoff.
       if (err instanceof DOMException && err.name === 'AbortError') return;
       if (err instanceof Error && err.name === 'AbortError') return;
       throw err;
     }
-    // Race: response landed before abort took effect. Fire DELETE to stop the
-    // background slots 1..N, and don't navigate.
-    if (cancelRequestedRef.current) {
+    // Race: response landed before .abort() took effect. controller.signal
+    // .aborted is set synchronously by .abort(), so this is reliable even
+    // when the resolved-response microtask was queued before abort fired.
+    if (controller.signal.aborted) {
+      void client.abortBake(response.manifest.broadcastId);
+      return;
+    }
+    // Stale-attempt guard: a newer attempt has superseded this one. Don't
+    // navigate over its overlay; clean up server-side and exit silently.
+    if (abortControllerRef.current !== controller) {
       void client.abortBake(response.manifest.broadcastId);
       return;
     }
     router.push('/(main)/(broadcast)/player');
     broadcastPlayer.start(response.manifest, response.firstSegmentUrls);
   } catch (err) {
+    // Stale-attempt: don't surface Alerts that would pop over a newer attempt.
+    if (abortControllerRef.current !== controller) return;
     // ... existing playable-tracks / generic-error Alerts ...
   } finally {
-    setTuning(false);
-    abortControllerRef.current = null;
+    // Only the active attempt may clear shared state.
+    if (abortControllerRef.current === controller) {
+      setTuning(false);
+      abortControllerRef.current = null;
+    }
   }
 }, [router, openSheetAt]);
 ```
 
-The overlay's `onCancel` handler does three things in this order:
+The overlay's `onCancel` handler is now two lines — `signal.aborted` is set synchronously by `.abort()`, so no separate intent-flag bookkeeping is needed:
 
 ```tsx
 <TuningInOverlay
   visible={tuning}
   onCancel={() => {
-    cancelRequestedRef.current = true;
     abortControllerRef.current?.abort();
     setTuning(false);
   }}
 />
 ```
-
-Order matters: `cancelRequestedRef` is flipped *before* `abort()` so the post-success race check (`if (cancelRequestedRef.current) abortBake(...)`) inside `playUserSourced` reliably observes the user's intent even when the response landed before `abort()` took effect.
 
 Two AbortError catch arms (`DOMException` and plain `Error`) cover both fetch implementations (the React Native polyfill historically threw a plain Error with `.name === 'AbortError'`; native fetch throws DOMException). This mirrors the same dual-instanceof guard now used in `src/utils/retry.ts` so `withRetry` doesn't burn through 1s+2s+4s of backoff sleeps before propagating the cancel.
 
