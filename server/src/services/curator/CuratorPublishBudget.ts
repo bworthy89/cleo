@@ -83,7 +83,14 @@ export function makeCuratorPublishBudgetMiddleware(
     const { retryAfterMs, current } = result;
     const retryAfterSec = Math.ceil(retryAfterMs / 1000);
     const cap = budget.capPerWindow;
-    const windowHours = Math.round(budget.windowMs / (60 * 60 * 1000));
+
+    // Format the window as the most-precise integer-friendly unit:
+    // exact-hour windows render as "Xh", otherwise as "Xm". Avoids
+    // misleading rounding when the window is configured below 1h.
+    const windowMs = budget.windowMs;
+    const windowLabel = windowMs % (60 * 60 * 1000) === 0
+      ? `${windowMs / (60 * 60 * 1000)}h`
+      : `${Math.round(windowMs / (60 * 1000))}m`;
 
     const hours = Math.floor(retryAfterMs / (60 * 60 * 1000));
     const minutes = Math.floor((retryAfterMs % (60 * 60 * 1000)) / (60 * 1000));
@@ -97,7 +104,7 @@ export function makeCuratorPublishBudgetMiddleware(
 
     res.setHeader('Retry-After', String(retryAfterSec));
     res.status(429).json({
-      error: `Daily publish cap reached (${cap} per ${windowHours}h). Try again in ~${human}.`,
+      error: `Publish cap reached (${cap} per ${windowLabel}). Try again in ~${human}.`,
       retryAfterMs,
     });
   };
