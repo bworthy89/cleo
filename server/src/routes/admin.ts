@@ -249,7 +249,7 @@ export function createAdminRouter(deps: AdminRouterDeps): Router {
         externalMB: Math.round(mem.external / 1024 / 1024),
       },
       broadcast: {
-        inFlight: deps.orch.inFlightCount(),
+        inFlight: deps.orch.inFlightCount,
         storeSize: deps.store.size(),
       },
       providers: {

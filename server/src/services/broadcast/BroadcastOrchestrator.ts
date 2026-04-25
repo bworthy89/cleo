@@ -8,6 +8,7 @@ import type {
   ManifestTrack, BroadcastLength,
 } from './types';
 import { nominateDeepDives } from './deep-dives';
+import { bakeTelemetry } from '../telemetry/BakeTelemetry';
 
 const LENGTH_TO_N: Record<BroadcastLength, number> = {
   quick: 5, standard: 9, long: 15,
@@ -131,6 +132,12 @@ export class BroadcastOrchestrator {
     //    builder. Same id everywhere means re-bakes with the same inputs
     //    produce the same track order.
     const broadcastId = randomUUID();
+    const startedAt = Date.now();
+    const handle = bakeTelemetry.startBake({
+      broadcastId,
+      vibe: input.vibe,
+      length: input.length,
+    });
     // Tester-triage tag. Prefix all bake-scoped logs so `grep "user=foo@bar"`
     // or `grep "id=a3f9k2"` surfaces the full lifecycle of one bake.
     const tag = buildBakeTag(broadcastId, input.userEmail ?? input.userId);
@@ -207,11 +214,19 @@ export class BroadcastOrchestrator {
     //    a populated cache (richer producer/sample hints); on warm cache
     //    drainNow returns near-instantly, so tune-in is F5 slot 0 time.
     await Promise.all([drainP, slot0P]);
+    handle.endSlotZero(Date.now() - startedAt);
 
     // 5. Fan out slots 1..N as a background task. Client polls
     //    /broadcast/:id/manifest to pick up audioUrls as slots complete.
     if (manifest.segmentSlots.length > 1) {
       const backgroundP = this.generateSlotsBackground(manifest, input.userContext, tag)
+        .then(() => {
+          handle.endBake({ durationMs: Date.now() - startedAt, status: 'completed' });
+        })
+        .catch((err) => {
+          handle.endBake({ durationMs: Date.now() - startedAt, status: 'failed' });
+          throw err;
+        })
         .finally(() => { this.inFlight.delete(manifest.broadcastId); });
       this.inFlight.set(manifest.broadcastId, backgroundP);
     }
@@ -242,7 +257,7 @@ export class BroadcastOrchestrator {
 
   /** Number of bakes whose background slot generation hasn't yet resolved.
    *  Used by the admin status endpoint as a liveness signal. */
-  inFlightCount(): number {
+  get inFlightCount(): number {
     return this.inFlight.size;
   }
 
