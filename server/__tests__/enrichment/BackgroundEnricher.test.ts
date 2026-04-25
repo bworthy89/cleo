@@ -4,6 +4,7 @@ import * as os from 'os';
 import { BackgroundEnricher, type EnrichmentFetcher } from '@/services/enrichment/BackgroundEnricher';
 import { EnrichmentCache, type EnrichmentRecord } from '@/services/enrichment/EnrichmentCache';
 import type { ManifestTrack } from '@/services/broadcast/types';
+import { bakeTelemetry } from '@/services/telemetry/BakeTelemetry';
 
 const makeTrack = (id: string): ManifestTrack => ({
   id, title: `title-${id}`, artistName: `artist-${id}`,
@@ -164,5 +165,65 @@ describe('BackgroundEnricher.drainNow', () => {
 
     expect(fetcher.fetchGenius).not.toHaveBeenCalled();
     expect(fetcher.fetchMusicBrainz).not.toHaveBeenCalled();
+  });
+});
+
+describe('BackgroundEnricher.drainNow telemetry', () => {
+  let timingSpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    timingSpy = jest.spyOn(bakeTelemetry, 'recordEnrichmentApiTiming').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    timingSpy.mockRestore();
+  });
+
+  it('records timing for each API call', async () => {
+    const cache = await tempCache();
+    const fetcher = makeFetcher();
+    const enricher = new BackgroundEnricher(cache, fetcher);
+
+    await enricher.drainNow([makeTrack('a')]);
+
+    expect(timingSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ api: 'genius' }),
+    );
+    expect(timingSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ api: 'musicbrainz' }),
+    );
+    expect(timingSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ api: 'wikipedia' }),
+    );
+    expect(timingSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ api: 'lastfm' }),
+    );
+  });
+
+  it('records durationMs as a non-negative number for each API call', async () => {
+    const cache = await tempCache();
+    const fetcher = makeFetcher();
+    const enricher = new BackgroundEnricher(cache, fetcher);
+
+    await enricher.drainNow([makeTrack('a')]);
+
+    const calls = timingSpy.mock.calls as Array<[{ api: string; durationMs: number }]>;
+    for (const [input] of calls) {
+      expect(typeof input.durationMs).toBe('number');
+      expect(input.durationMs).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it('does not record timing when track is already cached', async () => {
+    const cache = await tempCache();
+    await cache.set('title-a', 'artist-a', {
+      genre: 'cached', lastEnrichedAt: Date.now(), source: 'hybrid',
+    });
+    const fetcher = makeFetcher();
+    const enricher = new BackgroundEnricher(cache, fetcher);
+
+    await enricher.drainNow([makeTrack('a')]);
+
+    expect(timingSpy).not.toHaveBeenCalled();
   });
 });
