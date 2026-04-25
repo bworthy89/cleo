@@ -36,7 +36,7 @@ describe('CuratorPublishBudget', () => {
       budget.tryReserve('uid-a');
       budget.tryReserve('uid-a');
       const result = budget.tryReserve('uid-a');
-      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error('expected rejection');
       expect(result.current).toBe(3);
       // First reserve was at `now`; the window expires at now + windowMs.
       // retryAfterMs = (oldestEntry + windowMs) - now = windowMs (since clock didn't move).

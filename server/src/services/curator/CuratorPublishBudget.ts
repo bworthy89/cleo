@@ -4,11 +4,9 @@ export interface CuratorPublishBudgetOptions {
   clock?: () => number;
 }
 
-export interface ReserveResult {
-  ok: boolean;
-  retryAfterMs?: number;
-  current?: number;
-}
+export type ReserveResult =
+  | { ok: true }
+  | { ok: false; retryAfterMs: number; current: number };
 
 /**
  * Per-curator rolling-window publish quota. State is in-memory
