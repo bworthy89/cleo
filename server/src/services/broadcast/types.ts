@@ -28,7 +28,7 @@ export interface SegmentSlot {
   beforeTrackId?: string;
   afterTrackId?: string;
   variantCount: number;
-  status: 'pending' | 'ready' | 'failed';
+  status: 'pending' | 'ready' | 'failed' | 'aborted';
   audioUrls?: string[];
   /** Tier used to build this slot's prompt. 'cold_open' / 'sign_off' match
    *  their kind; transitions are either 'fact_bridge' or 'deep_dive' based
