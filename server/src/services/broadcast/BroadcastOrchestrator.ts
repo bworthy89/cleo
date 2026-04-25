@@ -359,7 +359,12 @@ export class BroadcastOrchestrator {
       });
       return urls;
     } catch (err) {
-      this.store.updateSlot(manifest.broadcastId, slotIndex, { status: 'failed' });
+      // Same cooperative-cancellation guard as the success path: don't
+      // downgrade an already-'aborted' slot to 'failed' just because its
+      // TTS happened to throw on the way to being discarded anyway.
+      if (!this.aborted.has(manifest.broadcastId)) {
+        this.store.updateSlot(manifest.broadcastId, slotIndex, { status: 'failed' });
+      }
       if (slotIndex === 0) throw err;
       return [];
     }

@@ -112,4 +112,30 @@ describe('DELETE /broadcast/:id', () => {
     const res = await request(app).delete('/broadcast/b1');
     expect(res.status).toBe(204);
   });
+
+  it('returns 401 when no auth middleware ran (req.uid unset)', async () => {
+    store.put(makeManifest('b1', 'uid-123'));
+    // App without authStub — req.uid is undefined.
+    const app = express();
+    app.use(express.json());
+    app.use(createBroadcastRouter(orch, store));
+    const res = await request(app).delete('/broadcast/b1');
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 204 idempotently on already-aborted broadcast', async () => {
+    store.put(makeManifest('b1', 'uid-123'));
+    const inFlight = (orch as unknown as { inFlight: Map<string, Promise<void>> }).inFlight;
+    inFlight.set('b1', new Promise(() => {}));
+
+    const app = buildApp(orch, store);
+    const first = await request(app).delete('/broadcast/b1');
+    expect(first.status).toBe(204);
+    // Second DELETE — abortBake still returns true (inFlight entry persists
+    // because we injected a never-resolving promise), but state is unchanged.
+    const second = await request(app).delete('/broadcast/b1');
+    expect(second.status).toBe(204);
+    const m = store.get('b1')!;
+    expect(m.segmentSlots[1].status).toBe('aborted');
+  });
 });
