@@ -175,8 +175,7 @@ describe('BakeTelemetry', () => {
 
 describe('BakeTelemetry.recordPublishCapHit', () => {
   it('emits a curator.publish-cap-hit warning to Sentry with uid in tags', () => {
-    const captureSpy = jest.spyOn(Sentry, 'captureMessage')
-      .mockReturnValue('msg-id' as unknown as string);
+    const captureSpy = jest.spyOn(Sentry, 'captureMessage');
     try {
       const telemetry = new BakeTelemetry();
       telemetry.recordPublishCapHit({
