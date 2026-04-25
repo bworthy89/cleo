@@ -9,7 +9,7 @@
 
 ## Why
 
-When a user starts a bake and changes their mind, the server today has no path to stop. Slot 0 is awaited synchronously inside `POST /broadcast/create` (~11–19s cold cache); slots 1..N then run as a background promise tracked in `BroadcastOrchestrator.inFlight`. A user who taps cancel mid-wait — `HomeBroadcastScreen` owns the loading state and would-be abort flow — pays for every remaining LLM + TTS call regardless, because nothing on the server is listening for that intent. This is a cost-reduction feature.
+When a user starts a bake and changes their mind, the server today has no path to stop. Slot 0 is awaited synchronously inside `POST /broadcast/create` (~11–19s cold cache); slots 1..N then run as a background promise tracked in `BroadcastOrchestrator.inFlight`. By the time the bake is in flight, `HomeBroadcastScreen.onSheetSubmit` has already called `setSheetOpen(false)` and invoked `playUserSourced(result)`, so the wait is rendered by `TuningInOverlay` (the `SetupSheet` is closed before the wait begins). A user who taps cancel during that wait pays for every remaining LLM + TTS call regardless, because nothing on the server is listening for that intent. This is a cost-reduction feature.
 
 ## Scope
 
@@ -18,7 +18,7 @@ The cancel-eligible window is *entirely pre-`/player`*: from when the user taps 
 **In scope:**
 - `DELETE /broadcast/:id` server route with cooperative cancellation
 - Slot status `'aborted'` joining `'pending' | 'ready' | 'failed'` on both sides
-- `TuningInOverlay` "TAKE IT BACK" button (already rendered when `onCancel` is supplied) wired through `HomeBroadcastScreen`'s AbortController. **No** backdrop-tap, swipe-down, or back-button dismiss interception — the explicit Pressable is the only cancel trigger.
+- Cancel surface during the bake wait: `TuningInOverlay`'s `TAKE IT BACK` Pressable (already rendered when `onCancel` is supplied), wired through `HomeBroadcastScreen`'s AbortController. `SetupSheet` is closed by the time the wait begins, so no cancel UI lives there. **No** backdrop-tap, swipe-down, or back-button dismiss interception anywhere — the Pressable is the only user-driven cancel trigger.
 - AbortController on the create fetch + race-handling for response-lands-before-abort
 
 **Out of scope:**
