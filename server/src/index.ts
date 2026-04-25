@@ -216,6 +216,12 @@ async function bootstrap(): Promise<void> {
     });
   }
 
+  // Sentry error handler — must come AFTER all routes but BEFORE app.listen
+  // so route handlers that throw or call next(err) get captured. Without
+  // this, 5xx errors are swallowed by Express's default 500 handler and
+  // never reach Sentry.
+  Sentry.setupExpressErrorHandler(app);
+
   const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`Cleo server running on 0.0.0.0:${PORT}`);
   });
