@@ -97,5 +97,17 @@ export function createBroadcastRouter(
     return res.json(manifest);
   });
 
+  router.delete('/broadcast/:id', (req: AuthenticatedRequest, res) => {
+    if (!req.uid) return res.status(401).json({ error: 'unauthenticated' });
+    const manifest = store.get(req.params.id);
+    if (!manifest) return res.status(404).json({ error: 'not found' });
+    // Strict ownership: curator-baked broadcasts (manifest.userId === 'curator')
+    // are NOT abortable here. The GET endpoint's curator-readable carveout
+    // does not apply — featured publishes use a separate code path.
+    if (manifest.userId !== req.uid) return res.status(404).json({ error: 'not found' });
+    orch.abortBake(req.params.id);
+    return res.status(204).end();
+  });
+
   return router;
 }

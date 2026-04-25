@@ -28,7 +28,17 @@ export interface SegmentSlot {
   beforeTrackId?: string;
   afterTrackId?: string;
   variantCount: number;
-  status: 'pending' | 'ready' | 'failed';
+  /** Lifecycle:
+   *  - `pending`  — slot reserved at manifest-build time; bake worker not yet
+   *                 done. Client polls until terminal.
+   *  - `ready`    — segment audio generated and uploaded; `audioUrls` populated.
+   *  - `failed`   — bake worker errored on this slot; skip silently and continue.
+   *  - `aborted`  — bake was canceled (DELETE /broadcast/:id) before this slot
+   *                 finished. Set by the abort handler on any non-terminal slot;
+   *                 in-flight slot generation is allowed to complete naturally.
+   *                 Treated like `failed` by the client (defensive — aborted
+   *                 bakes never reach /player under user-driven flows). */
+  status: 'pending' | 'ready' | 'failed' | 'aborted';
   audioUrls?: string[];
   /** Tier used to build this slot's prompt. 'cold_open' / 'sign_off' match
    *  their kind; transitions are either 'fact_bridge' or 'deep_dive' based

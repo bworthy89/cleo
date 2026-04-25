@@ -55,4 +55,36 @@ describe('BroadcastStore', () => {
     store.put(m);
     expect(store.get('b1')).toBeUndefined();
   });
+
+  it('markPendingSlotsAborted flips only pending slots to aborted', () => {
+    const store = new BroadcastStore();
+    const m = baseManifest();
+    m.segmentSlots = [
+      { index: 0, kind: 'cold_open', beforeTrackId: 't0', variantCount: 3, status: 'ready' },
+      { index: 1, kind: 'transition', beforeTrackId: 't0', variantCount: 1, status: 'pending' },
+      { index: 2, kind: 'sign_off', afterTrackId: 't0', variantCount: 1, status: 'failed' },
+    ];
+    store.put(m);
+    store.markPendingSlotsAborted('b1');
+    const out = store.get('b1')!;
+    expect(out.segmentSlots[0].status).toBe('ready');
+    expect(out.segmentSlots[1].status).toBe('aborted');
+    expect(out.segmentSlots[2].status).toBe('failed');
+  });
+
+  it('markPendingSlotsAborted is a no-op for unknown broadcastId', () => {
+    const store = new BroadcastStore();
+    expect(() => store.markPendingSlotsAborted('nope')).not.toThrow();
+  });
+
+  it('markPendingSlotsAborted is a no-op when no slots are pending', () => {
+    const store = new BroadcastStore();
+    const m = baseManifest();
+    m.segmentSlots = [
+      { index: 0, kind: 'cold_open', beforeTrackId: 't0', variantCount: 3, status: 'ready' },
+    ];
+    store.put(m);
+    store.markPendingSlotsAborted('b1');
+    expect(store.get('b1')!.segmentSlots[0].status).toBe('ready');
+  });
 });

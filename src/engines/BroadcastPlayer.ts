@@ -530,8 +530,11 @@ export class BroadcastPlayer {
     this.currentSegmentIndex = slotIndex;
     this.state = 'playing_segment';
 
-    if (slot.status === 'failed') {
-      // Slot failed at bake time — skip silently, continue broadcast.
+    if (slot.status === 'failed' || slot.status === 'aborted') {
+      // Slot failed or was aborted at bake time — skip silently, continue
+      // broadcast. The player is not expected to encounter 'aborted' slots
+      // under user-driven flows (aborted bakes never reach /player), but a
+      // stale resume could surface one — defensive.
       this.currentSegmentIndex = -1;
       return;
     }
