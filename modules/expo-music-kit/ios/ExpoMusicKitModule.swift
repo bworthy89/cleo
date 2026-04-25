@@ -16,9 +16,7 @@ public class ExpoMusicKitModule: Module {
   private var cachedPlaylists: [String: Playlist] = [:]
   private var lastPlaybackStatus: ApplicationMusicPlayer.PlaybackStatus?
   private var ttsPromiseResolve: (() -> Void)? = nil
-  private var backgroundTaskId: UIBackgroundTaskIdentifier = .invalid
   private var lifecycleObservers: [Any] = []
-  private var silencePlayer: AVAudioPlayer?
   /// True while a BroadcastPlayer broadcast is in progress. When true, the
   /// 0.5s playback timer keeps running in background so end-of-track events
   /// reach the JS state machine and the broadcast can advance even when the
@@ -481,9 +479,6 @@ public class ExpoMusicKitModule: Module {
         return
       }
 
-      // Protect entire TTS lifecycle from iOS background suspension
-      // Background task removed — it prevents iOS from throttling CPU
-
       do {
         // Stop any currently playing audio and resolve its pending promise
         // AVAudioPlayer.stop() does NOT fire audioPlayerDidFinishPlaying,
@@ -732,24 +727,6 @@ public class ExpoMusicKitModule: Module {
     if tracksBefore != tracksAfter || songsBefore != songsAfter {
       print("[ExpoMusicKit] Trimmed caches: tracks \(tracksBefore)→\(tracksAfter), songs \(songsBefore)→\(songsAfter), playlists cleared")
     }
-  }
-
-  // MARK: - Background Task Protection
-
-  /// Request extra execution time from iOS to complete TTS playback + MusicKit resume.
-  /// Without this, iOS can suspend the app in the gap between TTS ending and MusicKit resuming.
-  private func beginTTSBackgroundTask() {
-    guard self.backgroundTaskId == .invalid else { return }
-    self.backgroundTaskId = UIApplication.shared.beginBackgroundTask(withName: "TTSPlayback") { [weak self] in
-      // Expiration handler — clean up if iOS forces us to stop
-      // no-op: background task removed
-    }
-  }
-
-  private func endTTSBackgroundTask() {
-    guard self.backgroundTaskId != .invalid else { return }
-    UIApplication.shared.endBackgroundTask(self.backgroundTaskId)
-    self.backgroundTaskId = .invalid
   }
 
   // MARK: - Private Helpers
