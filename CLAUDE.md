@@ -592,10 +592,6 @@ compiled in but unreferenced — candidate for native cleanup pass. `SequenceCac
   leftovers.
 - **Rollback Fastify decommission** — `pm2 delete cleo-api` once new server is stable.
 - **R2 presign TTL tightening** — currently 7 days; could match `BroadcastStore` 24h.
-- **Per-curator publish budget** — featured publish shares the generation rate limit;
-  a runaway curator account could exhaust quota.
-- **CosyVoice systemd unit** — staged at `~/cosyvoice-server/cosyvoice.service` but not
-  installed. Currently runs via `nohup` uvicorn; restarts are manual.
 
 ---
 
@@ -621,7 +617,8 @@ Separate from the Hostinger VPS. Hosts F5 and CosyVoice3.
 - **SSH:** `ssh kari@192.168.8.229` — AMD 6700XT GPU via ROCm 6.2.
 - **F5-TTS wrapper:** `~/f5tts-server/`, systemd unit `f5tts`, port 8000. Patched with
   leading-silence trim and `/cosy/*` reverse-proxy endpoints.
-- **CosyVoice3 wrapper:** `~/cosyvoice-server/`, port 8001.
+- **CosyVoice3 wrapper:** `~/cosyvoice-server/`, systemd unit `cosyvoice`, port 8001.
+  Restart-on-failure, auto-start on boot, journal logging via `journalctl -u cosyvoice`.
 - **Shared reference:** `~/f5tts-server/refs/onay-cartesia.wav` + `.txt` — canonical
   voice, 9.56s. CosyVoice symlinks from `~/cosyvoice-server/refs/`.
 - **Pangolin tunnel:** `f5tts.worthymedia.online` → port 8000. CosyVoice reached via
