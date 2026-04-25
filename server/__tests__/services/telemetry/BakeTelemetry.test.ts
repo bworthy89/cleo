@@ -4,7 +4,6 @@ import { BakeTelemetry } from '@/services/telemetry/BakeTelemetry';
 jest.mock('@sentry/node', () => ({
   startInactiveSpan: jest.fn(),
   captureMessage: jest.fn(),
-  setMeasurement: jest.fn(),
 }));
 
 describe('BakeTelemetry', () => {
@@ -17,17 +16,16 @@ describe('BakeTelemetry', () => {
     telemetry = new BakeTelemetry();
   });
 
-  it('startBake returns a handle whose endSlotZero records a measurement', () => {
+  it('endSlotZero records duration as a span attribute', () => {
     const handle = telemetry.startBake({
       broadcastId: 'A3F9K2X1',
       vibe: 'late-night',
       length: 'standard',
     });
     handle.endSlotZero(11500);
-    expect(Sentry.setMeasurement).toHaveBeenCalledWith(
+    expect(mockSpan.setAttribute).toHaveBeenCalledWith(
       'bake.time_to_slot_zero_ms',
       11500,
-      'millisecond',
     );
   });
 
@@ -38,11 +36,11 @@ describe('BakeTelemetry', () => {
       length: 'standard',
     });
     handle.endBake({ durationMs: 42000, status: 'completed' });
-    expect(Sentry.setMeasurement).toHaveBeenCalledWith(
+    expect(mockSpan.setAttribute).toHaveBeenCalledWith(
       'bake.time_to_completion_ms',
       42000,
-      'millisecond',
     );
+    expect(mockSpan.setAttribute).toHaveBeenCalledWith('bake.status', 'completed');
     expect(mockSpan.end).toHaveBeenCalled();
   });
 
@@ -63,10 +61,13 @@ describe('BakeTelemetry', () => {
 
   it('recordEnrichmentApiTiming records measurements per API', () => {
     telemetry.recordEnrichmentApiTiming({ api: 'reccobeats', durationMs: 850 });
-    expect(Sentry.setMeasurement).toHaveBeenCalledWith(
-      'enrichment.reccobeats_ms',
-      850,
-      'millisecond',
+    expect(Sentry.captureMessage).toHaveBeenCalledWith(
+      'enrichment.api-timing',
+      expect.objectContaining({
+        level: 'info',
+        tags: { api: 'reccobeats' },
+        extra: { durationMs: 850 },
+      }),
     );
   });
 
@@ -84,6 +85,41 @@ describe('BakeTelemetry', () => {
         level: 'info',
         tags: expect.objectContaining({ vibe: 'late-night' }),
         extra: expect.objectContaining({ meanDistance: 0.42 }),
+      }),
+    );
+  });
+
+  it('startBake opens a span with bake attributes', () => {
+    telemetry.startBake({ broadcastId: 'A3F9K2X1', vibe: 'late-night', length: 'standard' });
+    expect(Sentry.startInactiveSpan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        op: 'broadcast.bake',
+        attributes: expect.objectContaining({
+          'bake.broadcast_id': 'A3F9K2X1',
+          'bake.vibe': 'late-night',
+          'bake.length': 'standard',
+        }),
+      }),
+    );
+  });
+
+  it('endBake records the failed status on the span', () => {
+    const handle = telemetry.startBake({ broadcastId: 'X', vibe: 'chill', length: 'quick' });
+    handle.endBake({ durationMs: 5000, status: 'failed' });
+    expect(mockSpan.setAttribute).toHaveBeenCalledWith('bake.status', 'failed');
+    expect(mockSpan.end).toHaveBeenCalled();
+  });
+
+  it('recordProviderFallback puts reason in extra (not tags)', () => {
+    telemetry.recordProviderFallback({
+      from: 'cosyvoice',
+      to: 'f5tts',
+      reason: 'synthesize-threw',
+    });
+    expect(Sentry.captureMessage).toHaveBeenCalledWith(
+      'tts.provider-fallback',
+      expect.objectContaining({
+        extra: expect.objectContaining({ reason: 'synthesize-threw' }),
       }),
     );
   });
