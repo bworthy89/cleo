@@ -26,7 +26,7 @@ This is observational tooling, not a behavioral change. The shipped sequencer is
 - 4 new fixture pools at `server/__tests__/fixtures/sequencer-goldens/` for the 4 missing vibes (`focus`, `workout`, `feelGood`, `melancholy`).
 - One length per missing vibe, chosen by production-likelihood: `focus=long`, `workout=standard`, `feelGood=standard`, `melancholy=quick`.
 - Promote `meanDistance` from internal logging to `SequenceResult` (one new numeric field; the value is already computed).
-- Driver script `server/scripts/eval-sequencer-gate.ts` runnable via `npx ts-node`. Loads all 7 fixtures, runs each through the deterministic sequencer, prints per-vibe meanDistance, exits 0 if all `< 0.5`, 1 if any `≥ 0.5`.
+- Driver script `server/scripts/eval-sequencer-gate.ts` runnable via `npx tsx`. Loads all 7 fixtures, runs each through the deterministic sequencer, prints per-vibe meanDistance, exits 0 if all `< 0.5`, 1 if any `≥ 0.5`.
 - One new unit test verifying `meanDistance` lands on the result.
 - Existing `sequencer-goldens.test.ts` automatically picks up the 4 new fixtures (it `readdirSync`s the directory) — no test code changes needed for regression coverage.
 
@@ -63,7 +63,7 @@ The value is computed at line 127 (`const meanDistance = totalDistance / result.
 
 **Driver script:**
 
-`server/scripts/eval-sequencer-gate.ts` — runnable via `npx ts-node server/scripts/eval-sequencer-gate.ts` from the repo root. Output:
+`server/scripts/eval-sequencer-gate.ts` — runnable via `npx tsx server/scripts/eval-sequencer-gate.ts` from the repo root. Output:
 
 ```
 [gate] Running 7 vibe fixtures...
@@ -106,7 +106,7 @@ Combined with the existing 3 (morning-standard, lateNight-quick, party-long), fi
 - **Create** `server/__tests__/fixtures/sequencer-goldens/pool-feelGood-standard.json`
 - **Create** `server/__tests__/fixtures/sequencer-goldens/pool-melancholy-quick.json`
 - **Create** `server/scripts/eval-sequencer-gate.ts` — the driver.
-- **Modify** `server/package.json` — add `"eval-sequencer-gate": "ts-node scripts/eval-sequencer-gate.ts"` to `scripts`.
+- **Modify** `server/package.json` — add `"eval-sequencer-gate": "tsx scripts/eval-sequencer-gate.ts"` to `scripts`.
 
 ## Test strategy
 
@@ -119,7 +119,7 @@ Combined with the existing 3 (morning-standard, lateNight-quick, party-long), fi
 - **Fixture lands `meanDistance ≥ 0.5`.** That's a real finding, not a bug to fix. Escalate to the user; decide whether to (a) accept as-is and open a sequencer-redesign issue, (b) re-pool the fixture (only justified if the original pool was non-representative), or (c) tune the vibe curve. Do not silently re-pool until it passes — that defeats the harness's purpose.
 - **Adding `meanDistance` to `SequenceResult` breaks an unknown caller.** `SequenceResult` is server-internal; the only callers are inside the broadcast pipeline (`BroadcastOrchestrator`, the goldens test). Adding a field is purely additive — TypeScript structural typing accepts unknown extra fields silently. No deprecation cycle needed.
 - **Existing `sequencer-goldens.test.ts` rejects the new fixtures.** It currently asserts `r.orderedTracks.map(t => t.id)).toEqual(g.expectedOrder)` — works for any fixture matching the schema. The new fixtures will be regression-tested automatically with no test-code changes.
-- **`ts-node` version mismatch.** `server/package.json` already depends on `ts-node` for existing scripts (e.g. `bake-featured.ts`). The new script reuses the existing toolchain.
+- **`tsx` version mismatch.** `server/package.json` already depends on `tsx` for existing scripts (e.g. `bake-featured.ts`). The new script reuses the existing toolchain.
 
 ## Open questions
 
