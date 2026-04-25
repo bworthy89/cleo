@@ -54,6 +54,13 @@ export class BroadcastOrchestrator {
    */
   private readonly inFlight = new Map<string, Promise<void>>();
 
+  /**
+   * Broadcasts whose background bake has been signalled to stop. Workers
+   * check this Set between slot generations and exit. Cleared in the same
+   * .finally that clears `inFlight`.
+   */
+  private readonly aborted = new Set<string>();
+
   constructor(
     llm: LLMCaller,
     tts: TTSCaller,
@@ -223,13 +230,17 @@ export class BroadcastOrchestrator {
       if (manifest.segmentSlots.length > 1) {
         const backgroundP = this.generateSlotsBackground(manifest, input.userContext, tag)
           .then(() => {
-            handle.endBake({ durationMs: Date.now() - startedAt, status: 'completed' });
+            const status = this.aborted.has(manifest.broadcastId) ? 'aborted' : 'completed';
+            handle.endBake({ durationMs: Date.now() - startedAt, status });
           })
           .catch((err) => {
             handle.endBake({ durationMs: Date.now() - startedAt, status: 'failed' });
             throw err;
           })
-          .finally(() => { this.inFlight.delete(manifest.broadcastId); });
+          .finally(() => {
+            this.inFlight.delete(manifest.broadcastId);
+            this.aborted.delete(manifest.broadcastId);
+          });
         this.inFlight.set(manifest.broadcastId, backgroundP);
       } else {
         // Single-slot manifest: no background work, close the span now.
@@ -270,6 +281,23 @@ export class BroadcastOrchestrator {
     return this.inFlight.size;
   }
 
+  /**
+   * Cooperative cancellation. Flips the abort flag and marks all pending
+   * slots in the store as 'aborted' so client polling picks up the new
+   * state. The 4-worker pool's loop check (in generateSlotsBackground) will
+   * then exit on its next iteration; the in-flight TTS call holding the
+   * lock is allowed to finish naturally — its slot becomes 'ready'.
+   *
+   * Idempotent: returns false when there is no in-flight bake (already
+   * completed, never created, or already aborted-and-evicted).
+   */
+  abortBake(broadcastId: string): boolean {
+    if (!this.inFlight.has(broadcastId)) return false;
+    this.aborted.add(broadcastId);
+    this.store.markPendingSlotsAborted(broadcastId);
+    return true;
+  }
+
   /** Read the current manifest state (slots include their latest status + urls). */
   getManifest(broadcastId: string): Manifest | undefined {
     return this.store.get(broadcastId);
@@ -288,6 +316,7 @@ export class BroadcastOrchestrator {
     let nextIndex = 0;
     const runWorker = async (): Promise<void> => {
       while (true) {
+        if (this.aborted.has(manifest.broadcastId)) return;
         const i = nextIndex++;
         if (i >= indices.length) return;
         try {
@@ -319,13 +348,23 @@ export class BroadcastOrchestrator {
         slotIndex,
         prompts,
       });
+      // Cooperative cancellation: if the bake was aborted while this slot's
+      // TTS was in flight, leave the slot's 'aborted' status alone instead of
+      // overwriting it back to 'ready'. The slot's audio bytes are dropped on
+      // the floor — abortBake's whole point is "stop spending on this bake".
+      if (this.aborted.has(manifest.broadcastId)) return urls;
       this.store.updateSlot(manifest.broadcastId, slotIndex, {
         status: 'ready',
         audioUrls: urls,
       });
       return urls;
     } catch (err) {
-      this.store.updateSlot(manifest.broadcastId, slotIndex, { status: 'failed' });
+      // Same cooperative-cancellation guard as the success path: don't
+      // downgrade an already-'aborted' slot to 'failed' just because its
+      // TTS happened to throw on the way to being discarded anyway.
+      if (!this.aborted.has(manifest.broadcastId)) {
+        this.store.updateSlot(manifest.broadcastId, slotIndex, { status: 'failed' });
+      }
       if (slotIndex === 0) throw err;
       return [];
     }

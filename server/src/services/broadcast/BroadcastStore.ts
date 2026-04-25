@@ -34,6 +34,18 @@ export class BroadcastStore {
     Object.assign(slot, patch);
   }
 
+  /** Flip every 'pending' slot in this broadcast's manifest to 'aborted'.
+   *  No-op when the broadcast is unknown or has no pending slots. Used by
+   *  BroadcastOrchestrator.abortBake to propagate cancellation into the
+   *  store so client polling picks up the aborted state. */
+  markPendingSlotsAborted(broadcastId: string): void {
+    const m = this.entries.get(broadcastId);
+    if (!m) return;
+    for (const slot of m.segmentSlots) {
+      if (slot.status === 'pending') slot.status = 'aborted';
+    }
+  }
+
   /** Current entry count (includes not-yet-evicted expired entries; TTL is
    *  applied lazily on `get`). Used by the admin status endpoint for a rough
    *  memory-footprint signal. */

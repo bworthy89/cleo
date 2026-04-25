@@ -117,11 +117,15 @@ export function sanitizeTracksForBake(
 }
 
 export class BroadcastManifestClient {
-  async createBroadcast(req: CreateBroadcastRequest): Promise<CreateBroadcastResponse> {
+  async createBroadcast(
+    req: CreateBroadcastRequest,
+    signal?: AbortSignal,
+  ): Promise<CreateBroadcastResponse> {
     const res = await authenticatedFetch('/broadcast/create', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(req),
+      signal,
     });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
@@ -135,6 +139,17 @@ export class BroadcastManifestClient {
     const res = await authenticatedFetch(`/broadcast/${id}/manifest`);
     if (!res.ok) throw new Error(`fetchManifest failed: ${res.status}`);
     return (await res.json()) as Manifest;
+  }
+
+  /** Fire-and-forget DELETE. Swallows errors — the user has already moved
+   *  on, and a failed abort just means the server keeps baking that one
+   *  bake, harmless beyond wasted compute. */
+  async abortBake(broadcastId: string): Promise<void> {
+    try {
+      await authenticatedFetch(`/broadcast/${broadcastId}`, { method: 'DELETE' });
+    } catch {
+      // Intentional swallow.
+    }
   }
 
   async fetchSegmentAudio(urlOrPath: string): Promise<string> {
