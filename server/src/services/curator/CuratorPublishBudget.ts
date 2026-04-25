@@ -1,3 +1,6 @@
+import type { Request, Response, NextFunction, RequestHandler } from 'express';
+import { bakeTelemetry } from '../telemetry/BakeTelemetry';
+
 export interface CuratorPublishBudgetOptions {
   capPerWindow: number;
   windowMs: number;
@@ -14,8 +17,8 @@ export type ReserveResult =
  * so there is no background timer.
  */
 export class CuratorPublishBudget {
-  private readonly capPerWindow: number;
-  private readonly windowMs: number;
+  readonly capPerWindow: number;
+  readonly windowMs: number;
   private readonly clock: () => number;
   private readonly entries = new Map<string, number[]>();
 
@@ -44,4 +47,53 @@ export class CuratorPublishBudget {
     this.entries.set(uid, list);
     return { ok: true };
   }
+}
+
+/**
+ * Express middleware that gates the wrapped handler on the curator's
+ * remaining quota. Must run after auth so req.uid is populated.
+ *
+ * - 200 path: tryReserve → ok → next()
+ * - 429 path: tryReserve → !ok → Retry-After header + JSON body, telemetry fires
+ * - 500 path: req.uid missing → defensive bail (auth chain is misconfigured)
+ */
+export function makeCuratorPublishBudgetMiddleware(
+  budget: CuratorPublishBudget,
+): RequestHandler {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const uid = (req as unknown as { uid?: string }).uid;
+    if (!uid) {
+      res.status(500).json({ error: 'req.uid not set; auth chain misconfigured' });
+      return;
+    }
+
+    const result = budget.tryReserve(uid);
+    if (result.ok) {
+      next();
+      return;
+    }
+
+    // result is narrowed to { ok: false; retryAfterMs: number; current: number }
+    // by the discriminated union — no defensive ?? fallbacks needed.
+    const { retryAfterMs, current } = result;
+    const retryAfterSec = Math.max(1, Math.ceil(retryAfterMs / 1000));
+    const cap = budget.capPerWindow;
+    const windowHours = Math.round(budget.windowMs / (60 * 60 * 1000));
+
+    const hours = Math.floor(retryAfterMs / (60 * 60 * 1000));
+    const minutes = Math.floor((retryAfterMs % (60 * 60 * 1000)) / (60 * 1000));
+    const human = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+
+    bakeTelemetry.recordPublishCapHit({
+      uid,
+      current,
+      retryAfterMs,
+    });
+
+    res.setHeader('Retry-After', String(retryAfterSec));
+    res.status(429).json({
+      error: `Daily publish cap reached (${cap} per ${windowHours}h). Try again in ~${human}.`,
+      retryAfterMs,
+    });
+  };
 }
