@@ -172,3 +172,28 @@ describe('BakeTelemetry', () => {
     );
   });
 });
+
+describe('BakeTelemetry.recordPublishCapHit', () => {
+  it('emits a curator.publish-cap-hit warning to Sentry with uid in tags', () => {
+    const captureSpy = jest.spyOn(Sentry, 'captureMessage')
+      .mockReturnValue('msg-id' as unknown as string);
+    try {
+      const telemetry = new BakeTelemetry();
+      telemetry.recordPublishCapHit({
+        uid: 'curator-1',
+        current: 3,
+        retryAfterMs: 1234,
+      });
+      expect(captureSpy).toHaveBeenCalledWith(
+        'curator.publish-cap-hit',
+        expect.objectContaining({
+          level: 'warning',
+          tags: { uid: 'curator-1' },
+          extra: { current: 3, retryAfterMs: 1234 },
+        }),
+      );
+    } finally {
+      captureSpy.mockRestore();
+    }
+  });
+});

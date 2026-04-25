@@ -30,6 +30,12 @@ export interface SequencerResultInput {
   featureSourceCounts: Record<string, number>;
 }
 
+export interface PublishCapHitInput {
+  uid: string;
+  current: number;
+  retryAfterMs: number;
+}
+
 export interface BakeHandle {
   endSlotZero(durationMs: number): void;
   endBake(input: BakeEndInput): void;
@@ -99,6 +105,14 @@ export class BakeTelemetry {
         poolSize: input.poolSize,
         featureSourceCounts: input.featureSourceCounts,
       },
+    });
+  }
+
+  recordPublishCapHit(input: PublishCapHitInput): void {
+    Sentry.captureMessage('curator.publish-cap-hit', {
+      level: 'warning',
+      tags: { uid: input.uid },
+      extra: { current: input.current, retryAfterMs: input.retryAfterMs },
     });
   }
 }
