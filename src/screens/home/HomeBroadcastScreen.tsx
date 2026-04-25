@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -125,6 +125,8 @@ export default function HomeBroadcastScreen() {
   const [playlistsError, setPlaylistsError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [tuning, setTuning] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const cancelRequestedRef = useRef<boolean>(false);
   const [recent, setRecent] = useState<BroadcastHistoryEntry[]>([]);
 
   const [broadcastActive, setBroadcastActive] = useState(false);
@@ -279,6 +281,8 @@ export default function HomeBroadcastScreen() {
   }, [playlistId, vibe, length, openSheetAt]);
 
   const playUserSourced = useCallback(async (result: SetupResult) => {
+    abortControllerRef.current = new AbortController();
+    cancelRequestedRef.current = false;
     setTuning(true);
     try {
       const tracks = await musicKitPlayer.fetchPlaylistTracks(result.playlistId);
@@ -289,17 +293,40 @@ export default function HomeBroadcastScreen() {
           `Playlist has only ${sanitized.length} playable track${sanitized.length === 1 ? '' : 's'} (need at least 5).`,
         );
       }
-      const { manifest, firstSegmentUrls } = await client.createBroadcast({
-        playlistId: result.playlistId,
-        vibe: result.vibe,
-        length: result.length,
-        userContext: {
-          timeOfDay: new Date().toTimeString().slice(0, 5),
-          dayOfWeek: new Date().toLocaleDateString(undefined, { weekday: 'long' }),
-          firstTimeUser: false,
-        },
-        tracks: sanitized,
-      });
+      let response;
+      try {
+        response = await client.createBroadcast(
+          {
+            playlistId: result.playlistId,
+            vibe: result.vibe,
+            length: result.length,
+            userContext: {
+              timeOfDay: new Date().toTimeString().slice(0, 5),
+              dayOfWeek: new Date().toLocaleDateString(undefined, { weekday: 'long' }),
+              firstTimeUser: false,
+            },
+            tracks: sanitized,
+          },
+          abortControllerRef.current.signal,
+        );
+      } catch (err) {
+        // AbortController.abort() rejects the fetch with an AbortError.
+        // The bake may continue server-side as an orphan — accepted tradeoff.
+        if (err instanceof DOMException && err.name === 'AbortError') {
+          return;
+        }
+        if (err instanceof Error && err.name === 'AbortError') {
+          return;
+        }
+        throw err;
+      }
+      // Race: response landed before abort took effect. Fire DELETE to stop
+      // the background slots 1..N, and don't navigate.
+      if (cancelRequestedRef.current) {
+        void client.abortBake(response.manifest.broadcastId);
+        return;
+      }
+      const { manifest, firstSegmentUrls } = response;
       router.push('/(main)/(broadcast)/player');
       broadcastPlayer.start(manifest, firstSegmentUrls).catch((err: unknown) => {
         const msg = err instanceof Error ? err.message : 'Playback failed';
@@ -318,6 +345,7 @@ export default function HomeBroadcastScreen() {
       Alert.alert('Broadcast unavailable', msg);
     } finally {
       setTuning(false);
+      abortControllerRef.current = null;
     }
   }, [router, openSheetAt]);
 
@@ -701,7 +729,14 @@ export default function HomeBroadcastScreen() {
         onSubmit={onSheetSubmit}
       />
 
-      <TuningInOverlay visible={tuning} onCancel={() => setTuning(false)} />
+      <TuningInOverlay
+        visible={tuning}
+        onCancel={() => {
+          cancelRequestedRef.current = true;
+          abortControllerRef.current?.abort();
+          setTuning(false);
+        }}
+      />
     </BroadcastBackdrop>
   );
 }
