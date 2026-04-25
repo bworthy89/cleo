@@ -6,7 +6,10 @@ import {
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import type { ObjectStorage } from './ObjectStorage';
 
-const DEFAULT_PRESIGN_TTL_SECONDS = 7 * 24 * 60 * 60;
+// 24h matches BroadcastStore's TTL_MS and the client's
+// BROADCAST_HISTORY_RETENTION_MS so manifest, audio URLs, and history
+// all expire on the same window.
+const DEFAULT_PRESIGN_TTL_SECONDS = 24 * 60 * 60;
 
 /**
  * Abstracts the S3 client calls so tests don't need real credentials or
