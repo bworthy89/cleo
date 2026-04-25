@@ -45,6 +45,7 @@ export function createPublicHealthRouter(deps: PublicHealthDeps): Router {
     const ttsStatus = deriveTtsStatus(tts);
     const bakeStatus = deriveBakeStatus(queueDepth);
 
+    res.setHeader('Cache-Control', 'no-store');
     res.json({
       status: deriveOverall(ttsStatus, bakeStatus),
       checkedAt: new Date().toISOString(),
