@@ -1,8 +1,9 @@
 import type { Manifest, SegmentSlot } from './types';
 
-// 24h matches the client's BROADCAST_HISTORY_RETENTION_MS. R2 presigned
-// audio URLs live 7 days, so the manifest was the artificially short leg;
-// widening lets a user come back the next morning and still resume.
+// 24h matches the client's BROADCAST_HISTORY_RETENTION_MS and the R2
+// presigned audio-URL TTL (DEFAULT_PRESIGN_TTL_SECONDS). Manifest,
+// audio URLs, and history all expire on the same window so a user
+// who comes back within 24h can resume; past 24h, all three are gone.
 const TTL_MS = 24 * 60 * 60 * 1000;
 
 export class BroadcastStore {
