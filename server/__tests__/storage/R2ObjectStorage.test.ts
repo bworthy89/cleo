@@ -33,7 +33,7 @@ describe('R2ObjectStorage', () => {
     expect(uploader.uploads[0].contentType).toBe('audio/mpeg');
   });
 
-  it('returns a presigned URL by default with 7-day TTL', async () => {
+  it('returns a presigned URL by default with 24-hour TTL', async () => {
     const uploader = makeUploader();
     const storage = new R2ObjectStorage({ uploader });
 
