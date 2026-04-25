@@ -208,6 +208,7 @@ describe('BackgroundEnricher.drainNow telemetry', () => {
     await enricher.drainNow([makeTrack('a')]);
 
     const calls = timingSpy.mock.calls as Array<[{ api: string; durationMs: number }]>;
+    expect(calls.length).toBeGreaterThan(0);
     for (const [input] of calls) {
       expect(typeof input.durationMs).toBe('number');
       expect(input.durationMs).toBeGreaterThanOrEqual(0);
