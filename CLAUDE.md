@@ -1,10 +1,11 @@
 # CLAUDE.md — ONAY AI Radio App
 
 ## Current Status
-**Between Phase 1 and Phase 2.** Phase 1 (stability foundation + curation depth) closed 2026-04-25 — all 8 milestone items shipped and Phase 1 GATE (#20) is GREEN (sequencer meanDistance 0.019–0.061 across all 7 vibes, well below the 0.5 threshold).
+**Phase 2 of 6 — Parity Sprint** (weeks 4–9, 2026-04-25 → 2026-06-26): "ONAY does everything Yoodio/Radiant do that genuinely matters."
 - Roadmap source of truth: [`docs/superpowers/specs/2026-04-24-onay-roadmap-design.md`](docs/superpowers/specs/2026-04-24-onay-roadmap-design.md)
-- Closed milestone: `Phase 1: Stability Foundation` (issues #14–#20, #29 — all closed)
-- Phase 2 not yet started; review the roadmap spec's Phase 2 section + Cross-phase concerns table before opening tickets.
+- Active milestone: `Phase 2: Parity Sprint` (issues #33–#38 on bworthy89/cleo)
+- Phase 1 closed 2026-04-25, gate GREEN (sequencer meanDistance 0.019–0.061 across all 7 vibes)
+- Next decision gate: D1 → D7 retention measurably improved after Phase 2 ships (#38; observational, ≥14 days of post-ship data needed)
 
 ## Project Overview
 React Native / Expo SDK 55 iOS app. AI radio host named **ONAY** (pronounced "Oh-Nay"). The
