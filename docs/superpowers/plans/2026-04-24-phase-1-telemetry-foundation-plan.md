@@ -71,6 +71,8 @@ git commit -m "chore(server): add @sentry/node for telemetry foundation"
 
 ## Task 2: Create `BakeTelemetry` service module (TDD)
 
+> **Post-implementation note (2026-04-25, commits `624b2640` + `c2951929`):** The `Sentry.setMeasurement(...)` calls shown in the code blocks below silently no-op when used with `startInactiveSpan` — the API resolves its target via `getActiveSpan()`, which `startInactiveSpan` does NOT set. The shipped implementation uses `span?.setAttribute(...)` for span-anchored timings (`endSlotZero`, and `endBake`'s duration), and `Sentry.captureMessage('enrichment.api-timing', { level: 'info', tags: { api }, extra: { durationMs } })` for `recordEnrichmentApiTiming` (matching `recordSequencerResult`'s pattern). Test count is 8 (not 5) — adds coverage for the failed-status path, span-attribute setup on `startBake`, and `reason` placement in `extra` vs `tags`. **The public method signatures consumed by Tasks 4–7 are unchanged**, so downstream tasks don't need adjustment.
+
 This module is the single point of contact with Sentry. Everything else calls into it; Sentry imports are confined here so tests can mock cleanly.
 
 **Files:**
@@ -368,6 +370,8 @@ git commit -m "feat(server): initialize Sentry from SENTRY_DSN env"
 ---
 
 ## Task 4: Instrument `BroadcastOrchestrator.create` with bake lifecycle events
+
+> **Post-implementation note (2026-04-25, commits `794376f3` + `d1d42bad`):** The instrumentation sketch below shows the happy path. The shipped implementation wraps the `create` body in a `try/catch` so `endBake({ status: 'failed' })` fires on every early-exit path (insufficient-tracks check, sequencer rejection, slot-0 TTS failure). Single-slot manifests — where the multi-slot background-promise block is skipped — call `endBake({ status: 'completed' })` synchronously. The test file uses `beforeEach`/`afterEach` for spy lifecycle (so `mockRestore` always runs even on assertion failure) and includes a second test exercising the failed-status path (sequencer throws → `endBake({ failed })` is called AND the error propagates). `inFlightCount` is a getter (not a method); `routes/admin.ts` and its tests were updated for the property-access form.
 
 **Files:**
 - Modify: `server/src/services/broadcast/BroadcastOrchestrator.ts`
