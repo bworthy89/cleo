@@ -7,6 +7,7 @@ import {
   setPersistedBroadcast, clearPersistedBroadcast, addBroadcastToHistory,
   updatePersistedCursor,
 } from '../services/Storage';
+import { computeUpcoming } from './BroadcastPlayer.upcoming';
 
 export interface MusicDeps {
   play: (ids?: string[]) => Promise<void>;
@@ -84,6 +85,11 @@ export class BroadcastPlayer {
    *  `time >= duration - 0.5`. If we got close to duration and status is no
    *  longer 'playing', the track ended — even if current time reports 0. */
   private maxPlaybackTimeSeen = 0;
+  /** Next segment-slot index the main loop will consider. Promoted from a
+   *  local in `runMainLoop` so `getStatus().upcoming` can match the loop's
+   *  actual cursor between iterations. Reset to 0 on `start`, computed via
+   *  `computeNextSegmentIdxAfter` on `resume`. */
+  private nextSegmentIdx = 0;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private elapsedPumpTimer: ReturnType<typeof setInterval> | null = null;
   private readonly POLL_INTERVAL_MS = 3000;
@@ -121,12 +127,20 @@ export class BroadcastPlayer {
       currentTrack: track ?? null,
       nowPlaying: this.describeNowPlaying(),
       progress: this.computeProgress(),
+      upcoming: computeUpcoming({
+        manifest: this.manifest,
+        state: this.state,
+        currentTrackIndex: this.currentTrackIndex,
+        currentSegmentIndex: this.currentSegmentIndex,
+        nextSegmentIdx: this.nextSegmentIdx,
+      }),
     };
   }
 
   async start(manifest: Manifest, firstSegmentUrls: string[]): Promise<void> {
     await this.initPlayback(manifest, { resumeFromIndex: -1, firstSegmentUrls });
     if (!this.manifest) return;
+    this.nextSegmentIdx = 0;
 
     // Fresh start: play cold_open (slot 0), then enter the main loop at track 0.
     await this.runSegmentAt(0);
@@ -147,9 +161,11 @@ export class BroadcastPlayer {
 
     await this.initPlayback(manifest, { resumeFromIndex: trackCursor });
     if (!this.manifest) return;
+    this.nextSegmentIdx = this.computeNextSegmentIdxAfter(trackCursor, manifest);
 
     if (trackCursor < 0) {
       // Never reached a track — behave exactly like a fresh start.
+      this.nextSegmentIdx = 0;
       await this.runSegmentAt(0);
       if (!this.manifest) return;
       await this.waitIfPaused();
@@ -180,11 +196,12 @@ export class BroadcastPlayer {
       if (!this.manifest) return;
       await this.waitIfPaused();
       if (!this.manifest) return;
+      this.nextSegmentIdx = introSlotIdx + 1;
       await this.runMainLoop(trackCursor, introSlotIdx + 1);
     } else {
-      // No preceding segment — start directly at the track.
-      const nextSegmentIdx = this.computeNextSegmentIdxAfter(trackCursor, manifest);
-      await this.runMainLoop(trackCursor, nextSegmentIdx);
+      // No preceding segment — start directly at the track. Cursor was set
+      // above via computeNextSegmentIdxAfter.
+      await this.runMainLoop(trackCursor, this.nextSegmentIdx);
     }
   }
 
@@ -262,7 +279,7 @@ export class BroadcastPlayer {
    *  play a transition between consecutive tracks. */
   private async runMainLoop(startTrack: number, startSegIdx: number): Promise<void> {
     if (!this.manifest) return;
-    let nextSegmentIdx = startSegIdx;
+    this.nextSegmentIdx = startSegIdx;
     for (let i = startTrack; i < this.manifest.tracks.length; i++) {
       await this.runTrackAt(i);
       if (!this.manifest) return;
@@ -271,11 +288,11 @@ export class BroadcastPlayer {
 
       const slots = this.manifest.segmentSlots;
       const nextTrack = this.manifest.tracks[i + 1];
-      const nextSlot = slots[nextSegmentIdx];
+      const nextSlot = slots[this.nextSegmentIdx];
 
       if (!nextTrack) {
         if (nextSlot && nextSlot.kind === 'sign_off') {
-          await this.runSegmentAt(nextSegmentIdx);
+          await this.runSegmentAt(this.nextSegmentIdx);
           if (!this.manifest) return;
           await this.waitIfPaused();
           if (!this.manifest) return;
@@ -284,11 +301,11 @@ export class BroadcastPlayer {
       }
 
       if (nextSlot && nextSlot.beforeTrackId === nextTrack.id) {
-        await this.runSegmentAt(nextSegmentIdx);
+        await this.runSegmentAt(this.nextSegmentIdx);
         if (!this.manifest) return;
         await this.waitIfPaused();
         if (!this.manifest) return;
-        nextSegmentIdx += 1;
+        this.nextSegmentIdx += 1;
       }
     }
     // Sign-off has played; the final segment's releaseAudioSession fires
@@ -407,6 +424,7 @@ export class BroadcastPlayer {
     this.manifest = null;
     this.currentTrackIndex = -1;
     this.currentSegmentIndex = -1;
+    this.nextSegmentIdx = 0;
     // Resolve any in-flight waitForTrackEnd so the start() main loop unblocks
     // and observes manifest=null on the next iteration check (otherwise the
     // loop and its Promise leak indefinitely).
