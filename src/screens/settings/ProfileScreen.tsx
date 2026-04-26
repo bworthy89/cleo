@@ -22,6 +22,14 @@ import {
 import { authenticatedFetch } from '../../services/api';
 import { memberNo as formatMemberNo, memberSlot } from '../../lib/memberNo';
 
+type WeatherCandidate = {
+  name: string;
+  state?: string;
+  country: string;
+  lat: number;
+  lon: number;
+};
+
 /**
  * ONAY tab — member lounge. Identity + recent listens + an editorial note
  * from ONAY. Account settings live in the drawer (cog in StatusStrip), not
@@ -46,9 +54,15 @@ export function ProfileScreen() {
   const [weather, setWeatherState] = useState<WeatherSettings | null>(() => getWeatherSettings());
   const [cityInput, setCityInput] = useState(weather?.city ?? '');
   const [geocoding, setGeocoding] = useState(false);
-  const [candidates, setCandidates] = useState<Array<{
-    name: string; state?: string; country: string; lat: number; lon: number;
-  }>>([]);
+  const [candidates, setCandidates] = useState<WeatherCandidate[]>([]);
+
+  // Wrap setCityInput so any in-flight candidate picker disappears the
+  // moment the user edits the field — otherwise stale picks linger over
+  // a different query.
+  const onCityInputChange = (next: string) => {
+    setCityInput(next);
+    if (candidates.length > 0) setCandidates([]);
+  };
 
   const onToggleWeather = (next: boolean) => {
     if (!next) {
@@ -81,9 +95,7 @@ export function ProfileScreen() {
     }
   };
 
-  const confirmCandidate = (c: {
-    name: string; state?: string; country: string; lat: number; lon: number;
-  }) => {
+  const confirmCandidate = (c: WeatherCandidate) => {
     const label = [c.name, c.state, c.country].filter(Boolean).join(', ');
     const settings: WeatherSettings = {
       // Preserve the toggle's actual state — never silently opt-in. If the
@@ -116,9 +128,7 @@ export function ProfileScreen() {
         Alert.alert('Weather lookup unavailable', 'Try again later.');
         return;
       }
-      const body = await res.json() as { candidates: Array<{
-        name: string; state?: string; country: string; lat: number; lon: number;
-      }> };
+      const body = await res.json() as { candidates: WeatherCandidate[] };
       if (body.candidates.length === 0) {
         Alert.alert("Couldn't find that city", 'Try the full name or a ZIP code.');
         return;
@@ -269,7 +279,7 @@ export function ProfileScreen() {
             <TextInput
               style={styles.weatherCityInput}
               value={cityInput}
-              onChangeText={setCityInput}
+              onChangeText={onCityInputChange}
               autoCapitalize="words"
               autoCorrect={false}
               placeholder="Brooklyn"
