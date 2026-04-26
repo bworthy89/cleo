@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import auth from '@react-native-firebase/auth';
@@ -56,12 +56,20 @@ export function ProfileScreen() {
   const [geocoding, setGeocoding] = useState(false);
   const [candidates, setCandidates] = useState<WeatherCandidate[]>([]);
 
-  // Wrap setCityInput so any in-flight candidate picker disappears the
-  // moment the user edits the field — otherwise stale picks linger over
-  // a different query.
+  // Monotonic id for the in-flight geocode request. Incremented on every
+  // text edit AND on every new submit so a late-arriving response can
+  // tell whether the input has moved on. Without this, the user could
+  // type "Brooklyn", hit SET, then retype "Manhattan" while the network
+  // was in flight — the Brooklyn candidates would either auto-confirm
+  // against the new text or pop up as a stale picker.
+  const geocodeReqIdRef = useRef(0);
+
   const onCityInputChange = (next: string) => {
     setCityInput(next);
     if (candidates.length > 0) setCandidates([]);
+    // Invalidate any in-flight geocode — its response will be discarded
+    // because reqId no longer matches.
+    geocodeReqIdRef.current++;
   };
 
   const onToggleWeather = (next: boolean) => {
@@ -116,6 +124,7 @@ export function ProfileScreen() {
   const onSubmitCity = async () => {
     const q = cityInput.trim();
     if (!q || geocoding) return;
+    const reqId = ++geocodeReqIdRef.current;
     setGeocoding(true);
     setCandidates([]);
     try {
@@ -124,25 +133,34 @@ export function ProfileScreen() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ q }),
       });
+      // Bail if the user has retyped (or kicked off another submit)
+      // while we were in flight — anything we render now would be over
+      // a different query than the user is currently looking at.
+      if (reqId !== geocodeReqIdRef.current) return;
       if (!res.ok) {
         Alert.alert('Weather lookup unavailable', 'Try again later.');
         return;
       }
       const body = await res.json() as { candidates: WeatherCandidate[] };
+      if (reqId !== geocodeReqIdRef.current) return;
       if (body.candidates.length === 0) {
         Alert.alert("Couldn't find that city", 'Try the full name or a ZIP code.');
         return;
       }
       if (body.candidates.length === 1) {
-        // Auto-confirm.
+        // Auto-confirm. cityInput is guaranteed to still equal `q` here
+        // because any text edit would have incremented reqId and we'd
+        // have bailed above — so confirmCandidate reading it is safe.
         confirmCandidate(body.candidates[0]);
       } else {
         setCandidates(body.candidates);
       }
     } catch {
-      Alert.alert('Weather lookup unavailable', 'Try again later.');
+      if (reqId === geocodeReqIdRef.current) {
+        Alert.alert('Weather lookup unavailable', 'Try again later.');
+      }
     } finally {
-      setGeocoding(false);
+      if (reqId === geocodeReqIdRef.current) setGeocoding(false);
     }
   };
   // ── End weather context ──────────────────────────────────────────────
@@ -256,6 +274,7 @@ export function ProfileScreen() {
             }}
             accessibilityRole="switch"
             accessibilityState={{ checked: weather?.enabled ?? false }}
+            accessibilityLabel={weather?.enabled ? 'Disable weather context' : 'Enable weather context'}
             style={styles.weatherToggleRow}
           >
             <Text style={styles.weatherToggleLabel}>
@@ -317,21 +336,23 @@ export function ProfileScreen() {
           {candidates.length > 0 ? (
             <View style={styles.weatherCandidates}>
               <Text style={styles.weatherCandidatesPrompt}>Did you mean&hellip;</Text>
-              {candidates.map((c, i) => (
-                <Pressable
-                  key={`${c.lat}-${c.lon}-${i}`}
-                  onPress={() => {
-                    Haptics.selectionAsync().catch(() => {});
-                    confirmCandidate(c);
-                  }}
-                  style={({ pressed }) => [styles.weatherCandidateRow, pressed && { opacity: 0.7 }]}
-                  accessibilityRole="button"
-                >
-                  <Text style={styles.weatherCandidateLabel}>
-                    {[c.name, c.state, c.country].filter(Boolean).join(', ')}
-                  </Text>
-                </Pressable>
-              ))}
+              {candidates.map((c, i) => {
+                const label = [c.name, c.state, c.country].filter(Boolean).join(', ');
+                return (
+                  <Pressable
+                    key={`${c.lat}-${c.lon}-${i}`}
+                    onPress={() => {
+                      Haptics.selectionAsync().catch(() => {});
+                      confirmCandidate(c);
+                    }}
+                    style={({ pressed }) => [styles.weatherCandidateRow, pressed && { opacity: 0.7 }]}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Pick ${label}`}
+                  >
+                    <Text style={styles.weatherCandidateLabel}>{label}</Text>
+                  </Pressable>
+                );
+              })}
             </View>
           ) : null}
         </View>

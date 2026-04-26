@@ -102,6 +102,7 @@ export class WeatherProvider {
     apiKey: string;
     clock?: () => number;
     fetch?: typeof globalThis.fetch;  // injectable for tests
+    timeoutMs?: number;               // injectable for tests; default 5000ms
   });
 
   /**
