@@ -70,17 +70,46 @@ git commit -m "chore(client): add @react-native-firebase/firestore + testing-lib
 
 ---
 
-## Task 2: Firestore Security Rules + firebase.json
+## Task 2: Firestore Security Rules + firebase.json (Firebase CLI / MCP)
 
 **Files:**
 - Create: `firestore.rules`
 - Create: `firebase.json`
+- Create: `.firebaserc`
 
-Per spec: `users/{uid}/likes/{trackId}` is readable/writable only by the owner. The rules file is committed to git; deploying it to Firebase is a manual `firebase deploy --only firestore:rules` step the user runs after merge.
+Per spec: `users/{uid}/likes/{trackId}` is readable/writable only by the owner.
 
-- [ ] **Step 1: Write `firestore.rules`**
+Firebase project context (verified via `firebase_get_environment` on 2026-04-26):
 
-Create `firestore.rules`:
+- Active project: `cleo-app-840c8`
+- iOS app bundle: `com.worthymedia.cleo`
+- Authenticated user: `hustlemanentertainment@gmail.com`
+- Billing enabled, Gemini-in-Firebase ToS accepted
+
+**Use the Firebase MCP tools and CLI for every step here — do not hand-write
+config files when MCP tools can scaffold them, and do not skip server-side
+validation.**
+
+- [ ] **Step 1: Confirm Firebase environment via MCP**
+
+Use the `mcp__plugin_firebase_firebase__firebase_get_environment` tool. Confirm:
+
+- Active Project ID is `cleo-app-840c8`.
+- Authenticated User is `hustlemanentertainment@gmail.com`.
+
+If the active project is wrong, stop and escalate. Do not proceed with rules
+work against the wrong project.
+
+- [ ] **Step 2: Read currently-deployed rules (safety check)**
+
+Use `mcp__plugin_firebase_firebase__firebase_get_security_rules` with
+`type: "firestore"`. Save the response — the new rules must add to (not remove)
+any owner-scoped rules already deployed. If existing rules already cover
+`users/{uid}/likes/{trackId}`, escalate to the user before continuing.
+
+- [ ] **Step 3: Write the rules file**
+
+Create `firestore.rules` at the repo root:
 
 ```
 rules_version = '2';
@@ -93,9 +122,18 @@ service cloud.firestore {
 }
 ```
 
-- [ ] **Step 2: Write `firebase.json`**
+- [ ] **Step 4: Validate rules with the Firebase MCP**
 
-Create `firebase.json` so `firebase deploy --only firestore:rules` knows where the rules file is:
+Use `mcp__plugin_firebase_firebase__firebase_validate_security_rules` with
+`type: "firestore"` and `source_file: "firestore.rules"`.
+
+Expected: no syntax or validation errors. If the tool returns errors, fix the
+rules file before committing.
+
+- [ ] **Step 5: Write `firebase.json`**
+
+Create `firebase.json` at the repo root so `firebase deploy --only
+firestore:rules` knows where the rules file is:
 
 ```json
 {
@@ -105,22 +143,42 @@ Create `firebase.json` so `firebase deploy --only firestore:rules` knows where t
 }
 ```
 
-- [ ] **Step 3: Validate the rules file syntax (best-effort)**
+- [ ] **Step 6: Pin the Firebase project alias**
 
-Run, if `firebase` CLI is installed locally:
+Create `.firebaserc` so the firebase CLI defaults to the right project without
+relying on whatever `firebase use` was last run on the developer's machine:
 
-```bash
-firebase --version 2>/dev/null && echo "CLI available — rules will be validated on deploy"
+```json
+{
+  "projects": {
+    "default": "cleo-app-840c8"
+  }
+}
 ```
 
-The CI / pre-merge gate is not blocking on rules validation. The `firebase deploy` command surfaces syntax errors before applying.
-
-- [ ] **Step 4: Commit**
+- [ ] **Step 7: Dry-run the deploy via the firebase CLI**
 
 ```bash
-git add firestore.rules firebase.json
+firebase deploy --only firestore:rules --dry-run --project cleo-app-840c8
+```
+
+Expected output ends with `✔  Deploy complete!` (dry-run).
+
+If the firebase CLI is not installed locally, ask the user to run
+`npm install -g firebase-tools` and re-run this step. Do not commit until the
+dry-run succeeds.
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add firestore.rules firebase.json .firebaserc
 git commit -m "feat(firestore): security rules for users/{uid}/likes subcollection"
 ```
+
+**Deployment note:** the actual `firebase deploy --only firestore:rules` (without
+`--dry-run`) is left for the user to run after PR merge — it's a production
+write that should follow the merge gate, not precede it. The PR body in Task 15
+includes this in the post-merge checklist.
 
 ---
 
