@@ -65,19 +65,22 @@ export default function FirstListenScreen() {
 
       const curationClient = new BroadcastCurationClient();
       const manifestClient = new BroadcastManifestClient();
+      let timeoutId: ReturnType<typeof setTimeout> | undefined;
       const source = await Promise.race([
         pickFirstListenSource({
           fetchPlaylists,
           fetchPlaylistTracks,
           listFeatured: () => curationClient.listFeatured(),
         }),
-        new Promise<never>((_resolve, reject) =>
-          setTimeout(
+        new Promise<never>((_resolve, reject) => {
+          timeoutId = setTimeout(
             () => reject(new Error('source-resolution-timeout')),
             bakeTimeoutMs,
-          ),
-        ),
-      ]);
+          );
+        }),
+      ]).finally(() => {
+        if (timeoutId !== undefined) clearTimeout(timeoutId);
+      });
 
       // Late-cancel guard — if a new bake attempt started, ignore us.
       if (attempt !== bakeAttemptRef.current) return;
