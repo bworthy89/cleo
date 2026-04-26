@@ -74,7 +74,7 @@ upcoming: UpcomingItem[];
 ### Engine changes
 
 1. **Promote `nextSegmentIdx` to an instance field.** Currently a local variable inside `runMainLoop`. Promoting to `private nextSegmentIdx = 0` (reset to 0 in `start`, computed via `computeNextSegmentIdxAfter` in `resume`, advanced in place of the local mutations) lets `getStatus()` consult the same cursor `runMainLoop` is using. Behavioral change: `getStatus()` now reflects the loop's cursor between iterations instead of recomputing it — desired.
-2. **Add `private computeUpcoming(): UpcomingItem[]`** called from `getStatus()`.
+2. **Add a pure `computeUpcoming` function** in a new module (`src/engines/BroadcastPlayer.upcoming.ts`), called from `getStatus()`. Pure function rather than a private method makes the algorithm testable in isolation.
 
 Algorithm:
 
@@ -133,9 +133,9 @@ Props: `{ items: UpcomingItem[] }`. Renders:
 
 ## Testing
 
-### Unit tests — `src/engines/__tests__/BroadcastPlayer.upcoming.test.ts` (new file)
+### Unit tests — `__tests__/engines/BroadcastPlayer.upcoming.test.ts` (new file)
 
-Targets `BroadcastPlayer.computeUpcoming()`. Same harness as `BroadcastPlayer.test.ts`: mock `MusicDeps` / `NativeDeps` / `ManifestDeps` / `StingerDeps`, build a fixture manifest, drive the engine through states, assert on `getStatus().upcoming`.
+Targets the pure `computeUpcoming` function from `src/engines/BroadcastPlayer.upcoming.ts`. No engine harness needed — the function takes a state snapshot and returns the upcoming list. Build a fixture manifest, construct snapshot args, assert on the returned array.
 
 Cases:
 
@@ -162,8 +162,9 @@ None. List rendering is straight JSX over the engine's output; engine unit tests
 ## Files touched
 
 - `src/engines/BroadcastPlayer.types.ts` — new `UpcomingItemKind`, `UpcomingItem`; `PlayerStatus.upcoming` field.
-- `src/engines/BroadcastPlayer.ts` — promote `nextSegmentIdx` to an instance field; add `computeUpcoming`; surface from `getStatus`.
-- `src/engines/__tests__/BroadcastPlayer.upcoming.test.ts` — new unit-test file.
+- `src/engines/BroadcastPlayer.ts` — promote `nextSegmentIdx` to an instance field; surface `computeUpcoming` output from `getStatus`.
+- `src/engines/BroadcastPlayer.upcoming.ts` — new pure-function module owning the manifest-walking algorithm.
+- `__tests__/engines/BroadcastPlayer.upcoming.test.ts` — new unit-test file.
 - `src/components/broadcast/UpNextList.tsx` — new component.
 - `app/(main)/(broadcast)/player.tsx` — render `<UpNextList items={status.upcoming} />` between volume block and trailing spacer.
 
@@ -175,5 +176,5 @@ None. List rendering is straight JSX over the engine's output; engine unit tests
 - Transition rows show "↘ ONAY · TRANSITION" between the right tracks.
 - Sign-off row shows "↘ ONAY · SIGN-OFF" at the end while the sign_off slot is ahead.
 - Empty state shows "THIS IS THE LAST ONE" while sign-off is playing.
-- All 9 unit-test cases pass.
+- All 10 unit-test cases pass (9 cases from the edge-case table plus a key-stability test).
 - Manual smoke (full bake, background/foreground, VoiceOver) clean.
