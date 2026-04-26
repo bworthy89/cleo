@@ -38,7 +38,6 @@ export default function FirstListenScreen() {
     if (state.kind !== 'baking') return;
     const attempt = ++bakeAttemptRef.current;
     void runBake(state.name, attempt);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.kind]);
 
   const runBake = async (name: string, attempt: number) => {
