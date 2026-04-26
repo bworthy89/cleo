@@ -11,6 +11,9 @@ import {
   updatePersistedCursor,
   addBroadcastToHistory,
   getBroadcastHistory,
+  hasRecentBroadcastHistory,
+  markFirstListenCompleted,
+  hasCompletedFirstListen,
   BROADCAST_HISTORY_RETENTION_MS,
   BROADCAST_HISTORY_MAX_ENTRIES,
   type UserData,
@@ -256,5 +259,65 @@ describe('broadcast history', () => {
     expect(history.map(e => e.manifest.broadcastId)).toEqual(['fresh']);
 
     nowSpy.mockRestore();
+  });
+});
+
+describe('hasRecentBroadcastHistory', () => {
+  it('returns false on a fresh install', () => {
+    expect(hasRecentBroadcastHistory()).toBe(false);
+  });
+
+  it('returns true after a broadcast lands in history', () => {
+    const manifest = {
+      broadcastId: 'b1', userId: 'u1', playlistId: 'p1',
+      vibe: 'morning' as const, length: 'quick' as const, createdAt: Date.now(),
+      tracks: [{ id: 't0', title: 'T', artistName: 'A', albumTitle: 'Al', duration: 200 }],
+      segmentSlots: [],
+    };
+    addBroadcastToHistory(manifest as any, ['https://cdn/v0.mp3']);
+    expect(hasRecentBroadcastHistory()).toBe(true);
+  });
+
+  it('returns false when all entries are past the retention window', () => {
+    const manifest = {
+      broadcastId: 'old', userId: 'u1', playlistId: 'p1',
+      vibe: 'morning' as const, length: 'quick' as const, createdAt: 0,
+      tracks: [{ id: 't0', title: 'T', artistName: 'A', albumTitle: 'Al', duration: 200 }],
+      segmentSlots: [],
+    };
+    addBroadcastToHistory(manifest as any, ['https://cdn/v0.mp3']);
+    // Advance time past the retention window. getBroadcastHistory prunes
+    // expired entries on read; hasRecentBroadcastHistory delegates to it.
+    jest.useFakeTimers();
+    jest.setSystemTime(Date.now() + BROADCAST_HISTORY_RETENTION_MS + 1000);
+    try {
+      expect(hasRecentBroadcastHistory()).toBe(false);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+});
+
+describe('hasCompletedFirstListen / markFirstListenCompleted', () => {
+  it('returns false on a fresh install', () => {
+    expect(hasCompletedFirstListen()).toBe(false);
+  });
+
+  it('returns true after markFirstListenCompleted is called', () => {
+    markFirstListenCompleted();
+    expect(hasCompletedFirstListen()).toBe(true);
+  });
+
+  it('persists across calls (no retention window)', () => {
+    markFirstListenCompleted(1_000_000);
+    expect(hasCompletedFirstListen()).toBe(true);
+    // Even after a notional very-long delay, the flag stays set.
+    jest.useFakeTimers();
+    jest.setSystemTime(Date.now() + 10 * 24 * 60 * 60 * 1000);
+    try {
+      expect(hasCompletedFirstListen()).toBe(true);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });
