@@ -161,7 +161,6 @@ export class BroadcastPlayer {
 
     await this.initPlayback(manifest, { resumeFromIndex: trackCursor });
     if (!this.manifest) return;
-    this.nextSegmentIdx = this.computeNextSegmentIdxAfter(trackCursor, manifest);
 
     if (trackCursor < 0) {
       // Never reached a track — behave exactly like a fresh start.
@@ -182,6 +181,14 @@ export class BroadcastPlayer {
     );
 
     if (introSlotIdx >= 0) {
+      // Seed status-facing state BEFORE awaiting the intro segment so
+      // getStatus().upcoming reflects the resumption target throughout the
+      // intro phase — Hero shows trackCursor, UP NEXT starts after it, and
+      // the in-flight intro slot is correctly excluded by the cursor having
+      // already advanced past it.
+      this.currentTrackIndex = trackCursor;
+      this.nextSegmentIdx = introSlotIdx + 1;
+
       // Ensure the intro segment audio is cached, then play it.
       const slot = manifest.segmentSlots[introSlotIdx];
       if (slot.status === 'ready' && slot.audioUrls) {
@@ -196,11 +203,12 @@ export class BroadcastPlayer {
       if (!this.manifest) return;
       await this.waitIfPaused();
       if (!this.manifest) return;
-      this.nextSegmentIdx = introSlotIdx + 1;
       await this.runMainLoop(trackCursor, introSlotIdx + 1);
     } else {
-      // No preceding segment — start directly at the track. Cursor was set
-      // above via computeNextSegmentIdxAfter.
+      // No preceding segment — start directly at the track. Compute the
+      // cursor from the manifest so getStatus().upcoming is correct from
+      // the moment resume returns.
+      this.nextSegmentIdx = this.computeNextSegmentIdxAfter(trackCursor, manifest);
       await this.runMainLoop(trackCursor, this.nextSegmentIdx);
     }
   }
@@ -294,6 +302,7 @@ export class BroadcastPlayer {
         if (nextSlot && nextSlot.kind === 'sign_off') {
           await this.runSegmentAt(this.nextSegmentIdx);
           if (!this.manifest) return;
+          this.nextSegmentIdx += 1;
           await this.waitIfPaused();
           if (!this.manifest) return;
         }
@@ -303,9 +312,9 @@ export class BroadcastPlayer {
       if (nextSlot && nextSlot.beforeTrackId === nextTrack.id) {
         await this.runSegmentAt(this.nextSegmentIdx);
         if (!this.manifest) return;
+        this.nextSegmentIdx += 1;
         await this.waitIfPaused();
         if (!this.manifest) return;
-        this.nextSegmentIdx += 1;
       }
     }
     // Sign-off has played; the final segment's releaseAudioSession fires
