@@ -26,7 +26,8 @@ Production: Express broadcast server at `api.worthymedia.tech`. Deploy runbook:
 - React Native 0.83 + Expo SDK 55, TypeScript strict mode
 - Custom `expo-music-kit` native module — wraps Apple MusicKit (auth, playlists, playback,
   track detection, catalog search, catalog lookup by ID, audio session control, TTS
-  playback via AVAudioPlayer)
+  playback via AVAudioPlayer). `fetchPlaylists()` returns playlists sorted by Apple's
+  `lastPlayedDate` (most-recent first) — used for first-listen onboarding personalization.
 - `react-native-mmkv` — local storage (persisted manifest, user profile, host volume)
 - `expo-blur`, `expo-linear-gradient`, `expo-haptics` — UI primitives
 - `@expo-google-fonts` — Playfair Display, Inter, EB Garamond, DM Mono
@@ -72,7 +73,9 @@ cleo-app/
 │   ├── _layout.tsx
 │   ├── index.tsx                ← auth routing gateway
 │   ├── (auth)/login.tsx
-│   ├── (onboarding)/            ← welcome → music-auth → cleo-setup
+│   ├── (onboarding)/            ← welcome → music-auth → first-listen → /(main)
+│   │                                └─ first-listen skipped on returning users
+│   │                                   (gated on hasAnyBroadcastHistory())
 │   └── (main)/
 │       ├── _layout.tsx          ← 2-tab CustomTabBar (Broadcast + ONAY)
 │       ├── (broadcast)/
