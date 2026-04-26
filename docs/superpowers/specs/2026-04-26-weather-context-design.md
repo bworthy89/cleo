@@ -166,16 +166,16 @@ The free tier permits 60 calls/min and 1M/month. Worst-case at 1k DAU × 3 bakes
 
 ## Test strategy
 
-- **`WeatherProvider.test.ts`** (new, 4 cases): cache hit within 30 min returns cached hint; cache expires after 30 min and re-fetches; OWM error returns null; `geocode` returns parsed candidates from a mocked OWM response. Uses `fetch` injection + `clock` injection.
-- **Weather route test** (new, 2 cases): `POST /weather/geocode` returns 200 with candidates under happy path; returns 502 when WeatherProvider's fetch throws.
-- **`SegmentScriptBuilder.test.ts`** extension (1 new case): when `ctx.weatherHint` is present, the cold_open user-prompt contains the sentence verbatim AND the sign_off user-prompt does NOT.
+- **`WeatherProvider.test.ts`** (new, 7 cases): cache hit within 30 min returns cached hint; cache expires after 30 min and re-fetches; thrown fetch error returns null (caller skips silently); non-2xx response (e.g. 429) returns null; `AbortController` aborts the fetch when it exceeds `timeoutMs`; rain-id range disambiguation produces the right hint sentence; `geocode` returns parsed candidates from a mocked OWM response. Uses `fetch` injection + `clock` injection + `timeoutMs` injection.
+- **Weather route test** (new, 3 cases): `POST /weather/geocode` returns 200 with candidates under happy path; returns 400 on missing/empty query; returns 400 on whitespace-only query (Zod `.trim().min(1)`). The provider's `geocode` already swallows network errors and returns `[]`, so a route-level 502 path is intentionally absent — the route would respond 200 with an empty candidates array on OWM downtime, and the client's `Alert.alert("Couldn't find that city", …)` covers that case.
+- **`SegmentScriptBuilder.test.ts`** extension (3 new cases): with `ctx.weatherHint` present, the cold_open user-prompt contains the sentence verbatim; the transition user-prompt does NOT; the sign_off user-prompt does NOT.
 - **`BroadcastOrchestrator.test.ts`** extension (1 new case): when `userContext.weatherCoords` is present, `weatherProvider.getHint` is called once and the resolved hint flows into the prompt context. Mock `WeatherProvider`.
 - **Client**: no automated screen test (consistent with the rest of the codebase). Profile UI verified manually on TestFlight.
 
 ## Files touched
 
 - **Create** `server/src/providers/weather/WeatherProvider.ts` — provider class.
-- **Create** `server/__tests__/providers/weather/WeatherProvider.test.ts` — 4 unit tests.
+- **Create** `server/__tests__/providers/weather/WeatherProvider.test.ts` — 7 unit tests.
 - **Create** `server/src/routes/weather.ts` — geocode route.
 - **Create** `server/__tests__/routes/weather.test.ts` — route tests.
 - **Modify** `server/src/services/broadcast/SegmentScriptBuilder.ts` — `SegmentContext.weatherHint`, `buildSceneLines` insertion.

@@ -22,13 +22,13 @@ import {
 import { authenticatedFetch } from '../../services/api';
 import { memberNo as formatMemberNo, memberSlot } from '../../lib/memberNo';
 
-type WeatherCandidate = {
+interface WeatherCandidate {
   name: string;
   state?: string;
   country: string;
   lat: number;
   lon: number;
-};
+}
 
 /**
  * ONAY tab — member lounge. Identity + recent listens + an editorial note
