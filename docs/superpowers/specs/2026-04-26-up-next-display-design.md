@@ -94,7 +94,7 @@ Props: `{ items: UpcomingItem[] }`. Renders:
 
 1. **Header** — existing `SectionMarker` from `src/components/crate/`, with `num="B·02"`, title `"UP NEXT"`, right-side mono label `"<N> REMAINING"` where N is the count of `kind === 'track'` items.
 2. **Rows** — mapped from `items`:
-   - **Track row.** Mono `TRK NN` index in a 24px-wide column · `title` Anton 13px · `artistName` Fraunces italic 11px · mono duration `mm:ss` right-aligned. Hairline bottom border (`AM.rule` 0.5px). Static — no `Pressable`.
+   - **Track row.** Mono `TRK NN` index in a 36px-wide column · `title` Anton 14px · `artistName` Fraunces italic 12px · mono duration `mm:ss` right-aligned. Hairline bottom border (`AM.rule` 0.5px). Static — no `Pressable`.
    - **Transition row.** Mono 8px in `AM.inkDim`, centered, 6px vertical padding, no border. Text: `↘ ONAY · TRANSITION`.
    - **Sign-off row.** Same shape as transition row. Text: `↘ ONAY · SIGN-OFF`.
 3. **Empty state** — when `items.length === 0`, render a single mono 9px line `"THIS IS THE LAST ONE"` in `AM.inkDim`, centered, 12px vertical padding. Replaces the rows; the section header still shows but with `"0 REMAINING"`.
