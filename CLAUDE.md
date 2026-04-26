@@ -297,10 +297,13 @@ fires at meanDistance > 0.7.
 - **ProfileScreen** gains an opt-in "Weather context" toggle + city input field.
 - City resolves via `POST /weather/geocode` (OpenWeatherMap free tier, server-side); resolves
   to `{ lat, lon }` and persists to MMKV as `{ enabled, coords, resolvedLabel }`.
-- When enabled, `POST /broadcast/create` includes `userContext.weatherCoords` (the `{ lat, lon }`
-  pair). Server fetches a hint sentence from OWM's `/weather` endpoint and injects into
-  the cold_open segment prompt's scene-setting block. Unset `OPENWEATHER_API_KEY` silently
-  disables the feature — weather hints become no-ops, but the toggle remains in the UI.
+- When enabled, `POST /broadcast/create` includes `userContext.weatherCoords` as
+  `{ lat, lon, cityName }` — the server uses `cityName` verbatim in the hint sentence
+  rather than re-resolving it. Server fetches the hint from OWM's `/weather` endpoint
+  and injects it into the cold_open segment prompt's scene-setting block. When
+  `OPENWEATHER_API_KEY` is unset the `WeatherProvider` is never instantiated and
+  `/weather/geocode` is not mounted — the feature silently degrades (UI toggle remains
+  visible but a city lookup will hit a 404).
 
 ### Caches
 - `server/.broadcast-cache/broadcast/<id>/segment/<slot>/v<v>.mp3` — indefinite, gitignored.

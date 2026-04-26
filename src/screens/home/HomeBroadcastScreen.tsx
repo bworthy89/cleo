@@ -41,7 +41,7 @@ import {
   getPersistedBroadcast,
   removeBroadcastFromHistory,
   clearPersistedBroadcast,
-  getWeatherSettings,
+  getWeatherCoordsForBake,
   type BroadcastHistoryEntry,
 } from '../../services/Storage';
 import { useAppActive } from '../../hooks/useAppActive';
@@ -305,14 +305,7 @@ export default function HomeBroadcastScreen() {
       }
       let response;
       try {
-        const weatherSettings = getWeatherSettings();
-        const weatherCoords = (weatherSettings?.enabled && weatherSettings.coords && weatherSettings.resolvedLabel)
-          ? {
-              lat: weatherSettings.coords.lat,
-              lon: weatherSettings.coords.lon,
-              cityName: weatherSettings.resolvedLabel.split(',')[0]?.trim() || 'your area',
-            }
-          : undefined;
+        const weatherCoords = getWeatherCoordsForBake();
         response = await client.createBroadcast(
           {
             playlistId: result.playlistId,

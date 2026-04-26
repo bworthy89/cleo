@@ -1655,7 +1655,7 @@ EOF
 
 Edit `CLAUDE.md`. Find the env var block under `server/.env` (search for `CURATOR_PUBLISH_CAP` for context). Add:
 
-```
+```text
 OPENWEATHER_API_KEY                       # OpenWeatherMap free tier; unset → weather hints disabled
 ```
 

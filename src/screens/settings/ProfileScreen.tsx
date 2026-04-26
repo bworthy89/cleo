@@ -80,7 +80,12 @@ export function ProfileScreen() {
   }) => {
     const label = [c.name, c.state, c.country].filter(Boolean).join(', ');
     const settings: WeatherSettings = {
-      enabled: weather?.enabled ?? true,
+      // Preserve the toggle's actual state — never silently opt-in. If the
+      // user is confirming a candidate, they reached this flow via the
+      // toggle UI which already set weather.enabled, so reading it here
+      // gives the truthful intent. Falling back to false avoids implicit
+      // enable when state is somehow null.
+      enabled: weather?.enabled === true,
       city: cityInput.trim(),
       coords: { lat: c.lat, lon: c.lon },
       resolvedLabel: label,

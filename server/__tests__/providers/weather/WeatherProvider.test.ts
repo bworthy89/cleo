@@ -47,6 +47,24 @@ describe('WeatherProvider.getHint', () => {
     expect(hint).toBeNull();
   });
 
+  it('aborts the fetch when the request exceeds timeoutMs', async () => {
+    // fetchMock honors the AbortController signal — when aborted, it
+    // rejects with an AbortError-like exception (mirrors undici's behavior).
+    const fetchMock = jest.fn((_url: string, init?: { signal?: AbortSignal }) =>
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => {
+          const err = new Error('aborted');
+          (err as Error & { name: string }).name = 'AbortError';
+          reject(err);
+        });
+      }),
+    );
+    const wp = new WeatherProvider({ apiKey: 'k', fetch: fetchMock as any, timeoutMs: 30 });
+    const hint = await wp.getHint({ lat: 40.65, lon: -73.95 }, 'Brooklyn');
+    expect(hint).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('formats rain conditions using OWM weather id ranges', async () => {
     const lightRain = new Response(JSON.stringify(owmCurrentResponse({
       weather: [{ id: 500, main: 'Rain', description: 'light rain' }],

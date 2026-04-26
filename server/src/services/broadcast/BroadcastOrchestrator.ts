@@ -230,8 +230,12 @@ export class BroadcastOrchestrator {
         );
         if (hint) weatherHint = hint;
       }
+      // Strip weatherCoords before spread — it lives on BroadcastCreateRequest
+      // but isn't part of SegmentContext. The TS cast permits the spread,
+      // so we prune explicitly to keep the prompt context shape clean.
+      const { weatherCoords: _wc, ...userCtx } = input.userContext;
       const ctxWithHint: SegmentContext = {
-        ...input.userContext,
+        ...userCtx,
         weatherHint,
       };
 

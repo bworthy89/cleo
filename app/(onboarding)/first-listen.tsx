@@ -6,7 +6,7 @@ import { AM, Fonts, Space, TypeScale } from '../../src/tokens/design-tokens';
 import { BroadcastBackdrop } from '../../src/components/BroadcastBackdrop';
 import { StampButton, LinerNotes, SpinningRecord } from '../../src/components/crate';
 import { HealthStatusBanner } from '../../src/components/HealthStatusBanner';
-import { getUser, setUser, markFirstListenCompleted, getWeatherSettings } from '../../src/services/Storage';
+import { getUser, setUser, markFirstListenCompleted, getWeatherCoordsForBake } from '../../src/services/Storage';
 import { fetchPlaylists, fetchPlaylistTracks } from '../../modules/expo-music-kit';
 import { BroadcastManifestClient } from '../../src/engines/BroadcastManifestClient';
 import { BroadcastCurationClient } from '../../src/engines/BroadcastCurationClient';
@@ -107,14 +107,7 @@ export default function FirstListenScreen() {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), bakeTimeoutMs);
       try {
-        const weatherSettings = getWeatherSettings();
-        const weatherCoords = (weatherSettings?.enabled && weatherSettings.coords && weatherSettings.resolvedLabel)
-          ? {
-              lat: weatherSettings.coords.lat,
-              lon: weatherSettings.coords.lon,
-              cityName: weatherSettings.resolvedLabel.split(',')[0]?.trim() || 'your area',
-            }
-          : undefined;
+        const weatherCoords = getWeatherCoordsForBake();
         const response = await manifestClient.createBroadcast(
           {
             playlistId: source.playlistId,

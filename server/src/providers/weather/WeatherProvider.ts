@@ -22,6 +22,7 @@ interface OwmCurrent {
 }
 
 const CACHE_TTL_MS = 30 * 60 * 1000;
+const DEFAULT_FETCH_TIMEOUT_MS = 5000;
 
 /**
  * Wrap OpenWeatherMap's free tier APIs with an in-memory 30-min cache and
@@ -32,16 +33,19 @@ export class WeatherProvider {
   private readonly apiKey: string;
   private readonly clock: () => number;
   private readonly fetchImpl: typeof globalThis.fetch;
+  private readonly timeoutMs: number;
   private readonly cache = new Map<string, CacheEntry>();
 
   constructor(opts: {
     apiKey: string;
     clock?: () => number;
     fetch?: typeof globalThis.fetch;
+    timeoutMs?: number;
   }) {
     this.apiKey = opts.apiKey;
     this.clock = opts.clock ?? Date.now;
     this.fetchImpl = opts.fetch ?? globalThis.fetch;
+    this.timeoutMs = opts.timeoutMs ?? DEFAULT_FETCH_TIMEOUT_MS;
   }
 
   /**
@@ -52,8 +56,11 @@ export class WeatherProvider {
     const key = `${coords.lat.toFixed(2)},${coords.lon.toFixed(2)}`;
     const now = this.clock();
     const cached = this.cache.get(key);
-    if (cached && now - cached.fetchedAt < CACHE_TTL_MS) {
-      return cached.hint;
+    if (cached) {
+      if (now - cached.fetchedAt < CACHE_TTL_MS) return cached.hint;
+      // Lazy prune: drop the stale entry on access so the Map doesn't
+      // grow unbounded for keys the user keeps re-requesting.
+      this.cache.delete(key);
     }
     try {
       const url = new URL('https://api.openweathermap.org/data/2.5/weather');
@@ -61,7 +68,7 @@ export class WeatherProvider {
       url.searchParams.set('lon', String(coords.lon));
       url.searchParams.set('units', 'imperial');
       url.searchParams.set('appid', this.apiKey);
-      const res = await this.fetchImpl(url.toString());
+      const res = await this.fetchWithTimeout(url.toString());
       if (!res.ok) return null;
       const raw = await res.json() as OwmCurrent;
       const hint = formatHint(raw, cityName);
@@ -78,7 +85,7 @@ export class WeatherProvider {
       url.searchParams.set('q', query);
       url.searchParams.set('limit', '3');
       url.searchParams.set('appid', this.apiKey);
-      const res = await this.fetchImpl(url.toString());
+      const res = await this.fetchWithTimeout(url.toString());
       if (!res.ok) return [];
       const raw = await res.json() as Array<{
         name: string; state?: string; country: string; lat: number; lon: number;
@@ -92,6 +99,16 @@ export class WeatherProvider {
       }));
     } catch {
       return [];
+    }
+  }
+
+  private async fetchWithTimeout(url: string): Promise<Response> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    try {
+      return await this.fetchImpl(url, { signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
     }
   }
 }

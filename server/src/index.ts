@@ -90,6 +90,18 @@ const enrichmentLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// Weather geocode hits OWM's free tier (60 calls/min globally). Per-user
+// cap protects the shared OWM quota from a single account picking cities
+// in a tight loop. Hint fetches at bake time aren't routed through HTTP
+// so they don't consume this budget.
+const weatherLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  keyGenerator: keyByUser,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 function parsePositiveInt(raw: string | undefined, fallback: number, name: string): number {
   if (raw === undefined || raw === '') return fallback;
   const n = Number.parseInt(raw, 10);
@@ -231,7 +243,7 @@ async function bootstrap(): Promise<void> {
 
   // Weather service router — mounted under auth only when the provider is configured
   if (weatherProvider) {
-    app.use(requireAuth, createWeatherRouter(weatherProvider));
+    app.use(requireAuth, weatherLimiter, createWeatherRouter(weatherProvider));
   }
 
   // Static asset serving for broadcast audio — only when the storage backend

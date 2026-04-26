@@ -396,10 +396,12 @@ describe('SegmentScriptBuilder weatherHint propagation', () => {
     tracks: [
       { id: 't0', title: 'Wake', artistName: 'AA', albumTitle: 'Al', duration: 200 },
       { id: 't1', title: 'Coffee', artistName: 'BB', albumTitle: 'Al', duration: 200 },
+      { id: 't2', title: 'Drive', artistName: 'CC', albumTitle: 'Al', duration: 200 },
     ],
     segmentSlots: [
-      { index: 0, kind: 'cold_open' as const, beforeTrackId: 't0', variantCount: 1, status: 'pending' as const },
-      { index: 1, kind: 'sign_off' as const, afterTrackId: 't1', variantCount: 1, status: 'pending' as const },
+      { index: 0, kind: 'cold_open' as const, beforeTrackId: 't0', variantCount: 1, status: 'pending' as const, tier: 'cold_open' as const },
+      { index: 1, kind: 'transition' as const, beforeTrackId: 't2', variantCount: 1, status: 'pending' as const, tier: 'fact_bridge' as const },
+      { index: 2, kind: 'sign_off' as const, afterTrackId: 't2', variantCount: 1, status: 'pending' as const, tier: 'sign_off' as const },
     ],
   };
 
@@ -415,8 +417,13 @@ describe('SegmentScriptBuilder weatherHint propagation', () => {
     expect(prompts[0].userPrompt).toContain('It’s 47 and lightly raining in Brooklyn.');
   });
 
-  it('sign_off prompt does NOT include the weather hint (cold_open only)', () => {
+  it('transition prompt does NOT include the weather hint (cold_open only)', () => {
     const prompts = buildSegmentPrompts(baseManifest.segmentSlots[1], baseManifest, ctx);
+    expect(prompts[0].userPrompt).not.toContain('It’s 47 and lightly raining in Brooklyn.');
+  });
+
+  it('sign_off prompt does NOT include the weather hint (cold_open only)', () => {
+    const prompts = buildSegmentPrompts(baseManifest.segmentSlots[2], baseManifest, ctx);
     expect(prompts[0].userPrompt).not.toContain('It’s 47 and lightly raining in Brooklyn.');
   });
 });

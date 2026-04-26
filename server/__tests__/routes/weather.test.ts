@@ -39,4 +39,12 @@ describe('POST /weather/geocode', () => {
     expect(res.status).toBe(400);
     expect(provider.geocode).not.toHaveBeenCalled();
   });
+
+  it('rejects whitespace-only queries (zod trim before length check)', async () => {
+    const provider = { geocode: jest.fn() };
+    const app = buildApp(provider);
+    const res = await request(app).post('/weather/geocode').send({ q: '   ' });
+    expect(res.status).toBe(400);
+    expect(provider.geocode).not.toHaveBeenCalled();
+  });
 });

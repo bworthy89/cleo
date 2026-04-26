@@ -150,7 +150,7 @@ type WeatherSettings = {
 | User toggle ON but no coords saved (interrupted setup) | Same as OFF — no coords means no fetch. |
 | `/weather/geocode` API call fails | Client toast: "Weather lookup unavailable, try again later." User's saved settings unchanged. |
 | OWM "current weather" API fails during bake | Server logs once, returns null hint. Bake proceeds without weather. No user-visible error. |
-| `OPENWEATHER_API_KEY` env var missing | `WeatherProvider.getHint` always returns null; logs a one-time warning at server startup. Code paths still active so the route + flag work. Lets us ship without the key configured (it'll fall back to no-op). |
+| `OPENWEATHER_API_KEY` env var missing | `WeatherProvider` is never instantiated and `/weather/geocode` is not mounted; bake-time hint resolution short-circuits because `BroadcastOrchestrator` only calls `getHint` when the provider exists. Server logs a one-time startup warning. Lets us ship without the key configured — the toggle remains visible in Profile but city lookups will 404. |
 | OWM rate-limited (429) | Treated as a fetch error → null hint, no retry within the bake. The 30-min cache + free-tier headroom make this rare. |
 | User picks wrong candidate or city moves | They re-set on Profile. Stale settings persist until they re-pick. |
 

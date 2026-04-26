@@ -59,8 +59,23 @@ export function setUser(user: UserData): void {
 }
 
 // Weather Settings
+function isValidWeatherSettings(v: unknown): v is WeatherSettings {
+  if (!v || typeof v !== 'object') return false;
+  const s = v as Partial<WeatherSettings>;
+  return (
+    typeof s.enabled === 'boolean' &&
+    typeof s.city === 'string' &&
+    typeof s.resolvedLabel === 'string' &&
+    !!s.coords &&
+    typeof s.coords.lat === 'number' &&
+    typeof s.coords.lon === 'number'
+  );
+}
+
 export function getWeatherSettings(): WeatherSettings | null {
-  return getObject<WeatherSettings>(StorageKeys.WEATHER_SETTINGS) ?? null;
+  const raw = getObject<unknown>(StorageKeys.WEATHER_SETTINGS);
+  if (!isValidWeatherSettings(raw)) return null;
+  return raw;
 }
 
 export function setWeatherSettings(settings: WeatherSettings): void {
@@ -69,6 +84,24 @@ export function setWeatherSettings(settings: WeatherSettings): void {
 
 export function clearWeatherSettings(): void {
   storage.remove(StorageKeys.WEATHER_SETTINGS);
+}
+
+/**
+ * Project the persisted WeatherSettings into the bake POST shape.
+ * Returns undefined when the user hasn't opted in or settings are missing
+ * fields. Used by HomeBroadcastScreen and first-listen onboarding so both
+ * paths agree on the truthiness check + cityName fallback.
+ */
+export function getWeatherCoordsForBake(): { lat: number; lon: number; cityName: string } | undefined {
+  const settings = getWeatherSettings();
+  if (!settings?.enabled || !settings.coords || !settings.resolvedLabel) {
+    return undefined;
+  }
+  return {
+    lat: settings.coords.lat,
+    lon: settings.coords.lon,
+    cityName: settings.resolvedLabel.split(',')[0]?.trim() || 'your area',
+  };
 }
 
 // Playlists Cache
