@@ -395,7 +395,7 @@ describe('BroadcastOrchestrator weather hint wiring', () => {
       generateVariants,
     };
 
-    const result = await orch.create({
+    await orch.create({
       userId: 'u1', playlistId: 'p1', vibe: 'morning', length: 'quick',
       tracks: [
         { id: 't0', title: 'Wake', artistName: 'AA', albumTitle: 'Al', duration: 200 },
