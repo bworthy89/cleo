@@ -1,6 +1,6 @@
 type DocSnapshot = {
   id: string;
-  exists: boolean;
+  exists: () => boolean;
   data: () => Record<string, unknown> | undefined;
 };
 
@@ -22,7 +22,7 @@ function makeDocSnapshot(path: string): DocSnapshot {
   const data = stores.get(path);
   return {
     id: path.split('/').pop() ?? '',
-    exists: data !== undefined,
+    exists: () => data !== undefined,
     data: () => data,
   };
 }
@@ -145,6 +145,11 @@ function makeCollectionRef(path: string) {
           docs.push(makeDocSnapshot(docPath));
         }
       }
+      docs.sort((a, b) => {
+        const aSaved = (a.data() as { savedAt?: { toMillis?: () => number } } | undefined)?.savedAt?.toMillis?.() ?? 0;
+        const bSaved = (b.data() as { savedAt?: { toMillis?: () => number } } | undefined)?.savedAt?.toMillis?.() ?? 0;
+        return bSaved - aSaved;
+      });
       cb({ docs, empty: docs.length === 0 });
       return () => {
         const idx = collectionListeners.indexOf(entry);
