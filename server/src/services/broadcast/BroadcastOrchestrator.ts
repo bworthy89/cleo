@@ -20,6 +20,7 @@ import { SequenceCache } from './SequenceCache';
 import { EnrichmentCache } from '../enrichment/EnrichmentCache';
 import type { BackgroundEnricher } from '../enrichment/BackgroundEnricher';
 import type { FeatureFetchChain } from './FeatureFetchChain';
+import type { WeatherProvider } from '../../providers/weather/WeatherProvider';
 
 /**
  * Maximum number of segments generated in parallel. Each segment costs one
@@ -70,6 +71,7 @@ export class BroadcastOrchestrator {
     private readonly backgroundEnricher: BackgroundEnricher,
     featureFetchChain: FeatureFetchChain,
     sequenceCache?: SequenceCache,
+    private readonly weatherProvider?: Pick<WeatherProvider, 'getHint'>,
   ) {
     this.generator = new SegmentGenerator(llm, tts, storage);
 
@@ -216,7 +218,28 @@ export class BroadcastOrchestrator {
         const msg = err instanceof Error ? err.message : String(err);
         console.warn(`${tag} [BroadcastOrchestrator] drainNow failed: ${msg}`);
       });
-      const slot0P = this.generateSlot(manifest, 0, input.userContext);
+
+      // Resolve weather hint if the user opted in. WeatherProvider returns
+      // null on any error; we just skip the hint silently.
+      let weatherHint: string | undefined;
+      if (input.userContext.weatherCoords && this.weatherProvider) {
+        const wc = input.userContext.weatherCoords;
+        const hint = await this.weatherProvider.getHint(
+          { lat: wc.lat, lon: wc.lon },
+          wc.cityName,
+        );
+        if (hint) weatherHint = hint;
+      }
+      // Strip weatherCoords before spread — it lives on BroadcastCreateRequest
+      // but isn't part of SegmentContext. The TS cast permits the spread,
+      // so we prune explicitly to keep the prompt context shape clean.
+      const { weatherCoords: _wc, ...userCtx } = input.userContext;
+      const ctxWithHint: SegmentContext = {
+        ...userCtx,
+        weatherHint,
+      };
+
+      const slot0P = this.generateSlot(manifest, 0, ctxWithHint);
 
       // 4. HTTP response is gated on slot 0 audio being baked AND enrichment
       //    being drained. We wait for drainNow so background slots 1..N have
@@ -228,7 +251,7 @@ export class BroadcastOrchestrator {
       // 5. Fan out slots 1..N as a background task. Client polls
       //    /broadcast/:id/manifest to pick up audioUrls as slots complete.
       if (manifest.segmentSlots.length > 1) {
-        const backgroundP = this.generateSlotsBackground(manifest, input.userContext, tag)
+        const backgroundP = this.generateSlotsBackground(manifest, ctxWithHint, tag)
           .then(() => {
             const status = this.aborted.has(manifest.broadcastId) ? 'aborted' : 'completed';
             handle.endBake({ durationMs: Date.now() - startedAt, status });

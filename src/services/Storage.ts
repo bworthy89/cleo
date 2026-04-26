@@ -14,6 +14,7 @@ export const StorageKeys = {
   FIRST_LISTEN_COMPLETED_AT: 'first_listen_completed_at',
   NOTIF_TONIGHT_READY: 'notif_tonight_ready',
   NOTIF_MORNING_RECAP: 'notif_morning_recap',
+  WEATHER_SETTINGS: 'weather_settings',
 } as const;
 
 export const BROADCAST_HISTORY_RETENTION_MS = 24 * 60 * 60 * 1000; // 24h
@@ -23,6 +24,13 @@ export interface UserData {
   name?: string;
   appleMusicAuthorized: boolean;
   createdAt: string;
+}
+
+export interface WeatherSettings {
+  enabled: boolean;
+  city: string;
+  coords: { lat: number; lon: number };
+  resolvedLabel: string;
 }
 
 export function getObject<T>(key: string): T | undefined {
@@ -48,6 +56,52 @@ export function getUser(): UserData | undefined {
 
 export function setUser(user: UserData): void {
   setObject(StorageKeys.USER, user);
+}
+
+// Weather Settings
+function isValidWeatherSettings(v: unknown): v is WeatherSettings {
+  if (!v || typeof v !== 'object') return false;
+  const s = v as Partial<WeatherSettings>;
+  return (
+    typeof s.enabled === 'boolean' &&
+    typeof s.city === 'string' &&
+    typeof s.resolvedLabel === 'string' &&
+    !!s.coords &&
+    typeof s.coords.lat === 'number' &&
+    typeof s.coords.lon === 'number'
+  );
+}
+
+export function getWeatherSettings(): WeatherSettings | null {
+  const raw = getObject<unknown>(StorageKeys.WEATHER_SETTINGS);
+  if (!isValidWeatherSettings(raw)) return null;
+  return raw;
+}
+
+export function setWeatherSettings(settings: WeatherSettings): void {
+  setObject(StorageKeys.WEATHER_SETTINGS, settings);
+}
+
+export function clearWeatherSettings(): void {
+  storage.remove(StorageKeys.WEATHER_SETTINGS);
+}
+
+/**
+ * Project the persisted WeatherSettings into the bake POST shape.
+ * Returns undefined when the user hasn't opted in or settings are missing
+ * fields. Used by HomeBroadcastScreen and first-listen onboarding so both
+ * paths agree on the truthiness check + cityName fallback.
+ */
+export function getWeatherCoordsForBake(): { lat: number; lon: number; cityName: string } | undefined {
+  const settings = getWeatherSettings();
+  if (!settings?.enabled || !settings.coords || !settings.resolvedLabel) {
+    return undefined;
+  }
+  return {
+    lat: settings.coords.lat,
+    lon: settings.coords.lon,
+    cityName: settings.resolvedLabel.split(',')[0]?.trim() || 'your area',
+  };
 }
 
 // Playlists Cache
@@ -142,6 +196,7 @@ export function clearUserData(uid?: string): void {
   storage.remove(StorageKeys.PLAYLISTS_CACHE);
   clearPersistedBroadcast();
   storage.remove(StorageKeys.BROADCAST_HISTORY);
+  storage.remove(StorageKeys.WEATHER_SETTINGS);
 }
 
 // Broadcast history — last N completed/in-flight broadcasts the user kicked

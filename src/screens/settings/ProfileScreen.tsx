@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import auth from '@react-native-firebase/auth';
 import * as Haptics from 'expo-haptics';
@@ -14,9 +14,21 @@ import {
 import { useSettings } from '../../contexts/SettingsContext';
 import {
   getBroadcastHistory,
+  getWeatherSettings,
+  setWeatherSettings,
   type BroadcastHistoryEntry,
+  type WeatherSettings,
 } from '../../services/Storage';
+import { authenticatedFetch } from '../../services/api';
 import { memberNo as formatMemberNo, memberSlot } from '../../lib/memberNo';
+
+interface WeatherCandidate {
+  name: string;
+  state?: string;
+  country: string;
+  lat: number;
+  lon: number;
+}
 
 /**
  * ONAY tab — member lounge. Identity + recent listens + an editorial note
@@ -37,6 +49,121 @@ export function ProfileScreen() {
   useEffect(() => {
     setHistory(getBroadcastHistory());
   }, []);
+
+  // ── Weather context state ────────────────────────────────────────────
+  const [weather, setWeatherState] = useState<WeatherSettings | null>(() => getWeatherSettings());
+  const [cityInput, setCityInput] = useState(weather?.city ?? '');
+  const [geocoding, setGeocoding] = useState(false);
+  const [candidates, setCandidates] = useState<WeatherCandidate[]>([]);
+
+  // Monotonic id for the in-flight geocode request. Incremented on every
+  // text edit AND on every new submit so a late-arriving response can
+  // tell whether the input has moved on. Without this, the user could
+  // type "Brooklyn", hit SET, then retype "Manhattan" while the network
+  // was in flight — the Brooklyn candidates would either auto-confirm
+  // against the new text or pop up as a stale picker.
+  const geocodeReqIdRef = useRef(0);
+
+  const onCityInputChange = (next: string) => {
+    setCityInput(next);
+    if (candidates.length > 0) setCandidates([]);
+    // Invalidate any in-flight geocode — its response will be discarded
+    // because reqId no longer matches.
+    geocodeReqIdRef.current++;
+  };
+
+  const onToggleWeather = (next: boolean) => {
+    if (!next) {
+      // Toggling off: keep saved coords (so the user can flip back on
+      // without re-picking) but flip enabled to false.
+      const cur = getWeatherSettings();
+      if (cur) {
+        const updated = { ...cur, enabled: false };
+        setWeatherSettings(updated);
+        setWeatherState(updated);
+      } else {
+        setWeatherState(null);
+      }
+      return;
+    }
+    // Toggling on: only meaningful if a city is already saved with coords.
+    const cur = getWeatherSettings();
+    if (cur) {
+      const updated = { ...cur, enabled: true };
+      setWeatherSettings(updated);
+      setWeatherState(updated);
+    } else {
+      // First-time enable, no city picked yet. The {0,0} coords are an
+      // ephemeral React-state placeholder — never written to MMKV (no
+      // setWeatherSettings call here) and replaced by real coords in
+      // confirmCandidate. getWeatherCoordsForBake reads MMKV, so it
+      // never sees this sentinel; it also short-circuits on empty
+      // resolvedLabel as defense in depth.
+      setWeatherState({ enabled: true, city: '', coords: { lat: 0, lon: 0 }, resolvedLabel: '' });
+    }
+  };
+
+  const confirmCandidate = (c: WeatherCandidate) => {
+    const label = [c.name, c.state, c.country].filter(Boolean).join(', ');
+    const settings: WeatherSettings = {
+      // Preserve the toggle's actual state — never silently opt-in. If the
+      // user is confirming a candidate, they reached this flow via the
+      // toggle UI which already set weather.enabled, so reading it here
+      // gives the truthful intent. Falling back to false avoids implicit
+      // enable when state is somehow null.
+      enabled: weather?.enabled === true,
+      city: cityInput.trim(),
+      coords: { lat: c.lat, lon: c.lon },
+      resolvedLabel: label,
+    };
+    setWeatherSettings(settings);
+    setWeatherState(settings);
+    setCandidates([]);
+  };
+
+  const onSubmitCity = async () => {
+    const q = cityInput.trim();
+    if (!q || geocoding) return;
+    const reqId = ++geocodeReqIdRef.current;
+    setGeocoding(true);
+    setCandidates([]);
+    try {
+      const res = await authenticatedFetch('/weather/geocode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ q }),
+      });
+      // Bail if the user has retyped (or kicked off another submit)
+      // while we were in flight — anything we render now would be over
+      // a different query than the user is currently looking at.
+      if (reqId !== geocodeReqIdRef.current) return;
+      if (!res.ok) {
+        Alert.alert('Weather lookup unavailable', 'Try again later.');
+        return;
+      }
+      const body = await res.json() as { candidates: WeatherCandidate[] };
+      if (reqId !== geocodeReqIdRef.current) return;
+      if (body.candidates.length === 0) {
+        Alert.alert("Couldn't find that city", 'Try the full name or a ZIP code.');
+        return;
+      }
+      if (body.candidates.length === 1) {
+        // Auto-confirm. cityInput is guaranteed to still equal `q` here
+        // because any text edit would have incremented reqId and we'd
+        // have bailed above — so confirmCandidate reading it is safe.
+        confirmCandidate(body.candidates[0]);
+      } else {
+        setCandidates(body.candidates);
+      }
+    } catch {
+      if (reqId === geocodeReqIdRef.current) {
+        Alert.alert('Weather lookup unavailable', 'Try again later.');
+      }
+    } finally {
+      if (reqId === geocodeReqIdRef.current) setGeocoding(false);
+    }
+  };
+  // ── End weather context ──────────────────────────────────────────────
 
   const totalMinutes = history.reduce((total, entry) => {
     const tracks = entry.manifest.tracks ?? [];
@@ -135,6 +262,100 @@ export function ProfileScreen() {
           </View>
           <Text style={styles.settingsArrow}>→</Text>
         </Pressable>
+
+        {/* Weather context */}
+        <SectionMarker num="D·03" title="WEATHER CONTEXT" side="OPTIONAL" />
+
+        <View style={styles.weatherSection}>
+          <Pressable
+            onPress={() => {
+              Haptics.selectionAsync().catch(() => {});
+              onToggleWeather(!(weather?.enabled ?? false));
+            }}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: weather?.enabled ?? false }}
+            accessibilityLabel={weather?.enabled ? 'Disable weather context' : 'Enable weather context'}
+            style={styles.weatherToggleRow}
+          >
+            <Text style={styles.weatherToggleLabel}>
+              Mention weather in cold opens
+            </Text>
+            <Text style={[
+              styles.weatherToggleValue,
+              (weather?.enabled ?? false) ? styles.weatherToggleOn : null,
+            ]}>
+              {weather?.enabled ? 'ON' : 'OFF'}
+            </Text>
+          </Pressable>
+
+          <Text style={styles.weatherSub}>
+            When ON, ONAY may say something like &ldquo;It&rsquo;s 47 and lightly raining
+            in Brooklyn.&rdquo; One mention max per episode. Off by default.
+          </Text>
+
+          <View style={styles.weatherCityRow}>
+            <Text style={styles.weatherFieldLabel}>City</Text>
+            <TextInput
+              style={styles.weatherCityInput}
+              value={cityInput}
+              onChangeText={onCityInputChange}
+              autoCapitalize="words"
+              autoCorrect={false}
+              placeholder="Brooklyn"
+              placeholderTextColor={AM.inkGhost}
+              returnKeyType="done"
+              onSubmitEditing={onSubmitCity}
+              accessibilityLabel="City for weather context"
+            />
+            <Pressable
+              onPress={() => {
+                Haptics.selectionAsync().catch(() => {});
+                onSubmitCity().catch(() => {});
+              }}
+              disabled={geocoding || cityInput.trim().length === 0}
+              style={({ pressed }) => [
+                styles.weatherSetBtn,
+                pressed && { opacity: 0.7 },
+                (geocoding || cityInput.trim().length === 0) && { opacity: 0.4 },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Look up city"
+            >
+              {geocoding ? (
+                <ActivityIndicator color={AM.amber} size="small" />
+              ) : (
+                <Text style={styles.weatherSetBtnLabel}>SET</Text>
+              )}
+            </Pressable>
+          </View>
+
+          {weather?.resolvedLabel && candidates.length === 0 ? (
+            <Text style={styles.weatherSavedLabel}>saved: {weather.resolvedLabel}</Text>
+          ) : null}
+
+          {candidates.length > 0 ? (
+            <View style={styles.weatherCandidates}>
+              <Text style={styles.weatherCandidatesPrompt}>Did you mean&hellip;</Text>
+              {candidates.map((c, i) => {
+                const label = [c.name, c.state, c.country].filter(Boolean).join(', ');
+                return (
+                  <Pressable
+                    key={`${c.lat}-${c.lon}-${i}`}
+                    onPress={() => {
+                      Haptics.selectionAsync().catch(() => {});
+                      confirmCandidate(c);
+                    }}
+                    style={({ pressed }) => [styles.weatherCandidateRow, pressed && { opacity: 0.7 }]}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Pick ${label}`}
+                  >
+                    <Text style={styles.weatherCandidateLabel}>{label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
+        </View>
 
         {/* Colophon */}
         <View style={styles.colophon}>
@@ -292,6 +513,99 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     color: AM.inkDim,
   },
+
+  // ── Weather context ────────────────────────────────────────────────
+  weatherSection: {
+    paddingVertical: Space.s14,
+    gap: Space.s12,
+  },
+  weatherToggleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: Space.s8,
+  },
+  weatherToggleLabel: {
+    fontFamily: Fonts.serif,
+    fontSize: TypeScale.s16,
+    color: AM.ink,
+  },
+  weatherToggleValue: {
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s10,
+    letterSpacing: 2,
+    color: AM.inkDim,
+  },
+  weatherToggleOn: {
+    color: AM.amber,
+  },
+  weatherSub: {
+    fontFamily: Fonts.serif,
+    fontStyle: 'italic',
+    fontSize: TypeScale.s13,
+    color: AM.inkMid,
+    lineHeight: TypeScale.s13 * 1.5,
+  },
+  weatherCityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Space.s10,
+  },
+  weatherFieldLabel: {
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s10,
+    letterSpacing: 2,
+    color: AM.inkDim,
+    width: 60,
+  },
+  weatherCityInput: {
+    flex: 1,
+    fontFamily: Fonts.serif,
+    fontSize: TypeScale.s16,
+    color: AM.ink,
+    paddingVertical: Space.s8,
+    borderBottomWidth: 1,
+    borderBottomColor: AM.rule,
+  },
+  weatherSetBtn: {
+    paddingHorizontal: Space.s14,
+    paddingVertical: Space.s8,
+    borderWidth: 1,
+    borderColor: AM.amber,
+  },
+  weatherSetBtnLabel: {
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s10,
+    letterSpacing: 2,
+    color: AM.amber,
+  },
+  weatherSavedLabel: {
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s10,
+    letterSpacing: 1.5,
+    color: AM.inkDim,
+  },
+  weatherCandidates: {
+    gap: Space.s8,
+    paddingVertical: Space.s8,
+  },
+  weatherCandidatesPrompt: {
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s10,
+    letterSpacing: 2,
+    color: AM.inkDim,
+  },
+  weatherCandidateRow: {
+    paddingVertical: Space.s8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: AM.rule,
+  },
+  weatherCandidateLabel: {
+    fontFamily: Fonts.serif,
+    fontSize: TypeScale.s14,
+    color: AM.ink,
+  },
+  // ── End weather context ────────────────────────────────────────────
 });
 
 export default ProfileScreen;
