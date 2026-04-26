@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -157,7 +157,7 @@ function ErrorBody(props: { message: string; onTakeMeHome: () => void }) {
     <View>
       <Text style={styles.headline}>Hmm.</Text>
       <View style={styles.linerWrap}>
-        <LinerNotes>{props.message}</LinerNotes>
+        <Text style={styles.errorBody}>{props.message}</Text>
       </View>
       <View style={{ marginTop: Space.s30 }}>
         <StampButton
@@ -188,12 +188,18 @@ const styles = StyleSheet.create({
   },
   headlineAmber: { color: AM.amber },
   linerWrap: { marginTop: Space.s26 },
+  errorBody: {
+    fontFamily: Fonts.serif,
+    fontStyle: 'italic',
+    fontSize: TypeScale.s15,
+    color: AM.inkMid,
+    lineHeight: TypeScale.s15 * 1.5,
+  },
   nameInput: {
     marginTop: Space.s26,
-    fontFamily: Fonts.display,
+    fontFamily: Fonts.serif,
     fontSize: TypeScale.s22,
     color: AM.ink,
-    letterSpacing: 0.5,
     paddingVertical: Space.s10,
     borderBottomWidth: 1,
     borderBottomColor: AM.rule,
