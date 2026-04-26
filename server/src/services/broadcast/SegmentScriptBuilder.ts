@@ -9,6 +9,11 @@ export interface SegmentContext {
   lastSessionSummary?: string;
   tracksRecentlyPlayed?: string[];
   listenerName?: string;
+  /** Pre-formatted single-sentence weather hint, e.g. "It’s 47 and
+   *  lightly raining in Brooklyn." Only surfaces in cold_open prompts —
+   *  buildSceneLines appends it; cold_open is the only slot kind that
+   *  uses the scene block. */
+  weatherHint?: string;
 }
 
 export interface PromptSet {
@@ -144,6 +149,12 @@ function buildSceneLines(ctx: SegmentContext): string {
   } else {
     lines.push('They\u2019re here again.');
   }
+  if (ctx.weatherHint) {
+    // Scene-line addition for cold_open prompts. Sign-off and bridges
+    // don't call buildSceneLines, so the hint surfaces only on the
+    // first slot by construction.
+    lines.push(sanitizeForPrompt(ctx.weatherHint, 200));
+  }
   return lines.join(' ');
 }
 
@@ -162,7 +173,6 @@ export function buildSegmentPrompts(
 ): PromptSet[] {
   const tier = tierForSlot(slot);
   const vibe = manifest.vibe;
-  const scene = buildSceneLines(ctx);
   const { budget } = TIER_SHAPES[tier];
 
   if (slot.kind === 'cold_open') {
@@ -170,6 +180,7 @@ export function buildSegmentPrompts(
     const enr = enrichmentCache?.get(first.title, first.artistName) ?? null;
     const family = pickGenreFamily(first, enr);
     const system = buildSystemPrompt(vibe, tier, family);
+    const scene = buildSceneLines(ctx);
     const userPrompt =
       `${scene}\n\n` +
       `Opening track: ${trackRef(first)} \u2014 ${family}.` +
@@ -184,6 +195,8 @@ export function buildSegmentPrompts(
     const family = pickGenreFamily(incoming, incomingEnr);
     const system = buildSystemPrompt(vibe, tier, family);
     const maxTokens = tier === 'deep_dive' ? 768 : 512;
+    const ctxWithoutWeather = { ...ctx, weatherHint: undefined };
+    const scene = buildSceneLines(ctxWithoutWeather);
     const userPrompt =
       `${scene}\n\n` +
       `Incoming: ${trackRef(incoming)} \u2014 ${family}.` +
@@ -197,6 +210,8 @@ export function buildSegmentPrompts(
   const closingEnr = enrichmentCache?.get(closing.title, closing.artistName) ?? null;
   const family = pickGenreFamily(closing, closingEnr);
   const system = buildSystemPrompt(vibe, tier, family);
+  const ctxWithoutWeather = { ...ctx, weatherHint: undefined };
+  const scene = buildSceneLines(ctxWithoutWeather);
   const userPrompt =
     `${scene}\n\n` +
     `The final track was ${trackRef(closing)} \u2014 ${family}.` +
