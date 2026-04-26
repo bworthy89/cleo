@@ -31,6 +31,11 @@ const contextSchema = z.object({
   lastSessionSummary: z.string().max(500).optional(),
   tracksRecentlyPlayed: z.array(z.string()).max(50).optional(),
   listenerName: z.string().max(50).optional(),
+  weatherCoords: z.object({
+    lat: z.number().min(-90).max(90),
+    lon: z.number().min(-180).max(180),
+    cityName: z.string().min(1).max(100),
+  }).optional(),
 });
 
 const createSchema = z.object({

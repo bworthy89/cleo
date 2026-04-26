@@ -25,6 +25,11 @@ export interface CreateBroadcastRequest {
     lastSessionSummary?: string;
     tracksRecentlyPlayed?: string[];
     listenerName?: string;
+    weatherCoords?: {
+      lat: number;
+      lon: number;
+      cityName: string;
+    };
   };
   tracks: Array<{
     id: string; title: string; artistName: string;
