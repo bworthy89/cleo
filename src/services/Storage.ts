@@ -11,6 +11,7 @@ export const StorageKeys = {
   ONAY_SUGGESTION: 'onay_suggestion',
   CURRENT_BROADCAST: 'currentBroadcast',
   BROADCAST_HISTORY: 'broadcast_history',
+  FIRST_LISTEN_COMPLETED_AT: 'first_listen_completed_at',
   NOTIF_TONIGHT_READY: 'notif_tonight_ready',
   NOTIF_MORNING_RECAP: 'notif_morning_recap',
 } as const;
@@ -189,12 +190,28 @@ export function getBroadcastHistory(): BroadcastHistoryEntry[] {
 }
 
 /**
- * True iff the user has at least one non-expired broadcast in history.
- * Used to gate the first-listen onboarding flow — a returning user with
- * any prior broadcast skips straight to /(main).
+ * True iff the user has at least one broadcast in the recent (non-expired)
+ * history window — `BROADCAST_HISTORY_RETENTION_MS`. Useful as a "this user
+ * has been active in the last 24h" signal. Do NOT use this as a permanent
+ * "has the user ever onboarded?" gate — that's `hasCompletedFirstListen()`.
  */
-export function hasAnyBroadcastHistory(): boolean {
+export function hasRecentBroadcastHistory(): boolean {
   return getBroadcastHistory().length > 0;
+}
+
+/**
+ * Persistent flag set the first time the user successfully presses
+ * "DROP THE NEEDLE" on the first-listen screen. Survives the broadcast
+ * history retention window — once set, the user is never re-routed
+ * through first-listen onboarding even if their recent history expires.
+ */
+export function markFirstListenCompleted(now: number = Date.now()): void {
+  storage.set(StorageKeys.FIRST_LISTEN_COMPLETED_AT, now);
+}
+
+/** True iff `markFirstListenCompleted` has ever been called for this device. */
+export function hasCompletedFirstListen(): boolean {
+  return storage.contains(StorageKeys.FIRST_LISTEN_COMPLETED_AT);
 }
 
 /**
