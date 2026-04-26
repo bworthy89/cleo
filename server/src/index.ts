@@ -23,7 +23,9 @@ import { createBroadcastRouter } from './routes/broadcast';
 import { createFeaturedRouter } from './routes/featured';
 import { createAdminRouter } from './routes/admin';
 import { createPublicHealthRouter } from './routes/health';
+import { createWeatherRouter } from './routes/weather';
 import { requireAuth } from './middleware/auth';
+import { WeatherProvider } from './providers/weather/WeatherProvider';
 import { llmProvider } from './providers/llm';
 import { ttsProvider } from './providers/tts';
 import { createStorage } from './services/storage/createStorage';
@@ -108,6 +110,16 @@ const curatorPublishBudget = new CuratorPublishBudget({
 });
 const curatorPublishBudgetMiddleware = makeCuratorPublishBudgetMiddleware(curatorPublishBudget);
 
+// WeatherProvider is optional — null when OPENWEATHER_API_KEY is unset.
+// The orchestrator skips weather injection entirely when the provider is
+// missing, so first-launch deploys without the key still work.
+const weatherProvider = process.env.OPENWEATHER_API_KEY
+  ? new WeatherProvider({ apiKey: process.env.OPENWEATHER_API_KEY })
+  : undefined;
+if (!weatherProvider) {
+  console.warn('[env] OPENWEATHER_API_KEY unset; weather hints disabled');
+}
+
 // Health check — detailed provider info only for authenticated requests
 app.get('/health', async (req, res) => {
   const authHeader = req.headers.authorization;
@@ -170,6 +182,7 @@ async function bootstrap(): Promise<void> {
   const broadcastOrchestrator = new BroadcastOrchestrator(
     llmProvider, ttsProvider, broadcastStorage, broadcastStore,
     enrichmentCache, backgroundEnricher, featureFetchChain,
+    undefined, weatherProvider,
   );
 
   // Public health endpoint — unauthenticated, synthesizes TTS + bake-queue status.
@@ -215,6 +228,11 @@ async function bootstrap(): Promise<void> {
     generationLimiter,
     curatorPublishBudgetMiddleware,
   ));
+
+  // Weather service router — mounted under auth only when the provider is configured
+  if (weatherProvider) {
+    app.use(requireAuth, createWeatherRouter(weatherProvider));
+  }
 
   // Static asset serving for broadcast audio — only when the storage backend
   // serves bytes from a local path (dev). Remote backends (R2) embed the URL
