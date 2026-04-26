@@ -28,7 +28,7 @@ The original issue's title becomes a misnomer; the closing PR will note the Quic
 - Lists upcoming manifest tracks in order with mono catalog index, title (Anton), artist (Fraunces italic), duration.
 - Subtle `↘ ONAY · TRANSITION` rows between tracks where a transition segment will play.
 - Trailing `↘ ONAY · SIGN-OFF` row when the sign_off slot is still ahead.
-- Empty-state line on the last track ("THIS IS THE LAST ONE", mono editorial copy in `AM.inkDim`).
+- Empty-state line during sign-off, when no more tracks or transitions remain ("THIS IS THE LAST ONE", mono editorial copy in `AM.inkDim`). On the final track itself, the list still shows just the trailing `↘ ONAY · SIGN-OFF` row.
 
 ### Explicitly dropped
 
@@ -155,7 +155,7 @@ None. List rendering is straight JSX over the engine's output; engine unit tests
 
 ### Manual smoke before merging
 
-- Full standard bake on a real device. Verify Up Next shrinks track by track, transition rows disappear when their slot completes, sign-off row stays visible to the very end, empty state shows on the last track.
+- Full standard bake on a real device. Verify Up Next shrinks track by track, transition rows disappear when their slot completes, sign-off row stays visible until sign-off plays, empty state shows during sign-off.
 - Background / foreground the app mid-broadcast. List still correct on return.
 - VoiceOver pass — row labels read sensibly.
 
@@ -174,6 +174,6 @@ None. List rendering is straight JSX over the engine's output; engine unit tests
 - Track rows show TRK index, title, artist, duration, hairline divider.
 - Transition rows show "↘ ONAY · TRANSITION" between the right tracks.
 - Sign-off row shows "↘ ONAY · SIGN-OFF" at the end while the sign_off slot is ahead.
-- Empty state shows "THIS IS THE LAST ONE" on the final track.
+- Empty state shows "THIS IS THE LAST ONE" while sign-off is playing.
 - All 9 unit-test cases pass.
 - Manual smoke (full bake, background/foreground, VoiceOver) clean.
