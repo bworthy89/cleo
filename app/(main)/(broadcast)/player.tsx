@@ -7,6 +7,7 @@ import * as Haptics from 'expo-haptics';
 import { AM, Fonts, Space, TypeScale } from '../../../src/tokens/design-tokens';
 import { BroadcastBackdrop } from '../../../src/components/BroadcastBackdrop';
 import { TuningInOverlay } from '../../../src/components/broadcast/TuningInOverlay';
+import { UpNextList } from '../../../src/components/broadcast/UpNextList';
 import { Tick, VUMeter } from '../../../src/components/crate';
 import { broadcastPlayer } from '../../../src/engines/BroadcastPlayer.singleton';
 import type { PlayerStatus } from '../../../src/engines/BroadcastPlayer.types';
@@ -271,6 +272,8 @@ export default function BroadcastPlayerScreen() {
             <Text style={styles.volumeScaleLabel}>FOREFRONT</Text>
           </View>
         </View>
+
+        <UpNextList items={status.upcoming} />
 
         <View style={{ height: Space.s22 }} />
       </ScrollView>
