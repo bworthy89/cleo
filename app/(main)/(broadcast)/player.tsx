@@ -14,6 +14,7 @@ import type { PlayerStatus } from '../../../src/engines/BroadcastPlayer.types';
 import { useAppActive } from '../../../src/hooks/useAppActive';
 import { storage, StorageKeys } from '../../../src/services/Storage';
 import { setTTSVolume } from '../../../modules/expo-music-kit';
+import { useLikedTrack } from '../../../src/hooks/useLikedTrack';
 
 // ──────────────────────────── Helpers ────────────────────────────
 
@@ -51,6 +52,38 @@ function useLiveClock(enabled: boolean): string {
     return () => clearInterval(id);
   }, [enabled]);
   return clock;
+}
+
+// ──────────────────────────── HeartButton ────────────────────────
+
+function HeartButton({ track }: { track: { id: string; title: string; artistName: string; albumTitle: string; artworkUrl?: string } }) {
+  const { isLiked, toggle } = useLikedTrack({
+    id: track.id,
+    title: track.title,
+    artistName: track.artistName,
+    albumTitle: track.albumTitle ?? '',
+    artworkUrl: track.artworkUrl ?? null,
+  });
+
+  const onPress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    toggle().catch(() => {});
+  };
+
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={isLiked ? `Remove ${track.title} from Liked` : `Save ${track.title} to Liked`}
+      accessibilityState={{ selected: isLiked }}
+      hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+      style={({ pressed }) => [styles.heartButton, pressed && { opacity: 0.6 }]}
+    >
+      <Text style={[styles.heartGlyph, isLiked ? styles.heartLiked : styles.heartUnliked]}>
+        {isLiked ? '♥' : '♡'}
+      </Text>
+    </Pressable>
+  );
 }
 
 // ──────────────────────────── Screen ─────────────────────────────
@@ -189,11 +222,14 @@ export default function BroadcastPlayerScreen() {
           </View>
         </View>
 
-        {/* Title block */}
+        {/* Title block — track metadata + heart save */}
         <View style={styles.titleBlock}>
-          <Text style={styles.title} numberOfLines={2}>
-            {(track?.title ?? (ended ? 'That’s all for tonight.' : warming ? 'Building your set…' : '—')).toUpperCase()}
-          </Text>
+          <View style={styles.titleHeartRow}>
+            <Text style={styles.title} numberOfLines={2}>
+              {(track?.title ?? (ended ? "That's all for tonight." : warming ? 'Building your set...' : '-')).toUpperCase()}
+            </Text>
+            {track ? <HeartButton track={track} /> : null}
+          </View>
           {artist ? <Text style={styles.artist} numberOfLines={1}>{artist}</Text> : null}
 
           {/* Catalog line — source design has "YEAR · LABEL · ALBUM". The
@@ -397,6 +433,7 @@ const styles = StyleSheet.create({
     marginTop: Space.s22,
   },
   title: {
+    flex: 1,
     fontFamily: Fonts.display,
     fontSize: TypeScale.s28,
     color: AM.ink,
@@ -410,6 +447,27 @@ const styles = StyleSheet.create({
     fontSize: TypeScale.s18,
     color: AM.inkMid,
     lineHeight: TypeScale.s18 * 1.2,
+  },
+  titleHeartRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  heartButton: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: Space.s8,
+  },
+  heartGlyph: {
+    fontSize: TypeScale.s22,
+  },
+  heartLiked: {
+    color: AM.amber,
+  },
+  heartUnliked: {
+    color: AM.inkDim,
   },
   catalogMeta: {
     marginTop: Space.s14,
