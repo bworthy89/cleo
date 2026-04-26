@@ -5,7 +5,7 @@ import { router } from 'expo-router';
 import { AM, Fonts, Space, TypeScale } from '../../src/tokens/design-tokens';
 import { BroadcastBackdrop } from '../../src/components/BroadcastBackdrop';
 import { StampButton, LinerNotes, SpinningRecord } from '../../src/components/crate';
-import { getUser, setUser } from '../../src/services/Storage';
+import { getUser, setUser, markFirstListenCompleted } from '../../src/services/Storage';
 import { fetchPlaylists, fetchPlaylistTracks } from '../../modules/expo-music-kit';
 import { BroadcastManifestClient } from '../../src/engines/BroadcastManifestClient';
 import { BroadcastCurationClient } from '../../src/engines/BroadcastCurationClient';
@@ -127,6 +127,7 @@ export default function FirstListenScreen() {
   const pressPlay = () => {
     if (state.kind !== 'ready') return;
     const { manifest, firstSegmentUrls } = state;
+    markFirstListenCompleted();
     router.replace('/(main)/(broadcast)/player');
     // Fire-and-forget — the player owns its lifecycle. Surface a toast on
     // failure so the user isn't stranded on /player with no feedback;
