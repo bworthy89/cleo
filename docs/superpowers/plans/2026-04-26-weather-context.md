@@ -1303,7 +1303,8 @@ Add the geocode submit handler:
   }) => {
     const label = [c.name, c.state, c.country].filter(Boolean).join(', ');
     const settings: WeatherSettings = {
-      enabled: weather?.enabled ?? true,
+      // Preserve the toggle's actual state — never silently opt-in.
+      enabled: weather?.enabled === true,
       city: cityInput.trim(),
       coords: { lat: c.lat, lon: c.lon },
       resolvedLabel: label,

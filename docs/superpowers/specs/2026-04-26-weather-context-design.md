@@ -128,13 +128,14 @@ export class WeatherProvider {
 
 **MMKV**: new key `WEATHER_SETTINGS = 'weather_settings'`, shape:
 ```ts
-type WeatherSettings = {
+interface WeatherSettings {
   enabled: boolean;
   city: string;          // user's typed input, for re-display
   coords: { lat: number; lon: number };
   resolvedLabel: string; // "Brooklyn, NY, US" — display under input
-} | null;
+}
 ```
+Nullability lives on the accessor, not the type: `getWeatherSettings()` returns `WeatherSettings | null` (null when the key is unset or fails the runtime shape guard in `Storage.ts`).
 
 **`Storage.ts`** new accessors: `getWeatherSettings()`, `setWeatherSettings(settings)`, `clearWeatherSettings()`.
 

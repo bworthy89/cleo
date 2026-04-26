@@ -71,6 +71,12 @@ export function ProfileScreen() {
       setWeatherSettings(updated);
       setWeatherState(updated);
     } else {
+      // First-time enable, no city picked yet. The {0,0} coords are an
+      // ephemeral React-state placeholder — never written to MMKV (no
+      // setWeatherSettings call here) and replaced by real coords in
+      // confirmCandidate. getWeatherCoordsForBake reads MMKV, so it
+      // never sees this sentinel; it also short-circuits on empty
+      // resolvedLabel as defense in depth.
       setWeatherState({ enabled: true, city: '', coords: { lat: 0, lon: 0 }, resolvedLabel: '' });
     }
   };
