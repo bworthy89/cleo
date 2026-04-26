@@ -14,6 +14,7 @@ export const StorageKeys = {
   FIRST_LISTEN_COMPLETED_AT: 'first_listen_completed_at',
   NOTIF_TONIGHT_READY: 'notif_tonight_ready',
   NOTIF_MORNING_RECAP: 'notif_morning_recap',
+  WEATHER_SETTINGS: 'weather_settings',
 } as const;
 
 export const BROADCAST_HISTORY_RETENTION_MS = 24 * 60 * 60 * 1000; // 24h
@@ -23,6 +24,13 @@ export interface UserData {
   name?: string;
   appleMusicAuthorized: boolean;
   createdAt: string;
+}
+
+export interface WeatherSettings {
+  enabled: boolean;
+  city: string;
+  coords: { lat: number; lon: number };
+  resolvedLabel: string;
 }
 
 export function getObject<T>(key: string): T | undefined {
@@ -48,6 +56,19 @@ export function getUser(): UserData | undefined {
 
 export function setUser(user: UserData): void {
   setObject(StorageKeys.USER, user);
+}
+
+// Weather Settings
+export function getWeatherSettings(): WeatherSettings | null {
+  return getObject<WeatherSettings>(StorageKeys.WEATHER_SETTINGS) ?? null;
+}
+
+export function setWeatherSettings(settings: WeatherSettings): void {
+  setObject(StorageKeys.WEATHER_SETTINGS, settings);
+}
+
+export function clearWeatherSettings(): void {
+  storage.remove(StorageKeys.WEATHER_SETTINGS);
 }
 
 // Playlists Cache
@@ -142,6 +163,7 @@ export function clearUserData(uid?: string): void {
   storage.remove(StorageKeys.PLAYLISTS_CACHE);
   clearPersistedBroadcast();
   storage.remove(StorageKeys.BROADCAST_HISTORY);
+  storage.remove(StorageKeys.WEATHER_SETTINGS);
 }
 
 // Broadcast history — last N completed/in-flight broadcasts the user kicked
