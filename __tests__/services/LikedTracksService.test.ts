@@ -1,6 +1,7 @@
 import {
   __resetFirestore,
   __seedDoc,
+  __deleteDoc,
   __getApiSpies,
 } from '../../__mocks__/@react-native-firebase/firestore';
 import { __resetAuth, __setCurrentUser } from '../../__mocks__/@react-native-firebase/auth';
@@ -108,7 +109,13 @@ describe('toggle with FIFO eviction', () => {
   });
 
   it('tolerates a stale-evict where the planned-oldest doc is gone', async () => {
+    // Seed at cap so toggle's pre-transaction reads identify old-0 as the
+    // planned-oldest doc, then race-delete old-0 before the transaction
+    // body runs. The mock's transaction.delete is a no-op on a missing
+    // path (matches Firestore's real behavior), so the new doc still
+    // gets written without error.
     seedManyLikes(LIKED_TRACKS_CAP);
+    __deleteDoc('users/test-uid/likes/old-0');
 
     await toggle(TRACK);
 

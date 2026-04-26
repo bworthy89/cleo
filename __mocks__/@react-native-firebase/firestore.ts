@@ -99,13 +99,17 @@ function makeDocRef(path: string) {
 }
 
 function makeCollectionRef(path: string) {
+  let orderDirection: 'asc' | 'desc' = 'asc';
   const ref: Record<string, unknown> = {
     _path: path,
     doc: jest.fn((id: string) => {
       apiSpy.doc(`${path}/${id}`);
       return makeDocRef(`${path}/${id}`);
     }),
-    orderBy: jest.fn(() => ref),
+    orderBy: jest.fn((_field: string, direction: 'asc' | 'desc' = 'asc') => {
+      orderDirection = direction;
+      return ref;
+    }),
     limit: jest.fn(() => ref),
     where: jest.fn(() => ref),
     get: jest.fn(async () => {
@@ -119,7 +123,7 @@ function makeCollectionRef(path: string) {
       docs.sort((a, b) => {
         const aSaved = (a.data() as { savedAt?: { toMillis?: () => number } } | undefined)?.savedAt?.toMillis?.() ?? 0;
         const bSaved = (b.data() as { savedAt?: { toMillis?: () => number } } | undefined)?.savedAt?.toMillis?.() ?? 0;
-        return aSaved - bSaved;
+        return orderDirection === 'desc' ? bSaved - aSaved : aSaved - bSaved;
       });
       return { docs, empty: docs.length === 0, size: docs.length };
     }),
@@ -220,6 +224,10 @@ export function __resetFirestore() {
 
 export function __seedDoc(path: string, data: Record<string, unknown>) {
   stores.set(path, data);
+}
+
+export function __deleteDoc(path: string) {
+  stores.delete(path);
 }
 
 export function __getApiSpies() {

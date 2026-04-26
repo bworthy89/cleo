@@ -79,31 +79,39 @@ export function subscribeToOne(
     return () => {};
   }
   const docRef = firestore().doc(`${likesCollectionPath(uid)}/${trackId}`);
-  return docRef.onSnapshot((snap) => {
-    if (!snap.exists()) {
+  return docRef.onSnapshot(
+    (snap) => {
+      if (!snap.exists()) {
+        callback({ exists: false, track: null });
+        return;
+      }
+      const data = snap.data() as {
+        id: string;
+        title: string;
+        artistName: string;
+        albumTitle: string;
+        artworkUrl: string | null;
+        // null while a local pending write is awaiting server confirmation —
+        // serverTimestamp() resolves to null in the local cache snapshot.
+        savedAt: { toDate: () => Date } | null;
+      };
+      callback({
+        exists: true,
+        track: {
+          id: data.id,
+          title: data.title,
+          artistName: data.artistName,
+          albumTitle: data.albumTitle,
+          artworkUrl: data.artworkUrl,
+          savedAt: data.savedAt?.toDate() ?? new Date(),
+        },
+      });
+    },
+    (error) => {
+      console.warn('[LikedTracksService] subscribeToOne error', error);
       callback({ exists: false, track: null });
-      return;
-    }
-    const data = snap.data() as {
-      id: string;
-      title: string;
-      artistName: string;
-      albumTitle: string;
-      artworkUrl: string | null;
-      savedAt: { toDate: () => Date };
-    };
-    callback({
-      exists: true,
-      track: {
-        id: data.id,
-        title: data.title,
-        artistName: data.artistName,
-        albumTitle: data.albumTitle,
-        artworkUrl: data.artworkUrl,
-        savedAt: data.savedAt.toDate(),
-      },
-    });
-  });
+    },
+  );
 }
 
 export function subscribeToList(
@@ -117,25 +125,31 @@ export function subscribeToList(
   const collectionRef = firestore()
     .collection(likesCollectionPath(uid))
     .orderBy('savedAt', 'desc');
-  return collectionRef.onSnapshot((snap) => {
-    const tracks: LikedTrack[] = snap.docs.map((doc) => {
-      const data = doc.data() as {
-        id: string;
-        title: string;
-        artistName: string;
-        albumTitle: string;
-        artworkUrl: string | null;
-        savedAt: { toDate: () => Date };
-      };
-      return {
-        id: data.id,
-        title: data.title,
-        artistName: data.artistName,
-        albumTitle: data.albumTitle,
-        artworkUrl: data.artworkUrl,
-        savedAt: data.savedAt.toDate(),
-      };
-    });
-    callback(tracks);
-  });
+  return collectionRef.onSnapshot(
+    (snap) => {
+      const tracks: LikedTrack[] = snap.docs.map((doc) => {
+        const data = doc.data() as {
+          id: string;
+          title: string;
+          artistName: string;
+          albumTitle: string;
+          artworkUrl: string | null;
+          savedAt: { toDate: () => Date } | null;
+        };
+        return {
+          id: data.id,
+          title: data.title,
+          artistName: data.artistName,
+          albumTitle: data.albumTitle,
+          artworkUrl: data.artworkUrl,
+          savedAt: data.savedAt?.toDate() ?? new Date(),
+        };
+      });
+      callback(tracks);
+    },
+    (error) => {
+      console.warn('[LikedTracksService] subscribeToList error', error);
+      callback([]);
+    },
+  );
 }
