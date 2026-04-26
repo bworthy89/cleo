@@ -148,10 +148,15 @@ export default function FirstListenScreen() {
     const trimmed = nameDraft.trim();
     if (!trimmed) return;
     const existing = getUser();
-    setUser({
-      ...(existing ?? { appleMusicAuthorized: false, createdAt: new Date().toISOString() }),
-      name: trimmed,
-    });
+    if (!existing) {
+      // music-auth.tsx's finish() always calls setUser() before navigating
+      // here, so getUser() can't legitimately return undefined. If it does,
+      // something has corrupted MMKV mid-onboarding — bail rather than
+      // write a record that lies about appleMusicAuthorized.
+      console.error('[first-listen] submitName: no existing user record (onboarding chain bug)');
+      return;
+    }
+    setUser({ ...existing, name: trimmed });
     setState({ kind: 'baking', name: trimmed });
   };
 
