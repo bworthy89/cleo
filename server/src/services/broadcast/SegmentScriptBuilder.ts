@@ -150,9 +150,9 @@ function buildSceneLines(ctx: SegmentContext): string {
     lines.push('They\u2019re here again.');
   }
   if (ctx.weatherHint) {
-    // Scene-line addition for cold_open prompts. Sign-off and bridges
-    // don't call buildSceneLines, so the hint surfaces only on the
-    // first slot by construction.
+    // Scene-line addition. buildSegmentPrompts strips weatherHint to
+    // undefined for transition and sign_off (via ctxWithoutWeather)
+    // so this branch only fires for cold_open in practice.
     lines.push(sanitizeForPrompt(ctx.weatherHint, 200));
   }
   return lines.join(' ');
@@ -174,6 +174,9 @@ export function buildSegmentPrompts(
   const tier = tierForSlot(slot);
   const vibe = manifest.vibe;
   const { budget } = TIER_SHAPES[tier];
+  // Variant of ctx with weatherHint stripped — used by transition and
+  // sign_off branches so the hint sentence appears only in cold_open.
+  const ctxWithoutWeather: SegmentContext = { ...ctx, weatherHint: undefined };
 
   if (slot.kind === 'cold_open') {
     const first = findTrack(manifest, slot.beforeTrackId)!;
@@ -195,7 +198,6 @@ export function buildSegmentPrompts(
     const family = pickGenreFamily(incoming, incomingEnr);
     const system = buildSystemPrompt(vibe, tier, family);
     const maxTokens = tier === 'deep_dive' ? 768 : 512;
-    const ctxWithoutWeather = { ...ctx, weatherHint: undefined };
     const scene = buildSceneLines(ctxWithoutWeather);
     const userPrompt =
       `${scene}\n\n` +
@@ -210,7 +212,6 @@ export function buildSegmentPrompts(
   const closingEnr = enrichmentCache?.get(closing.title, closing.artistName) ?? null;
   const family = pickGenreFamily(closing, closingEnr);
   const system = buildSystemPrompt(vibe, tier, family);
-  const ctxWithoutWeather = { ...ctx, weatherHint: undefined };
   const scene = buildSceneLines(ctxWithoutWeather);
   const userPrompt =
     `${scene}\n\n` +
