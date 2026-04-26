@@ -5,12 +5,14 @@ import { router } from 'expo-router';
 import { AM, Fonts, Space, TypeScale } from '../../src/tokens/design-tokens';
 import { BroadcastBackdrop } from '../../src/components/BroadcastBackdrop';
 import { StampButton, LinerNotes, SpinningRecord } from '../../src/components/crate';
+import { HealthStatusBanner } from '../../src/components/HealthStatusBanner';
 import { getUser, setUser, markFirstListenCompleted } from '../../src/services/Storage';
 import { fetchPlaylists, fetchPlaylistTracks } from '../../modules/expo-music-kit';
 import { BroadcastManifestClient } from '../../src/engines/BroadcastManifestClient';
 import { BroadcastCurationClient } from '../../src/engines/BroadcastCurationClient';
 import { broadcastPlayer } from '../../src/engines/BroadcastPlayer.singleton';
 import { pickFirstListenSource } from '../../src/onboarding/firstListenSource';
+import { useHealthStatus } from '../../src/hooks/useHealthStatus';
 import type { Manifest } from '../../src/engines/BroadcastPlayer.types';
 
 type ScreenState =
@@ -21,6 +23,7 @@ type ScreenState =
 
 export default function FirstListenScreen() {
   const insets = useSafeAreaInsets();
+  const health = useHealthStatus();
   const [state, setState] = useState<ScreenState>(() => {
     const existing = getUser();
     return existing?.name
@@ -51,6 +54,15 @@ export default function FirstListenScreen() {
 
   const runBake = async (name: string, attempt: number) => {
     try {
+      // Bake timeout adapts to TTS health: F5-TTS (the fallback) is
+      // meaningfully slower than CosyVoice (the primary), so a 30s
+      // deadline that's fine under healthy CosyVoice can spuriously
+      // time out when we're in backup mode. The HealthStatusBanner
+      // mounted above this screen tells the user we're degraded; this
+      // gives the bake the time it needs to actually complete.
+      const isDegraded = health?.status === 'degraded' || health?.status === 'major';
+      const bakeTimeoutMs = isDegraded ? 90_000 : 30_000;
+
       const curationClient = new BroadcastCurationClient();
       const manifestClient = new BroadcastManifestClient();
       const source = await Promise.race([
@@ -62,7 +74,7 @@ export default function FirstListenScreen() {
         new Promise<never>((_resolve, reject) =>
           setTimeout(
             () => reject(new Error('source-resolution-timeout')),
-            30_000,
+            bakeTimeoutMs,
           ),
         ),
       ]);
@@ -90,7 +102,7 @@ export default function FirstListenScreen() {
 
       // User-playlist path — fresh bake.
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 30_000);
+      const timer = setTimeout(() => controller.abort(), bakeTimeoutMs);
       try {
         const response = await manifestClient.createBroadcast(
           {
@@ -169,6 +181,7 @@ export default function FirstListenScreen() {
         styles.root,
         { paddingTop: insets.top + Space.s32, paddingBottom: insets.bottom + Space.s22 },
       ]}>
+        <HealthStatusBanner />
         <View style={styles.content}>
           <Text style={styles.kicker}>SETTING THE NEEDLE · 06 / 06</Text>
           <View style={styles.vinylWrap}>
