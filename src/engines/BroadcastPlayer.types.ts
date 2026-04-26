@@ -83,4 +83,19 @@ export interface PlayerStatus {
     | { trackId: string }
     | null;
   progress: number;
+  upcoming: UpcomingItem[];
+}
+
+export type UpcomingItemKind = 'track' | 'transition' | 'sign_off';
+
+export interface UpcomingItem {
+  kind: UpcomingItemKind;
+  /** Stable React key. For tracks: trackId. For segments: `slot-${slotIndex}`. */
+  key: string;
+  /** 0-indexed position in `manifest.tracks`. Only set for kind === 'track'. */
+  trackIndex?: number;
+  /** Track display fields. Only set for kind === 'track'. */
+  title?: string;
+  artistName?: string;
+  duration?: number;
 }
