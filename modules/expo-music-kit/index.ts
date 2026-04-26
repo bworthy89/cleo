@@ -73,6 +73,19 @@ export async function getAuthorizationStatus(): Promise<AuthResult['status']> {
 
 // ── Playlists ──────────────────────────────────────────────────────────
 
+/**
+ * Fetch the user's Apple Music playlists.
+ *
+ * **Ordering:** results are sorted by Apple's `lastPlayedDate` (most-recent
+ * first), via `MusicLibraryRequest<Playlist>().sort(by: \.lastPlayedDate)`
+ * in the native module. The first entry is the playlist the user was just
+ * listening to in Apple Music — useful as a "what should ONAY play first?"
+ * signal (see `src/onboarding/firstListenSource.ts`).
+ *
+ * `lastPlayedDate` reflects whole-Apple-Music history (across the iOS
+ * Music app, etc.), not just plays inside this app — so the ordering is
+ * meaningful even on fresh app installs for existing Apple Music users.
+ */
 export async function fetchPlaylists(): Promise<MusicPlaylist[]> {
   return await ExpoMusicKit.fetchPlaylists();
 }
