@@ -1070,4 +1070,182 @@ describe('BroadcastPlayer', () => {
     expect(player.getStatus().state).not.toBe('paused');
     await player.end();
   });
+
+  // ─── Cursor lifecycle regression tests (#35) ────────────────────────────────
+  // These tests lock the two bugs fixed in Finding 2 and Finding 3:
+  //   Finding 2 — nextSegmentIdx must advance BEFORE waitIfPaused so a just-played
+  //               transition/sign_off is never re-exposed in upcoming.
+  //   Finding 3 — resume() must seed currentTrackIndex + nextSegmentIdx BEFORE
+  //               awaiting the intro segment so upcoming is correct throughout.
+
+  describe('cursor lifecycle (regression #35)', () => {
+    // 5-track manifest matching the resume harness:
+    //   slot 0 = cold_open (before t0)
+    //   slot 1 = transition (after t1, before t2)
+    //   slot 2 = transition (after t3, before t4)
+    //   slot 3 = sign_off (after t4)
+    const make5Manifest = (): Manifest => ({
+      broadcastId: 'bReg', userId: 'u1', playlistId: 'p1',
+      vibe: 'lateNight', length: 'quick', createdAt: Date.now(),
+      tracks: Array.from({ length: 5 }, (_, i) => ({
+        id: `t${i}`, title: `T${i}`, artistName: 'A', albumTitle: '', duration: 1,
+      })),
+      segmentSlots: [
+        { index: 0, kind: 'cold_open', beforeTrackId: 't0',
+          variantCount: 1, status: 'ready', audioUrls: ['https://cdn/seg0-v0.mp3'] },
+        { index: 1, kind: 'transition', afterTrackId: 't1', beforeTrackId: 't2',
+          variantCount: 1, status: 'ready', audioUrls: ['https://cdn/seg1-v0.mp3'] },
+        { index: 2, kind: 'transition', afterTrackId: 't3', beforeTrackId: 't4',
+          variantCount: 1, status: 'ready', audioUrls: ['https://cdn/seg2-v0.mp3'] },
+        { index: 3, kind: 'sign_off', afterTrackId: 't4',
+          variantCount: 1, status: 'ready', audioUrls: ['https://cdn/seg3-v0.mp3'] },
+      ],
+    });
+
+    it('Finding 3 — resume() seeds currentTrackIndex and nextSegmentIdx before intro segment plays', async () => {
+      // Setup: resume into cursor=2 (transition before t2 is the intro segment).
+      // While the intro segment is in flight, getStatus().upcoming must already
+      // reflect trackCursor=2 as current, not expose t0/t1, and not expose the
+      // in-flight intro transition as a row.
+      const deps = makeDeps();
+
+      // Gate playAudioFromBase64 on a deferred promise so we can inspect
+      // mid-flight state before the intro segment resolves.
+      let resolveSegment: () => void = () => {};
+      const segmentGate = new Promise<void>(r => { resolveSegment = r; });
+      let callCount = 0;
+      deps.native.playAudioFromBase64 = jest.fn(async (_b64: string) => {
+        callCount += 1;
+        // Hold only the intro (first call during resume) — subsequent calls
+        // from runSegmentAt during runMainLoop resolve immediately so the
+        // test doesn't hang.
+        if (callCount === 1) await segmentGate;
+      });
+
+      const music = {
+        ...deps.music,
+        getPlaybackStatus: jest.fn(async () => 'stopped'),
+        getPlaybackTime: jest.fn(async () => 1),
+      };
+
+      const player = new BroadcastPlayer(
+        music, deps.native, deps.manifestClient, deps.stingers,
+      );
+
+      // Don't await — we need to inspect state while resume is mid-flight.
+      const resumeP = player.resume(make5Manifest(), 2);
+
+      // Flush enough microtasks for initPlayback, cache-fetch, and the
+      // playAudioFromBase64 call to start (and park on segmentGate).
+      for (let i = 0; i < 40; i++) await Promise.resolve();
+
+      // The intro segment (slot 1) should be in flight.
+      const status = player.getStatus();
+
+      // currentTrackIndex was seeded to 2 before the await — Hero should
+      // show track 2, not -1.
+      expect(status.currentTrackIndex).toBe(2);
+
+      // nextSegmentIdx was advanced to introSlotIdx+1=2 before the await.
+      // computeUpcoming walks from nextSegmentIdx=2, so slot 1 (the in-flight
+      // intro transition) is never even considered — only slot 2 (before t4)
+      // appears as a transition row.
+      const upcomingKeys = status.upcoming.map(u => u.key);
+      // slot 1 (the intro, in-flight) must NOT appear in upcoming.
+      expect(upcomingKeys).not.toContain('slot-1');
+      // slot 2 (transition before t4) IS still legitimately upcoming.
+      expect(upcomingKeys).toContain('slot-2');
+      // tracks 3 and 4 must appear (not t0/t1 which played in the prior session)
+      const upcomingTrackIndices = status.upcoming.filter(u => u.kind === 'track').map(u => u.trackIndex);
+      expect(upcomingTrackIndices).not.toContain(0);
+      expect(upcomingTrackIndices).not.toContain(1);
+      expect(upcomingTrackIndices).toContain(3);
+      expect(upcomingTrackIndices).toContain(4);
+
+      // Unblock the intro segment so resume() can proceed and we don't leak.
+      resolveSegment();
+      // Drive remaining tracks to completion.
+      for (let t = 0; t < 3; t++) {
+        for (let i = 0; i < 80; i++) await Promise.resolve();
+        deps.listeners.state?.({ status: 'playing', playbackTime: 0.1 });
+        deps.listeners.state?.({ status: 'stopped', playbackTime: 1 });
+      }
+      for (let i = 0; i < 80; i++) await Promise.resolve();
+      await resumeP;
+      await player.end();
+    });
+
+    it('Finding 2 — just-played transition is not re-exposed in upcoming during pause window', async () => {
+      // Setup: 5-track full start. Drive forward until runMainLoop reaches the
+      // transition before t2 (slot 1). Pause while the transition is playing.
+      // After the segment resolves, nextSegmentIdx must advance (to 2) BEFORE
+      // waitIfPaused parks — so slot 1 doesn't re-appear in upcoming.
+      const deps = makeDeps();
+
+      let resolveTransition: () => void = () => {};
+      let segCallCount = 0;
+      deps.native.playAudioFromBase64 = jest.fn(async (_b64: string) => {
+        segCallCount += 1;
+        // The transition (slot 1) is the 2nd audio call:
+        //   call 1 = cold_open (slot 0)
+        //   call 2 = transition (slot 1)
+        if (segCallCount === 2) {
+          await new Promise<void>(r => { resolveTransition = r; });
+        }
+      });
+
+      const music = {
+        ...deps.music,
+        getPlaybackStatus: jest.fn(async () => 'stopped'),
+        getPlaybackTime: jest.fn(async () => 1),
+      };
+
+      const player = new BroadcastPlayer(
+        music, deps.native, deps.manifestClient, deps.stingers,
+      );
+
+      player.start(make5Manifest(), ['https://cdn/seg0-v0.mp3']);
+
+      // Drive cold_open → t0 → t1 (no transition between t0 and t1 under sparse shape).
+      // After t1 ends, runMainLoop reaches slot 1 (transition before t2).
+      for (let t = 0; t < 2; t++) {
+        for (let i = 0; i < 80; i++) await Promise.resolve();
+        deps.listeners.state?.({ status: 'playing', playbackTime: 0.1 });
+        deps.listeners.state?.({ status: 'stopped', playbackTime: 1 });
+      }
+      // Flush until the transition segment starts (segCallCount reaches 2).
+      for (let i = 0; i < 80; i++) await Promise.resolve();
+
+      // Now the transition (slot 1) is gated — fire a remote pause.
+      deps.fireRemotePause();
+      for (let i = 0; i < 10; i++) await Promise.resolve();
+
+      // Unblock the transition audio — runSegmentAt returns, nextSegmentIdx
+      // advances to 2, then waitIfPaused parks the loop.
+      resolveTransition();
+      for (let i = 0; i < 40; i++) await Promise.resolve();
+
+      // Player should now be parked in waitIfPaused with state === 'paused'.
+      expect(player.getStatus().state).toBe('paused');
+
+      // The just-played transition (slot 1) must NOT appear in upcoming.
+      const upcoming = player.getStatus().upcoming;
+      const upcomingKinds = upcoming.map(u => u.kind);
+      // No transition rows for slot 1 — it already played.
+      const transitionRows = upcoming.filter(u => u.kind === 'transition');
+      // Only slot 2 (transition before t4) may appear, not slot 1.
+      expect(transitionRows.every(row => row.key !== 'slot-1')).toBe(true);
+
+      // Resume and clean up.
+      deps.fireRemotePlay();
+      for (let i = 0; i < 10; i++) await Promise.resolve();
+      for (let t = 0; t < 3; t++) {
+        for (let i = 0; i < 80; i++) await Promise.resolve();
+        deps.listeners.state?.({ status: 'playing', playbackTime: 0.1 });
+        deps.listeners.state?.({ status: 'stopped', playbackTime: 1 });
+      }
+      for (let i = 0; i < 80; i++) await Promise.resolve();
+      await player.end();
+    });
+  });
 });
