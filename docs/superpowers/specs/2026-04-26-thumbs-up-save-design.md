@@ -300,13 +300,14 @@ Cases:
 8. Auth-required guard: calling `toggle` when `auth().currentUser` is null throws
    `AuthRequiredError`.
 9. Stale-eviction tolerance: oldest doc has been deleted by another device
-   between the pre-transaction read and the transaction. Mock
-   `transaction.delete` on the planned-oldest doc as a no-op, the new-doc set
-   succeeds. Final state: new doc present, no error thrown.
-10. Contention retry on the target doc: mock `transaction.get(targetDocRef)` to
-    indicate contention once (Firestore retries the body), succeed on second
-    attempt; assert `transaction.set` is called exactly once with the final
-    state.
+   between the pre-transaction read and the transaction. The transaction
+   proceeds; `transaction.delete` on a non-existent doc is a Firestore no-op.
+   Final state: new doc present, no error thrown.
+
+`subscribeToOne` and `subscribeToList` cases each split into multiple tests
+covering missing-doc, present-doc, and signed-out paths. The plan delivers
+~13 test cases across these clusters. (Contention-retry semantics are SDK
+behavior and not exercised in our suite.)
 
 ### Hook tests — `__tests__/hooks/useLikedTrack.test.ts` (new file)
 
@@ -376,7 +377,8 @@ flagged here.
   heart Pressable to unsave.
 - Empty state shows when no saves yet.
 - 200-entry cap holds with FIFO eviction (oldest by `savedAt`).
-- All 10 service unit-test cases pass.
+- All ~13 service unit-test cases pass (across `toggle`, `subscribeToOne`,
+  `subscribeToList`, and the auth guard).
 - All 3 hook unit-test cases pass.
 - Manual smoke (save / unsave / offline / cap / VoiceOver) clean.
 - `firestore.rules` deployed to production Firebase project after merge.
