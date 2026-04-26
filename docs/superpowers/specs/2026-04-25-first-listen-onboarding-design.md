@@ -112,15 +112,14 @@ For `kind: 'user'`, the bake POST passes the sanitized track list. For `kind: 'f
 ### Gating on subsequent launches
 
 ```ts
-const hasAnyHistory = getBroadcastHistory().length > 0;
-if (hasAnyHistory) {
+if (hasCompletedFirstListen() || hasRecentBroadcastHistory()) {
   router.replace('/(main)');     // skip first-listen entirely
 } else {
   // mount first-listen
 }
 ```
 
-A returning user with prior broadcasts skips first-listen. A user who deletes their history (via Settings → Clear data, when that exists) would re-trigger first-listen — acceptable; the simplest correct check is "has any history."
+A returning user who has completed first-listen (durable flag) or who has recent broadcast history (24h window) skips the screen. The durable flag is the primary gate — `hasRecentBroadcastHistory()` is a defensive fallback for users who onboarded before the flag was introduced.
 
 ### Failure-mode matrix
 
@@ -139,9 +138,9 @@ A returning user with prior broadcasts skips first-listen. A user who deletes th
 - **Create** `app/(onboarding)/first-listen.tsx` — the prep screen; states A/B/C, name input, bake orchestration, press-play CTA.
 - **Modify** `app/(onboarding)/music-auth.tsx` — `finish()` navigates to `/(onboarding)/first-listen` instead of `/(main)`.
 - **Modify** `app/index.tsx` — extend the auth-redirect logic so users with empty broadcast history land on `first-listen`; users with history skip directly to `/(main)`.
-- **Modify** `src/services/Storage.ts` — confirm `getBroadcastHistory()` accessor exists (it does, per `BroadcastResumer`); add a typed accessor `hasAnyBroadcastHistory()` to keep the gating logic readable.
-- **Modify** `modules/expo-music-kit/index.ts` — JSDoc on `fetchPlaylists()` documenting the `lastPlayedDate` ordering semantic.
-- **Modify** `CLAUDE.md` — note `fetchPlaylists` ordering + the first-listen onboarding flow in the project structure / onboarding section.
+- **Add** `src/services/Storage.ts` — new typed accessor `hasRecentBroadcastHistory()` (alongside the existing `getBroadcastHistory()` from `BroadcastResumer`) plus durable `markFirstListenCompleted()` / `hasCompletedFirstListen()` for the onboarding gate.
+- **Document** `modules/expo-music-kit/index.ts` — JSDoc on `fetchPlaylists()` capturing the `lastPlayedDate` ordering semantic so callers can rely on it.
+- **Update** `CLAUDE.md` — note `fetchPlaylists` ordering + the first-listen onboarding flow in the project structure / onboarding section.
 
 ## Test strategy
 
@@ -154,7 +153,7 @@ A returning user with prior broadcasts skips first-listen. A user who deletes th
 ## Failure modes considered
 
 - **Cold open committed without name**: by design — see "Why gate the bake on name input." V2 can address by re-baking slot-0 once name is submitted, using the existing abort + create primitive.
-- **First-listen runs twice on the same user**: gated on `hasAnyBroadcastHistory()`. A returning user with empty history (force-quit + delete + sign-in again) gets the screen again — acceptable.
+- **First-listen runs twice on the same user**: gated on `hasCompletedFirstListen()` (durable) with `hasRecentBroadcastHistory()` as a fallback for users who onboarded before the flag landed. A returning user who somehow clears both (device reset) gets the screen again — acceptable.
 - **Name persists but cold open audio doesn't**: `getUser().name` is updated synchronously when the user submits, *before* the bake POST. The bake's request body uses the just-stored name. No race — submit handler awaits the storage write before triggering the bake.
 - **`fetchPlaylists` returns no playlists for an authorized user**: shouldn't happen but does for some accounts (rare). Featured fallback handles it.
 - **Server unreachable during onboarding**: bake POST fails fast (the existing `withRetry` chain bails on AbortError; first-listen sets a 30s timeout on the create call). User sees the State B error variant; cleanup is graceful.
