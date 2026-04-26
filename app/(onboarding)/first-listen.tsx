@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { AM, Fonts, Space, TypeScale } from '../../src/tokens/design-tokens';
@@ -129,9 +129,12 @@ export default function FirstListenScreen() {
     if (state.kind !== 'ready') return;
     const { manifest, firstSegmentUrls } = state;
     router.replace('/(main)/(broadcast)/player');
-    // Fire-and-forget — the player handles its own lifecycle.
-    broadcastPlayer.start(manifest, firstSegmentUrls).catch(() => {
-      // If start fails the player surfaces it; we've already navigated.
+    // Fire-and-forget — the player owns its lifecycle. Surface a toast on
+    // failure so the user isn't stranded on /player with no feedback;
+    // mirrors the pattern in HomeBroadcastScreen.playFeatured.
+    broadcastPlayer.start(manifest, firstSegmentUrls).catch((err: unknown) => {
+      const msg = err instanceof Error ? err.message : 'Playback failed';
+      Alert.alert('Broadcast error', msg);
     });
   };
 
