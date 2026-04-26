@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { Redirect } from 'expo-router';
 import { Colors, Surface } from '../src/tokens/design-tokens';
-import { getUser, setUser, clearUserData } from '../src/services/Storage';
+import { getUser, setUser, clearUserData, hasAnyBroadcastHistory } from '../src/services/Storage';
 import { onAuthStateChanged, type AuthUser } from '../src/services/AuthService';
 import { UITEST_MODE } from '../src/config/featureFlags';
 import { UITEST_USER_DATA } from '../src/config/uitestFixtures';
@@ -46,6 +46,12 @@ export default function Index() {
     return <Redirect href="/(onboarding)/welcome" />;
   }
 
-  // Logged in with profile
+  // Logged in with profile. First-time users (no broadcast history yet)
+  // route through first-listen onboarding so ONAY introduces herself with
+  // a personalized bake. Returning users skip directly to /(main).
+  // UITEST_MODE bypasses to keep snapshot tests deterministic.
+  if (!UITEST_MODE && !hasAnyBroadcastHistory()) {
+    return <Redirect href="/(onboarding)/first-listen" />;
+  }
   return <Redirect href="/(main)" />;
 }
