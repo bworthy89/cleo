@@ -57,7 +57,13 @@ The cold open audio is pre-rendered TTS. We can't inject the name at playback ti
 - Firebase `displayName` users: name resolves at mount; bake starts immediately and runs while the user reads the State B copy.
 - Non-Firebase users: name input → submit → bake starts → ~15s wait → ready. The user is in an attended sequence (input → progress → ready), not staring at dead time.
 
-**The roadmap's literal "<5s perceived first listen" success criterion stops being the right yardstick.** It was written assuming auto-play. With press-play, the user is always >5s from setup-finish to audio because they're in the middle of an attended UI sequence — the metric is undefined. The right reframing: **the bake should be ready by the time the user is ready to press play**, so the press-play moment feels instant rather than gated. That's measurable as `time(slot-0 ready) ≤ time(user reaches State C)` — bake completes during attended UI rather than during dead waiting. Phase 2 GATE (#38) measures retention directly; that's the metric we actually care about.
+**The roadmap's literal "<5s perceived first listen" success criterion stops being the right yardstick.** It was written assuming auto-play. With press-play, the user is always >5s from setup-finish to audio because they're in the middle of an attended UI sequence — the metric is undefined. The right reframing: **the bake should be ready by the time the user is ready to press play**, so the press-play moment feels instant rather than gated. That's measurable as `time(slot-0 ready) ≤ time(user reaches State C)` — bake completes during attended UI rather than during dead waiting.
+
+Two terms used above:
+- *slot-0 ready*: the cold-open segment's audio has been generated and the server response returns with the manifest's first segment URL — i.e., `manifest.segmentSlots[0].status === 'ready'` after `POST /broadcast/create` resolves.
+- *State C*: the prep screen's `kind: 'ready'` state, defined in the "Three-state prep screen" section above — when the `DROP THE NEEDLE` CTA renders.
+
+Phase 2 GATE (#38) measures retention directly; that's the metric we actually care about for advancing past Phase 2. The compatibility intent: this feature's local success criterion is "bake completes by press-play", which is a pre-condition for any meaningful retention impact but is not itself the gate.
 
 If data later shows the name-input cost outweighs the personalization benefit, v2 can re-bake slot-0 with the name once submitted (server has a slot-rebake path via the abort-and-create primitive).
 
