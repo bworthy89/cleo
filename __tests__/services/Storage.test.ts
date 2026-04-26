@@ -14,9 +14,13 @@ import {
   hasRecentBroadcastHistory,
   markFirstListenCompleted,
   hasCompletedFirstListen,
+  getWeatherSettings,
+  setWeatherSettings,
+  clearWeatherSettings,
   BROADCAST_HISTORY_RETENTION_MS,
   BROADCAST_HISTORY_MAX_ENTRIES,
   type UserData,
+  type WeatherSettings,
 } from '../../src/services/Storage';
 import type { MusicPlaylist } from '../../modules/expo-music-kit';
 import type { Manifest } from '../../src/engines/BroadcastPlayer.types';
@@ -319,5 +323,44 @@ describe('hasCompletedFirstListen / markFirstListenCompleted', () => {
     } finally {
       jest.useRealTimers();
     }
+  });
+});
+
+describe('WeatherSettings accessors', () => {
+  it('returns null on a fresh install', () => {
+    expect(getWeatherSettings()).toBeNull();
+  });
+
+  it('persists and reads a settings object', () => {
+    const settings: WeatherSettings = {
+      enabled: true,
+      city: 'Brooklyn',
+      coords: { lat: 40.65, lon: -73.95 },
+      resolvedLabel: 'Brooklyn, NY, US',
+    };
+    setWeatherSettings(settings);
+    expect(getWeatherSettings()).toEqual(settings);
+  });
+
+  it('clearWeatherSettings removes the entry', () => {
+    setWeatherSettings({
+      enabled: true,
+      city: 'Brooklyn',
+      coords: { lat: 40.65, lon: -73.95 },
+      resolvedLabel: 'Brooklyn, NY, US',
+    });
+    clearWeatherSettings();
+    expect(getWeatherSettings()).toBeNull();
+  });
+
+  it('clearUserData also removes weather settings', () => {
+    setWeatherSettings({
+      enabled: true,
+      city: 'Brooklyn',
+      coords: { lat: 40.65, lon: -73.95 },
+      resolvedLabel: 'Brooklyn, NY, US',
+    });
+    clearUserData('uid-1');
+    expect(getWeatherSettings()).toBeNull();
   });
 });

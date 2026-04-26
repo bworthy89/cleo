@@ -90,6 +90,14 @@ export interface BroadcastCreateRequest {
     dayOfWeek: string;
     firstTimeUser: boolean;
     listenerName?: string;
+    /** Optional weather location for cold_open mention. When present,
+     *  the orchestrator fetches a hint sentence from WeatherProvider and
+     *  injects it into SegmentContext.weatherHint. */
+    weatherCoords?: {
+      lat: number;
+      lon: number;
+      cityName: string;
+    };
   };
   tracks: ManifestTrack[];
   /** When true, the orchestrator skips the DeterministicTrackSequencer's

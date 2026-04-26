@@ -41,6 +41,7 @@ import {
   getPersistedBroadcast,
   removeBroadcastFromHistory,
   clearPersistedBroadcast,
+  getWeatherCoordsForBake,
   type BroadcastHistoryEntry,
 } from '../../services/Storage';
 import { useAppActive } from '../../hooks/useAppActive';
@@ -304,6 +305,7 @@ export default function HomeBroadcastScreen() {
       }
       let response;
       try {
+        const weatherCoords = getWeatherCoordsForBake();
         response = await client.createBroadcast(
           {
             playlistId: result.playlistId,
@@ -313,6 +315,7 @@ export default function HomeBroadcastScreen() {
               timeOfDay: new Date().toTimeString().slice(0, 5),
               dayOfWeek: new Date().toLocaleDateString(undefined, { weekday: 'long' }),
               firstTimeUser: false,
+              weatherCoords,
             },
             tracks: sanitized,
           },
