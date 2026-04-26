@@ -19,7 +19,7 @@ export default function MusicAuthScreen() {
       appleMusicAuthorized,
       createdAt: existing?.createdAt ?? new Date().toISOString(),
     });
-    router.replace('/(main)');
+    router.replace('/(onboarding)/first-listen');
   };
 
   const handleConnect = async () => {
@@ -51,7 +51,7 @@ export default function MusicAuthScreen() {
         { paddingTop: insets.top + Space.s32, paddingBottom: insets.bottom + Space.s22 },
       ]}>
         <View style={styles.content}>
-          <Text style={styles.kicker}>SIGNAL SOURCE · 05 / 05</Text>
+          <Text style={styles.kicker}>SIGNAL SOURCE · 05 / 06</Text>
 
           {/* Spinning vinyl above the headline — quiet brand moment */}
           <View style={styles.vinylWrap}>
