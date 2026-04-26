@@ -216,7 +216,10 @@ styles — everything flows from tokens. Rule still stands: components use `AM` 
 4. Tracks run through `sanitizeTracksForBake` (drop 0-duration / empty-title / bad-URL
    tracks; clamp overlong strings). If <5 playable tracks remain, surface a clear
    "need at least 5" error instead of letting the server return an opaque 400.
-5. Client `POST /broadcast/create` with `{ playlistId, vibe, length, userContext, tracks }`
+5. Client `POST /broadcast/create` with `{ playlistId, vibe, length, userContext, tracks }`.
+   `userContext` optionally includes `weatherCoords` (from Profile's weather-enabled setting);
+   if provided, the server fetches a brief weather hint and injects it into the cold_open
+   prompt's scene block.
 6. Server responds after slot 0 + enrichment drain complete (~11-19s depending on
    cache warmth) with `{ manifest, firstSegmentUrls }`. Slots 1..N are `pending`;
    client polls for them.
@@ -289,6 +292,15 @@ fires at meanDistance > 0.7.
 - In-app: curators hit `POST /broadcast/featured/publish` via Ask ONAY → LLM curates,
   client resolves via `searchCatalog`, server bakes + registers.
 - Home fetches `GET /broadcast/featured` and renders `FeaturedBroadcastCard`s.
+
+### Profile — weather context
+- **ProfileScreen** gains an opt-in "Weather context" toggle + city input field.
+- City resolves via `POST /weather/geocode` (OpenWeatherMap free tier, server-side); resolves
+  to `{ lat, lon }` and persists to MMKV as `{ enabled, coords, resolvedLabel }`.
+- When enabled, `POST /broadcast/create` includes `userContext.weatherCoords` (the `{ lat, lon }`
+  pair). Server fetches a hint sentence from OWM's `/weather` endpoint and injects into
+  the cold_open segment prompt's scene-setting block. Unset `OPENWEATHER_API_KEY` silently
+  disables the feature — weather hints become no-ops, but the toggle remains in the UI.
 
 ### Caches
 - `server/.broadcast-cache/broadcast/<id>/segment/<slot>/v<v>.mp3` — indefinite, gitignored.
@@ -367,6 +379,7 @@ CURATOR_PUBLISH_CAP                       # default 3 (per-curator daily publish
 CURATOR_PUBLISH_WINDOW_MS                 # default 86400000 (24h rolling window)
 ADMIN_BEARER_TOKEN                        # optional; ≥16 chars unlocks
                                           # X-Admin-Token header auth on /admin/*
+OPENWEATHER_API_KEY                       # OpenWeatherMap free tier; unset → weather hints disabled
 
 TTS_PRIMARY=cosyvoice
 TTS_FALLBACK=f5tts
