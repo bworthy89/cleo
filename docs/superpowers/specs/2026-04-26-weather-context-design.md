@@ -142,7 +142,7 @@ Nullability lives on the accessor, not the type: `getWeatherSettings()` returns 
 
 **Profile screen**: new section with toggle + city input + result row. Submit calls `/weather/geocode`, renders picker if multiple results, persists selection to MMKV.
 
-**`POST /broadcast/create` builder**: when `WeatherSettings.enabled === true && coords` present, append `userContext.weatherCoords: { ...coords, cityName: settings.resolvedLabel.split(',')[0] }`.
+**`POST /broadcast/create` builder**: when `WeatherSettings.enabled === true && coords` present, append `userContext.weatherCoords: { ...coords, cityName: settings.resolvedLabel.split(',')[0]?.trim() || 'your area' }`. The first segment of `resolvedLabel` is by construction `c.name` from the OWM geocode candidate (the `confirmCandidate` writer joins `[c.name, c.state, c.country]` with `', '`), so splitting on the first comma always yields the canonical city name; the `'your area'` fallback covers the corner case of a malformed/empty stored label and is intentionally generic-safe for ONAY's editorial voice.
 
 ### Failure modes
 
@@ -152,7 +152,7 @@ Nullability lives on the accessor, not the type: `getWeatherSettings()` returns 
 | User toggle ON but no coords saved (interrupted setup) | Same as OFF — no coords means no fetch. |
 | `/weather/geocode` API call fails | Client surfaces `Alert.alert('Weather lookup unavailable', 'Try again later.')` from `ProfileScreen.onSubmitCity`. User's saved settings unchanged. |
 | OWM "current weather" API fails during bake | Server logs once, returns null hint. Bake proceeds without weather. No user-visible error. |
-| `OPENWEATHER_API_KEY` env var missing | `WeatherProvider` is never instantiated and `/weather/geocode` is not mounted; bake-time hint resolution short-circuits because `BroadcastOrchestrator` only calls `getHint` when the provider exists. Server logs a one-time startup warning. Lets us ship without the key configured — the toggle remains visible in Profile but city lookups will 404. |
+| `OPENWEATHER_API_KEY` env var missing | `WeatherProvider` is never instantiated and `/weather/geocode` is not mounted; bake-time hint resolution short-circuits because `BroadcastOrchestrator` only calls `getHint` when the provider exists. Server logs a one-time startup warning. The Profile toggle stays visible — submitting a city hits the unmounted route, returns 404, and `ProfileScreen.onSubmitCity`'s `if (!res.ok)` branch surfaces the same `Alert.alert('Weather lookup unavailable, try again later.')` it shows for transient OWM outages. **Trade-off accepted:** ONAY is operator-deployed (we control the server), so the unset-key case is a deploy-time misconfiguration, not a user-runtime concern. We'd otherwise need a probe endpoint + a third toggle state ("unavailable") for a path that's expected to be covered by the prod env. |
 | OWM rate-limited (429) | Treated as a fetch error → null hint, no retry within the bake. The 30-min cache + free-tier headroom make this rare. |
 | User picks wrong candidate or city moves | They re-set on Profile. Stale settings persist until they re-pick. |
 
