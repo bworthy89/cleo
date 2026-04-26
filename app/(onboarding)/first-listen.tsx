@@ -31,6 +31,9 @@ export default function FirstListenScreen() {
   // Track the in-flight bake so we can ignore late results if the user
   // backs out / unmounts.
   const bakeAttemptRef = useRef(0);
+  // One-shot guard: rapid taps on DROP THE NEEDLE should not fire
+  // broadcastPlayer.start more than once.
+  const pressedPlayRef = useRef(false);
 
   // Kick off the bake whenever we transition into 'baking'. The deps
   // array on state.kind means React fires this once per State B entry.
@@ -38,17 +41,31 @@ export default function FirstListenScreen() {
     if (state.kind !== 'baking') return;
     const attempt = ++bakeAttemptRef.current;
     void runBake(state.name, attempt);
+    return () => {
+      // Invalidate the in-flight bake's late-cancel guard. Any pending
+      // setState in runBake will see attempt !== bakeAttemptRef.current
+      // and bail out, preventing setState-on-unmounted warnings.
+      bakeAttemptRef.current++;
+    };
   }, [state.kind]);
 
   const runBake = async (name: string, attempt: number) => {
     try {
       const curationClient = new BroadcastCurationClient();
       const manifestClient = new BroadcastManifestClient();
-      const source = await pickFirstListenSource({
-        fetchPlaylists,
-        fetchPlaylistTracks,
-        listFeatured: () => curationClient.listFeatured(),
-      });
+      const source = await Promise.race([
+        pickFirstListenSource({
+          fetchPlaylists,
+          fetchPlaylistTracks,
+          listFeatured: () => curationClient.listFeatured(),
+        }),
+        new Promise<never>((_resolve, reject) =>
+          setTimeout(
+            () => reject(new Error('source-resolution-timeout')),
+            30_000,
+          ),
+        ),
+      ]);
 
       // Late-cancel guard — if a new bake attempt started, ignore us.
       if (attempt !== bakeAttemptRef.current) return;
@@ -102,7 +119,10 @@ export default function FirstListenScreen() {
       }
     } catch (err) {
       if (attempt !== bakeAttemptRef.current) return;
-      const message = err instanceof Error && err.name === 'AbortError'
+      const isTimeout =
+        (err instanceof Error && err.name === 'AbortError') ||
+        (err instanceof Error && err.message === 'source-resolution-timeout');
+      const message = isTimeout
         ? 'That took longer than expected. Take me home and try again from there.'
         : "Hmm, can't put a set together right now.";
       setState({ kind: 'error', message });
@@ -126,13 +146,18 @@ export default function FirstListenScreen() {
 
   const pressPlay = () => {
     if (state.kind !== 'ready') return;
+    if (pressedPlayRef.current) return;
+    pressedPlayRef.current = true;
     const { manifest, firstSegmentUrls } = state;
     markFirstListenCompleted();
     router.replace('/(main)/(broadcast)/player');
     // Fire-and-forget — the player owns its lifecycle. Surface a toast on
     // failure so the user isn't stranded on /player with no feedback;
-    // mirrors the pattern in HomeBroadcastScreen.playFeatured.
+    // mirrors the pattern in HomeBroadcastScreen.playFeatured. Reset the
+    // guard on failure so the user can retry from /player's UI; on
+    // success we're already navigating away and the screen unmounts.
     broadcastPlayer.start(manifest, firstSegmentUrls).catch((err: unknown) => {
+      pressedPlayRef.current = false;
       const msg = err instanceof Error ? err.message : 'Playback failed';
       Alert.alert('Broadcast error', msg);
     });
