@@ -83,7 +83,7 @@ export default function FirstListenScreen() {
             length: 'quick',
             userContext: {
               timeOfDay: localTimeHHMM(),
-              dayOfWeek: localDayOfWeekShort(),
+              dayOfWeek: localDayOfWeek(),
               firstTimeUser: true,
               listenerName: name,
             },
@@ -179,8 +179,8 @@ function localTimeHHMM(): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
-function localDayOfWeekShort(): string {
-  return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][new Date().getDay()];
+function localDayOfWeek(): string {
+  return new Date().toLocaleDateString(undefined, { weekday: 'long' });
 }
 
 function NameCaptureBody(props: {
