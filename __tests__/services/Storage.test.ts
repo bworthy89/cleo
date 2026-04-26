@@ -11,6 +11,7 @@ import {
   updatePersistedCursor,
   addBroadcastToHistory,
   getBroadcastHistory,
+  hasAnyBroadcastHistory,
   BROADCAST_HISTORY_RETENTION_MS,
   BROADCAST_HISTORY_MAX_ENTRIES,
   type UserData,
@@ -256,5 +257,41 @@ describe('broadcast history', () => {
     expect(history.map(e => e.manifest.broadcastId)).toEqual(['fresh']);
 
     nowSpy.mockRestore();
+  });
+});
+
+describe('hasAnyBroadcastHistory', () => {
+  it('returns false on a fresh install', () => {
+    expect(hasAnyBroadcastHistory()).toBe(false);
+  });
+
+  it('returns true after a broadcast lands in history', () => {
+    const manifest = {
+      broadcastId: 'b1', userId: 'u1', playlistId: 'p1',
+      vibe: 'morning' as const, length: 'quick' as const, createdAt: Date.now(),
+      tracks: [{ id: 't0', title: 'T', artistName: 'A', albumTitle: 'Al', duration: 200 }],
+      segmentSlots: [],
+    };
+    addBroadcastToHistory(manifest as any, ['https://cdn/v0.mp3']);
+    expect(hasAnyBroadcastHistory()).toBe(true);
+  });
+
+  it('returns false when all entries are past the retention window', () => {
+    const manifest = {
+      broadcastId: 'old', userId: 'u1', playlistId: 'p1',
+      vibe: 'morning' as const, length: 'quick' as const, createdAt: 0,
+      tracks: [{ id: 't0', title: 'T', artistName: 'A', albumTitle: 'Al', duration: 200 }],
+      segmentSlots: [],
+    };
+    addBroadcastToHistory(manifest as any, ['https://cdn/v0.mp3']);
+    // Advance time past the retention window. getBroadcastHistory prunes
+    // expired entries on read; hasAnyBroadcastHistory delegates to it.
+    jest.useFakeTimers();
+    jest.setSystemTime(Date.now() + BROADCAST_HISTORY_RETENTION_MS + 1000);
+    try {
+      expect(hasAnyBroadcastHistory()).toBe(false);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });

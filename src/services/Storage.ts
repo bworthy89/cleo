@@ -189,6 +189,15 @@ export function getBroadcastHistory(): BroadcastHistoryEntry[] {
 }
 
 /**
+ * True iff the user has at least one non-expired broadcast in history.
+ * Used to gate the first-listen onboarding flow — a returning user with
+ * any prior broadcast skips straight to /(main).
+ */
+export function hasAnyBroadcastHistory(): boolean {
+  return getBroadcastHistory().length > 0;
+}
+
+/**
  * Remove a specific broadcast from local history (e.g. because the server
  * returned 404 on /broadcast/:id/manifest — the underlying audio is gone).
  */
