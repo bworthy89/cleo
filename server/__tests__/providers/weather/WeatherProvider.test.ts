@@ -18,8 +18,8 @@ describe('WeatherProvider.getHint', () => {
     const wp = new WeatherProvider({ apiKey: 'k', clock: () => now, fetch: fetchMock as any });
     const hint1 = await wp.getHint({ lat: 40.65, lon: -73.95 }, 'Brooklyn');
     const hint2 = await wp.getHint({ lat: 40.65, lon: -73.95 }, 'Brooklyn');
-    expect(hint1).toBe('It\'s a clear 47 in Brooklyn.');
-    expect(hint2).toBe('It\'s a clear 47 in Brooklyn.');
+    expect(hint1).toBe('It’s a clear 47 in Brooklyn.');
+    expect(hint2).toBe('It’s a clear 47 in Brooklyn.');
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -40,6 +40,13 @@ describe('WeatherProvider.getHint', () => {
     expect(hint).toBeNull();
   });
 
+  it('returns null when OWM responds with non-2xx status', async () => {
+    const fetchMock = jest.fn(async () => new Response('rate limited', { status: 429 }));
+    const wp = new WeatherProvider({ apiKey: 'k', fetch: fetchMock as any });
+    const hint = await wp.getHint({ lat: 40.65, lon: -73.95 }, 'Brooklyn');
+    expect(hint).toBeNull();
+  });
+
   it('formats rain conditions using OWM weather id ranges', async () => {
     const lightRain = new Response(JSON.stringify(owmCurrentResponse({
       weather: [{ id: 500, main: 'Rain', description: 'light rain' }],
@@ -55,8 +62,8 @@ describe('WeatherProvider.getHint', () => {
     const wp = new WeatherProvider({ apiKey: 'k', fetch: fetchMock as any });
     const a = await wp.getHint({ lat: 1, lon: 2 }, 'Brooklyn');
     const b = await wp.getHint({ lat: 3, lon: 4 }, 'Brooklyn');
-    expect(a).toBe('It\'s 52 and lightly raining in Brooklyn.');
-    expect(b).toBe('It\'s pouring in Brooklyn — 52.');
+    expect(a).toBe('It’s 52 and lightly raining in Brooklyn.');
+    expect(b).toBe('It’s pouring in Brooklyn — 52.');
   });
 });
 

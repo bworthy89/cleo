@@ -106,16 +106,16 @@ function formatHint(data: OwmCurrent, cityName: string): string {
 
   // Rain ID disambiguation: 500-501 light/moderate; 502-504 heavy/very/extreme.
   if (main === 'Rain') {
-    if (id >= 502 && id <= 504) return `It's pouring in ${c} — ${t}.`;
-    return `It's ${t} and lightly raining in ${c}.`;
+    if (id >= 502 && id <= 504) return `It’s pouring in ${c} — ${t}.`;
+    return `It’s ${t} and lightly raining in ${c}.`;
   }
-  if (main === 'Drizzle') return `It's ${t} and drizzly in ${c}.`;
-  if (main === 'Snow') return `It's ${t} and snowing in ${c}.`;
-  if (main === 'Thunderstorm') return `There's a thunderstorm rolling through ${c} — ${t}.`;
+  if (main === 'Drizzle') return `It’s ${t} and drizzly in ${c}.`;
+  if (main === 'Snow') return `It’s ${t} and snowing in ${c}.`;
+  if (main === 'Thunderstorm') return `There’s a thunderstorm rolling through ${c} — ${t}.`;
   if (main === 'Mist' || main === 'Fog' || main === 'Haze') {
-    return `It's ${t} and foggy in ${c}.`;
+    return `It’s ${t} and foggy in ${c}.`;
   }
-  if (main === 'Clear') return `It's a clear ${t} in ${c}.`;
-  if (main === 'Clouds') return `It's a cloudy ${t} in ${c}.`;
-  return `It's ${t} in ${c}.`;
+  if (main === 'Clear') return `It’s a clear ${t} in ${c}.`;
+  if (main === 'Clouds') return `It’s a cloudy ${t} in ${c}.`;
+  return `It’s ${t} in ${c}.`;
 }
