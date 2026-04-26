@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import auth from '@react-native-firebase/auth';
@@ -21,6 +21,10 @@ import {
 } from '../../services/Storage';
 import { authenticatedFetch } from '../../services/api';
 import { memberNo as formatMemberNo, memberSlot } from '../../lib/memberNo';
+import { LikedRow } from '../../components/profile/LikedRow';
+import { useLikedTracks } from '../../hooks/useLikedTracks';
+import { toggle as toggleLikedTrack } from '../../services/LikedTracksService';
+import type { LikedTrack } from '../../services/LikedTracksService.types';
 
 interface WeatherCandidate {
   name: string;
@@ -38,6 +42,22 @@ interface WeatherCandidate {
 export function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const settings = useSettings();
+
+  const { tracks: likedTracks, loading: likedLoading } = useLikedTracks();
+
+  const onUnsaveLiked = useCallback(async (track: LikedTrack) => {
+    try {
+      await toggleLikedTrack({
+        id: track.id,
+        title: track.title,
+        artistName: track.artistName,
+        albumTitle: track.albumTitle,
+        artworkUrl: track.artworkUrl,
+      });
+    } catch {
+      // Silent fail; the subscription will re-emit on next snapshot.
+    }
+  }, []);
 
   const firebaseUser = auth().currentUser;
   const email = firebaseUser?.email ?? '—';
@@ -357,6 +377,24 @@ export function ProfileScreen() {
           ) : null}
         </View>
 
+        {/* Liked tracks */}
+        <SectionMarker
+          num="D·04"
+          title="LIKED"
+          side={`${likedTracks.length} / 200`}
+        />
+        <View style={styles.likedSection}>
+          {likedLoading ? (
+            <Text style={styles.likedEmpty}>LOADING…</Text>
+          ) : likedTracks.length === 0 ? (
+            <Text style={styles.likedEmpty}>NOTHING SAVED YET — TAP A HEART ON THE PLAYER</Text>
+          ) : (
+            likedTracks.map(t => (
+              <LikedRow key={t.id} track={t} onUnsave={onUnsaveLiked} />
+            ))
+          )}
+        </View>
+
         {/* Colophon */}
         <View style={styles.colophon}>
           <Text style={styles.colophonText}>ONAY RADIO · EST. 2026</Text>
@@ -606,6 +644,21 @@ const styles = StyleSheet.create({
     color: AM.ink,
   },
   // ── End weather context ────────────────────────────────────────────
+
+  // ── Liked tracks ──────────────────────────────────────────────────
+  likedSection: {
+    marginTop: Space.s8,
+    marginBottom: Space.s16,
+  },
+  likedEmpty: {
+    color: AM.inkDim,
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s9,
+    letterSpacing: 1,
+    textAlign: 'center',
+    paddingVertical: Space.s12,
+  },
+  // ── End liked tracks ──────────────────────────────────────────────
 });
 
 export default ProfileScreen;
