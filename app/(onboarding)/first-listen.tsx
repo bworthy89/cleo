@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -6,26 +6,109 @@ import { AM, Fonts, Space, TypeScale } from '../../src/tokens/design-tokens';
 import { BroadcastBackdrop } from '../../src/components/BroadcastBackdrop';
 import { StampButton, LinerNotes, SpinningRecord } from '../../src/components/crate';
 import { getUser, setUser } from '../../src/services/Storage';
+import { fetchPlaylists, fetchPlaylistTracks } from '../../modules/expo-music-kit';
+import { BroadcastManifestClient } from '../../src/engines/BroadcastManifestClient';
+import { BroadcastCurationClient } from '../../src/engines/BroadcastCurationClient';
+import { broadcastPlayer } from '../../src/engines/BroadcastPlayer.singleton';
+import { pickFirstListenSource } from '../../src/onboarding/firstListenSource';
+import type { Manifest } from '../../src/engines/BroadcastPlayer.types';
 
 type ScreenState =
   | { kind: 'name' }
   | { kind: 'baking'; name: string }
-  | { kind: 'ready'; name: string }
+  | { kind: 'ready'; name: string; manifest: Manifest; firstSegmentUrls: string[] }
   | { kind: 'error'; message: string };
 
 export default function FirstListenScreen() {
   const insets = useSafeAreaInsets();
   const [state, setState] = useState<ScreenState>(() => {
-    // If we already have a name (from Firebase displayName written into
-    // MMKV elsewhere, or persisted from a prior partial onboarding),
-    // skip State A.
     const existing = getUser();
     return existing?.name
       ? { kind: 'baking', name: existing.name }
       : { kind: 'name' };
   });
-
   const [nameDraft, setNameDraft] = useState('');
+  // Track the in-flight bake so we can ignore late results if the user
+  // backs out / unmounts.
+  const bakeAttemptRef = useRef(0);
+
+  // Kick off the bake whenever we transition into 'baking'. The deps
+  // array on state.kind means React fires this once per State B entry.
+  useEffect(() => {
+    if (state.kind !== 'baking') return;
+    const attempt = ++bakeAttemptRef.current;
+    void runBake(state.name, attempt);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.kind]);
+
+  const runBake = async (name: string, attempt: number) => {
+    try {
+      const curationClient = new BroadcastCurationClient();
+      const manifestClient = new BroadcastManifestClient();
+      const source = await pickFirstListenSource({
+        fetchPlaylists,
+        fetchPlaylistTracks,
+        listFeatured: () => curationClient.listFeatured(),
+      });
+
+      // Late-cancel guard — if a new bake attempt started, ignore us.
+      if (attempt !== bakeAttemptRef.current) return;
+
+      if (source.kind === 'none') {
+        setState({
+          kind: 'error',
+          message: "Can't put a set together right now — try again from the home screen.",
+        });
+        return;
+      }
+
+      if (source.kind === 'featured') {
+        // Featured manifest is already embedded in the registry entry,
+        // so no second fetch is needed. Mirror playFeatured() in
+        // HomeBroadcastScreen.
+        const manifest = source.featured.manifest;
+        const firstSegmentUrls = manifest.segmentSlots[0]?.audioUrls ?? [];
+        setState({ kind: 'ready', name, manifest, firstSegmentUrls });
+        return;
+      }
+
+      // User-playlist path — fresh bake.
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 30_000);
+      try {
+        const response = await manifestClient.createBroadcast(
+          {
+            playlistId: source.playlistId,
+            vibe: defaultVibeForFirstListen(),
+            length: 'quick',
+            userContext: {
+              timeOfDay: localTimeHHMM(),
+              dayOfWeek: localDayOfWeekShort(),
+              firstTimeUser: true,
+              listenerName: name,
+            },
+            tracks: source.tracks,
+          },
+          controller.signal,
+        );
+        if (attempt !== bakeAttemptRef.current) return;
+        setState({
+          kind: 'ready',
+          name,
+          manifest: response.manifest,
+          firstSegmentUrls: response.firstSegmentUrls,
+        });
+      } finally {
+        clearTimeout(timer);
+      }
+    } catch (err) {
+      if (attempt !== bakeAttemptRef.current) return;
+      const message = err instanceof Error && err.name === 'AbortError'
+        ? 'That took longer than expected. Take me home and try again from there.'
+        : "Hmm, can't put a set together right now.";
+      setState({ kind: 'error', message });
+    }
+  };
 
   const submitName = () => {
     const trimmed = nameDraft.trim();
@@ -39,7 +122,17 @@ export default function FirstListenScreen() {
   };
 
   const skipName = () => {
-    setState({ kind: 'baking', name: 'tonight’s listener' });
+    setState({ kind: 'baking', name: "tonight’s listener" });
+  };
+
+  const pressPlay = () => {
+    if (state.kind !== 'ready') return;
+    const { manifest, firstSegmentUrls } = state;
+    router.replace('/(main)/(broadcast)/player');
+    // Fire-and-forget — the player handles its own lifecycle.
+    broadcastPlayer.start(manifest, firstSegmentUrls).catch(() => {
+      // If start fails the player surfaces it; we've already navigated.
+    });
   };
 
   return (
@@ -50,7 +143,6 @@ export default function FirstListenScreen() {
       ]}>
         <View style={styles.content}>
           <Text style={styles.kicker}>SETTING THE NEEDLE · 06 / 06</Text>
-
           <View style={styles.vinylWrap}>
             <SpinningRecord size={120} tonearm={false} period={4200} />
           </View>
@@ -65,7 +157,7 @@ export default function FirstListenScreen() {
           ) : state.kind === 'baking' ? (
             <BakingBody name={state.name} />
           ) : state.kind === 'ready' ? (
-            <ReadyBody name={state.name} onPressPlay={() => { /* Task 4 */ }} />
+            <ReadyBody name={state.name} onPressPlay={pressPlay} />
           ) : (
             <ErrorBody message={state.message} onTakeMeHome={() => router.replace('/(main)')} />
           )}
@@ -73,6 +165,22 @@ export default function FirstListenScreen() {
       </View>
     </BroadcastBackdrop>
   );
+}
+
+function defaultVibeForFirstListen(): Manifest['vibe'] {
+  const hour = new Date().getHours();
+  if (hour >= 5 && hour < 11) return 'morning';
+  if (hour >= 22 || hour < 5) return 'lateNight';
+  return 'feelGood';
+}
+
+function localTimeHHMM(): string {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+function localDayOfWeekShort(): string {
+  return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][new Date().getDay()];
 }
 
 function NameCaptureBody(props: {
