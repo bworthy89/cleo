@@ -1230,7 +1230,6 @@ describe('BroadcastPlayer', () => {
 
       // The just-played transition (slot 1) must NOT appear in upcoming.
       const upcoming = player.getStatus().upcoming;
-      const upcomingKinds = upcoming.map(u => u.kind);
       // No transition rows for slot 1 — it already played.
       const transitionRows = upcoming.filter(u => u.kind === 'transition');
       // Only slot 2 (transition before t4) may appear, not slot 1.
