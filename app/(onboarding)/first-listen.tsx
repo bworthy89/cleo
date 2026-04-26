@@ -108,11 +108,11 @@ export default function FirstListenScreen() {
       const timer = setTimeout(() => controller.abort(), bakeTimeoutMs);
       try {
         const weatherSettings = getWeatherSettings();
-        const weatherCoords = (weatherSettings?.enabled && weatherSettings.coords)
+        const weatherCoords = (weatherSettings?.enabled && weatherSettings.coords && weatherSettings.resolvedLabel)
           ? {
               lat: weatherSettings.coords.lat,
               lon: weatherSettings.coords.lon,
-              cityName: weatherSettings.resolvedLabel.split(',')[0].trim(),
+              cityName: weatherSettings.resolvedLabel.split(',')[0]?.trim() || 'your area',
             }
           : undefined;
         const response = await manifestClient.createBroadcast(

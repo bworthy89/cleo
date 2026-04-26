@@ -306,11 +306,11 @@ export default function HomeBroadcastScreen() {
       let response;
       try {
         const weatherSettings = getWeatherSettings();
-        const weatherCoords = (weatherSettings?.enabled && weatherSettings.coords)
+        const weatherCoords = (weatherSettings?.enabled && weatherSettings.coords && weatherSettings.resolvedLabel)
           ? {
               lat: weatherSettings.coords.lat,
               lon: weatherSettings.coords.lon,
-              cityName: weatherSettings.resolvedLabel.split(',')[0].trim(),
+              cityName: weatherSettings.resolvedLabel.split(',')[0]?.trim() || 'your area',
             }
           : undefined;
         response = await client.createBroadcast(

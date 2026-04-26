@@ -100,7 +100,7 @@ function formatHint(data: OwmCurrent, cityName: string): string {
   const w = data.weather[0];
   const id = w?.id ?? 800;
   const main = w?.main ?? 'Clear';
-  const tempRounded = Math.round(data.main.temp);
+  const tempRounded = Math.round(data.main?.temp ?? 0);
   const t = `${tempRounded}`;
   const c = cityName;
 
