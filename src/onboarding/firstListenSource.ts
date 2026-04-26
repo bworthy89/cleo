@@ -21,6 +21,12 @@ export interface FirstListenSourceDeps {
 
 const MIN_TRACKS = 5;
 
+// Cap the per-onboarding playlist scan so a user with hundreds of
+// playlists doesn't burn that many native bridge calls. fetchPlaylists()
+// is lastPlayedDate-sorted, so the first 20 are the most-recently-played
+// — overwhelmingly likely to contain a qualifying playlist.
+const MAX_PLAYLISTS_TO_SCAN = 20;
+
 /**
  * Pick the source for a user's first-listen broadcast.
  *
@@ -46,7 +52,7 @@ export async function pickFirstListenSource(
     // to featured fallback.
   }
 
-  for (const p of playlists) {
+  for (const p of playlists.slice(0, MAX_PLAYLISTS_TO_SCAN)) {
     let raw: MusicTrack[] = [];
     try {
       raw = await deps.fetchPlaylistTracks(p.id);
