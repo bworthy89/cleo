@@ -44,7 +44,7 @@ unsave. No thumbs-down, no playback, no sharing.
 
 ## Architecture
 
-```
+```text
 [Player heart Pressable] ──tap──┐
                                 ├──► LikedTracksService.toggle(track)
 [Profile row heart] ────tap─────┘                │
@@ -96,7 +96,7 @@ export class AuthRequiredError extends Error {}
 
 New file `firestore.rules` at repo root:
 
-```
+```text
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -188,7 +188,7 @@ the full ordered list.
 Right of the title block, vertically aligned with the artist line. Hidden when
 `status.currentTrack` is null (loading / cold_open / transition / sign_off / ended).
 
-```
+```text
 TITLE OF SONG                           [♥]
 Artist Name
 03:58 · ALBUM TITLE
@@ -214,7 +214,7 @@ announce a noop control).
 
 New section below `D·03 WEATHER CONTEXT`.
 
-```
+```text
 D·04 · LIKED                                 N / 200
 
 [artwork] TITLE OF SONG                       ♥
@@ -356,7 +356,7 @@ visuals verified manually.
 
 After merging, the user must run:
 
-```
+```bash
 firebase deploy --only firestore:rules
 ```
 

@@ -111,7 +111,7 @@ any owner-scoped rules already deployed. If existing rules already cover
 
 Create `firestore.rules` at the repo root:
 
-```
+```text
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
