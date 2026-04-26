@@ -78,11 +78,11 @@ upcoming: UpcomingItem[];
 
 Algorithm:
 
-- Return `[]` when `manifest === null` or `state === 'ended'`.
+- Return `[]` when `manifest === null` or `state` is `'ended'` / `'idle'` / `'error'`.
 - Walk `manifest.tracks` from `currentTrackIndex + 1` (so the current track isn't in the upcoming list).
-- Maintain a local segment cursor seeded from `this.nextSegmentIdx`. For each upcoming track, check if `segmentSlots[cursor]?.beforeTrackId === track.id`; if so, consider that segment for inclusion (rules below) and advance the cursor.
-- After the track loop, if a `'sign_off'` slot remains ahead at the cursor, consider it for inclusion under the same rules.
-- A considered segment is **skipped** (not added to the output) when any of:
+- Maintain a local segment cursor seeded from `this.nextSegmentIdx`. For each upcoming track, check if `segmentSlots[cursor]?.beforeTrackId === track.id`; if so, **always advance the cursor**, but only consider that segment for inclusion as a row if it's a `'transition'`. (Cold_open also matches `beforeTrackId === firstTrack.id`; it must consume the cursor without producing a row, since cold_open is part of the broadcast frame, not an upcoming editorial beat.)
+- After the track loop, if a `'sign_off'` slot remains ahead at the cursor, consider it for inclusion under the same skip rules.
+- A considered segment (transition or sign_off) is **skipped** (not added to the output) when any of:
   - `cursor === currentSegmentIndex` — the slot is currently playing, so it isn't *upcoming.* `runMainLoop` increments the loop-local `nextSegmentIdx` only after `runSegmentAt` returns, so when a segment is in flight, both `this.nextSegmentIdx` and `currentSegmentIndex` point at the same slot. This filter prevents the in-flight transition from being rendered in the upcoming list.
   - `status === 'failed'` or `'aborted'` — the runtime skips these silently, so the upcoming list should match.
 
