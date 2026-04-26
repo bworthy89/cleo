@@ -43,13 +43,13 @@ npm install --save-dev @testing-library/react-native@^13.0.0 react-test-renderer
 
 The `@react-native-firebase/firestore` version matches the `@react-native-firebase/auth` version already in `package.json`. `react-test-renderer` major must match `react` major (18.x).
 
-- [ ] **Step 2: Verify Firestore module imports cleanly**
+- [ ] **Step 2: Verify the dependency landed in package.json**
 
 ```bash
-node -e "const f = require('@react-native-firebase/firestore'); console.log(typeof f.default);"
+grep -E "@react-native-firebase/firestore|@testing-library/react-native|react-test-renderer" package.json
 ```
 
-Expected: `function`. (RN Firebase exports a default factory.)
+Expected: three matching lines, one per package. (Plain `node -e require(...)` does NOT work for RN packages because they import React Native runtime imports that Node can't parse — the mock-backed Jest run in Task 3+ is the real import smoke test.)
 
 - [ ] **Step 3: Verify ios/ Pod is updated**
 
