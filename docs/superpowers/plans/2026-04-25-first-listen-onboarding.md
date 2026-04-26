@@ -186,7 +186,7 @@ describe('pickFirstListenSource', () => {
         if (id === 'p1') return [validTrack('a'), validTrack('b'), validTrack('c'), validTrack('d'), validTrack('e')];
         return [];
       }),
-      fetchFeaturedRegistry: jest.fn(async () => []),
+      listFeatured: jest.fn(async () => []),
     };
     const result = await pickFirstListenSource(deps);
     expect(result.kind).toBe('user');
@@ -206,7 +206,7 @@ describe('pickFirstListenSource', () => {
         if (id === 'big') return Array.from({ length: 8 }, (_, i) => validTrack(`b${i}`));
         return [];
       }),
-      fetchFeaturedRegistry: jest.fn(async () => []),
+      listFeatured: jest.fn(async () => []),
     };
     const result = await pickFirstListenSource(deps);
     expect(result.kind).toBe('user');
@@ -1054,7 +1054,7 @@ grep -n "(onboarding)/welcome\|cleo-setup\|music-auth.tsx" CLAUDE.md | head -5
 
 Wherever the onboarding flow is documented, update it to reflect the new sequence:
 
-```
+```text
 welcome → music-auth → first-listen → /(main)
                        └─ skipped on subsequent launches
                           (gated on hasAnyBroadcastHistory())
