@@ -375,3 +375,49 @@ describe('BroadcastOrchestrator telemetry', () => {
     );
   });
 });
+
+describe('BroadcastOrchestrator weather hint wiring', () => {
+  it('calls weatherProvider.getHint when userContext.weatherCoords is present and threads the hint into prompts', async () => {
+    const getHint = jest.fn(async () => 'It’s 47 and lightly raining in Brooklyn.');
+    const orch = BroadcastOrchestrator.makeWithDefaults();
+    // Inject the weatherProvider through the same private-field override
+    // pattern makeWithDefaults uses for sequencer/generator.
+    (orch as unknown as { weatherProvider: { getHint: typeof getHint } }).weatherProvider = {
+      getHint,
+    };
+    // Spy on generator to capture the prompt that's actually sent to TTS.
+    const capturedUserPrompts: string[] = [];
+    const generateVariants = jest.fn(async (req: { prompts: Array<{ userPrompt: string }> }) => {
+      capturedUserPrompts.push(...req.prompts.map(p => p.userPrompt));
+      return ['https://cdn/v0.mp3'];
+    });
+    (orch as unknown as { generator: { generateVariants: typeof generateVariants } }).generator = {
+      generateVariants,
+    };
+
+    const result = await orch.create({
+      userId: 'u1', playlistId: 'p1', vibe: 'morning', length: 'quick',
+      tracks: [
+        { id: 't0', title: 'Wake', artistName: 'AA', albumTitle: 'Al', duration: 200 },
+        { id: 't1', title: 'Coffee', artistName: 'BB', albumTitle: 'Al', duration: 200 },
+        { id: 't2', title: 'Stretch', artistName: 'CC', albumTitle: 'Al', duration: 200 },
+        { id: 't3', title: 'Sunrise', artistName: 'DD', albumTitle: 'Al', duration: 200 },
+        { id: 't4', title: 'Walk', artistName: 'EE', albumTitle: 'Al', duration: 200 },
+      ],
+      userContext: {
+        timeOfDay: '08:00',
+        dayOfWeek: 'Monday',
+        firstTimeUser: true,
+        weatherCoords: { lat: 40.65, lon: -73.95, cityName: 'Brooklyn' },
+      },
+    });
+
+    expect(getHint).toHaveBeenCalledWith(
+      { lat: 40.65, lon: -73.95 },
+      'Brooklyn',
+    );
+    // The cold_open prompt (slot 0) should contain the hint sentence.
+    const coldOpenPrompt = capturedUserPrompts[0];
+    expect(coldOpenPrompt).toContain('It’s 47 and lightly raining in Brooklyn.');
+  });
+});
