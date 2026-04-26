@@ -34,12 +34,15 @@ export function UpNextList({ items }: Props) {
           if (item.kind === 'track') {
             const duration = formatDuration(item.duration);
             const trackNum = pad2((item.trackIndex ?? 0) + 1);
+            const durationSpoken = item.duration
+              ? `${Math.floor(item.duration / 60)} minutes ${Math.floor(item.duration % 60)} seconds`
+              : '';
             return (
               <View
                 key={item.key}
                 style={styles.trackRow}
                 accessibilityRole="text"
-                accessibilityLabel={`Up next, track ${trackNum}, ${item.title} by ${item.artistName}`}
+                accessibilityLabel={`Up next, track ${(item.trackIndex ?? 0) + 1}, ${item.title} by ${item.artistName}${durationSpoken ? `, ${durationSpoken}` : ''}`}
               >
                 <Text style={styles.trackIdx}>TRK {trackNum}</Text>
                 <View style={styles.trackBody}>
@@ -50,7 +53,11 @@ export function UpNextList({ items }: Props) {
                     {item.artistName}
                   </Text>
                 </View>
-                {duration ? <Text style={styles.trackMeta}>{duration}</Text> : null}
+                {duration ? (
+                  <Text style={styles.trackMeta} accessibilityElementsHidden>
+                    {duration}
+                  </Text>
+                ) : null}
               </View>
             );
           }
@@ -106,7 +113,7 @@ const styles = StyleSheet.create({
   },
   trackTitle: {
     fontFamily: Fonts.display,
-    fontSize: 14,
+    fontSize: TypeScale.s14,
     letterSpacing: 0.5,
     color: AM.ink,
     lineHeight: 17,
@@ -114,13 +121,13 @@ const styles = StyleSheet.create({
   trackArtist: {
     fontFamily: Fonts.serif,
     fontStyle: 'italic',
-    fontSize: 12,
+    fontSize: TypeScale.s12,
     color: AM.inkMid,
-    marginTop: 2,
+    marginTop: Space.s2,
   },
   trackMeta: {
     fontFamily: Fonts.mono,
-    fontSize: 9,
+    fontSize: TypeScale.s9,
     letterSpacing: 1.5,
     color: AM.inkDim,
   },
@@ -130,7 +137,7 @@ const styles = StyleSheet.create({
   },
   segText: {
     fontFamily: Fonts.mono,
-    fontSize: 8,
+    fontSize: TypeScale.s8,
     letterSpacing: 2,
     color: AM.inkDim,
   },
