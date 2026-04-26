@@ -9,6 +9,8 @@ module.exports = {
     '^\\.\\./\\.\\./\\.\\./modules/expo-music-kit$': '<rootDir>/__mocks__/expo-music-kit',
     '^@sentry/react-native$': '<rootDir>/__mocks__/@sentry/react-native',
     '^@react-native-community/netinfo$': '<rootDir>/__mocks__/@react-native-community/netinfo',
+    '^@react-native-firebase/firestore$': '<rootDir>/__mocks__/@react-native-firebase/firestore',
+    '^@react-native-firebase/auth$': '<rootDir>/__mocks__/@react-native-firebase/auth',
   },
   transformIgnorePatterns: [
     'node_modules/(?!(expo-.*|@expo/.*|react-native.*|@react-native.*)/)',
