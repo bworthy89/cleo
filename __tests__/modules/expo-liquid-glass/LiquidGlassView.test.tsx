@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { Text } from 'react-native';
 import { render } from '@testing-library/react-native';
-import { LiquidGlassView, isLiquidGlassAvailable } from 'expo-liquid-glass';
+import { LiquidGlassView, isLiquidGlassAvailable } from '../../../modules/expo-liquid-glass';
 
 describe('LiquidGlassView (JS wrapper)', () => {
   it('exposes isLiquidGlassAvailable as a boolean', () => {

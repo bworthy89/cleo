@@ -354,7 +354,7 @@ Create `__tests__/modules/expo-liquid-glass/LiquidGlassView.test.tsx`:
 import * as React from 'react';
 import { Text } from 'react-native';
 import { render } from '@testing-library/react-native';
-import { LiquidGlassView, isLiquidGlassAvailable } from 'expo-liquid-glass';
+import { LiquidGlassView, isLiquidGlassAvailable } from '../../modules/expo-liquid-glass';
 
 describe('LiquidGlassView (JS wrapper)', () => {
   it('exposes isLiquidGlassAvailable as a boolean', () => {
@@ -427,7 +427,7 @@ Tiny Expo Modules wrapper exposing iOS 26 `UIGlassEffect` (Liquid Glass) to Reac
 ## Usage
 
 ```tsx
-import { LiquidGlassView, isLiquidGlassAvailable } from 'expo-liquid-glass';
+import { LiquidGlassView, isLiquidGlassAvailable } from '../../modules/expo-liquid-glass';
 import { View } from 'react-native';
 import { AM } from '../tokens/design-tokens';
 
@@ -491,11 +491,7 @@ Expected: Build completes without compile errors. Specifically watch for Swift e
 
 - [ ] **Step 2: Sanity-check the constant in the running app**
 
-The cleanest way is via React Native debugger console once the app launches. Open Safari → Develop → [your device] → ONAY app → JavaScriptCore → console:
-
-```js
-require('expo-liquid-glass').isLiquidGlassAvailable
-```
+The module is consumed via relative imports (`from '../../modules/expo-liquid-glass'`), so it isn't directly accessible by bare name in the debugger. Easiest verification: temporarily add `console.log('[liquid-glass]', isLiquidGlassAvailable);` to one of the chrome surfaces in PR 2 and check Xcode/Metro logs. Or skip this validation step and let PR 2's iOS 26 smoke (Task 15) be the integration check — if the glass material appears on iOS 26 and the solid background appears on iOS 16/18, the constant flowed correctly.
 
 Expected on iOS 26: `true`. On iOS 16.2 / 18 simulator: `false`.
 
@@ -595,7 +591,7 @@ Strategy: wrap the entire container content in `<LiquidGlassView>` and gate `con
 Add imports near the top:
 
 ```ts
-import { LiquidGlassView, isLiquidGlassAvailable } from 'expo-liquid-glass';
+import { LiquidGlassView, isLiquidGlassAvailable } from '../../modules/expo-liquid-glass';
 ```
 
 Replace the JSX return body. Current shape:
@@ -669,7 +665,7 @@ Strategy: wrap the container with `<LiquidGlassView>`. No background swap needed
 Add imports:
 
 ```ts
-import { LiquidGlassView } from 'expo-liquid-glass';
+import { LiquidGlassView } from '../../modules/expo-liquid-glass';
 ```
 
 Replace the JSX return body. Current shape:
@@ -726,7 +722,7 @@ Strategy: wrap the `Pressable` content. `Pressable` can take children; we wrap w
 Add imports:
 
 ```ts
-import { LiquidGlassView, isLiquidGlassAvailable } from 'expo-liquid-glass';
+import { LiquidGlassView, isLiquidGlassAvailable } from '../../modules/expo-liquid-glass';
 ```
 
 Update `styles.root.backgroundColor`:
@@ -813,7 +809,7 @@ import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, Animated } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
 import { AM, Fonts, Space } from '../tokens/design-tokens';
-import { LiquidGlassView, isLiquidGlassAvailable } from 'expo-liquid-glass';
+import { LiquidGlassView, isLiquidGlassAvailable } from '../../modules/expo-liquid-glass';
 ```
 
 Replace the `OfflineBanner` JSX return:

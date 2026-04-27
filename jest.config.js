@@ -12,9 +12,10 @@ module.exports = {
   },
   moduleNameMapper: {
     '^react-native-mmkv$': '<rootDir>/__mocks__/react-native-mmkv',
-    '^expo-liquid-glass$': '<rootDir>/__mocks__/expo-liquid-glass',
     '^\\.\\./\\.\\./modules/expo-music-kit$': '<rootDir>/__mocks__/expo-music-kit',
     '^\\.\\./\\.\\./\\.\\./modules/expo-music-kit$': '<rootDir>/__mocks__/expo-music-kit',
+    '^\\.\\./\\.\\./modules/expo-liquid-glass$': '<rootDir>/__mocks__/expo-liquid-glass',
+    '^\\.\\./\\.\\./\\.\\./modules/expo-liquid-glass$': '<rootDir>/__mocks__/expo-liquid-glass',
     '^@sentry/react-native$': '<rootDir>/__mocks__/@sentry/react-native',
     '^@react-native-community/netinfo$': '<rootDir>/__mocks__/@react-native-community/netinfo',
     '^@react-native-firebase/firestore$': '<rootDir>/__mocks__/@react-native-firebase/firestore',

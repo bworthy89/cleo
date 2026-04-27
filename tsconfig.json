@@ -4,8 +4,7 @@
     "strict": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./*"],
-      "expo-liquid-glass": ["./__mocks__/expo-liquid-glass"]
+      "@/*": ["./*"]
     }
   }
 }
