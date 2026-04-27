@@ -247,14 +247,16 @@ git commit -m "feat(modules): register ExpoLiquidGlass module + view"
 - [ ] **Step 1: Create `modules/expo-liquid-glass/src/ExpoLiquidGlassModule.ts`**
 
 ```ts
-import { requireNativeModule, requireNativeView } from 'expo-modules-core';
+import { requireNativeModule, requireNativeViewManager } from 'expo-modules-core';
 
 const ExpoLiquidGlass = requireNativeModule('ExpoLiquidGlass');
-const NativeLiquidGlassView = requireNativeView('ExpoLiquidGlass');
+const NativeLiquidGlassView = requireNativeViewManager('ExpoLiquidGlass');
 
 export default ExpoLiquidGlass;
 export { NativeLiquidGlassView };
 ```
+
+(Expo SDK 55's `expo-modules-core` exports `requireNativeViewManager`, not `requireNativeView` — the latter is from later SDKs.)
 
 - [ ] **Step 2: Create `modules/expo-liquid-glass/index.tsx`**
 
