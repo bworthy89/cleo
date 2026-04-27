@@ -1,7 +1,9 @@
 import { BroadcastPlayer } from './BroadcastPlayer';
 import { BroadcastManifestClient } from './BroadcastManifestClient';
 import { getStinger, preloadStingers } from './BroadcastStingers';
+import { Scrobbler } from './Scrobbler';
 import { musicKitPlayer } from '../services/MusicKitPlayer';
+import * as LastFmService from '../services/LastFmService';
 import {
   activateDuckingSession,
   deactivateDuckingSession,
@@ -10,6 +12,11 @@ import {
   releaseAudioSession,
   setBroadcastActive,
 } from '../../modules/expo-music-kit';
+
+const scrobbler = new Scrobbler({
+  nowPlaying: (p) => LastFmService.nowPlaying(p),
+  scrobble: (p) => LastFmService.scrobble(p),
+});
 
 export const broadcastPlayer = new BroadcastPlayer(
   {
@@ -36,4 +43,5 @@ export const broadcastPlayer = new BroadcastPlayer(
   },
   new BroadcastManifestClient(),
   { getStinger, preloadStingers },
+  scrobbler,
 );
