@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { View } from 'react-native';
 
 export const isLiquidGlassAvailable = false;
 
@@ -11,8 +12,8 @@ export interface LiquidGlassViewProps {
 }
 
 export function LiquidGlassView(props: LiquidGlassViewProps) {
-  // Render a plain div so children appear in the test tree. Tests against
+  // Render a plain View so children appear in the test tree. Tests against
   // chrome surfaces don't need to know about the native effect — they just
   // need the wrapper to be transparent in the test runtime.
-  return React.createElement('div', { style: props.style, testID: 'mock-liquid-glass' }, props.children);
+  return React.createElement(View, { style: props.style, testID: 'mock-liquid-glass' }, props.children);
 }
