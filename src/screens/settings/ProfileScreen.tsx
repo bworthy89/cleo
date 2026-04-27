@@ -3,6 +3,7 @@ import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, Text
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import auth from '@react-native-firebase/auth';
 import * as Haptics from 'expo-haptics';
+import * as WebBrowser from 'expo-web-browser';
 import { AM, Fonts, Space, TypeScale } from '../../tokens/design-tokens';
 import { BroadcastBackdrop } from '../../components/BroadcastBackdrop';
 import {
@@ -22,9 +23,12 @@ import {
 import { authenticatedFetch } from '../../services/api';
 import { memberNo as formatMemberNo, memberSlot } from '../../lib/memberNo';
 import { LikedRow } from '../../components/profile/LikedRow';
+import { LastFmRow } from '../../components/profile/LastFmRow';
 import { useLikedTracks } from '../../hooks/useLikedTracks';
+import { useLastFmIntegration } from '../../hooks/useLastFmIntegration';
 import { toggle as toggleLikedTrack } from '../../services/LikedTracksService';
 import type { LikedTrack } from '../../services/LikedTracksService.types';
+import * as LastFmService from '../../services/LastFmService';
 
 interface WeatherCandidate {
   name: string;
@@ -44,6 +48,32 @@ export function ProfileScreen() {
   const settings = useSettings();
 
   const { tracks: likedTracks, loading: likedLoading } = useLikedTracks();
+  const { status: lastFmStatus, username: lastFmUsername } = useLastFmIntegration();
+
+  const onConnectLastFm = useCallback(async () => {
+    try {
+      const url = await LastFmService.fetchAuthUrl();
+      const result = await WebBrowser.openAuthSessionAsync(url, 'cleo://lastfm-callback');
+      if (result.type !== 'success' || !result.url) return;
+      const m = result.url.match(/[?&]token=([^&]+)/);
+      const token = m ? decodeURIComponent(m[1]) : null;
+      if (!token) {
+        Alert.alert('Last.fm', 'No token in callback. Try again.');
+        return;
+      }
+      await LastFmService.connect(token);
+    } catch (err) {
+      Alert.alert('Last.fm', `Could not connect: ${(err as Error).message}`);
+    }
+  }, []);
+
+  const onDisconnectLastFm = useCallback(async () => {
+    try {
+      await LastFmService.disconnect();
+    } catch (err) {
+      Alert.alert('Last.fm', `Could not disconnect: ${(err as Error).message}`);
+    }
+  }, []);
 
   const onUnsaveLiked = useCallback(async (track: LikedTrack) => {
     try {
@@ -377,9 +407,18 @@ export function ProfileScreen() {
           ) : null}
         </View>
 
+        {/* Integrations */}
+        <SectionMarker num="D·04" title="INTEGRATIONS" side="CONNECTED SERVICES" />
+        <LastFmRow
+          status={lastFmStatus}
+          username={lastFmUsername}
+          onConnect={onConnectLastFm}
+          onDisconnect={onDisconnectLastFm}
+        />
+
         {/* Liked tracks */}
         <SectionMarker
-          num="D·04"
+          num="D·05"
           title="LIKED"
           side={`${likedTracks.length} / 200`}
         />

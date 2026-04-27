@@ -1,6 +1,6 @@
 import { BroadcastSegmentCache } from './BroadcastSegmentCache';
 import type {
-  Manifest, PlayerState, PlayerStatus, Vibe,
+  Manifest, ManifestTrack, PlayerState, PlayerStatus, Vibe,
 } from './BroadcastPlayer.types';
 import type { StingerKind } from './BroadcastStingers';
 import {
@@ -67,6 +67,18 @@ export interface StingerDeps {
   preloadStingers: () => Promise<void>;
 }
 
+export interface ScrobblerDeps {
+  onTrackStarted(track: ManifestTrack): void;
+  onElapsedTick(track: ManifestTrack, elapsedSec: number): void;
+  reset(): void;
+}
+
+const NOOP_SCROBBLER: ScrobblerDeps = {
+  onTrackStarted: () => {},
+  onElapsedTick: () => {},
+  reset: () => {},
+};
+
 export class BroadcastPlayer {
   private state: PlayerState = 'idle';
   private manifest: Manifest | null = null;
@@ -110,6 +122,7 @@ export class BroadcastPlayer {
     private readonly native: NativeDeps,
     private readonly manifestClient: ManifestDeps,
     private readonly stingers: StingerDeps,
+    private readonly scrobbler: ScrobblerDeps = NOOP_SCROBBLER,
   ) {}
 
   getStatus(): PlayerStatus {
@@ -434,6 +447,7 @@ export class BroadcastPlayer {
     this.currentTrackIndex = -1;
     this.currentSegmentIndex = -1;
     this.nextSegmentIdx = 0;
+    this.scrobbler.reset();
     // Resolve any in-flight waitForTrackEnd so the start() main loop unblocks
     // and observes manifest=null on the next iteration check (otherwise the
     // loop and its Promise leak indefinitely).
@@ -465,9 +479,13 @@ export class BroadcastPlayer {
     this.elapsedPumpTimer = setInterval(async () => {
       if (!this.manifest || this.currentTrackIndex < 0) return;
       const playing = !this.isPaused && this.state === 'playing_track';
+      // Capture track before any await so the drift guard inside Scrobbler
+      // can detect races between ticks (track may change mid-await).
+      const track = this.manifest.tracks[this.currentTrackIndex];
       try {
         const t = this.music.getPlaybackTime ? await this.music.getPlaybackTime() : 0;
         await this.music.setNowPlayingElapsed(t, playing).catch(() => {});
+        if (track) this.scrobbler.onElapsedTick(track, t);
       } catch { /* one tick failure is not fatal */ }
     }, 1000);
   }
@@ -640,6 +658,7 @@ export class BroadcastPlayer {
     try {
       await this.music.play([track.id]);
       console.log(`[BroadcastPlayer] music.play resolved for ${track.id}`);
+      this.scrobbler.onTrackStarted(track);
     } catch (err) {
       console.warn(`[BroadcastPlayer] music.play threw for ${track.id}:`, err);
       this.stopElapsedPump();
