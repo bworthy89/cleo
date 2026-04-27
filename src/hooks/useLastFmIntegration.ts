@@ -44,6 +44,7 @@ export function useLastFmIntegration(): LastFmIntegrationState {
       },
     );
     return unsub;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return state;
