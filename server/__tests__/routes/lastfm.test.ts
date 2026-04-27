@@ -110,4 +110,12 @@ describe('POST /lastfm/disconnect', () => {
     expect(res.status).toBe(204);
     expect(fs.delete).toHaveBeenCalledTimes(1);
   });
+
+  it('returns 500 if Firestore delete throws', async () => {
+    const fs = buildFirestore();
+    fs.delete.mockRejectedValueOnce(new Error('firestore down'));
+    const app = buildApp({}, buildDb(fs) as unknown as { collection: () => unknown });
+    const res = await request(app).post('/lastfm/disconnect').send();
+    expect(res.status).toBe(500);
+  });
 });
