@@ -3,8 +3,16 @@ module.exports = {
   testEnvironment: 'node',
   roots: ['<rootDir>/__tests__'],
   moduleFileExtensions: ['ts', 'tsx', 'js', 'json'],
+  globals: {
+    'ts-jest': {
+      tsconfig: {
+        jsx: 'react',
+      },
+    },
+  },
   moduleNameMapper: {
     '^react-native-mmkv$': '<rootDir>/__mocks__/react-native-mmkv',
+    '^expo-liquid-glass$': '<rootDir>/__mocks__/expo-liquid-glass',
     '^\\.\\./\\.\\./modules/expo-music-kit$': '<rootDir>/__mocks__/expo-music-kit',
     '^\\.\\./\\.\\./\\.\\./modules/expo-music-kit$': '<rootDir>/__mocks__/expo-music-kit',
     '^@sentry/react-native$': '<rootDir>/__mocks__/@sentry/react-native',
