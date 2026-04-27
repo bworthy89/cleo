@@ -5,6 +5,7 @@ export interface LastFmClientDeps {
   apiKey: string;
   apiSecret: string;
   fetchImpl?: typeof fetch;
+  timeoutMs?: number;
 }
 
 const SIGN_OMIT = new Set(['api_sig', 'format', 'callback']);
@@ -13,6 +14,7 @@ export class LastFmClient {
   private readonly apiKey: string;
   private readonly apiSecret: string;
   private readonly fetchImpl: typeof fetch;
+  private readonly timeoutMs: number;
 
   constructor(deps: LastFmClientDeps) {
     if (!deps.apiKey) throw new Error('LastFmClient: apiKey required');
@@ -20,6 +22,7 @@ export class LastFmClient {
     this.apiKey = deps.apiKey;
     this.apiSecret = deps.apiSecret;
     this.fetchImpl = deps.fetchImpl ?? fetch;
+    this.timeoutMs = deps.timeoutMs ?? 15_000;
   }
 
   signRequest(params: Record<string, string>): string {
@@ -39,11 +42,20 @@ export class LastFmClient {
     const sig = this.signRequest(params);
     const body = new URLSearchParams({ ...params, api_sig: sig, format: 'json' });
 
-    const res = await this.fetchImpl('https://ws.audioscrobbler.com/2.0/', {
-      method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded' },
-      body,
-    });
+    let res: Response;
+    try {
+      res = await this.fetchImpl('https://ws.audioscrobbler.com/2.0/', {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body,
+        signal: AbortSignal.timeout(this.timeoutMs),
+      });
+    } catch (err) {
+      if ((err as Error)?.name === 'TimeoutError') {
+        throw new Error('Last.fm getSession timed out');
+      }
+      throw err;
+    }
 
     if (!res.ok) throw new Error(`Last.fm getSession HTTP ${res.status}`);
     const data = await res.json() as
@@ -89,11 +101,18 @@ export class LastFmClient {
   private async signedPost(params: Record<string, string>): Promise<LastFmResult> {
     const sig = this.signRequest(params);
     const body = new URLSearchParams({ ...params, api_sig: sig, format: 'json' });
-    const res = await this.fetchImpl('https://ws.audioscrobbler.com/2.0/', {
-      method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded' },
-      body,
-    });
+    let res: Response;
+    try {
+      res = await this.fetchImpl('https://ws.audioscrobbler.com/2.0/', {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body,
+        signal: AbortSignal.timeout(this.timeoutMs),
+      });
+    } catch (err) {
+      const msg = (err as Error)?.name === 'TimeoutError' ? 'timeout' : `network: ${(err as Error)?.message ?? 'unknown'}`;
+      return { ok: false, errorCode: -1, errorMessage: msg };
+    }
     if (!res.ok) {
       return { ok: false, errorCode: -1, errorMessage: `HTTP ${res.status}` };
     }
