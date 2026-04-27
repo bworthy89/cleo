@@ -1078,6 +1078,35 @@ describe('BroadcastPlayer', () => {
   //   Finding 3 — resume() must seed currentTrackIndex + nextSegmentIdx BEFORE
   //               awaiting the intro segment so upcoming is correct throughout.
 
+  describe('Scrobbler integration', () => {
+  it('calls scrobbler.onTrackStarted after music.play resolves; reset on end()', async () => {
+    const deps = makeDeps();
+    const scrobbler = {
+      onTrackStarted: jest.fn(),
+      onElapsedTick: jest.fn(),
+      reset: jest.fn(),
+    };
+    const player = new BroadcastPlayer(
+      deps.music, deps.native, deps.manifestClient, deps.stingers, scrobbler,
+    );
+
+    player.start(makeManifest(), ['https://cdn/seg0-v0.mp3']);
+
+    // Drive the cold-open + first track through. Use a tight async loop —
+    // the existing test file uses similar wait-for-state idioms.
+    for (let i = 0; i < 200 && scrobbler.onTrackStarted.mock.calls.length === 0; i++) {
+      await Promise.resolve();
+    }
+
+    expect(scrobbler.onTrackStarted).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 't0' }),
+    );
+
+    await player.end();
+    expect(scrobbler.reset).toHaveBeenCalled();
+  });
+});
+
   describe('cursor lifecycle (regression #35)', () => {
     // 5-track manifest matching the resume harness:
     //   slot 0 = cold_open (before t0)
