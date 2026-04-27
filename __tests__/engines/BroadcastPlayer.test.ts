@@ -1079,33 +1079,53 @@ describe('BroadcastPlayer', () => {
   //               awaiting the intro segment so upcoming is correct throughout.
 
   describe('Scrobbler integration', () => {
-  it('calls scrobbler.onTrackStarted after music.play resolves; reset on end()', async () => {
-    const deps = makeDeps();
-    const scrobbler = {
-      onTrackStarted: jest.fn(),
-      onElapsedTick: jest.fn(),
-      reset: jest.fn(),
-    };
-    const player = new BroadcastPlayer(
-      deps.music, deps.native, deps.manifestClient, deps.stingers, scrobbler,
-    );
+    it('calls scrobbler.onTrackStarted after music.play resolves; reset on end()', async () => {
+      jest.useFakeTimers();
+      let player: BroadcastPlayer | null = null;
+      try {
+        const deps = makeDeps();
+        const scrobbler = {
+          onTrackStarted: jest.fn(),
+          onElapsedTick: jest.fn(),
+          reset: jest.fn(),
+        };
+        const music = {
+          ...deps.music,
+          getPlaybackStatus: jest.fn(async () => 'playing'),
+          getPlaybackTime: jest.fn(async () => 0),
+        };
+        player = new BroadcastPlayer(
+          music, deps.native, deps.manifestClient, deps.stingers, scrobbler,
+        );
 
-    player.start(makeManifest(), ['https://cdn/seg0-v0.mp3']);
+        player.start(makeManifest(), ['https://cdn/seg0-v0.mp3']);
 
-    // Drive the cold-open + first track through. Use a tight async loop —
-    // the existing test file uses similar wait-for-state idioms.
-    for (let i = 0; i < 200 && scrobbler.onTrackStarted.mock.calls.length === 0; i++) {
-      await Promise.resolve();
-    }
+        // Drive the cold-open + first track through. Flush microtasks to let cold_open
+        // and runTrackAt(0) reach the elapsed pump's first setInterval.
+        for (let i = 0; i < 80; i++) {
+          await Promise.resolve();
+        }
 
-    expect(scrobbler.onTrackStarted).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 't0' }),
-    );
+        expect(scrobbler.onTrackStarted).toHaveBeenCalledWith(
+          expect.objectContaining({ id: 't0' }),
+        );
 
-    await player.end();
-    expect(scrobbler.reset).toHaveBeenCalled();
+        // Advance fake time by 1s so the elapsed pump fires at least once.
+        jest.advanceTimersByTime(1000);
+        for (let i = 0; i < 5; i++) await Promise.resolve();
+
+        // Assert that the elapsed-pump hook is called — regression check so
+        // future disconnects of the onElapsedTick hook are caught.
+        expect(scrobbler.onElapsedTick).toHaveBeenCalled();
+
+        await player.end();
+        expect(scrobbler.reset).toHaveBeenCalled();
+      } finally {
+        if (player) await player.end();
+        jest.useRealTimers();
+      }
+    });
   });
-});
 
   describe('cursor lifecycle (regression #35)', () => {
     // 5-track manifest matching the resume harness:
