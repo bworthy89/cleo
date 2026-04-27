@@ -28,4 +28,30 @@ export class LastFmClient {
     concat += this.apiSecret;
     return createHash('md5').update(concat).digest('hex');
   }
+
+  async getSession(token: string): Promise<{ key: string; name: string }> {
+    const params: Record<string, string> = {
+      method: 'auth.getSession',
+      api_key: this.apiKey,
+      token,
+    };
+    const sig = this.signRequest(params);
+    const body = new URLSearchParams({ ...params, api_sig: sig, format: 'json' });
+
+    const res = await this.fetchImpl('https://ws.audioscrobbler.com/2.0/', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body,
+    });
+
+    if (!res.ok) throw new Error(`Last.fm getSession HTTP ${res.status}`);
+    const data = await res.json() as
+      | { session: { name: string; key: string } }
+      | { error: number; message: string };
+
+    if ('error' in data) {
+      throw new Error(`Last.fm getSession failed: ${data.message} (code ${data.error})`);
+    }
+    return { name: data.session.name, key: data.session.key };
+  }
 }
