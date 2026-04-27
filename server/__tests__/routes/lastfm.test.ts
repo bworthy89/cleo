@@ -305,4 +305,40 @@ describe('POST /lastfm/scrobble', () => {
     expect(res.status).toBe(502);
     expect(fs.update).not.toHaveBeenCalled();
   });
+
+  it('flips needsReconnect: true on Last.fm error code 9, returns 401', async () => {
+    const fs = buildFirestore();
+    const client = {
+      scrobble: jest.fn(async () => ({
+        ok: false as const, errorCode: 9, errorMessage: 'Invalid session key',
+      })),
+    };
+    const app = buildApp(client, buildDbWithSession(fs, 'SK_STALE') as unknown as { collection: () => unknown });
+
+    const res = await request(app).post('/lastfm/scrobble').send({
+      trackId: 'a', title: 'T', artistName: 'A', duration: 180,
+      startedAt: 1714200000,
+    });
+
+    expect(res.status).toBe(401);
+    expect(fs.update).toHaveBeenCalledWith({ needsReconnect: true });
+  });
+
+  it('flips needsReconnect on error code 4 too', async () => {
+    const fs = buildFirestore();
+    const client = {
+      scrobble: jest.fn(async () => ({
+        ok: false as const, errorCode: 4, errorMessage: 'Auth failed',
+      })),
+    };
+    const app = buildApp(client, buildDbWithSession(fs, 'SK') as unknown as { collection: () => unknown });
+
+    const res = await request(app).post('/lastfm/scrobble').send({
+      trackId: 'a', title: 'T', artistName: 'A', duration: 180,
+      startedAt: 1714200000,
+    });
+
+    expect(res.status).toBe(401);
+    expect(fs.update).toHaveBeenCalledWith({ needsReconnect: true });
+  });
 });
