@@ -24,8 +24,11 @@ import { createFeaturedRouter } from './routes/featured';
 import { createAdminRouter } from './routes/admin';
 import { createPublicHealthRouter } from './routes/health';
 import { createWeatherRouter } from './routes/weather';
+import { createLastFmRouter } from './routes/lastfm';
 import { requireAuth } from './middleware/auth';
 import { WeatherProvider } from './providers/weather/WeatherProvider';
+import { LastFmClient } from './services/lastfm/LastFmClient';
+import { firestore as adminFirestore } from './firebase';
 import { llmProvider } from './providers/llm';
 import { ttsProvider } from './providers/tts';
 import { createStorage } from './services/storage/createStorage';
@@ -100,6 +103,17 @@ const weatherLimiter = rateLimit({
   keyGenerator: keyByUser,
   standardHeaders: true,
   legacyHeaders: false,
+});
+
+// Last.fm scrobble routes: per-uid budget so shared NAT/VPN users don't
+// eat each other's quota. 60 req/min is generous for now-playing + scrobble
+// patterns (1 now-playing + 1 scrobble per track = ~2 req per song).
+const scrobbleLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => (req as unknown as { uid?: string }).uid ?? req.ip ?? 'anon',
 });
 
 function parsePositiveInt(raw: string | undefined, fallback: number, name: string): number {
@@ -244,6 +258,23 @@ async function bootstrap(): Promise<void> {
   // Weather service router — mounted under auth only when the provider is configured
   if (weatherProvider) {
     app.use(requireAuth, weatherLimiter, createWeatherRouter(weatherProvider));
+  }
+
+  // Last.fm scrobble router — only mounted when both API credentials are present.
+  // Missing creds in dev simply disables the routes rather than crashing the server.
+  if (process.env.LASTFM_API_KEY && process.env.LASTFM_API_SECRET) {
+    const lastFmClient = new LastFmClient({
+      apiKey: process.env.LASTFM_API_KEY,
+      apiSecret: process.env.LASTFM_API_SECRET,
+    });
+    app.use(requireAuth, scrobbleLimiter, createLastFmRouter({
+      client: lastFmClient,
+      firestore: adminFirestore(),
+      apiKey: process.env.LASTFM_API_KEY,
+      callbackUrl: 'cleo://lastfm-callback',
+    }));
+  } else {
+    console.warn('[lastfm] LASTFM_API_KEY or LASTFM_API_SECRET unset — scrobble routes disabled');
   }
 
   // Static asset serving for broadcast audio — only when the storage backend
