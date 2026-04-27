@@ -224,6 +224,23 @@ describe('POST /lastfm/now-playing', () => {
     expect(res.status).toBe(502);
     expect(fs.update).not.toHaveBeenCalled();
   });
+
+  it('returns 502 (no flag flip) on HTTP non-200 (errorCode -1)', async () => {
+    const fs = buildFirestore();
+    const client = {
+      updateNowPlaying: jest.fn(async () => ({
+        ok: false as const, errorCode: -1, errorMessage: 'HTTP 503',
+      })),
+    };
+    const app = buildApp(client, buildDbWithSession(fs, 'SK') as unknown as { collection: () => unknown });
+
+    const res = await request(app).post('/lastfm/now-playing').send({
+      trackId: 'a', title: 'T', artistName: 'A', duration: 180,
+    });
+
+    expect(res.status).toBe(502);
+    expect(fs.update).not.toHaveBeenCalled();
+  });
 });
 
 describe('POST /lastfm/scrobble', () => {
@@ -256,5 +273,23 @@ describe('POST /lastfm/scrobble', () => {
 
     expect(res.status).toBe(400);
     expect(client.scrobble).not.toHaveBeenCalled();
+  });
+
+  it('returns 502 (no flag flip) on HTTP non-200 (errorCode -1)', async () => {
+    const fs = buildFirestore();
+    const client = {
+      scrobble: jest.fn(async () => ({
+        ok: false as const, errorCode: -1, errorMessage: 'HTTP 503',
+      })),
+    };
+    const app = buildApp(client, buildDbWithSession(fs, 'SK') as unknown as { collection: () => unknown });
+
+    const res = await request(app).post('/lastfm/scrobble').send({
+      trackId: 'a', title: 'T', artistName: 'A', duration: 180,
+      startedAt: 1714200000,
+    });
+
+    expect(res.status).toBe(502);
+    expect(fs.update).not.toHaveBeenCalled();
   });
 });

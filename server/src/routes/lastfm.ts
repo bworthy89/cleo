@@ -86,13 +86,18 @@ export function createLastFmRouter(deps: LastFmRouterDeps): Router {
     if (!sessionKey) {
       return res.status(412).json({ error: 'not connected' });
     }
-    const result = await deps.client.updateNowPlaying(sessionKey, parsed.data);
-    if (result.ok) return res.status(204).end();
-    if (STICKY_AUTH_ERRORS.has(result.errorCode)) {
-      await docRef.update({ needsReconnect: true });
-      return res.status(401).json({ error: 'last.fm session invalid', errorCode: result.errorCode });
+    try {
+      const result = await deps.client.updateNowPlaying(sessionKey, parsed.data);
+      if (result.ok) return res.status(204).end();
+      if (STICKY_AUTH_ERRORS.has(result.errorCode)) {
+        await docRef.update({ needsReconnect: true });
+        return res.status(401).json({ error: 'last.fm session invalid', errorCode: result.errorCode });
+      }
+      return res.status(502).json({ error: 'last.fm error', errorCode: result.errorCode });
+    } catch (err) {
+      console.warn('[lastfm/now-playing] failed', err);
+      return res.status(502).json({ error: 'last.fm error' });
     }
-    return res.status(502).json({ error: 'last.fm error', errorCode: result.errorCode });
   });
 
   router.post('/lastfm/scrobble', async (req, res) => {
@@ -110,13 +115,18 @@ export function createLastFmRouter(deps: LastFmRouterDeps): Router {
     if (!sessionKey) {
       return res.status(412).json({ error: 'not connected' });
     }
-    const result = await deps.client.scrobble(sessionKey, parsed.data);
-    if (result.ok) return res.status(204).end();
-    if (STICKY_AUTH_ERRORS.has(result.errorCode)) {
-      await docRef.update({ needsReconnect: true });
-      return res.status(401).json({ error: 'last.fm session invalid', errorCode: result.errorCode });
+    try {
+      const result = await deps.client.scrobble(sessionKey, parsed.data);
+      if (result.ok) return res.status(204).end();
+      if (STICKY_AUTH_ERRORS.has(result.errorCode)) {
+        await docRef.update({ needsReconnect: true });
+        return res.status(401).json({ error: 'last.fm session invalid', errorCode: result.errorCode });
+      }
+      return res.status(502).json({ error: 'last.fm error', errorCode: result.errorCode });
+    } catch (err) {
+      console.warn('[lastfm/scrobble] failed', err);
+      return res.status(502).json({ error: 'last.fm error' });
     }
-    return res.status(502).json({ error: 'last.fm error', errorCode: result.errorCode });
   });
 
   return router;
