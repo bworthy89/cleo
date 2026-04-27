@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import type { ScrobbleTrack, LastFmResult } from './types';
 
 export interface LastFmClientDeps {
   apiKey: string;
@@ -53,5 +54,53 @@ export class LastFmClient {
       throw new Error(`Last.fm getSession failed: ${data.message} (code ${data.error})`);
     }
     return { name: data.session.name, key: data.session.key };
+  }
+
+  async updateNowPlaying(sessionKey: string, t: ScrobbleTrack): Promise<LastFmResult> {
+    const params: Record<string, string> = {
+      method: 'track.updateNowPlaying',
+      api_key: this.apiKey,
+      artist: t.artistName,
+      track: t.title,
+      duration: String(Math.round(t.duration)),
+      sk: sessionKey,
+    };
+    if (t.albumTitle) params.album = t.albumTitle;
+    return this.signedPost(params);
+  }
+
+  async scrobble(sessionKey: string, t: ScrobbleTrack): Promise<LastFmResult> {
+    if (typeof t.startedAt !== 'number') {
+      throw new Error('LastFmClient.scrobble: startedAt required');
+    }
+    const params: Record<string, string> = {
+      method: 'track.scrobble',
+      api_key: this.apiKey,
+      artist: t.artistName,
+      track: t.title,
+      duration: String(Math.round(t.duration)),
+      timestamp: String(t.startedAt),
+      sk: sessionKey,
+    };
+    if (t.albumTitle) params.album = t.albumTitle;
+    return this.signedPost(params);
+  }
+
+  private async signedPost(params: Record<string, string>): Promise<LastFmResult> {
+    const sig = this.signRequest(params);
+    const body = new URLSearchParams({ ...params, api_sig: sig, format: 'json' });
+    const res = await this.fetchImpl('https://ws.audioscrobbler.com/2.0/', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body,
+    });
+    if (!res.ok) {
+      return { ok: false, errorCode: -1, errorMessage: `HTTP ${res.status}` };
+    }
+    const data = await res.json() as { error?: number; message?: string };
+    if (typeof data.error === 'number') {
+      return { ok: false, errorCode: data.error, errorMessage: data.message ?? 'unknown' };
+    }
+    return { ok: true };
   }
 }

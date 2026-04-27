@@ -77,3 +77,87 @@ describe('LastFmClient.getSession', () => {
     await expect(client.getSession('T')).rejects.toThrow(/500/);
   });
 });
+
+describe('LastFmClient.updateNowPlaying', () => {
+  it('POSTs track.updateNowPlaying with signed params and sk', async () => {
+    const fetchImpl = jest.fn(async () => new Response(
+      JSON.stringify({ nowplaying: { artist: { '#text': 'Cher' }, track: { '#text': 'Believe' } } }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    ));
+    const client = new LastFmClient({ apiKey: 'K', apiSecret: 'SEC', fetchImpl });
+
+    const r = await client.updateNowPlaying('SK_XYZ', {
+      title: 'Believe',
+      artistName: 'Cher',
+      albumTitle: 'Believe',
+      duration: 240,
+    });
+
+    expect(r).toEqual({ ok: true });
+    const [, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    const body = init.body as URLSearchParams;
+    expect(body.get('method')).toBe('track.updateNowPlaying');
+    expect(body.get('artist')).toBe('Cher');
+    expect(body.get('track')).toBe('Believe');
+    expect(body.get('album')).toBe('Believe');
+    expect(body.get('duration')).toBe('240');
+    expect(body.get('sk')).toBe('SK_XYZ');
+  });
+
+  it('returns { ok: false, errorCode: 9 } when session key invalid', async () => {
+    const fetchImpl = jest.fn(async () => new Response(
+      JSON.stringify({ error: 9, message: 'Invalid session key' }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    ));
+    const client = new LastFmClient({ apiKey: 'K', apiSecret: 'SEC', fetchImpl });
+
+    const r = await client.updateNowPlaying('STALE', {
+      title: 'T', artistName: 'A', duration: 180,
+    });
+
+    expect(r).toEqual({ ok: false, errorCode: 9, errorMessage: 'Invalid session key' });
+  });
+});
+
+describe('LastFmClient.scrobble', () => {
+  it('POSTs track.scrobble with timestamp', async () => {
+    const fetchImpl = jest.fn(async () => new Response(
+      JSON.stringify({ scrobbles: { '@attr': { accepted: 1, ignored: 0 } } }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    ));
+    const client = new LastFmClient({ apiKey: 'K', apiSecret: 'SEC', fetchImpl });
+
+    const r = await client.scrobble('SK_XYZ', {
+      title: 'Believe', artistName: 'Cher', albumTitle: 'Believe',
+      duration: 240, startedAt: 1714200000,
+    });
+
+    expect(r).toEqual({ ok: true });
+    const [, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    const body = init.body as URLSearchParams;
+    expect(body.get('method')).toBe('track.scrobble');
+    expect(body.get('timestamp')).toBe('1714200000');
+  });
+
+  it('throws on missing startedAt (programmer error, not user-recoverable)', async () => {
+    const client = new LastFmClient({ apiKey: 'K', apiSecret: 'SEC', fetchImpl: jest.fn() });
+
+    await expect(client.scrobble('SK', {
+      title: 'T', artistName: 'A', duration: 180,
+    })).rejects.toThrow(/startedAt/);
+  });
+
+  it('returns { ok: false, errorCode: 4 } sticky-auth condition', async () => {
+    const fetchImpl = jest.fn(async () => new Response(
+      JSON.stringify({ error: 4, message: 'Authentication Failed' }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    ));
+    const client = new LastFmClient({ apiKey: 'K', apiSecret: 'SEC', fetchImpl });
+
+    const r = await client.scrobble('SK', {
+      title: 'T', artistName: 'A', duration: 180, startedAt: 1714200000,
+    });
+
+    expect(r).toEqual({ ok: false, errorCode: 4, errorMessage: 'Authentication Failed' });
+  });
+});
