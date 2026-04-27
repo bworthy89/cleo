@@ -45,5 +45,16 @@ export function createLastFmRouter(deps: LastFmRouterDeps): Router {
     }
   });
 
+  router.post('/lastfm/disconnect', async (req, res) => {
+    const uid = (req as unknown as { uid: string }).uid;
+    try {
+      await integrationDoc(deps.firestore, uid).delete();
+      return res.status(204).end();
+    } catch (err) {
+      console.warn('[lastfm/disconnect] failed', err);
+      return res.status(500).json({ error: 'disconnect failed' });
+    }
+  });
+
   return router;
 }

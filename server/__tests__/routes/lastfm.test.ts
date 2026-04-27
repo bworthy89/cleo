@@ -101,3 +101,13 @@ describe('POST /lastfm/connect', () => {
     expect(res.status).toBe(502);
   });
 });
+
+describe('POST /lastfm/disconnect', () => {
+  it('deletes the integration doc and returns 204', async () => {
+    const fs = buildFirestore();
+    const app = buildApp({}, buildDb(fs) as unknown as { collection: () => unknown });
+    const res = await request(app).post('/lastfm/disconnect').send();
+    expect(res.status).toBe(204);
+    expect(fs.delete).toHaveBeenCalledTimes(1);
+  });
+});
