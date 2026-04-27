@@ -224,10 +224,16 @@ export function __resetFirestore() {
 
 export function __seedDoc(path: string, data: Record<string, unknown>) {
   stores.set(path, data);
+  notifyDocListeners(path);
+  const collectionPath = path.split('/').slice(0, -1).join('/');
+  notifyCollectionListeners(collectionPath);
 }
 
 export function __deleteDoc(path: string) {
   stores.delete(path);
+  notifyDocListeners(path);
+  const collectionPath = path.split('/').slice(0, -1).join('/');
+  notifyCollectionListeners(collectionPath);
 }
 
 export function __getApiSpies() {

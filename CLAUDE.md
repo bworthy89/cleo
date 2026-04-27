@@ -318,6 +318,28 @@ fires at meanDistance > 0.7.
 - MMKV `CURRENT_BROADCAST` — persisted manifest for 24h resume window via
   `BroadcastResumer`.
 
+### Personal Last.fm scrobble (#37)
+
+Distinct from the server-side `LastFmFetcher` enrichment use. Per-user OAuth
+flow on `ProfileScreen` (CONNECT button → in-app Safari → `cleo://lastfm-callback`).
+Session keys persisted to Firestore `users/{uid}/integrations/lastfm`; the
+client never sees the sessionKey after OAuth.
+
+Client emission (`src/engines/Scrobbler.ts`):
+- `onTrackStarted(track)` after `music.play` resolves → `POST /lastfm/now-playing`
+- `onElapsedTick(track, elapsed)` from the 1Hz pump fires `POST /lastfm/scrobble`
+  the moment elapsed crosses `min(0.5 × duration, 240s)`. Tracks <30s never
+  scrobble. Threshold-on-tick (not at-track-end) so app-kill mid-track still
+  scrobbles.
+
+Server signs requests via `LastFmClient` and POSTs to
+`ws.audioscrobbler.com/2.0`. On Last.fm error code 4 or 9 (sticky auth
+revocation), server flips `users/{uid}/integrations/lastfm.needsReconnect = true`
+and the row swaps to "RECONNECT" via the Firestore subscription.
+
+Best-effort, online-only — no offline queue. Adding `firebase-admin` for
+server-side Firestore writes was a hard prereq.
+
 ### Native audio session discipline
 - `activateDuckingSession` — `.playback + .mixWithOthers + .duckOthers`, setActive(true)
 - `deactivateDuckingSession` — removes `.duckOthers` but keeps `.mixWithOthers`
@@ -375,6 +397,9 @@ ELEVENLABS_API_KEY, ELEVENLABS_VOICE_ID, ELEVENLABS_PRONUNCIATION_DICT_ID/_VERSI
 OLLAMA_BASE_URL, OLLAMA_MODEL             # leave unset in prod
 ORPHEUS_BASE_URL, ORPHEUS_VOICE, ORPHEUS_MAX_TOKENS
 GENIUS_ACCESS_TOKEN
+LASTFM_API_KEY                            # NOTE: also used by enrichment LastFmFetcher;
+LASTFM_API_SECRET                         # required for /lastfm/scrobble personal flow
+GOOGLE_APPLICATION_CREDENTIALS            # path to firebase-admin service-account JSON
 HEALTH_CHECK_INTERVAL_MS, HEALTH_CHECK_TIMEOUT_MS
 BROADCAST_ASSET_BASE_URL                  # dev: http://<LAN-IP>:3001
 CURATOR_EMAILS                            # comma-separated
@@ -436,6 +461,9 @@ EXPO_PUBLIC_SENTRY_DSN
   prefix would otherwise apply middleware to every request.
 - **MMKV** for all local persistence — never AsyncStorage. Method is `storage.remove(key)`,
   not `storage.delete(key)`.
+- **Last.fm session keys live in Firestore, never MMKV.** They're long-lived
+  bearer tokens for a personal account. Server-only writes (Firestore rule
+  `allow write: if false`); client subscribes via `useLastFmIntegration`.
 - **`JSON.parse` on MMKV** must be try/catch-wrapped — `getObject` in Storage.ts handles
   this for typed callers.
 - **`clearUserData` must preserve `StorageKeys.USER`** — removing it re-routes returning
