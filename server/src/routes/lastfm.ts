@@ -16,6 +16,21 @@ const connectSchema = z.object({
   token: z.string().trim().min(1).max(200),
 });
 
+const trackBaseSchema = z.object({
+  trackId: z.string().trim().min(1).max(200),
+  title: z.string().trim().min(1).max(200),
+  artistName: z.string().trim().min(1).max(200),
+  albumTitle: z.string().trim().max(200).optional(),
+  duration: z.number().int().min(1).max(36000),
+});
+
+const nowPlayingSchema = trackBaseSchema;
+const scrobbleSchema = trackBaseSchema.extend({
+  startedAt: z.number().int().min(0).max(2_000_000_000),
+});
+
+const STICKY_AUTH_ERRORS = new Set([4, 9]);
+
 export function createLastFmRouter(deps: LastFmRouterDeps): Router {
   const router = Router();
 
@@ -54,6 +69,54 @@ export function createLastFmRouter(deps: LastFmRouterDeps): Router {
       console.warn('[lastfm/disconnect] failed', err);
       return res.status(500).json({ error: 'disconnect failed' });
     }
+  });
+
+  router.post('/lastfm/now-playing', async (req, res) => {
+    const parsed = nowPlayingSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'invalid request', details: parsed.error.flatten() });
+    }
+    const uid = (req as unknown as { uid: string }).uid;
+    const docRef = integrationDoc(deps.firestore, uid);
+    const snap = await docRef.get();
+    if (!snap.exists) {
+      return res.status(412).json({ error: 'not connected' });
+    }
+    const sessionKey = (snap.data() as { sessionKey?: string } | undefined)?.sessionKey;
+    if (!sessionKey) {
+      return res.status(412).json({ error: 'not connected' });
+    }
+    const result = await deps.client.updateNowPlaying(sessionKey, parsed.data);
+    if (result.ok) return res.status(204).end();
+    if (STICKY_AUTH_ERRORS.has(result.errorCode)) {
+      await docRef.update({ needsReconnect: true });
+      return res.status(401).json({ error: 'last.fm session invalid', errorCode: result.errorCode });
+    }
+    return res.status(502).json({ error: 'last.fm error', errorCode: result.errorCode });
+  });
+
+  router.post('/lastfm/scrobble', async (req, res) => {
+    const parsed = scrobbleSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'invalid request', details: parsed.error.flatten() });
+    }
+    const uid = (req as unknown as { uid: string }).uid;
+    const docRef = integrationDoc(deps.firestore, uid);
+    const snap = await docRef.get();
+    if (!snap.exists) {
+      return res.status(412).json({ error: 'not connected' });
+    }
+    const sessionKey = (snap.data() as { sessionKey?: string } | undefined)?.sessionKey;
+    if (!sessionKey) {
+      return res.status(412).json({ error: 'not connected' });
+    }
+    const result = await deps.client.scrobble(sessionKey, parsed.data);
+    if (result.ok) return res.status(204).end();
+    if (STICKY_AUTH_ERRORS.has(result.errorCode)) {
+      await docRef.update({ needsReconnect: true });
+      return res.status(401).json({ error: 'last.fm session invalid', errorCode: result.errorCode });
+    }
+    return res.status(502).json({ error: 'last.fm error', errorCode: result.errorCode });
   });
 
   return router;

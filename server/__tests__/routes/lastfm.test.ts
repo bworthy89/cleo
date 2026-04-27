@@ -119,3 +119,142 @@ describe('POST /lastfm/disconnect', () => {
     expect(res.status).toBe(500);
   });
 });
+
+const buildDbWithSession = (fs: MockFirestore, sessionKey: string | null) => {
+  const integrationDocShape = {
+    set: fs.set,
+    delete: fs.delete,
+    update: fs.update,
+    get: jest.fn(async () => ({
+      exists: sessionKey !== null,
+      data: () => sessionKey === null ? undefined : { sessionKey, username: 'k' },
+    })),
+  };
+  const userDocShape = {
+    set: fs.set,
+    delete: fs.delete,
+    update: fs.update,
+    get: jest.fn(async () => ({ exists: false, data: () => undefined })),
+    collection: () => ({ doc: () => integrationDocShape }),
+  };
+  return {
+    collection: () => ({ doc: () => userDocShape }),
+  };
+};
+
+describe('POST /lastfm/now-playing', () => {
+  it('reads sessionKey, calls updateNowPlaying, returns 204', async () => {
+    const fs = buildFirestore();
+    const client = {
+      updateNowPlaying: jest.fn(async () => ({ ok: true as const })),
+    };
+    const app = buildApp(client, buildDbWithSession(fs, 'SK_OK') as unknown as { collection: () => unknown });
+
+    const res = await request(app).post('/lastfm/now-playing').send({
+      trackId: 'apple-1', title: 'Believe', artistName: 'Cher',
+      albumTitle: 'Believe', duration: 240,
+    });
+
+    expect(res.status).toBe(204);
+    expect(client.updateNowPlaying).toHaveBeenCalledWith('SK_OK', expect.objectContaining({
+      title: 'Believe', artistName: 'Cher', albumTitle: 'Believe', duration: 240,
+    }));
+  });
+
+  it('returns 412 if user has not connected (no doc)', async () => {
+    const fs = buildFirestore();
+    const client = { updateNowPlaying: jest.fn() };
+    const app = buildApp(client, buildDbWithSession(fs, null) as unknown as { collection: () => unknown });
+
+    const res = await request(app).post('/lastfm/now-playing').send({
+      trackId: 'a', title: 'T', artistName: 'A', duration: 180,
+    });
+
+    expect(res.status).toBe(412);
+    expect(client.updateNowPlaying).not.toHaveBeenCalled();
+  });
+
+  it('flips needsReconnect: true on Last.fm error code 9, returns 401', async () => {
+    const fs = buildFirestore();
+    const client = {
+      updateNowPlaying: jest.fn(async () => ({
+        ok: false as const, errorCode: 9, errorMessage: 'Invalid session key',
+      })),
+    };
+    const app = buildApp(client, buildDbWithSession(fs, 'SK_STALE') as unknown as { collection: () => unknown });
+
+    const res = await request(app).post('/lastfm/now-playing').send({
+      trackId: 'a', title: 'T', artistName: 'A', duration: 180,
+    });
+
+    expect(res.status).toBe(401);
+    expect(fs.update).toHaveBeenCalledWith({ needsReconnect: true });
+  });
+
+  it('flips needsReconnect on error code 4 too', async () => {
+    const fs = buildFirestore();
+    const client = {
+      updateNowPlaying: jest.fn(async () => ({
+        ok: false as const, errorCode: 4, errorMessage: 'Auth failed',
+      })),
+    };
+    const app = buildApp(client, buildDbWithSession(fs, 'SK') as unknown as { collection: () => unknown });
+
+    const res = await request(app).post('/lastfm/now-playing').send({
+      trackId: 'a', title: 'T', artistName: 'A', duration: 180,
+    });
+
+    expect(res.status).toBe(401);
+    expect(fs.update).toHaveBeenCalledWith({ needsReconnect: true });
+  });
+
+  it('returns 502 (no flag flip) on transient errors like code 16', async () => {
+    const fs = buildFirestore();
+    const client = {
+      updateNowPlaying: jest.fn(async () => ({
+        ok: false as const, errorCode: 16, errorMessage: 'temporarily unavailable',
+      })),
+    };
+    const app = buildApp(client, buildDbWithSession(fs, 'SK') as unknown as { collection: () => unknown });
+
+    const res = await request(app).post('/lastfm/now-playing').send({
+      trackId: 'a', title: 'T', artistName: 'A', duration: 180,
+    });
+
+    expect(res.status).toBe(502);
+    expect(fs.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('POST /lastfm/scrobble', () => {
+  it('forwards startedAt to LastFmClient.scrobble', async () => {
+    const fs = buildFirestore();
+    const client = {
+      scrobble: jest.fn(async () => ({ ok: true as const })),
+    };
+    const app = buildApp(client, buildDbWithSession(fs, 'SK') as unknown as { collection: () => unknown });
+
+    const res = await request(app).post('/lastfm/scrobble').send({
+      trackId: 'a', title: 'T', artistName: 'A', duration: 180,
+      startedAt: 1714200000,
+    });
+
+    expect(res.status).toBe(204);
+    expect(client.scrobble).toHaveBeenCalledWith('SK', expect.objectContaining({
+      startedAt: 1714200000,
+    }));
+  });
+
+  it('rejects scrobble without startedAt (Zod)', async () => {
+    const fs = buildFirestore();
+    const client = { scrobble: jest.fn() };
+    const app = buildApp(client, buildDbWithSession(fs, 'SK') as unknown as { collection: () => unknown });
+
+    const res = await request(app).post('/lastfm/scrobble').send({
+      trackId: 'a', title: 'T', artistName: 'A', duration: 180,
+    });
+
+    expect(res.status).toBe(400);
+    expect(client.scrobble).not.toHaveBeenCalled();
+  });
+});
