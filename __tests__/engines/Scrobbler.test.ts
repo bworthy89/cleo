@@ -106,20 +106,26 @@ describe('Scrobbler', () => {
   });
 
   describe('error tolerance', () => {
-    it('swallows nowPlaying rejection', () => {
+    it('swallows nowPlaying rejection', async () => {
       const api = mkApi();
       api.nowPlaying.mockRejectedValueOnce(new Error('boom'));
       const s = new Scrobbler(api);
       expect(() => s.onTrackStarted(mkTrack({ duration: 60 }))).not.toThrow();
+      // Flush the microtask queue so the .catch(() => {}) inside onTrackStarted
+      // settles the rejection before the test ends.
+      await Promise.resolve();
+      await Promise.resolve();
     });
 
-    it('swallows scrobble rejection', () => {
+    it('swallows scrobble rejection', async () => {
       const api = mkApi();
       api.scrobble.mockRejectedValueOnce(new Error('boom'));
       const s = new Scrobbler(api);
       const track = mkTrack({ duration: 60 });
       s.onTrackStarted(track);
       expect(() => s.onElapsedTick(track, 30)).not.toThrow();
+      await Promise.resolve();
+      await Promise.resolve();
     });
   });
 });
