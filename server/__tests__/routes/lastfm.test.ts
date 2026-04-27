@@ -100,6 +100,19 @@ describe('POST /lastfm/connect', () => {
     const res = await request(app).post('/lastfm/connect').send({ token: 'T' });
     expect(res.status).toBe(502);
   });
+
+  it('returns 500 if Firestore set throws', async () => {
+    const fs = buildFirestore();
+    fs.set.mockRejectedValueOnce(new Error('firestore down'));
+    const client = {
+      getSession: jest.fn(async () => ({ name: 'kari_w', key: 'SK_ABC' })),
+    };
+    const app = buildApp(client, buildDb(fs) as unknown as { collection: () => unknown });
+
+    const res = await request(app).post('/lastfm/connect').send({ token: 'OAUTH_T' });
+
+    expect(res.status).toBe(500);
+  });
 });
 
 describe('POST /lastfm/disconnect', () => {

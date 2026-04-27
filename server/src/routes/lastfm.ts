@@ -45,19 +45,28 @@ export function createLastFmRouter(deps: LastFmRouterDeps): Router {
       return res.status(400).json({ error: 'invalid request', details: parsed.error.flatten() });
     }
     const uid = (req as unknown as { uid: string }).uid;
+
+    let session: { key: string; name: string };
     try {
-      const session = await deps.client.getSession(parsed.data.token);
+      session = await deps.client.getSession(parsed.data.token);
+    } catch (err) {
+      console.warn('[lastfm/connect] getSession failed', err);
+      return res.status(502).json({ error: 'last.fm exchange failed' });
+    }
+
+    try {
       await integrationDoc(deps.firestore, uid).set({
         sessionKey: session.key,
         username: session.name,
         needsReconnect: false,
         connectedAt: new Date(),
       }, { merge: true });
-      return res.status(204).end();
     } catch (err) {
-      console.warn('[lastfm/connect] failed', err);
-      return res.status(502).json({ error: 'last.fm exchange failed' });
+      console.warn('[lastfm/connect] firestore write failed', err);
+      return res.status(500).json({ error: 'persistence failed' });
     }
+
+    return res.status(204).end();
   });
 
   router.post('/lastfm/disconnect', async (req, res) => {
