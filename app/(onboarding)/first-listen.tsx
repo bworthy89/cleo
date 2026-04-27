@@ -54,14 +54,15 @@ export default function FirstListenScreen() {
 
   const runBake = async (name: string, attempt: number) => {
     try {
-      // Bake timeout adapts to TTS health: F5-TTS (the fallback) is
-      // meaningfully slower than CosyVoice (the primary), so a 30s
-      // deadline that's fine under healthy CosyVoice can spuriously
-      // time out when we're in backup mode. The HealthStatusBanner
-      // mounted above this screen tells the user we're degraded; this
-      // gives the bake the time it needs to actually complete.
+      // Bake timeout adapts to TTS health. Even CosyVoice (the primary)
+      // can pay MIOpen tuner cost (~25-30s GPU compute per shape) on
+      // first-time-shape requests after a service restart — so the
+      // operational ceiling has to accommodate cold-tune pessimism, not
+      // just the warm-cache case. F5-TTS (the fallback, used when the
+      // HealthStatusBanner shows "degraded") is meaningfully slower
+      // still, so the degraded ceiling sits higher.
       const isDegraded = health?.status === 'degraded' || health?.status === 'major';
-      const bakeTimeoutMs = isDegraded ? 90_000 : 30_000;
+      const bakeTimeoutMs = isDegraded ? 120_000 : 60_000;
 
       const curationClient = new BroadcastCurationClient();
       const manifestClient = new BroadcastManifestClient();
@@ -284,11 +285,23 @@ function NameCaptureBody(props: {
 }
 
 function BakingBody(props: { name: string }) {
+  // After 45s the static "one moment" line starts to feel frozen, so swap to
+  // copy that names the cold-tune cost. Pairs with the 60s/120s timeout ladder
+  // — without this disclosure the longer ceiling would read as a stuck UI.
+  const [extendedCopy, setExtendedCopy] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setExtendedCopy(true), 45_000);
+    return () => clearTimeout(timer);
+  }, []);
   return (
     <View>
       <Text style={styles.headline}>Putting your first set together,{'\n'}<Text style={styles.headlineAmber}>{props.name}</Text>.</Text>
       <View style={styles.linerWrap}>
-        <LinerNotes>One moment — this only happens the first time.</LinerNotes>
+        <LinerNotes>
+          {extendedCopy
+            ? 'First sets warm up the audio engine — usually one-time.'
+            : 'One moment — this only happens the first time.'}
+        </LinerNotes>
       </View>
     </View>
   );
