@@ -41,6 +41,7 @@ yarn-error.*
 server/.env
 server/.env.development
 server/.env.production
+firebase-service-account.json
 
 # typescript
 *.tsbuildinfo
