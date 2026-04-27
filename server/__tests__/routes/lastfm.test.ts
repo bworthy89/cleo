@@ -19,16 +19,25 @@ const buildFirestore = (): MockFirestore => {
   return { set, update, delete: del };
 };
 
-const buildDb = (mock: MockFirestore) => ({
-  collection: () => ({
-    doc: () => ({
-      set: mock.set,
-      delete: mock.delete,
-      update: mock.update,
-      get: jest.fn(async () => ({ exists: false, data: () => undefined })),
-    }),
-  }),
-});
+const buildDb = (mock: MockFirestore) => {
+  const docShape: {
+    set: jest.Mock;
+    delete: jest.Mock;
+    update: jest.Mock;
+    get: jest.Mock;
+    collection: () => { doc: () => typeof docShape };
+  } = {
+    set: mock.set,
+    delete: mock.delete,
+    update: mock.update,
+    get: jest.fn(async () => ({ exists: false, data: () => undefined })),
+    // Nested-collection support: doc().collection().doc() reuses the same shape
+    collection: () => ({ doc: () => docShape }),
+  };
+  return {
+    collection: () => ({ doc: () => docShape }),
+  };
+};
 
 const buildApp = (
   client: Partial<LastFmClient>,

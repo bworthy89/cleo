@@ -10,7 +10,7 @@ export interface LastFmRouterDeps {
 }
 
 const integrationDoc = (firestore: FirebaseFirestore.Firestore, uid: string) =>
-  firestore.collection('lastfm_integrations').doc(uid);
+  firestore.collection('users').doc(uid).collection('integrations').doc('lastfm');
 
 const connectSchema = z.object({
   token: z.string().trim().min(1).max(200),
