@@ -32,7 +32,11 @@ describe('firebase admin singleton', () => {
 
   it('skips init if admin.apps already populated', () => {
     (admin as unknown as { apps: unknown[] }).apps = [{}];
-    firestore();
+    let firestoreFn!: typeof import('@/firebase').firestore;
+    jest.isolateModules(() => {
+      firestoreFn = require('@/firebase').firestore;
+    });
+    firestoreFn();
     expect((admin as unknown as { initializeApp: jest.Mock }).initializeApp).not.toHaveBeenCalled();
   });
 });
