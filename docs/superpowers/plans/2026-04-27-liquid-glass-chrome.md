@@ -841,8 +841,8 @@ const styles = StyleSheet.create({
     borderBottomColor: AM.amber,
   },
   glassFill: {
-    paddingVertical: Space.s10,
-    paddingHorizontal: Space.s14,
+    paddingVertical: Space.s8,
+    paddingHorizontal: Space.s16,
     alignItems: 'center',
   },
   text: {

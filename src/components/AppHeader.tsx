@@ -5,6 +5,7 @@ import { AM, Fonts, Space, TypeScale, ZIndex } from '../tokens/design-tokens';
 import { useAppActive } from '../hooks/useAppActive';
 import { broadcastPlayer } from '../engines/BroadcastPlayer.singleton';
 import { OnAirIndicator } from './OnAirIndicator';
+import { LiquidGlassView } from '../../modules/expo-liquid-glass';
 
 interface AppHeaderProps {
   /** Optional override — show rightContent instead of the on-air strip. */
@@ -59,7 +60,7 @@ export function AppHeader({ rightContent }: AppHeaderProps) {
   const clock = useLiveClock(appActive);
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top, height: HEADER_HEIGHT + insets.top }]}>
+    <LiquidGlassView style={[styles.container, { paddingTop: insets.top, height: HEADER_HEIGHT + insets.top }]}>
       <View style={styles.inner}>
         <Text style={styles.wordmark} accessibilityRole="header">onay</Text>
         {rightContent ?? (
@@ -71,7 +72,7 @@ export function AppHeader({ rightContent }: AppHeaderProps) {
           </View>
         )}
       </View>
-    </View>
+    </LiquidGlassView>
   );
 }
 

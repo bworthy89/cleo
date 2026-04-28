@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { AM, Fonts, Space, TypeScale } from '../tokens/design-tokens';
+import { LiquidGlassView, isLiquidGlassAvailable } from '../../modules/expo-liquid-glass';
 import { OnAirIndicator } from './OnAirIndicator';
 import { useAppActive } from '../hooks/useAppActive';
 import { broadcastPlayer } from '../engines/BroadcastPlayer.singleton';
@@ -43,23 +44,25 @@ export function NowPlayingBar() {
   };
 
   return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={`Return to player. ${track ? `${track.title} by ${track.artistName}` : 'Broadcast in progress'}`}
-      style={({ pressed }) => [styles.root, pressed && { opacity: 0.6 }]}
-    >
-      <OnAirIndicator active={status.state !== 'paused'} />
-      <View style={styles.textBlock}>
-        <Text style={styles.title} numberOfLines={1}>
-          {track?.title ?? (status.state === 'loading' ? 'tuning in…' : 'now playing')}
-        </Text>
-        {track?.artistName ? (
-          <Text style={styles.artist} numberOfLines={1}>{track.artistName}</Text>
-        ) : null}
-      </View>
-      <Text style={styles.chev}>{'↑'}</Text>
-    </Pressable>
+    <LiquidGlassView>
+      <Pressable
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={`Return to player. ${track ? `${track.title} by ${track.artistName}` : 'Broadcast in progress'}`}
+        style={({ pressed }) => [styles.root, pressed && { opacity: 0.6 }]}
+      >
+        <OnAirIndicator active={status.state !== 'paused'} />
+        <View style={styles.textBlock}>
+          <Text style={styles.title} numberOfLines={1}>
+            {track?.title ?? (status.state === 'loading' ? 'tuning in…' : 'now playing')}
+          </Text>
+          {track?.artistName ? (
+            <Text style={styles.artist} numberOfLines={1}>{track.artistName}</Text>
+          ) : null}
+        </View>
+        <Text style={styles.chev}>{'↑'}</Text>
+      </Pressable>
+    </LiquidGlassView>
   );
 }
 
@@ -70,7 +73,7 @@ const styles = StyleSheet.create({
     gap: Space.s14,
     paddingHorizontal: Space.s22,
     paddingVertical: Space.s10,
-    backgroundColor: AM.bg,
+    backgroundColor: isLiquidGlassAvailable ? 'transparent' : AM.bg,
     borderTopWidth: 1,
     borderTopColor: AM.amberFaint,
   },
