@@ -2,8 +2,9 @@ import dict from './pronunciations.json';
 
 /**
  * Artist-name pronunciation overrides, ported from the Cartesia pronunciation
- * dictionary (pdict_xuZ82HwXjZMHzQLEvB26Bb) so F5-TTS — which has no server-side
- * dict API — gets the same phonetic corrections as the paid providers.
+ * dictionary (pdict_xuZ82HwXjZMHzQLEvB26Bb) so the self-hosted primary
+ * (VoxCPM today, F5-TTS historically) — which has no server-side dict API —
+ * gets the same phonetic corrections as the paid providers.
  *
  * The map is applied locally before handing text to any TTS provider, which
  * means Cartesia/ElevenLabs now receive pre-substituted text and their own
