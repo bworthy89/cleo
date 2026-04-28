@@ -221,9 +221,10 @@ styles — everything flows from tokens. Rule still stands: components use `AM` 
    `userContext` optionally includes `weatherCoords` (from Profile's weather-enabled setting);
    if provided, the server fetches a brief weather hint and injects it into the cold_open
    prompt's scene block.
-6. Server responds after slot 0 + enrichment drain complete (~11-19s depending on
-   cache warmth) with `{ manifest, firstSegmentUrls }`. Slots 1..N are `pending`;
-   client polls for them.
+6. Server responds as soon as slot 0 audio is baked (~3-5s VoxCPM warm cache)
+   with `{ manifest, firstSegmentUrls }`. Enrichment drain runs in parallel and
+   gates slots 1..N, not the response — cold open works on empty enrichment.
+   Slots 1..N are `pending`; client polls for them.
 7. Client navigates to `/player`, starts `broadcastPlayer.start(manifest, firstSegmentUrls)`.
    `TuningInCanvas` shows while cold open is fetched.
 8. **Sparse-cadence main loop**: iterate `manifest.segmentSlots` in order, advancing
@@ -253,10 +254,13 @@ create(input):
   3. In parallel: kick drainNow (Genius + MB + Wiki + LastFm per track, serialized
      per-API at 1.1s) and generateSlot(0). Slot 0 is cold_open and works with empty
      enrichment.
-  4. await Promise.all([drainP, slot0P]) — response gated on BOTH, so
-     EnrichmentCache is populated before slots 1..N run.
-  5. Fire-and-forget generateSlotsBackground(1..N) with a 4-worker pool
-     (SEGMENT_CONCURRENCY=4). Promise stored in inFlight; deleted via .finally().
+  4. await slot0P only — response is gated on slot 0 audio, NOT on the drain.
+     The drain serves slots 1..N, not slot 0; blocking the response on it
+     would serialize ~10-20s of cold-cache fan-out into tune-in for no reason.
+  5. Fire-and-forget drainP.then(() => generateSlotsBackground(1..N)) with a
+     4-worker pool (SEGMENT_CONCURRENCY=4). The drainP.then chain preserves
+     the contract that EnrichmentCache is populated before slots 1..N run.
+     Promise stored in inFlight; deleted via .finally().
   6. Return { manifest [slot 0 ready, 1..N pending], firstSegmentUrls }.
 
 waitForCompletion(id) awaits the inFlight promise (bakeFeatured, featured publish
