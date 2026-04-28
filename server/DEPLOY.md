@@ -185,7 +185,7 @@ ssh cleo@187.124.69.95 'pm2 stop cleo-api && pm2 delete cleo-api && pm2 save'
 Telemetry events emitted by `BakeTelemetry` (see
 `server/src/services/telemetry/BakeTelemetry.ts`):
 
-- `tts.provider-fallback` (event, level=warning, tags `from`/`to`, extra `reason`) — emitted when TTS chain falls through, e.g., CosyVoice → F5 → Cartesia.
+- `tts.provider-fallback` (event, level=warning, tags `from`/`to`, extra `reason`) — emitted when TTS chain falls through, e.g., VoxCPM → Cartesia → ElevenLabs.
 - `enrichment.api-timing` (event, level=info, tags `api`, extra `durationMs`) — per-API timing for Genius, MusicBrainz, Wikipedia, Last.fm calls inside `BackgroundEnricher.drainNow`.
 - `sequencer.result` (event, level=info, tags `vibe`, extra `meanDistance` + `featureSourceCounts` + `n` + `poolSize`) — emitted once per bake from `DeterministicTrackSequencer.logResult`.
 - Bake span (`broadcast.bake` op, attributes `bake.broadcast_id`, `bake.vibe`, `bake.length`, `bake.time_to_slot_zero_ms`, `bake.time_to_completion_ms`, `bake.status`) — emitted from `BroadcastOrchestrator.create` for every bake; closed on success, failure, or early-exit.
@@ -209,7 +209,7 @@ The script is idempotent — re-running updates existing alerts by name rather t
 - Trigger: ≥5 `tts.provider-fallback` events with `tags.to=cartesia` in a rolling 1-hour window.
 - Severity: warning.
 - Action: email the user.
-- Reasoning: Cartesia is the paid fallback. Frequent hits = LAN box (CosyVoice on 192.168.8.229) health degraded; investigate before subscriber experience degrades.
+- Reasoning: Cartesia is the paid fallback. Frequent hits = LAN box (VoxCPM on 192.168.8.229) health degraded; investigate before subscriber experience degrades.
 - Tuning: 5 events/hour is a heuristic; raise once steady-state bake volume is known and 5% of bakes can be expressed in absolute counts.
 
 **Alert 2 — Phase 1 GATE: Sequencer meanDistance ≥ 0.5**
