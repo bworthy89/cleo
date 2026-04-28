@@ -38,8 +38,8 @@ Production: Express broadcast server at `api.worthymedia.tech`. Deploy runbook:
 - **TTS chain:** `TTS_PRIMARY=voxcpm` → `TTS_FALLBACK=cartesia` → ElevenLabs → Orpheus.
   `TTS_FALLBACK` lets the self-hosted primary skip ahead to a chosen paid API instead
   of relying on the default ordering.
-- **VoxCPM2** (primary) runs on the Linux box (<TTS_HOST>) on port 8002, exposed via
-  Pangolin at `voxcpm.worthymedia.online`. F5-TTS and CosyVoice were retired
+- **VoxCPM2** (primary) runs on the Linux box (<TTS_HOST>) on port 8003, exposed via
+  Pangolin at `<TTS_TUNNEL>`. F5-TTS and CosyVoice were retired
   2026-04-27 after VoxCPM landed cleaner audio + a workable latency profile (see
   tuning log Change #10).
 - **Filesystem TTS cache** at `~/.cache/cleo-tts` (override via `TTS_CACHE_DIR`) dedupes
@@ -419,7 +419,7 @@ TTS_FALLBACK=cartesia
 
 SEQUENCER_MODE=deterministic              # or 'llm' for rollback
 
-VOXCPM_BASE_URL=https://voxcpm.worthymedia.online
+VOXCPM_BASE_URL=https://<TTS_TUNNEL>
 VOXCPM_VOICE_REF=onay-cartesia-clean      # ZipEnhancer pre-cleaned reference
 VOXCPM_STYLE_PREFIX=                       # empty under nano-vllm (no paren-style parser); stock VoxCPM2 used "(slow, measured pace, late-night radio)"
 VOXCPM_INFERENCE_TIMESTEPS=10             # 4-30; lower = faster, less prosody
@@ -666,7 +666,7 @@ Separate from the Hostinger VPS. Hosts VoxCPM2.
 
 - **SSH:** `ssh kari@<TTS_HOST>` — NVIDIA 5060 Ti 16 GB (Blackwell, sm_120).
   GPU swapped from AMD 6700XT 2026-04-27.
-- **VoxCPM2 wrapper:** `~/voxcpm-server/`, systemd unit `voxcpm`, port 8002.
+- **VoxCPM2 wrapper:** `~/voxcpm-server/`, systemd unit `voxcpm`, port 8003 (exposed publicly as `voxnano`; internal install dir + unit name kept as `voxcpm`).
   Boots with `VOXCPM_LOAD_DENOISER=1` (ZipEnhancer for reference cleanup) and
   `VOXCPM_OPTIMIZE=0` (torch.compile asserts on Blackwell + torch 2.11+cu128;
   re-enable when supported). Restart-on-failure, auto-start on boot, journal
@@ -676,7 +676,7 @@ Separate from the Hostinger VPS. Hosts VoxCPM2.
   - `onay-cartesia-clean.wav` (16 kHz, 9.56s) — **canonical** pre-denoised ref.
     Generated once at install via VoxCPM's ZipEnhancer; eliminates per-call denoise
     cost (~3s saved per request).
-- **Pangolin tunnel:** `voxcpm.worthymedia.online` → port 8002.
+- **Pangolin tunnel:** `<TTS_TUNNEL>` → port 8003.
 - **PyTorch:** torch 2.11.0+cu128 — Blackwell sm_120 requires CUDA 12.8 wheels
   (`pip install torch --index-url https://download.pytorch.org/whl/cu128`).
 - **Retired services:** `~/f5tts-server/` and `~/cosyvoice-server/` directories
