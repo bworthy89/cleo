@@ -442,7 +442,7 @@ languages, voice design + isolated cloning + ultimate cloning modes).
 ### Install
 
 - **Path:** `~/voxcpm-server/`, Python 3.12 venv, FastAPI wrapper on
-  `127.0.0.1:8002`. Wrapper schema mirrors F5 wrapper: `/tts`, `/tts.wav`,
+  `127.0.0.1:8003`. Wrapper schema mirrors F5 wrapper: `/tts`, `/tts.wav`,
   `/health`, `/voices`, `/clone`. Single `asyncio.Lock`-serialized inference
   (model holds prompt-cache state on `tts_model`).
 - **PyTorch:** `torch 2.11.0+cu128` from `https://download.pytorch.org/whl/cu128`
@@ -455,7 +455,7 @@ languages, voice design + isolated cloning + ultimate cloning modes).
 - **systemd:** `/etc/systemd/system/voxcpm.service`, restart-on-failure,
   journal logging, auto-start on boot. Boot env sets `VOXCPM_OPTIMIZE=0` and
   `VOXCPM_LOAD_DENOISER=1`.
-- **Pangolin tunnel:** new rule `voxcpm.worthymedia.online` → port 8002.
+- **Pangolin tunnel:** new rule `voxnano.worthymedia.online` → port 8003.
   F5 tunnel `f5tts.worthymedia.online` decommissioned (was previously also
   hosting the `/cosy/*` proxy).
 
