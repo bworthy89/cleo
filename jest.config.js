@@ -3,12 +3,8 @@ module.exports = {
   testEnvironment: 'node',
   roots: ['<rootDir>/__tests__'],
   moduleFileExtensions: ['ts', 'tsx', 'js', 'json'],
-  globals: {
-    'ts-jest': {
-      tsconfig: {
-        jsx: 'react',
-      },
-    },
+  transform: {
+    '^.+\\.tsx?$': ['ts-jest', { tsconfig: { jsx: 'react' } }],
   },
   moduleNameMapper: {
     '^react-native-mmkv$': '<rootDir>/__mocks__/react-native-mmkv',

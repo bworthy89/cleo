@@ -65,6 +65,13 @@ target 'ONAY' do
   )
 
   post_install do |installer|
+    # The RNFB module-import workaround below is specific to use_frameworks!
+    # :static. If linkage mode ever changes back to dynamic frameworks or
+    # plain static libraries, RNFB compiles fine without it — and forcing
+    # CLANG_ENABLE_MODULES=NO in those modes would unnecessarily disable
+    # modules for those targets.
+    using_static_frameworks = podfile_properties['ios.useFrameworks'] == 'static'
+
     # Allow non-modular includes for RNFB pods with use_frameworks! :static
     installer.pods_project.targets.each do |target|
       target.build_configurations.each do |config|
@@ -82,7 +89,7 @@ target 'ONAY' do
       # cascade. Forcing CLANG_ENABLE_MODULES=NO keeps these imports textual
       # so macros propagate normally. Only RNFB pods need this; other targets
       # benefit from modules and aren't affected.
-      if target.name.start_with?('RNFB')
+      if using_static_frameworks && target.name.start_with?('RNFB')
         target.build_configurations.each do |config|
           config.build_settings['CLANG_ENABLE_MODULES'] = 'NO'
         end
