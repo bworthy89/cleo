@@ -241,17 +241,21 @@ export class BroadcastOrchestrator {
 
       const slot0P = this.generateSlot(manifest, 0, ctxWithHint);
 
-      // 4. HTTP response is gated on slot 0 audio being baked AND enrichment
-      //    being drained. We wait for drainNow so background slots 1..N have
-      //    a populated cache (richer producer/sample hints); on warm cache
-      //    drainNow returns near-instantly, so tune-in is F5 slot 0 time.
-      await Promise.all([drainP, slot0P]);
+      // 4. HTTP response is gated on slot 0 audio only. Cold open works on
+      //    empty enrichment (per the comment at step 3), so blocking the
+      //    response on drainNow is wasted tune-in latency — that ~10-20s
+      //    Genius/MB/Wiki/LastFm fan-out is needed by slots 1..N, not by
+      //    slot 0. Background fan-out below awaits drainP at its own start
+      //    instead, which preserves the slots-1..N enrichment contract.
+      await slot0P;
       handle.endSlotZero(Date.now() - startedAt);
 
-      // 5. Fan out slots 1..N as a background task. Client polls
-      //    /broadcast/:id/manifest to pick up audioUrls as slots complete.
+      // 5. Fan out slots 1..N as a background task, gated on enrichment
+      //    being drained first. Client polls /broadcast/:id/manifest to
+      //    pick up audioUrls as slots complete.
       if (manifest.segmentSlots.length > 1) {
-        const backgroundP = this.generateSlotsBackground(manifest, ctxWithHint, tag)
+        const backgroundP = drainP
+          .then(() => this.generateSlotsBackground(manifest, ctxWithHint, tag))
           .then(() => {
             const status = this.aborted.has(manifest.broadcastId) ? 'aborted' : 'completed';
             handle.endBake({ durationMs: Date.now() - startedAt, status });
