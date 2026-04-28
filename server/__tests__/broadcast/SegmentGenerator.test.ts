@@ -293,4 +293,31 @@ describe('preprocessForTTS — feat./ft. normalization', () => {
     expect(preprocessForTTS('\u2033double-prime\u2033'))
       .toBe('"double-prime"');
   });
+
+
+  it('converts unambiguous 24-hour times to spoken 12-hour form', () => {
+    // 13:00-23:59 -> H:MM PM (subtract 12)
+    expect(preprocessForTTS("it's 21:30 here on a Monday"))
+      .toBe("it's 9:30 PM here on a Monday");
+    expect(preprocessForTTS('coming up at 13:00'))
+      .toBe('coming up at 1:00 PM');
+    expect(preprocessForTTS('the 23:59 cutoff'))
+      .toBe('the 11:59 PM cutoff');
+    // 00:MM -> 12:MM AM
+    expect(preprocessForTTS('clock struck 00:15'))
+      .toBe('clock struck 12:15 AM');
+    expect(preprocessForTTS('right at 00:00'))
+      .toBe('right at 12:00 AM');
+  });
+
+  it('leaves ambiguous 12-hour-readable times alone', () => {
+    // 1:00-12:59 stay as-is so we don't mangle non-time number sequences
+    // and don't double-convert "9:30 PM" the LLM already produced.
+    expect(preprocessForTTS('the 9:30 hour')).toBe('the 9:30 hour');
+    expect(preprocessForTTS('11:30 already')).toBe('11:30 already');
+    expect(preprocessForTTS('12:00 noon')).toBe('12:00 noon');
+    // Already-12h with AM/PM passes through unchanged.
+    expect(preprocessForTTS("it's 9:30 PM"))
+      .toBe("it's 9:30 PM");
+  });
 });
