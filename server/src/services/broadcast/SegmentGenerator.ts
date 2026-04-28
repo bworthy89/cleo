@@ -23,9 +23,10 @@ const DEFAULT_TTS_PARAMS = {
  *
  * Artist-name pronunciations (Big K.R.I.T. → "Big Krit", Aminé → "Ahmeenay",
  * …) are applied locally from a shared dictionary (ported from Cartesia's
- * server-side dict) so F5-TTS — which has no dict API — matches the behavior
- * of the paid providers. Runs before initialism collapse so multi-period
- * entries like "Big K.R.I.T." match before the generic regex strips the dots.
+ * server-side dict) so the self-hosted primary (VoxCPM, no dict API) matches
+ * the behavior of the paid providers. Runs before initialism collapse so
+ * multi-period entries like "Big K.R.I.T." match before the generic regex
+ * strips the dots.
  */
 export function preprocessForTTS(text: string): string {
   let out = text;
@@ -37,14 +38,14 @@ export function preprocessForTTS(text: string): string {
   // came out as "cont" in testing. Straight ASCII routes through the
   // contraction phoneme path cleanly.
   out = out.replace(/[\u2018\u2019\u02BC\u2032]/g, "'");
-  // Curly double quotes → straight ASCII. F5-TTS's character-level tokenizer
-  // mishandles U+201C/U+201D consistently; straight quotes get dropped
-  // gracefully.
+  // Curly double quotes → straight ASCII. Character-level tokenizers
+  // (VoxCPM today, F5-TTS historically) mishandle U+201C/U+201D
+  // consistently; straight quotes are universally safe.
   out = out.replace(/[\u201C\u201D\u2033]/g, '"');
   // Strip markdown-style emphasis wrappers. Gemini occasionally surfaces
-  // *word* or **word** as prosody hints, but F5-TTS reads them literally —
-  // either pronouncing the asterisks or distorting the alignment model,
-  // which manifests as exaggerated / theatrical delivery.
+  // *word* or **word** as prosody hints, but most TTS engines read them
+  // literally — either pronouncing the asterisks or distorting the
+  // alignment model, which manifests as exaggerated / theatrical delivery.
   out = out.replace(/\*+([^*\n]+?)\*+/g, '$1');
   // Stray single asterisks (mismatched) — drop them entirely.
   out = out.replace(/\*/g, '');
@@ -66,9 +67,10 @@ export function preprocessForTTS(text: string): string {
   out = out.replace(/\(\s*(?:feat|ft)\.?\s+([^)]+?)\s*\)/gi, 'featuring $1');
   // Bare "feat." / "ft." outside parens — turn into "featuring"
   out = out.replace(/\b(?:feat|ft)\./gi, 'featuring');
-  // Host name phonetic. F5-TTS reads hyphens in phonetic substitutions as
-  // sharp syllable breaks that distort prosody (verified via A/B probes
-  // 2026-04-20), so we concatenate rather than hyphenate. Cartesia/ElevenLabs
+  // Host name phonetic. Character-level tokenizers read hyphens in phonetic
+  // substitutions as sharp syllable breaks that distort prosody (verified
+  // 2026-04-20 via F5-TTS A/B probes; concatenation kept as the default form
+  // for VoxCPM since hyphen-free is universally safe). Cartesia/ElevenLabs
   // get the concatenated form too; their own pronunciation dicts were
   // bypassed anyway because we pre-substitute.
   out = out.replace(/\bONAY\b/gi, 'Ohnay');
