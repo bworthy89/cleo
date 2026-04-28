@@ -46,15 +46,15 @@ describe('BakeTelemetry', () => {
 
   it('recordProviderFallback emits a structured event', () => {
     telemetry.recordProviderFallback({
-      from: 'cosyvoice',
-      to: 'f5tts',
+      from: 'voxcpm',
+      to: 'cartesia',
       reason: 'synthesize-threw',
     });
     expect(Sentry.captureMessage).toHaveBeenCalledWith(
       'tts.provider-fallback',
       expect.objectContaining({
         level: 'warning',
-        tags: expect.objectContaining({ from: 'cosyvoice', to: 'f5tts' }),
+        tags: expect.objectContaining({ from: 'voxcpm', to: 'cartesia' }),
       }),
     );
   });
@@ -112,8 +112,8 @@ describe('BakeTelemetry', () => {
 
   it('recordProviderFallback puts reason in extra (not tags)', () => {
     telemetry.recordProviderFallback({
-      from: 'cosyvoice',
-      to: 'f5tts',
+      from: 'voxcpm',
+      to: 'cartesia',
       reason: 'synthesize-threw',
     });
     expect(Sentry.captureMessage).toHaveBeenCalledWith(

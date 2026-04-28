@@ -2,10 +2,9 @@ import { TTSProvider, TTSRequest, TTSResponse } from './types';
 import { CachingTTSProvider } from './cache';
 import { CartesiaProvider } from './cartesia';
 import { ChatterboxProvider } from './chatterbox';
-import { CosyVoiceProvider } from './cosyvoice';
 import { ElevenLabsProvider } from './elevenlabs';
-import { F5TTSProvider } from './f5tts';
 import { OrpheusProvider } from './orpheus';
+import { VoxCpmProvider } from './voxcpm';
 import { bakeTelemetry } from '../../services/telemetry/BakeTelemetry';
 
 export type { TTSRequest, TTSResponse } from './types';
@@ -20,42 +19,38 @@ interface ProviderStatus {
 const PROVIDER_CONSTRUCTORS: Record<string, () => TTSProvider> = {
   cartesia: () => new CartesiaProvider(),
   chatterbox: () => new ChatterboxProvider(),
-  cosyvoice: () => new CosyVoiceProvider(),
   elevenlabs: () => new ElevenLabsProvider(),
-  f5tts: () => new F5TTSProvider(),
   orpheus: () => new OrpheusProvider(),
+  voxcpm: () => new VoxCpmProvider(),
 };
 
 /**
  * Ordered slot names — primary, fallback, tertiary.
  * Respects TTS_PRIMARY env var: that provider moves to primary slot. When
- * TTS_FALLBACK is also set, it takes slot 2 explicitly (needed so a
- * self-hosted primary like cosyvoice can fall back to another self-hosted
- * provider like f5tts before hitting a paid API). Otherwise falls back to
- * a sensible default order led by ElevenLabs for prose quality.
+ * TTS_FALLBACK is also set, it takes slot 2 explicitly (lets the self-hosted
+ * voxcpm primary cleanly fall through to a paid API of the operator's choice
+ * before hitting whatever's left). Otherwise falls back to a sensible default
+ * order led by Cartesia for reliability.
  */
 function resolveOrder(): [string, string, string] {
-  const primary = (process.env.TTS_PRIMARY ?? 'cartesia').toLowerCase();
+  const primary = (process.env.TTS_PRIMARY ?? 'voxcpm').toLowerCase();
   const fallback = (process.env.TTS_FALLBACK ?? '').toLowerCase();
-  const defaults = ['cartesia', 'elevenlabs', 'orpheus'];
+  const defaults = ['voxcpm', 'cartesia', 'elevenlabs', 'orpheus'];
   const known = Object.keys(PROVIDER_CONSTRUCTORS);
-  const chosen = known.includes(primary) ? primary : 'cartesia';
+  const chosen = known.includes(primary) ? primary : 'voxcpm';
 
-  // Explicit fallback override — lets self-hosted chains (cosyvoice→f5tts)
-  // skip the default API-first fallback. Tertiary fills from defaults.
+  // Explicit fallback override — lets a self-hosted primary skip the default
+  // API-first fallback ordering. Tertiary fills from defaults.
   if (fallback && known.includes(fallback) && fallback !== chosen) {
     const tertiary = defaults.find(n => n !== chosen && n !== fallback) ?? '';
     return [chosen, fallback, tertiary];
   }
 
-  const rest = defaults.filter(n => n !== chosen);
-  // If primary is non-default (e.g. cosyvoice, f5tts, chatterbox), keep all
-  // three defaults as remaining slots, prioritizing elevenlabs/orpheus then
-  // cartesia.
-  if (!defaults.includes(chosen)) {
-    rest.push('cartesia');
-  }
-  return [chosen, rest[0] ?? '', rest[1] ?? ''];
+  return [
+    chosen,
+    defaults.find(n => n !== chosen) ?? '',
+    defaults.filter(n => n !== chosen)[1] ?? '',
+  ];
 }
 
 export class TTSProviderFactory {

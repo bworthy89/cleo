@@ -54,13 +54,14 @@ export default function FirstListenScreen() {
 
   const runBake = async (name: string, attempt: number) => {
     try {
-      // Bake timeout adapts to TTS health. Even CosyVoice (the primary)
-      // can pay MIOpen tuner cost (~25-30s GPU compute per shape) on
-      // first-time-shape requests after a service restart — so the
-      // operational ceiling has to accommodate cold-tune pessimism, not
-      // just the warm-cache case. F5-TTS (the fallback, used when the
-      // HealthStatusBanner shows "degraded") is meaningfully slower
-      // still, so the degraded ceiling sits higher.
+      // Bake timeout adapts to TTS health. VoxCPM2 (the primary) is
+      // GPU-bound and pays a one-time torch.compile / kernel-autotune
+      // cost on first inference after a service restart, so the
+      // operational ceiling has to accommodate cold-start pessimism,
+      // not just the warm-cache case. Cartesia (the fallback, used
+      // when HealthStatusBanner shows "degraded") is a hosted API
+      // with its own first-call latency tail, so the degraded ceiling
+      // sits higher.
       const isDegraded = health?.status === 'degraded' || health?.status === 'major';
       const bakeTimeoutMs = isDegraded ? 120_000 : 60_000;
 
