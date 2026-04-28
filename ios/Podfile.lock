@@ -1420,6 +1420,8 @@ PODS:
     - ExpoModulesCore
   - ExpoLinking (55.0.7):
     - ExpoModulesCore
+  - ExpoLiquidGlass (0.1.0):
+    - ExpoModulesCore
   - ExpoLogBox (55.0.7):
     - React-Core
   - ExpoModulesCore (55.0.15):
@@ -1459,6 +1461,8 @@ PODS:
   - ExpoSplashScreen (55.0.10):
     - ExpoModulesCore
   - ExpoSymbols (55.0.5):
+    - ExpoModulesCore
+  - ExpoWebBrowser (55.0.14):
     - ExpoModulesCore
   - EXUpdatesInterface (55.1.3):
     - ExpoModulesCore
@@ -3942,6 +3946,7 @@ DEPENDENCIES:
   - ExpoKeepAwake (from `../node_modules/expo/node_modules/expo-keep-awake/ios`)
   - ExpoLinearGradient (from `../node_modules/expo-linear-gradient/ios`)
   - ExpoLinking (from `../node_modules/expo-linking/ios`)
+  - ExpoLiquidGlass (from `../modules/expo-liquid-glass/ios`)
   - "ExpoLogBox (from `../node_modules/@expo/log-box`)"
   - ExpoModulesCore (from `../node_modules/expo-modules-core`)
   - ExpoModulesJSI (from `../node_modules/expo-modules-core`)
@@ -3949,6 +3954,7 @@ DEPENDENCIES:
   - ExpoRouter (from `../node_modules/expo-router/ios`)
   - ExpoSplashScreen (from `../node_modules/expo-splash-screen/ios`)
   - ExpoSymbols (from `../node_modules/expo-symbols/ios`)
+  - ExpoWebBrowser (from `../node_modules/expo-web-browser/ios`)
   - EXUpdatesInterface (from `../node_modules/expo-updates-interface/ios`)
   - FBLazyVector (from `../node_modules/react-native/Libraries/FBLazyVector`)
   - hermes-engine (from `../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec`)
@@ -4121,6 +4127,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-linear-gradient/ios"
   ExpoLinking:
     :path: "../node_modules/expo-linking/ios"
+  ExpoLiquidGlass:
+    :path: "../modules/expo-liquid-glass/ios"
   ExpoLogBox:
     :path: "../node_modules/@expo/log-box"
   ExpoModulesCore:
@@ -4135,6 +4143,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-splash-screen/ios"
   ExpoSymbols:
     :path: "../node_modules/expo-symbols/ios"
+  ExpoWebBrowser:
+    :path: "../node_modules/expo-web-browser/ios"
   EXUpdatesInterface:
     :path: "../node_modules/expo-updates-interface/ios"
   FBLazyVector:
@@ -4339,6 +4349,7 @@ SPEC CHECKSUMS:
   ExpoKeepAwake: 55711a70fe88a41e793bbe28543c93cb47ff265d
   ExpoLinearGradient: b4e88ded096fc8dd7e8d55e63140562de1db60b3
   ExpoLinking: 31827b9e0d27d058026a87a0e852f238c5834804
+  ExpoLiquidGlass: 87b2a2e43b220c19860a35be13f3092d04179547
   ExpoLogBox: 35febda08748ff213ea133f51acf976ba8c44b2c
   ExpoModulesCore: badef554e48b689f02120f5dd6944acfa01ca821
   ExpoModulesJSI: e359e45dc1b3a603577446af1e27c1b22edecfa3
@@ -4346,6 +4357,7 @@ SPEC CHECKSUMS:
   ExpoRouter: 2e2efe243f0cf6ac3ddde38abc4bff692009b89a
   ExpoSplashScreen: 91624a9550497925d9606fc9da86061369833716
   ExpoSymbols: 0e00156bc2d2118be6838ae4755ceaa2bf00afe2
+  ExpoWebBrowser: 0f4255b795de0eca7e0337de591c3d1c20efbdf0
   EXUpdatesInterface: 26412751a0f7a7130614655929e316f684552aab
   FBLazyVector: 32e9ed0301d0fcbc1b2b341dd7fcbf291f51eb83
   Firebase: 99f203d3a114c6ba591f3b32263a9626e450af65
@@ -4449,9 +4461,9 @@ SPEC CHECKSUMS:
   ReactCommon: 696163beb1630cf1f7590dbc8bfc542e40bdbe76
   ReactNativeDependencies: a15527bd91e55cc874b48f06e715ab336bb217e5
   RecaptchaInterop: 11e0b637842dfb48308d242afc3f448062325aba
-  RNFBApp: f15df30b9449e3386826c7767561bc10ab9f7ff4
-  RNFBAuth: 9ebbc54d251ddb79031d743c841d27426d1fb50b
-  RNFBFirestore: e016f70a3e48eb353b488334e9c41d20e292adb5
+  RNFBApp: 0c7eb98f46c573ee0ee14e6c9b6840a6edefce42
+  RNFBAuth: 9b86b1f1acf6c3164179a8f8a627143b22ae02a5
+  RNFBFirestore: 0c1b93984073e3eacd91c16a218278b348ef6e00
   RNGoogleSignin: c51c12e511eefc780f7aa498f969a2989798e16f
   RNScreens: f3304227860d3ea23349c525b1c5dd0a115f0dcc
   RNSentry: 8fe7dc9b239255d7c90183f8005d066f9b45dd70
@@ -4463,6 +4475,6 @@ SPEC CHECKSUMS:
   Sentry: d587a8fe91ca13503ecd69a1905f3e8a0fcf61be
   Yoga: ee2c4c95104c844da138a67d1155f2cc02b00051
 
-PODFILE CHECKSUM: 40248e0102bd6fa78f21b3b05ca8d6b70c2159ae
+PODFILE CHECKSUM: b938045fc49e7f5a6a45891dca429931ceddffba
 
 COCOAPODS: 1.16.2
