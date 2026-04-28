@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, Animated } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
-import { Colors, Surface, Typography, Spacing } from '../tokens/design-tokens';
+import { AM, Fonts, Space } from '../tokens/design-tokens';
+import { LiquidGlassView, isLiquidGlassAvailable } from '../../modules/expo-liquid-glass';
 
 export function useNetworkStatus() {
   const [isOffline, setIsOffline] = useState(false);
@@ -31,7 +32,9 @@ export function OfflineBanner({ isOffline }: { isOffline: boolean }) {
 
   return (
     <Animated.View style={[styles.banner, { transform: [{ translateY }] }]}>
-      <Text style={styles.text}>NO CONNECTION — MUSIC CONTINUES, ONAY IS QUIET</Text>
+      <LiquidGlassView style={styles.glassFill}>
+        <Text style={styles.text}>NO CONNECTION — MUSIC CONTINUES, ONAY IS QUIET</Text>
+      </LiquidGlassView>
     </Animated.View>
   );
 }
@@ -42,18 +45,20 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    backgroundColor: Surface.high,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    alignItems: 'center',
+    backgroundColor: isLiquidGlassAvailable ? 'transparent' : AM.bg,
     zIndex: 100,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.accent,
+    borderBottomColor: AM.amber,
+  },
+  glassFill: {
+    paddingVertical: Space.s10,
+    paddingHorizontal: Space.s14,
+    alignItems: 'center',
   },
   text: {
-    fontFamily: Typography.mono.family,
+    fontFamily: Fonts.mono,
     fontSize: 9,
     letterSpacing: 2,
-    color: Colors.accent,
+    color: AM.amber,
   },
 });
