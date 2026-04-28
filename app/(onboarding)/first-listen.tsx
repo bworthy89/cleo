@@ -3,6 +3,7 @@ import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-nativ
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { AM, Fonts, Space, TypeScale } from '../../src/tokens/design-tokens';
+import { formatLocalTime12h } from '../../src/utils/time';
 import { BroadcastBackdrop } from '../../src/components/BroadcastBackdrop';
 import { StampButton, LinerNotes, SpinningRecord } from '../../src/components/crate';
 import { HealthStatusBanner } from '../../src/components/HealthStatusBanner';
@@ -116,7 +117,7 @@ export default function FirstListenScreen() {
             vibe: defaultVibeForFirstListen(),
             length: 'quick',
             userContext: {
-              timeOfDay: localTimeHHMM(),
+              timeOfDay: formatLocalTime12h(),
               dayOfWeek: localDayOfWeek(),
               firstTimeUser: true,
               listenerName: name,
@@ -225,11 +226,6 @@ function defaultVibeForFirstListen(): Manifest['vibe'] {
   if (hour >= 5 && hour < 11) return 'morning';
   if (hour >= 22 || hour < 5) return 'lateNight';
   return 'feelGood';
-}
-
-function localTimeHHMM(): string {
-  const d = new Date();
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
 function localDayOfWeek(): string {

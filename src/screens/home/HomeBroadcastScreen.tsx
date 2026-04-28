@@ -44,6 +44,7 @@ import {
   getWeatherCoordsForBake,
   type BroadcastHistoryEntry,
 } from '../../services/Storage';
+import { formatLocalTime12h } from '../../utils/time';
 import { useAppActive } from '../../hooks/useAppActive';
 import { HealthStatusBanner } from '../../components/HealthStatusBanner';
 
@@ -312,7 +313,7 @@ export default function HomeBroadcastScreen() {
             vibe: result.vibe,
             length: result.length,
             userContext: {
-              timeOfDay: new Date().toTimeString().slice(0, 5),
+              timeOfDay: formatLocalTime12h(new Date()),
               dayOfWeek: new Date().toLocaleDateString(undefined, { weekday: 'long' }),
               firstTimeUser: false,
               weatherCoords,
