@@ -57,6 +57,18 @@ export function preprocessForTTS(text: string): string {
   // ellipsis (U+2026) to three dots so TTS doesn't trail off unpredictably.
   out = out.replace(/\s*[\u2014\u2013]\s*/g, ', ');
   out = out.replace(/\u2026/g, '...');
+  // Convert unambiguous 24-hour times to spoken 12-hour form. The current
+  // client flows (first-listen + home, via formatLocalTime12h) already send
+  // userContext.timeOfDay as "9:30 PM" \u2014 but this conversion is kept as
+  // defense-in-depth for two cases: (a) LLM-emitted 24-hour strings inside
+  // the script body (e.g. the model writing "released at 23:00 on a Tuesday"
+  // independent of the prompt context), and (b) any legacy TestFlight build
+  // still on the old HH:MM client helpers. Convert 13:00\u201323:59 \u2192 "H:MM PM"
+  // and 00:MM \u2192 "12:MM AM". Already-ambiguous 12h forms (1:00\u201312:59) stay
+  // as-is so we don't mangle non-time number sequences in song titles,
+  // durations, etc.
+  out = out.replace(/\b(1[3-9]|2[0-3]):([0-5]\d)\b/g, (_, h, m) => `${parseInt(h, 10) - 12}:${m} PM`);
+  out = out.replace(/\b00:([0-5]\d)\b/g, (_, m) => `12:${m} AM`);
   // Collapse single-letter initialisms like K.R.I.T. / U.S.A. / B.I.G. so
   // TTS reads them as one word rather than spelling each letter with a
   // period-pause between. Chatterbox was truncating "K.R.I.T." to "K"

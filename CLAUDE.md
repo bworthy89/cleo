@@ -421,7 +421,7 @@ SEQUENCER_MODE=deterministic              # or 'llm' for rollback
 
 VOXCPM_BASE_URL=https://voxcpm.worthymedia.online
 VOXCPM_VOICE_REF=onay-cartesia-clean      # ZipEnhancer pre-cleaned reference
-VOXCPM_STYLE_PREFIX=(slow, measured pace, late-night radio)
+VOXCPM_STYLE_PREFIX=                       # empty under nano-vllm (no paren-style parser); stock VoxCPM2 used "(slow, measured pace, late-night radio)"
 VOXCPM_INFERENCE_TIMESTEPS=10             # 4-30; lower = faster, less prosody
 VOXCPM_CFG_VALUE=2.0                      # 1.0-3.0 guidance scale
 VOXCPM_DENOISE=0                          # set 1 only if ref isn't pre-cleaned
