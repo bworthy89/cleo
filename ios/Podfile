@@ -70,7 +70,10 @@ target 'ONAY' do
     # plain static libraries, RNFB compiles fine without it — and forcing
     # CLANG_ENABLE_MODULES=NO in those modes would unnecessarily disable
     # modules for those targets.
-    using_static_frameworks = podfile_properties['ios.useFrameworks'] == 'static'
+    # Mirror the same precedence the use_frameworks! calls above use:
+    # ENV['USE_FRAMEWORKS'] (line 57) overrides podfile_properties (line 56).
+    using_static_frameworks =
+      (ENV['USE_FRAMEWORKS'] || podfile_properties['ios.useFrameworks']) == 'static'
 
     # Allow non-modular includes for RNFB pods with use_frameworks! :static
     installer.pods_project.targets.each do |target|
