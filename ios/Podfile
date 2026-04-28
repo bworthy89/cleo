@@ -1,5 +1,15 @@
 # Set by expo-router. This enables Fabric-only features from react-native-screens
 ENV['RNS_GAMMA_ENABLED'] ||= '1'
+
+# Force @react-native-firebase pods to compile as static frameworks under
+# `use_frameworks! :static`. Without this flag, RNFBApp's framework module
+# transitively declares `RCTBridgeModule`, then Firestore re-imports
+# `<React/RCTBridgeModule.h>` and Clang rejects the duplicate modular
+# declaration with "declaration of 'RCTBridgeModule' must be imported from
+# module 'RNFBApp.RNFBAppModule' before it is required". Required for RN 0.83
+# + new arch + Firebase. Must be set before any RNFB pod is integrated.
+$RNFirebaseAsStaticFramework = true
+
 require File.join(File.dirname(`node --print "require.resolve('expo/package.json')"`), "scripts/autolinking")
 require File.join(File.dirname(`node --print "require.resolve('react-native/package.json')"`), "scripts/react_native_pods")
 
@@ -59,6 +69,23 @@ target 'ONAY' do
     installer.pods_project.targets.each do |target|
       target.build_configurations.each do |config|
         config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
+      end
+
+      # Disable Clang modules for RNFB pods. With the prebuilt React.xcframework,
+      # `<React/RCTBridgeModule.h>` resolves to a symlink under
+      # Pods/Headers/Public/React-Core via HEADER_SEARCH_PATHS, but once Clang
+      # loads the React module from any earlier `<React/...>` import in the
+      # same compilation unit, subsequent `<React/...>` imports get treated as
+      # module references — and modules don't carry preprocessor macros across
+      # boundaries. The result is `RCT_EXPORT_METHOD` and friends silently
+      # vanishing when RNFB .m files compile, producing the "expected a type"
+      # cascade. Forcing CLANG_ENABLE_MODULES=NO keeps these imports textual
+      # so macros propagate normally. Only RNFB pods need this; other targets
+      # benefit from modules and aren't affected.
+      if target.name.start_with?('RNFB')
+        target.build_configurations.each do |config|
+          config.build_settings['CLANG_ENABLE_MODULES'] = 'NO'
+        end
       end
     end
 
