@@ -22,21 +22,6 @@ class LiquidGlassView: ExpoView {
     effectView.frame = bounds
   }
 
-  /// Redirect React-Native children into `effectView.contentView` so they
-  /// render ABOVE the glass material and remain hit-testable. Without this
-  /// override, children added by RN as direct subviews of the host end up
-  /// composited behind the effect — consumers see the glass with no tabs
-  /// visible AND the tab buttons swallow no taps. Apple's UIVisualEffectView
-  /// docs are explicit about this: "to add subviews to a visual effect view,
-  /// add them to the content view, not directly to the visual effect view."
-  override func addSubview(_ view: UIView) {
-    if view === effectView {
-      super.addSubview(view)
-    } else {
-      effectView.contentView.addSubview(view)
-    }
-  }
-
   func setIntensity(_ value: String) {
     intensity = value
     applyEffect()

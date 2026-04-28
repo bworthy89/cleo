@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { StyleProp, ViewStyle } from 'react-native';
+import { View, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import ExpoLiquidGlass, { NativeLiquidGlassView } from './src/ExpoLiquidGlassModule';
 
 /**
@@ -23,14 +23,21 @@ export interface LiquidGlassViewProps {
  * renders a transparent passthrough on iOS 16-18. Wrapped content should
  * use `backgroundColor: 'transparent'` (or gate on `isLiquidGlassAvailable`)
  * so the glass material has something to refract.
+ *
+ * The layout follows expo-blur's pattern: an outer RN `View` carries the
+ * style and hosts the children, with the native effect view positioned as
+ * an absolute-fill sibling layered BEHIND them. Putting the native effect
+ * view inside a regular `<View>` keeps RN's layout, padding, and hit-testing
+ * working normally — children stay direct subviews of a plain RN host.
  */
 export function LiquidGlassView(props: LiquidGlassViewProps) {
   return (
-    <NativeLiquidGlassView
-      intensity={props.intensity ?? 'regular'}
-      style={props.style}
-    >
+    <View style={props.style}>
+      <NativeLiquidGlassView
+        intensity={props.intensity ?? 'regular'}
+        style={StyleSheet.absoluteFill}
+      />
       {props.children}
-    </NativeLiquidGlassView>
+    </View>
   );
 }
