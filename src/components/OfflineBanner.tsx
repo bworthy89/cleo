@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, Animated } from 'react-native';
+import { StyleSheet, Text, Animated } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
 import { AM, Fonts, Space } from '../tokens/design-tokens';
 import { LiquidGlassView, isLiquidGlassAvailable } from '../../modules/expo-liquid-glass';
@@ -51,8 +51,8 @@ const styles = StyleSheet.create({
     borderBottomColor: AM.amber,
   },
   glassFill: {
-    paddingVertical: Space.s10,
-    paddingHorizontal: Space.s14,
+    paddingVertical: Space.s8,
+    paddingHorizontal: Space.s16,
     alignItems: 'center',
   },
   text: {
