@@ -11,9 +11,9 @@ describe('GET /health/public', () => {
     const router = createPublicHealthRouter({
       getTtsStatus: () => ({
         active: opts.ttsStatus.active,
-        primary: { name: 'cosyvoice', healthy: opts.ttsStatus.primary.healthy, lastCheck: null },
-        fallback: { name: 'f5tts', healthy: opts.ttsStatus.fallback.healthy, lastCheck: null },
-        tertiary: { name: 'cartesia', healthy: opts.ttsStatus.tertiary.healthy, lastCheck: null },
+        primary: { name: 'voxcpm', healthy: opts.ttsStatus.primary.healthy, lastCheck: null },
+        fallback: { name: 'cartesia', healthy: opts.ttsStatus.fallback.healthy, lastCheck: null },
+        tertiary: { name: 'elevenlabs', healthy: opts.ttsStatus.tertiary.healthy, lastCheck: null },
       }),
       getInFlightCount: () => opts.inFlightCount,
     });
@@ -23,7 +23,7 @@ describe('GET /health/public', () => {
 
   it('returns operational when primary TTS healthy and queue light', async () => {
     const app = makeApp({
-      ttsStatus: { active: 'cosyvoice', primary: { healthy: true }, fallback: { healthy: true }, tertiary: { healthy: true } },
+      ttsStatus: { active: 'voxcpm', primary: { healthy: true }, fallback: { healthy: true }, tertiary: { healthy: true } },
       inFlightCount: 0,
     });
     const res = await request(app).get('/health/public');
@@ -36,7 +36,7 @@ describe('GET /health/public', () => {
 
   it('returns degraded when primary down but fallback healthy', async () => {
     const app = makeApp({
-      ttsStatus: { active: 'f5tts', primary: { healthy: false }, fallback: { healthy: true }, tertiary: { healthy: true } },
+      ttsStatus: { active: 'cartesia', primary: { healthy: false }, fallback: { healthy: true }, tertiary: { healthy: true } },
       inFlightCount: 1,
     });
     const res = await request(app).get('/health/public');
@@ -56,7 +56,7 @@ describe('GET /health/public', () => {
 
   it('returns degraded when bake queue is backed up regardless of TTS', async () => {
     const app = makeApp({
-      ttsStatus: { active: 'cosyvoice', primary: { healthy: true }, fallback: { healthy: true }, tertiary: { healthy: true } },
+      ttsStatus: { active: 'voxcpm', primary: { healthy: true }, fallback: { healthy: true }, tertiary: { healthy: true } },
       inFlightCount: 8,
     });
     const res = await request(app).get('/health/public');
@@ -66,7 +66,7 @@ describe('GET /health/public', () => {
 
   it('does not require auth', async () => {
     const app = makeApp({
-      ttsStatus: { active: 'cosyvoice', primary: { healthy: true }, fallback: { healthy: true }, tertiary: { healthy: true } },
+      ttsStatus: { active: 'voxcpm', primary: { healthy: true }, fallback: { healthy: true }, tertiary: { healthy: true } },
       inFlightCount: 0,
     });
     const res = await request(app).get('/health/public');

@@ -35,12 +35,13 @@ Production: Express broadcast server at `api.worthymedia.tech`. Deploy runbook:
 ### AI & Voice (server-side only)
 - **LLM:** Gemini 2.5 Flash. Ollama disabled in prod — `OLLAMA_BASE_URL` unset
   means the provider fails to construct and Gemini is promoted.
-- **TTS chain:** `TTS_PRIMARY=cosyvoice` → `TTS_FALLBACK=f5tts` → Cartesia → ElevenLabs
-  → Orpheus. `TTS_FALLBACK` lets a self-hosted primary chain to another self-hosted
-  provider before hitting a paid API.
-- **CosyVoice3** (primary) and **F5-TTS** (fallback) run on the Linux box (192.168.8.229).
-  CosyVoice on port 8001, F5 on port 8000. CosyVoice is proxied via
-  `f5tts.worthymedia.online/cosy/*` so only one Pangolin tunnel is needed.
+- **TTS chain:** `TTS_PRIMARY=voxcpm` → `TTS_FALLBACK=cartesia` → ElevenLabs → Orpheus.
+  `TTS_FALLBACK` lets the self-hosted primary skip ahead to a chosen paid API instead
+  of relying on the default ordering.
+- **VoxCPM2** (primary) runs on the Linux box (192.168.8.229) on port 8002, exposed via
+  Pangolin at `voxcpm.worthymedia.online`. F5-TTS and CosyVoice were retired
+  2026-04-27 after VoxCPM landed cleaner audio + a workable latency profile (see
+  tuning log Change #10).
 - **Filesystem TTS cache** at `~/.cache/cleo-tts` (override via `TTS_CACHE_DIR`) dedupes
   identical text across bakes. Must be cleared whenever TTS settings, reference audio,
   or transcript change — stale audio gets served indefinitely otherwise.
@@ -97,7 +98,7 @@ cleo-app/
 │       ├── middleware/          ← auth.ts (requireAuth + requireCurator), validate.ts
 │       ├── providers/
 │       │   ├── llm/             ← Gemini, Ollama
-│       │   └── tts/             ← CosyVoice / F5 / Cartesia / ElevenLabs / Orpheus
+│       │   └── tts/             ← VoxCPM / Cartesia / ElevenLabs / Orpheus / Chatterbox
 │       ├── routes/              ← broadcast, featured, segment, voice, enrichment,
 │       │                          musicbrainz, curation
 │       ├── services/
@@ -409,22 +410,19 @@ ADMIN_BEARER_TOKEN                        # optional; ≥16 chars unlocks
                                           # X-Admin-Token header auth on /admin/*
 OPENWEATHER_API_KEY                       # OpenWeatherMap free tier; unset → weather hints disabled
 
-TTS_PRIMARY=cosyvoice
-TTS_FALLBACK=f5tts
+TTS_PRIMARY=voxcpm
+TTS_FALLBACK=cartesia
 
 SEQUENCER_MODE=deterministic              # or 'llm' for rollback
 
-COSYVOICE_BASE_URL=https://f5tts.worthymedia.online/cosy
-COSYVOICE_VOICE_REF=onay-cartesia
-COSYVOICE_SPEED=1.0
-COSYVOICE_TIMEOUT_MS=180000
-
-F5TTS_BASE_URL=https://f5tts.worthymedia.online
-F5TTS_VOICE_REF=onay-cartesia
-F5TTS_NFE_STEP=20
-F5TTS_CFG_STRENGTH=2.3
-F5TTS_SPEED=1.05
-F5TTS_TIMEOUT_MS=180000
+VOXCPM_BASE_URL=https://voxcpm.worthymedia.online
+VOXCPM_VOICE_REF=onay-cartesia-clean      # ZipEnhancer pre-cleaned reference
+VOXCPM_STYLE_PREFIX=(slow, measured pace, late-night radio)
+VOXCPM_INFERENCE_TIMESTEPS=10             # 4-30; lower = faster, less prosody
+VOXCPM_CFG_VALUE=2.0                      # 1.0-3.0 guidance scale
+VOXCPM_DENOISE=0                          # set 1 only if ref isn't pre-cleaned
+VOXCPM_USE_PROMPT_MODE=1                  # ultimate-cloning mode (ref + prompt)
+VOXCPM_TIMEOUT_MS=180000
 
 # R2 (prod only; STORAGE_BACKEND=r2)
 R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET, R2_PUBLIC_BASE_URL
@@ -527,30 +525,29 @@ EXPO_PUBLIC_SENTRY_DSN
   system prompt also says `(pronounced "Ohnay")` so Gemini writes the unhyphenated form.
   If the host is ever renamed, update the regex, system prompt hint, and reference
   transcript in lockstep.
-- **Never add hyphens to phonetic substitutions for F5 or CosyVoice.** Both treat `-`
-  as a stress marker — `Bee-yon-say` reads as three emphatic syllables.
-  `pronunciations.json` entries are all hyphen-free; don't re-add them.
+- **Never add hyphens to phonetic substitutions in `pronunciations.json`.** Neural
+  TTS treats `-` as a stress marker — `Bee-yon-say` reads as three emphatic syllables.
+  Existing entries are all hyphen-free; don't re-add them.
 - **`OllamaProvider` constructor throws when `OLLAMA_BASE_URL` is unset.** The factory
   catches and falls back to Gemini as primary. Don't re-introduce a `localhost:11434`
   default — creates 502 noise every 30s on the health check when Ollama isn't running.
-- **F5-TTS is not thread-safe.** FastAPI wrapper uses a module-level `asyncio.Lock` to
-  serialize all `MODEL.infer(...)` calls. Concurrent calls without the lock produce
-  `"Sizes of tensors must match"`. Don't scale by running multiple uvicorn workers —
-  the 6700XT is compute-bound and each worker has its own MODEL instance bypassing
-  the lock.
-- **F5 `remove_silence=True` is a no-op in our wrapper.** F5's api.py only trims when
-  `file_wave` is provided; our wrapper writes to a buffer. In-wrapper `_trim_silence`
-  numpy step runs before encoding.
-- **CosyVoice wrapper also `asyncio.Lock`-serialized.** First call after boot pays
-  MIOpen tuner cost (~30s); wrapper runs a 3-shape startup warmup to amortize. MIOpen
-  cache persists to `~/.cache/miopen/`.
-- **F5 wrapper exposes `/cosy/*` proxy endpoints** that forward to `127.0.0.1:8001` via
-  httpx. Proxy uses `Request.json()` rather than a typed body param — `from __future__
-  import annotations` stringifies type hints and FastAPI can't resolve `TTSRequest` at
-  route-registration time.
+- **VoxCPM2 inference is not thread-safe.** Wrapper uses a module-level `asyncio.Lock`
+  to serialize all `MODEL.generate(...)` calls. The model holds prompt-cache state
+  on the underlying tts_model during inference; concurrent calls would race.
+- **VoxCPM `optimize=True` (torch.compile) is broken on Blackwell sm_120 + torch
+  2.11+cu128.** Auto-warmup completes successfully but real inference asserts.
+  Wrapper boots with `VOXCPM_OPTIMIZE=0`. Revisit when torch ships better Blackwell
+  support; estimated 30-50% latency win when it works.
+- **VoxCPM style prefix is provider-side, not LLM-side.** `VoxCpmProvider.applyStylePrefix`
+  prepends `(slow, measured pace, late-night radio)` to the text before sending —
+  Gemini doesn't author it, and other providers (Cartesia/ElevenLabs) don't see it.
+  If a caller authors their own `(...)` prefix, the provider respects it.
+- **VoxCPM reference is pre-denoised at install time.** `~/voxcpm-server/refs/onay-cartesia-clean.wav`
+  is the canonical ref (ZipEnhancer-cleaned 16 kHz). Per-call `denoise:true` is the
+  same operation done lazily — saves ~3s per request to use the pre-clean.
 - **`preprocessForTTS` strips markdown emphasis** (`*word*`, `**word**`) — Gemini
-  occasionally emits them as prosody hints and F5/CosyVoice read them literally. Also
-  normalizes curly double quotes `""` → `"` (F5's tokenizer mishandles U+201C/U+201D).
+  occasionally emits them as prosody hints and neural TTS reads them literally. Also
+  normalizes curly double quotes `""` → `"` (some tokenizers mishandle U+201C/U+201D).
 
 ---
 
@@ -650,9 +647,10 @@ compiled in but unreferenced — candidate for native cleanup pass. `SequenceCac
 - Segment cadence spec: `docs/superpowers/specs/2026-04-20-segment-cadence-design.md`
 - Plans: `docs/superpowers/plans/2026-04-12-pre-baked-broadcast-plan-{1..4}-*.md`,
   `2026-04-16-curation-implementation.md`, `2026-04-20-segment-cadence.md`
-- **TTS tuning log**: `docs/f5-tts-tuning-log.md` — F5 parameter tuning, reference audio
-  changes, CosyVoice3 integration, A/B listening rounds. Rollback one-liners + backup
-  filenames.
+- **TTS tuning log**: `docs/f5-tts-tuning-log.md` — F5 parameter tuning,
+  CosyVoice3 integration, VoxCPM2 install + recipe (Change #10), A/B listening
+  rounds. Historical entries kept for context after F5/Cosy retirement.
+  Rollback one-liners + backup filenames.
 - Legacy PRD: `cleo-prd.md` — predates the pre-baked pivot; reference only for
   vibe/fallback library content that informs `SegmentScriptBuilder`.
 
@@ -660,17 +658,23 @@ compiled in but unreferenced — candidate for native cleanup pass. `SequenceCac
 
 ## Self-hosted TTS infrastructure (Linux box at 192.168.8.229)
 
-Separate from the Hostinger VPS. Hosts F5 and CosyVoice3.
+Separate from the Hostinger VPS. Hosts VoxCPM2.
 
-- **SSH:** `ssh kari@192.168.8.229` — AMD 6700XT GPU via ROCm 6.2.
-- **F5-TTS wrapper:** `~/f5tts-server/`, systemd unit `f5tts`, port 8000. Patched with
-  leading-silence trim and `/cosy/*` reverse-proxy endpoints.
-- **CosyVoice3 wrapper:** `~/cosyvoice-server/`, systemd unit `cosyvoice`, port 8001.
-  Restart-on-failure, auto-start on boot, journal logging via `journalctl -u cosyvoice`.
-- **Shared reference:** `~/f5tts-server/refs/onay-cartesia.wav` + `.txt` — canonical
-  voice, 9.56s. CosyVoice symlinks from `~/cosyvoice-server/refs/`.
-- **Pangolin tunnel:** `f5tts.worthymedia.online` → port 8000. CosyVoice reached via
-  `/cosy/*` proxy rather than a second tunnel rule.
-- **ROCm quirk:** both services need `HSA_OVERRIDE_GFX_VERSION=10.3.0` (the 6700XT
-  reports as gfx1031 but ROCm wheels were built for gfx1030).
-- **MIOpen tuner cache:** `~/.cache/miopen/` persists kernel selections across restarts.
+- **SSH:** `ssh kari@192.168.8.229` — NVIDIA 5060 Ti 16 GB (Blackwell, sm_120).
+  GPU swapped from AMD 6700XT 2026-04-27.
+- **VoxCPM2 wrapper:** `~/voxcpm-server/`, systemd unit `voxcpm`, port 8002.
+  Boots with `VOXCPM_LOAD_DENOISER=1` (ZipEnhancer for reference cleanup) and
+  `VOXCPM_OPTIMIZE=0` (torch.compile asserts on Blackwell + torch 2.11+cu128;
+  re-enable when supported). Restart-on-failure, auto-start on boot, journal
+  logging via `journalctl -u voxcpm`.
+- **References in `~/voxcpm-server/refs/`:**
+  - `onay-cartesia.wav` (24 kHz, 9.56s) — symlink to original. Cartesia-TTS-generated.
+  - `onay-cartesia-clean.wav` (16 kHz, 9.56s) — **canonical** pre-denoised ref.
+    Generated once at install via VoxCPM's ZipEnhancer; eliminates per-call denoise
+    cost (~3s saved per request).
+- **Pangolin tunnel:** `voxcpm.worthymedia.online` → port 8002.
+- **PyTorch:** torch 2.11.0+cu128 — Blackwell sm_120 requires CUDA 12.8 wheels
+  (`pip install torch --index-url https://download.pytorch.org/whl/cu128`).
+- **Retired services:** `~/f5tts-server/` and `~/cosyvoice-server/` directories
+  remain on disk (~10 GB) as a 1-hour escape hatch but the systemd units are
+  disabled. Delete the dirs once VoxCPM has been stable in prod for ~14 days.
