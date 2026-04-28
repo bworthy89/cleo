@@ -3,6 +3,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { AM, Fonts, Space } from '../tokens/design-tokens';
 import { NowPlayingBar } from './NowPlayingBar';
+import { LiquidGlassView, isLiquidGlassAvailable } from '../../modules/expo-liquid-glass';
 
 /**
  * 4-tab bar — exact port of source chrome.jsx: TONIGHT · BROADCAST · CRATES ·
@@ -21,7 +22,7 @@ export function CustomTabBar({ state, navigation }: any) {
   const insets = useSafeAreaInsets();
 
   return (
-    <View style={[styles.container, { paddingBottom: insets.bottom || Space.s18 }]}>
+    <LiquidGlassView style={[styles.container, { paddingBottom: insets.bottom || Space.s18 }]}>
       <NowPlayingBar />
       <View style={styles.inner}>
         {TABS.map((tab, i) => {
@@ -53,7 +54,7 @@ export function CustomTabBar({ state, navigation }: any) {
           );
         })}
       </View>
-    </View>
+    </LiquidGlassView>
   );
 }
 
@@ -63,7 +64,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: AM.bg,
+    backgroundColor: isLiquidGlassAvailable ? 'transparent' : AM.bg,
     borderTopWidth: 0.5,
     borderTopColor: AM.rule,
   },
