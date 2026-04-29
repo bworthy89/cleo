@@ -233,3 +233,60 @@ The script is idempotent — re-running updates existing alerts by name rather t
 - [ ] `SENTRY_TRACES_SAMPLE_RATE` set (recommended: `0.2` initially; tighten down once event volume is calibrated).
 - [ ] `./server/scripts/sentry-setup-alerts.sh` run successfully (creates the 3 alerts above).
 - [ ] Verified: trigger a bake from a prod TestFlight build; confirm the bake transaction appears in Sentry's Performance tab and `tts.provider-fallback` events appear in Issues when fallback is forced.
+
+## Discord bot — The Producer
+
+The `cleo-discord-bot` PM2 app runs alongside `cleo-broadcast`.
+
+### One-time setup
+
+1. **Create the Discord application.**
+   - https://discord.com/developers → New Application → name "The Producer".
+   - Bot tab → Reset Token → copy → `server/.env` as `DISCORD_BOT_TOKEN`.
+   - Bot tab → enable **Server Members Intent** + **Message Content Intent**.
+   - General Information → upload a desaturated/silhouette variant of the gold orb as the bot avatar.
+
+2. **Invite the bot.**
+   - OAuth2 → URL Generator. Scopes: `bot` + `applications.commands`. Permissions: `Manage Roles`, `Send Messages`, `Send Messages in Threads`, `Add Reactions`, `Read Message History`, `Use Application Commands`.
+   - Open the generated URL → select **The ONAY Booth** → authorize.
+   - In the booth, drag `@The Producer` *above* `@Charter Listener` in the role hierarchy.
+
+3. **Capture IDs.** Discord Settings → Advanced → enable Developer Mode. Right-click each channel/role/the pinned `#start-here` post → Copy ID → paste into `server/.env`.
+
+4. **Mint a fine-grained GitHub PAT.**
+   - https://github.com/settings/tokens → Fine-grained PAT.
+   - Repository access: **bworthy89/cleo only**.
+   - Repository permissions: `Issues: read+write`, `Metadata: read`.
+   - Copy → `server/.env` as `GITHUB_TOKEN`.
+   - Pre-create the `tester-report` label on `bworthy89/cleo` (the bot will create it on first use otherwise).
+
+### Deploy / update
+
+```bash
+ssh cleo@187.124.69.95
+cd /home/cleo/cleo-broadcast
+git pull
+npm install
+npm run build
+pm2 start ecosystem.config.cjs --only cleo-discord-bot   # first time
+# or
+pm2 reload cleo-discord-bot                              # subsequent updates
+pm2 logs cleo-discord-bot                                # watch for [bot:bootstrap] event=ready
+```
+
+### Smoke test on a private dev guild before flipping live
+
+Create a "Booth Dev" guild that mirrors the channel/role layout. The bot can be invited to both;
+flip `DISCORD_GUILD_ID` in `.env` to switch which it operates against. Walk this checklist
+end-to-end on Booth Dev before pointing at production:
+
+- [ ] React 📻 on the pinned `#start-here` post → role granted, DM received with TestFlight URL
+- [ ] Post in `#apply` → 📻-react your own post → buttons appear → click Approve as a Producer-roled account → role granted, DM received, post footered
+- [ ] Click an Approve button as a non-Producer account → ephemeral "not authorized" reply
+- [ ] Open a thread in `#bug-reports` with the `crash` tag → bot replies with `Filed → bworthy89/cleo#N`, GitHub issue exists, `bug-thread-issue-map.json` shows `status: "filed"`
+- [ ] Restart the bot (`pm2 restart cleo-discord-bot`); same thread does NOT generate a duplicate issue
+
+### GitHub PAT renewal
+
+Fine-grained PATs expire (max 1 year). Calendar a renewal reminder ~11 months out and repeat
+step 4 of the one-time setup.
