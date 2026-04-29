@@ -53,51 +53,49 @@ describe('BotStateStore', () => {
     expect(value).toEqual({ ok: false });
   });
 
-  it('flush() after a write that lands mid-flight persists the newer value (I1 regression)', async () => {
-    // Capture the real writeFile before the spy replaces it so we can
-    // delegate to it inside the mock without infinite recursion.
-    const realWriteFile = fs.writeFile;
-
-    // Gate: hold the first writeFile call open so a second write() can land
-    // while the first flushOne is in-flight.
-    let releaseFirstWrite!: () => void;
-    const firstWriteGate = new Promise<void>((resolve) => {
-      releaseFirstWrite = resolve;
+  it('flushOne does not wipe a timer that was scheduled mid-flight (I1 regression)', async () => {
+    // Block writeFile so we can land a fresh write() while flushOne is in-flight.
+    let releaseWrite: (() => void) | null = null;
+    const blockedWrite = new Promise<void>((resolve) => {
+      releaseWrite = resolve;
     });
-
-    let writeCallCount = 0;
+    const realWriteFile = fs.writeFile.bind(fs);
     const writeFileSpy = jest
       .spyOn(fs, 'writeFile')
-      .mockImplementation(async (...args: Parameters<typeof fs.writeFile>) => {
-        writeCallCount += 1;
-        if (writeCallCount === 1) {
-          await firstWriteGate;
-        }
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return realWriteFile(...(args as [any, any, any]));
+      .mockImplementationOnce(async (...args: Parameters<typeof realWriteFile>) => {
+        await blockedWrite;
+        return realWriteFile(...args);
       });
 
-    try {
-      // First write + immediate flush — flushOne starts but hangs on writeFile.
-      await store.write('race.json', { gen: 1 });
-      const firstFlush = store.flush();
+    // First write — schedules a timer for 'race.json'.
+    await store.write('race.json', { gen: 1 });
 
-      // Slip in a second write while the first flushOne is blocked.
-      await store.write('race.json', { gen: 2 });
+    // Manually start the flush (it will block on writeFile).
+    const flushPromise = store.flush();
 
-      // Unblock the first write and let the first flush settle.
-      releaseFirstWrite();
-      await firstFlush;
+    // Yield so flush() runs setTimeout cleanup and kicks flushOne — flushOne
+    // is now awaiting the gated writeFile.
+    await new Promise((r) => setImmediate(r));
 
-      // Second flush must see the gen:2 entry in pending and commit it.
-      await store.flush();
-    } finally {
-      writeFileSpy.mockRestore();
-    }
+    // Land a fresh write while flushOne is in-flight. This schedules a NEW
+    // timer in pending. Under the buggy code, flushOne's trailing
+    // `pending.delete(filename)` would wipe this entry. Under the fix,
+    // it must remain.
+    await store.write('race.json', { gen: 2 });
 
-    // Restore complete — fs.readFile is the real one again.
-    // Read directly from disk, bypassing the in-memory cache.
-    const diskRaw = await fs.readFile(path.join(dir, 'race.json'), 'utf-8');
-    expect(JSON.parse(diskRaw)).toEqual({ gen: 2 });
+    // Release the gate and let the in-flight flush complete. The buggy
+    // flushOne does `pending.delete(filename)` as its last async step —
+    // wiping the fresh timer. The fix never touches pending inside flushOne.
+    releaseWrite!();
+    await flushPromise;
+
+    // NOW assert: the fresh timer scheduled by write('race.json', gen:2)
+    // must still be in pending. Under the bug it has been deleted.
+    expect((store as unknown as { pending: Map<string, unknown> }).pending.has('race.json')).toBe(true);
+
+    // Clean up the lingering timer so afterEach flush doesn't leak.
+    await store.flush();
+
+    writeFileSpy.mockRestore();
   });
 });
