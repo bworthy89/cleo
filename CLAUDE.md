@@ -180,10 +180,12 @@ styles — everything flows from tokens. Rule still stands: components use `AM` 
   for the radial amber gradient, `Halftone` + `GrainOpacity = 0.06` for the
   film-grain + dot-pattern overlays.
 - **Shared chrome components (`src/components/crate/`):**
-  - `Tick` — corner-mark for stamp-plate framing (4 corners on a `StampButton`)
-  - `StampButton` — primary CTA. Outlined rectangle + 4 corner Ticks + Anton label +
-    mono sub-label + arrow. Two kinds: `amber` (default) / `oxblood`. The filled
-    "DROP THE NEEDLE" play strip is a bespoke variant, not a StampButton.
+  - `Tick` — corner-mark for stamp-plate framing (diagonal pair `tl` + `br` on a
+    `StampButton`; the primitive itself supports all four positions for future callers)
+  - `StampButton` — primary CTA. Outlined rectangle + 2 diagonal corner Ticks
+    (`tl` + `br`) + Anton label + mono sub-label + arrow. Two kinds: `amber`
+    (default) / `oxblood`. The filled "DROP THE NEEDLE" play strip is a bespoke
+    variant, not a StampButton.
   - `SectionMarker` — numbered catalog-style section header. `num` prop (e.g.
     `"B·01"`) in amber-dim mono + Anton title + hairline rule + right-side mono
     label. This is the ONLY way to title a section — do not reintroduce the old
