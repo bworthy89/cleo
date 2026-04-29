@@ -52,4 +52,52 @@ describe('BotStateStore', () => {
     const value = await store.read<{ ok: boolean }>('broken.json', { ok: false });
     expect(value).toEqual({ ok: false });
   });
+
+  it('flush() after a write that lands mid-flight persists the newer value (I1 regression)', async () => {
+    // Capture the real writeFile before the spy replaces it so we can
+    // delegate to it inside the mock without infinite recursion.
+    const realWriteFile = fs.writeFile;
+
+    // Gate: hold the first writeFile call open so a second write() can land
+    // while the first flushOne is in-flight.
+    let releaseFirstWrite!: () => void;
+    const firstWriteGate = new Promise<void>((resolve) => {
+      releaseFirstWrite = resolve;
+    });
+
+    let writeCallCount = 0;
+    const writeFileSpy = jest
+      .spyOn(fs, 'writeFile')
+      .mockImplementation(async (...args: Parameters<typeof fs.writeFile>) => {
+        writeCallCount += 1;
+        if (writeCallCount === 1) {
+          await firstWriteGate;
+        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return realWriteFile(...(args as [any, any, any]));
+      });
+
+    try {
+      // First write + immediate flush — flushOne starts but hangs on writeFile.
+      await store.write('race.json', { gen: 1 });
+      const firstFlush = store.flush();
+
+      // Slip in a second write while the first flushOne is blocked.
+      await store.write('race.json', { gen: 2 });
+
+      // Unblock the first write and let the first flush settle.
+      releaseFirstWrite();
+      await firstFlush;
+
+      // Second flush must see the gen:2 entry in pending and commit it.
+      await store.flush();
+    } finally {
+      writeFileSpy.mockRestore();
+    }
+
+    // Restore complete — fs.readFile is the real one again.
+    // Read directly from disk, bypassing the in-memory cache.
+    const diskRaw = await fs.readFile(path.join(dir, 'race.json'), 'utf-8');
+    expect(JSON.parse(diskRaw)).toEqual({ gen: 2 });
+  });
 });
