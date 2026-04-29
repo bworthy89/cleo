@@ -6,8 +6,6 @@ module.exports = {
   setupFiles: ['<rootDir>/__tests__/setup.ts'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
-    '^@octokit/rest$': '<rootDir>/__mocks__/@octokit/rest.ts',
-    '^@octokit/plugin-throttling$': '<rootDir>/__mocks__/@octokit/plugin-throttling.ts',
   },
   clearMocks: true,
 };

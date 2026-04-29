@@ -1,7 +1,4 @@
-import { Octokit } from '@octokit/rest';
-import { throttling } from '@octokit/plugin-throttling';
-
-const ThrottledOctokit = Octokit.plugin(throttling);
+import * as https from 'https';
 
 export interface GitHubClientOptions {
   token: string;
@@ -22,8 +19,12 @@ export interface CreateIssueResult {
 
 const DEFAULT_RETRY_DELAYS = [1_000, 4_000, 16_000];
 
+interface GitHubError extends Error {
+  status?: number;
+}
+
 export class GitHubClient {
-  private readonly octokit: Octokit;
+  private readonly token: string;
   private readonly owner: string;
   private readonly repoName: string;
   private readonly retryDelaysMs: number[];
@@ -31,33 +32,17 @@ export class GitHubClient {
   constructor(opts: GitHubClientOptions) {
     const [owner, repoName] = opts.repo.split('/');
     if (!owner || !repoName) throw new Error(`bad repo slug: ${opts.repo}`);
+    this.token = opts.token;
     this.owner = owner;
     this.repoName = repoName;
     this.retryDelaysMs = opts.retryDelaysMs ?? DEFAULT_RETRY_DELAYS;
-    this.octokit = new ThrottledOctokit({
-      auth: opts.token,
-      throttle: {
-        onRateLimit: (retryAfter, options, _o, retryCount) => {
-          if (retryCount < 1) return true;
-          return false;
-        },
-        onSecondaryRateLimit: () => true,
-      },
-    });
   }
 
   async createIssue(input: CreateIssueInput): Promise<CreateIssueResult> {
     let lastErr: unknown;
     for (let attempt = 0; attempt <= this.retryDelaysMs.length; attempt++) {
       try {
-        const res = await this.octokit.rest.issues.create({
-          owner: this.owner,
-          repo: this.repoName,
-          title: input.title,
-          body: input.body,
-          labels: input.labels,
-        });
-        return { number: res.data.number, htmlUrl: res.data.html_url };
+        return await this.postIssue(input);
       } catch (err) {
         lastErr = err;
         if (attempt < this.retryDelaysMs.length) {
@@ -66,5 +51,62 @@ export class GitHubClient {
       }
     }
     throw lastErr;
+  }
+
+  private postIssue(input: CreateIssueInput): Promise<CreateIssueResult> {
+    return new Promise((resolve, reject) => {
+      const payload = JSON.stringify({
+        title: input.title,
+        body: input.body,
+        labels: input.labels,
+      });
+      const req = https.request(
+        {
+          hostname: 'api.github.com',
+          path: `/repos/${this.owner}/${this.repoName}/issues`,
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(payload),
+            Authorization: `token ${this.token}`,
+            Accept: 'application/vnd.github+json',
+            'User-Agent': 'cleo-discord-bot',
+          },
+        },
+        (res) => {
+          let data = '';
+          res.on('data', (chunk) => {
+            data += chunk;
+          });
+          res.on('end', () => {
+            const status = res.statusCode ?? 0;
+            try {
+              const parsed = JSON.parse(data || '{}') as {
+                number?: number;
+                html_url?: string;
+                message?: string;
+              };
+              if (status >= 200 && status < 300 && typeof parsed.number === 'number') {
+                resolve({
+                  number: parsed.number,
+                  htmlUrl: parsed.html_url ?? '',
+                });
+              } else {
+                const err: GitHubError = new Error(
+                  `GitHub ${status}: ${parsed.message ?? 'request failed'}`
+                );
+                err.status = status;
+                reject(err);
+              }
+            } catch (parseErr) {
+              reject(parseErr);
+            }
+          });
+        }
+      );
+      req.on('error', reject);
+      req.write(payload);
+      req.end();
+    });
   }
 }
