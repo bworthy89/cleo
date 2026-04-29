@@ -49,8 +49,9 @@ The bot holds a Discord gateway WebSocket (required for reaction events and role
 - `discord.js` v14 — gateway client + slash command registration.
 - `@octokit/rest` — GitHub issue creation. `@octokit/plugin-throttling` for defensive rate-limit handling.
 - `node-cron` — vote tally + vibe digest scheduling.
-- `pino` — already a `server/` dependency, reused for structured JSON logging.
 - `zod` — already a `server/` dependency, used for env-var parsing.
+
+Logging follows the existing server convention: tagged `console.log` / `console.error` with `[bot:<handler>]` prefixes (mirrors `[Sequencer]`, `[shutdown]`, etc. in `server/src/index.ts` and `BroadcastOrchestrator`). PM2 captures stdout/stderr to log files via `ecosystem.config.cjs`. No new logging library.
 
 ### Repo layout
 
@@ -73,7 +74,7 @@ server/
 │   ├── bug-thread-issue-map.json
 │   └── last-digests.json
 ├── start-bot.ts                      ← NEW, PM2 entry point
-└── ecosystem.config.js               ← extend to register cleo-discord-bot
+└── ecosystem.config.cjs              ← extend to register cleo-discord-bot (cleo-broadcast already lives here)
 
 server/__tests__/discord-bot/         ← NEW
 └── handlers/                         ← one spec per handler + an integration test
@@ -102,7 +103,7 @@ server/__tests__/discord-bot/         ← NEW
 **State:** None. Discord owns the role, DMs aren't replayed on reconnect.
 
 **Edge cases:**
-- DM disabled by user → log warning, post a one-time ephemeral nudge in `#welcome` mentioning the user with the link.
+- DM disabled by user → log a warning and post a fallback message in `#welcome` mentioning the user with the link. (Not an interaction-style "ephemeral" — `#welcome` is a regular text channel; the message is visible to everyone there. Acceptable trade-off: the user gets the link, and the message is short / dated quickly.)
 - Reactor already has `@Charter Listener` → silently no-op.
 - Bot's role sits below `@Charter Listener` in the hierarchy → role grant fails with a Discord 403; log error, surface in `pm2 logs`. Mitigated by the manual-setup checklist requirement to drag the bot's role above `@Charter Listener`.
 
@@ -124,7 +125,7 @@ Each `customId` carries the application message ID + author ID.
 **Edge cases:**
 - Author 📻-reacts twice → check for an existing buttons reply; no-op if found.
 - Application post deleted before button click → interaction fetch fails; reply ephemerally to the reviewer and stop.
-- DM-disabled author → same fallback as Onboarding (one-time ephemeral nudge in `#welcome`).
+- DM-disabled author → same fallback as Onboarding (regular fallback message in `#welcome`).
 
 ### 4.3 Vote tally — `handlers/voteTally.ts`
 
@@ -253,7 +254,7 @@ No new secrets in committed files. Deploy adds one PM2 step to `server/DEPLOY.md
 
 ## 6. Error handling & observability
 
-**Logging.** `pino` JSON output. PM2 writes to `~/.pm2/logs/cleo-discord-bot-{out,error}.log`. Every log line carries `{ handler, event, actorId?, targetId? }` so triage doesn't need grep gymnastics.
+**Logging.** Tagged `console.log` / `console.error` matching the existing server convention (`[bot:onboarding]`, `[bot:bugForwarder]`, etc.). PM2 captures stdout/stderr per the `ecosystem.config.cjs` file/log paths. Each line stays grep-friendly: `[bot:<handler>] event=<name> actor=<id> target=<id>`.
 
 **Discord-side failures.** `discord.js` v14 auto-reconnects gateway drops. The bot subscribes to `Client.error` and `Client.shardError` and logs at `warn`; nothing is fatal at the gateway level except invalid token, which is allowed to crash so PM2's `--max-restarts` cap surfaces it instead of looping silently. Per-handler errors are caught at the dispatch boundary in `index.ts` (one `try/catch` per gateway event) — a thrown handler logs at `error` and the bot keeps running.
 
@@ -267,7 +268,7 @@ No new secrets in committed files. Deploy adds one PM2 step to `server/DEPLOY.md
 - Application review: bot checks for an existing buttons reply before re-attaching.
 - Crons: `lastDigestAt` guard prevents same-window re-post.
 
-**Health surface.** No HTTP endpoint. Bot logs a structured `bot.heartbeat` line every 60s with `{ guildMembers, gatewayLatencyMs, lastEventAt }`. PM2 + journal is the dashboard for v1.
+**Health surface.** No HTTP endpoint. Bot logs `[bot:heartbeat] members=<n> ws=<ms>ms lastEvent=<isoTimestamp>` every 60s. PM2 + journal is the dashboard for v1.
 
 ---
 
@@ -319,7 +320,7 @@ To be added to `server/DEPLOY.md` so bot setup is co-located with broadcast-serv
 
 ### 8.5 Deploy
 - Merge bot code to main → `ssh cleo@187.124.69.95` → `cd /home/cleo/cleo-broadcast && git pull && npm install`.
-- Register with PM2: `pm2 start ecosystem.config.js --only cleo-discord-bot` (first time) or `pm2 reload cleo-discord-bot` (subsequent).
+- Register with PM2: `pm2 start ecosystem.config.cjs --only cleo-discord-bot` (first time) or `pm2 reload cleo-discord-bot` (subsequent).
 - Tail: `pm2 logs cleo-discord-bot`. Watch for the `bot.ready` log line confirming gateway connect + ID resolution.
 
 ### 8.6 Smoke-test on a dev guild before flipping live
