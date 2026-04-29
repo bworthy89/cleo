@@ -13,7 +13,7 @@ import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { AM, Fonts, Space, TypeScale } from '../../tokens/design-tokens';
 import { BroadcastBackdrop } from '../../components/BroadcastBackdrop';
-import { SleeveArt, SectionMarker, Halftone, SettingsCog } from '../../components/crate';
+import { SleeveArt, SectionMarker, SettingsCog } from '../../components/crate';
 import {
   BroadcastCurationClient,
   type FeaturedBroadcast,
@@ -128,9 +128,8 @@ export default function TonightScreen() {
         }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Oxblood masthead with halftone */}
+        {/* Oxblood masthead */}
         <View style={styles.masthead}>
-          <Halftone opacity={0.35} spacing={5} />
           <View style={styles.cogWrap}>
             <SettingsCog color={AM.cream} />
           </View>
