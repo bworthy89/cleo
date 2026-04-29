@@ -48,8 +48,18 @@ export async function handleStartHereReaction(ctx: OnboardingContext): Promise<v
       `[bot:onboarding] event=dm-failed actor=${ctx.reactor.id} fallback=welcome-nudge`,
       err
     );
-    await ctx.sendInWelcome(
-      COPY.dmDisabledNudge(member.user.toString(), config.discord.testFlightUrl)
-    );
+    // The role grant is already committed. If the #welcome fallback also
+    // fails (e.g. bot lacks Send Messages there), don't let it bubble — log
+    // it so an operator can see the user was approved but never got the link.
+    try {
+      await ctx.sendInWelcome(
+        COPY.dmDisabledNudge(member.user.toString(), config.discord.testFlightUrl)
+      );
+    } catch (welcomeErr) {
+      console.error(
+        `[bot:onboarding] event=welcome-nudge-failed actor=${ctx.reactor.id} member=${member.user.id} — manual TestFlight link delivery required`,
+        welcomeErr
+      );
+    }
   }
 }

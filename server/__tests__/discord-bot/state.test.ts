@@ -37,14 +37,53 @@ describe('BotStateStore', () => {
     expect(entries.filter((e) => e.endsWith('.tmp'))).toEqual([]);
   });
 
+  it('update() serializes concurrent read-modify-write per filename', async () => {
+    // Without serialization, two concurrent updaters that each do
+    // read-merge-write would race: both read the empty starting state,
+    // both merge their key, both write — last-write-wins clobbers the
+    // first one's entry. With update(), they queue and run sequentially,
+    // so both keys land.
+    type M = Record<string, number>;
+    const slowAdd = (k: string, v: number) =>
+      store.update<M>('counts.json', {}, async (curr) => {
+        // Simulate a slow async step inside the updater (e.g., a network
+        // call) to make the race window observable in test.
+        await new Promise((r) => setTimeout(r, 20));
+        return { ...curr, [k]: v };
+      });
+    await Promise.all([slowAdd('a', 1), slowAdd('b', 2), slowAdd('c', 3)]);
+    await store.flush();
+    const final = await store.read<M>('counts.json', {});
+    expect(final).toEqual({ a: 1, b: 2, c: 3 });
+  });
+
+  it('update() releases the lock when the updater throws', async () => {
+    type M = { v: number };
+    await expect(
+      store.update<M>('thrower.json', { v: 0 }, async () => {
+        throw new Error('boom');
+      })
+    ).rejects.toThrow('boom');
+    // Subsequent update should still run (queue not poisoned).
+    await store.update<M>('thrower.json', { v: 0 }, async (curr) => ({
+      v: curr.v + 1,
+    }));
+    await store.flush();
+    const final = await store.read<M>('thrower.json', { v: -1 });
+    expect(final).toEqual({ v: 1 });
+  });
+
   it('coalesces a burst of writes via the debounce', async () => {
     const writeSpy = jest.spyOn(fs, 'writeFile');
-    for (let i = 0; i < 5; i++) {
-      await store.write('debounced.json', { i });
+    try {
+      for (let i = 0; i < 5; i++) {
+        await store.write('debounced.json', { i });
+      }
+      await store.flush();
+      expect(writeSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      writeSpy.mockRestore();
     }
-    await store.flush();
-    expect(writeSpy).toHaveBeenCalledTimes(1);
-    writeSpy.mockRestore();
   });
 
   it('returns the default on malformed JSON instead of throwing', async () => {

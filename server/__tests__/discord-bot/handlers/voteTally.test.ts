@@ -2,6 +2,7 @@ import {
   collectVoteCandidates,
   composeVoteDigest,
   SHIP_THRESHOLD,
+  EXCERPT_MAX,
 } from '../../../src/discord-bot/handlers/voteTally';
 
 interface TestMsg {
@@ -50,10 +51,10 @@ describe('composeVoteDigest', () => {
     expect(composeVoteDigest([])).toBeNull();
   });
 
-  it('truncates excerpts to 80 chars', () => {
-    const long = 'a'.repeat(120);
+  it('truncates excerpts to EXCERPT_MAX chars', () => {
+    const long = 'a'.repeat(EXCERPT_MAX + 40);
     const digest = composeVoteDigest([cand('1', long, 1)]);
     expect(digest).not.toBeNull();
-    expect(digest!.includes('a'.repeat(81))).toBe(false);
+    expect(digest!.includes('a'.repeat(EXCERPT_MAX + 1))).toBe(false);
   });
 });

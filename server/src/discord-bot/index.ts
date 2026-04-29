@@ -150,9 +150,13 @@ async function routeReaction(
     const message = reaction.message.partial
       ? await reaction.message.fetch()
       : (reaction.message as Message);
+    // Single batch of 100 (Discord's per-call max). Apply-channel reactions
+    // are a hot path, so we don't paginate unbounded — if 100+ messages
+    // pile up between an application post and the bot's button reply, the
+    // dedup check has bigger problems than this fetch can solve.
     const repliesColl = await message.channel.messages.fetch({
       after: message.id,
-      limit: 25,
+      limit: 100,
     });
     const replies = Array.from(repliesColl.values()).filter(
       (m) => m.reference?.messageId === message.id
@@ -289,6 +293,47 @@ function memberToLike(member: GuildMember) {
   };
 }
 
+/**
+ * Paginate channel messages backwards from newest, calling `onMessage` for
+ * each message NEWER THAN `sinceMs`. Stops when a batch crosses the cutoff
+ * or when no more messages are returned, whichever comes first. Defensive
+ * cap at `MAX_PAGES * 100` so a misconfigured `sinceMs` can't iterate the
+ * channel's entire history.
+ */
+const MAX_PAGES = 50; // 5000-message hard cap — far above any realistic v1 window
+async function fetchMessagesSince(
+  channel: TextChannel,
+  sinceMs: number,
+  onMessage: (m: Message) => Promise<void>
+): Promise<void> {
+  let before: string | undefined;
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const batch = await channel.messages.fetch({ limit: 100, before });
+    if (batch.size === 0) return;
+    let crossedCutoff = false;
+    for (const m of batch.values()) {
+      if (m.createdTimestamp < sinceMs) {
+        crossedCutoff = true;
+        continue;
+      }
+      await onMessage(m);
+    }
+    if (crossedCutoff) return;
+    before = batch.last()?.id;
+    if (!before) return;
+  }
+  console.warn(
+    `[bot:fetchMessagesSince] hit MAX_PAGES=${MAX_PAGES} cap on channel=${channel.id} since=${new Date(sinceMs).toISOString()}`
+  );
+}
+
+async function fetchFireReactors(m: Message): Promise<string[]> {
+  const fireReaction = m.reactions.cache.find((r) => r.emoji.name === '🔥');
+  if (!fireReaction) return [];
+  const users = await fireReaction.users.fetch();
+  return users.filter((u) => !u.bot).map((u) => u.id);
+}
+
 function schedule(
   client: Client,
   config: BotConfig,
@@ -330,24 +375,16 @@ async function runVoteTally(
   }
   const guild = getGuild();
   const channel = (await client.channels.fetch(config.discord.channels.tonightOnOnay)) as TextChannel;
-  const messages = await channel.messages.fetch({ limit: 100 });
 
   const recent: VoteMessage[] = [];
-  for (const m of messages.values()) {
-    if (m.createdTimestamp < sinceMs) continue;
-    const fireReaction = m.reactions.cache.find((r) => r.emoji.name === '🔥');
-    let reactors: string[] = [];
-    if (fireReaction) {
-      const users = await fireReaction.users.fetch();
-      reactors = users.filter((u) => !u.bot).map((u) => u.id);
-    }
+  await fetchMessagesSince(channel, sinceMs, async (m) => {
     recent.push({
       id: m.id,
       authorId: m.author.id,
       content: m.content,
-      fireReactors: reactors,
+      fireReactors: await fetchFireReactors(m),
     });
-  }
+  });
 
   const producerCache = new Map<string, boolean>();
   const isProducer = async (uid: string): Promise<boolean> => {
@@ -393,35 +430,17 @@ async function runVibeDigest(
   )) as TextChannel;
 
   const pitches: VibePitch[] = [];
-  let before: string | undefined;
-  for (let page = 0; page < 5; page++) {
-    const batch = await channel.messages.fetch({ limit: 100, before });
-    if (batch.size === 0) break;
-    let crossedCutoff = false;
-    for (const m of batch.values()) {
-      if (m.createdTimestamp < sinceMs) {
-        crossedCutoff = true;
-        break;
-      }
-      if (m.author.bot) continue;
-      const fireReaction = m.reactions.cache.find((r) => r.emoji.name === '🔥');
-      let reactors: string[] = [];
-      if (fireReaction) {
-        const users = await fireReaction.users.fetch();
-        reactors = users.filter((u) => !u.bot).map((u) => u.id);
-      }
-      pitches.push({
-        id: m.id,
-        authorUsername: m.author.username,
-        content: m.content,
-        jumpUrl: `https://discord.com/channels/${m.guildId ?? ''}/${m.channelId}/${m.id}`,
-        fireReactors: reactors,
-        createdAt: new Date(m.createdTimestamp).toISOString(),
-      });
-    }
-    if (crossedCutoff) break;
-    before = batch.last()?.id;
-  }
+  await fetchMessagesSince(channel, sinceMs, async (m) => {
+    if (m.author.bot) return;
+    pitches.push({
+      id: m.id,
+      authorUsername: m.author.username,
+      content: m.content,
+      jumpUrl: `https://discord.com/channels/${m.guildId ?? ''}/${m.channelId}/${m.id}`,
+      fireReactors: await fetchFireReactors(m),
+      createdAt: new Date(m.createdTimestamp).toISOString(),
+    });
+  });
 
   const digest = composeVibeDigest(pitches);
   if (!digest) {

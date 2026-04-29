@@ -18,7 +18,9 @@ interface Scored {
 
 function excerpt(content: string): string {
   const firstLine = content.split('\n')[0] ?? '';
-  return firstLine.length > EXCERPT_MAX ? firstLine.slice(0, EXCERPT_MAX) : firstLine;
+  if (firstLine.length <= EXCERPT_MAX) return firstLine;
+  // Slice to EXCERPT_MAX - 1 then append the ellipsis so total length stays ≤ EXCERPT_MAX.
+  return firstLine.slice(0, EXCERPT_MAX - 1) + '…';
 }
 
 function rank(a: Scored, b: Scored): number {

@@ -30,11 +30,13 @@ export class GitHubClient {
   private readonly retryDelaysMs: number[];
 
   constructor(opts: GitHubClientOptions) {
-    const [owner, repoName] = opts.repo.split('/');
-    if (!owner || !repoName) throw new Error(`bad repo slug: ${opts.repo}`);
+    const segments = opts.repo.split('/');
+    if (segments.length !== 2 || !segments[0] || !segments[1]) {
+      throw new Error(`bad repo slug: ${opts.repo}`);
+    }
     this.token = opts.token;
-    this.owner = owner;
-    this.repoName = repoName;
+    this.owner = segments[0];
+    this.repoName = segments[1];
     this.retryDelaysMs = opts.retryDelaysMs ?? DEFAULT_RETRY_DELAYS;
   }
 

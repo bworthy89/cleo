@@ -50,7 +50,10 @@ describe('GitHubClient', () => {
   });
 
   it('throws after exhausting all retries', async () => {
-    for (let i = 0; i < 3; i++) {
+    // Loop runs `attempt = 0..retryDelaysMs.length` inclusive — for [5,5,5]
+    // that's 4 total attempts (1 initial + 3 retries). Set up 4 mocks so the
+    // failure comes from the test's expected 500s, not from "no mock left."
+    for (let i = 0; i < 4; i++) {
       nock('https://api.github.com')
         .post(`/repos/${REPO}/issues`)
         .reply(500, { message: 'Server error' });
@@ -63,7 +66,23 @@ describe('GitHubClient', () => {
     });
     await expect(
       client.createIssue({ title: 't', body: 'b', labels: [] })
-    ).rejects.toThrow();
+    ).rejects.toThrow(/GitHub 500/);
+    expect(nock.pendingMocks()).toEqual([]);
+  });
+
+  it('throws on a malformed repo slug (constructor)', () => {
+    expect(() => new GitHubClient({ token: TOKEN, repo: 'no-slash' })).toThrow(
+      /bad repo slug/
+    );
+    expect(
+      () => new GitHubClient({ token: TOKEN, repo: 'owner/repo/extra' })
+    ).toThrow(/bad repo slug/);
+    expect(() => new GitHubClient({ token: TOKEN, repo: '/repo' })).toThrow(
+      /bad repo slug/
+    );
+    expect(() => new GitHubClient({ token: TOKEN, repo: 'owner/' })).toThrow(
+      /bad repo slug/
+    );
   });
 
   it('does not retry on 401 (permanent auth failure)', async () => {

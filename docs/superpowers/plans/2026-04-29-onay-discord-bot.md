@@ -716,6 +716,10 @@ Expected: FAIL — `Cannot find module`.
 
 - [ ] **Step 3: Implement `github.ts`**
 
+> **⚠️ HISTORICAL — implementation diverged from plan.** During execution, `@octokit/rest@21` and `@octokit/plugin-throttling@9` were dropped because they're ESM-only and didn't load cleanly into Jest's CJS resolver. The shipped implementation uses raw `node:https` directly (~70 LOC, no deps), with `nock` intercepting at the HTTP layer for tests. Same public surface (`new GitHubClient({ token, repo, retryDelaysMs? })`, `createIssue({ title, body, labels }) → { number, htmlUrl }`). Throttling-plugin functionality replaced by the existing 3-attempt exponential backoff plus 10s request timeout and 4xx short-circuit. See commits `b6fadf1d` (Octokit→https refactor) and `1e07c735` (timeout + 4xx) on `feat/discord-bot` for actual implementation, and the live source at `server/src/discord-bot/github.ts`.
+
+The Octokit-based draft below is preserved for design context only; do not implement it as written.
+
 ```ts
 import { Octokit } from '@octokit/rest';
 import { throttling } from '@octokit/plugin-throttling';

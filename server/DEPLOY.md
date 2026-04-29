@@ -266,13 +266,15 @@ The `cleo-discord-bot` PM2 app runs alongside `cleo-broadcast`.
 ssh cleo@187.124.69.95
 cd /home/cleo/cleo-broadcast
 git pull
-npm install
+npm ci                                                   # reproducible install from package-lock.json
 npm run build
 pm2 start ecosystem.config.cjs --only cleo-discord-bot   # first time
 # or
 pm2 reload cleo-discord-bot                              # subsequent updates
 pm2 logs cleo-discord-bot                                # watch for [bot:bootstrap] event=ready
 ```
+
+> **Note:** `npm ci` requires `package-lock.json` (or `npm-shrinkwrap.json`) to be present in `server/`. It installs exactly what the lockfile pins — faster, deterministic, and won't silently update transitive deps the way `npm install` can. If the lockfile is somehow missing or out of sync with `package.json`, fall back to `npm install`, regenerate the lockfile locally, commit it, and re-deploy.
 
 ### Smoke test on a private dev guild before flipping live
 
