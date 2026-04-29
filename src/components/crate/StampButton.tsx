@@ -17,7 +17,8 @@ interface Props {
 
 /**
  * Primary CTA with the catalog-plate / ink-stamp feel. Bordered rectangle
- * with four corner Ticks, mono sub-label, arrow trailing. Two kinds:
+ * with diagonal corner Ticks (tl + br), mono sub-label, arrow trailing.
+ * Two kinds:
  *   amber   — outlined amber on dark (default)
  *   oxblood — outlined oxblood on dark
  *
@@ -60,8 +61,6 @@ export function StampButton({
       ]}
     >
       <Tick pos="tl" color={stroke} bg={tickBg} />
-      <Tick pos="tr" color={stroke} bg={tickBg} />
-      <Tick pos="bl" color={stroke} bg={tickBg} />
       <Tick pos="br" color={stroke} bg={tickBg} />
       <View style={{ flex: 1 }}>
         <Text style={[styles.label, { color: ink }]}>{label}</Text>
