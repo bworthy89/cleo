@@ -10,7 +10,6 @@ import {
   StatusStrip,
   LinerNotes,
   SectionMarker,
-  Halftone,
 } from '../../components/crate';
 import { useSettings } from '../../contexts/SettingsContext';
 import {
@@ -248,7 +247,6 @@ export function ProfileScreen() {
 
         {/* Oxblood member card masthead */}
         <View style={styles.card}>
-          <Halftone opacity={0.3} spacing={5} />
           <View style={{ position: 'relative' }}>
             <View style={styles.cardTop}>
               <Text style={styles.cardKicker}>MEMBER CARD · REG №</Text>
