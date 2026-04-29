@@ -34,7 +34,7 @@ const dayAfter = (d: DayOfWeek, offset: number): DayOfWeek =>
 
 /**
  * Dedicated TONIGHT tab — magazine-index of every featured broadcast. Exact
- * port of source tonight.jsx TonightScreen: oxblood halftoned masthead,
+ * port of source tonight.jsx TonightScreen: oxblood masthead,
  * indexed shows with sleeve + № + length + title + tagline, and a
  * "LATER THIS WEEK" teaser list of upcoming shows.
  */
