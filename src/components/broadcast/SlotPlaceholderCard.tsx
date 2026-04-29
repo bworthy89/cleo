@@ -1,6 +1,5 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { AM, Fonts, Space, TypeScale } from '../../tokens/design-tokens';
-import { Halftone } from '../crate/Halftone';
 
 interface Props {
   slotLabel: 'MORNING' | 'EVENING';
@@ -12,7 +11,6 @@ export function SlotPlaceholderCard({ slotLabel }: Props) {
   return (
     <View style={styles.wrap} accessible accessibilityLabel={`Tonight's ${slotLabel.toLowerCase()} coming up`}>
       <View style={styles.plate}>
-        <Halftone opacity={0.3} />
         <View style={styles.plateRow}>
           <Text style={styles.plateLabel}>TONIGHT ON ONAY</Text>
           <Text style={styles.plateStamp}>{slotLabel}</Text>
