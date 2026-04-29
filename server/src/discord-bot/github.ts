@@ -45,6 +45,16 @@ export class GitHubClient {
         return await this.postIssue(input);
       } catch (err) {
         lastErr = err;
+        const status = (err as { status?: number }).status;
+        if (
+          typeof status === 'number' &&
+          status >= 400 &&
+          status < 500 &&
+          status !== 408 &&
+          status !== 429
+        ) {
+          throw err; // permanent failure — don't retry
+        }
         if (attempt < this.retryDelaysMs.length) {
           await new Promise((r) => setTimeout(r, this.retryDelaysMs[attempt]));
         }
@@ -65,6 +75,7 @@ export class GitHubClient {
           hostname: 'api.github.com',
           path: `/repos/${this.owner}/${this.repoName}/issues`,
           method: 'POST',
+          timeout: 10_000,
           headers: {
             'Content-Type': 'application/json',
             'Content-Length': Buffer.byteLength(payload),
@@ -105,6 +116,9 @@ export class GitHubClient {
         }
       );
       req.on('error', reject);
+      req.on('timeout', () => {
+        req.destroy(new Error('GitHub request timeout'));
+      });
       req.write(payload);
       req.end();
     });

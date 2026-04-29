@@ -65,4 +65,38 @@ describe('GitHubClient', () => {
       client.createIssue({ title: 't', body: 'b', labels: [] })
     ).rejects.toThrow();
   });
+
+  it('does not retry on 401 (permanent auth failure)', async () => {
+    nock('https://api.github.com')
+      .post(`/repos/${REPO}/issues`)
+      .reply(401, { message: 'Bad credentials' });
+    // No second nock — if the client retries, this test will hang on a missing
+    // mock and fail loudly.
+
+    const client = new GitHubClient({
+      token: TOKEN,
+      repo: REPO,
+      retryDelaysMs: [10, 10, 10],
+    });
+    await expect(
+      client.createIssue({ title: 't', body: 'b', labels: [] })
+    ).rejects.toThrow();
+  });
+
+  it('does retry on 429 (rate limit)', async () => {
+    nock('https://api.github.com')
+      .post(`/repos/${REPO}/issues`)
+      .reply(429, { message: 'Rate limited' });
+    nock('https://api.github.com')
+      .post(`/repos/${REPO}/issues`)
+      .reply(201, { number: 99, html_url: 'https://x' });
+
+    const client = new GitHubClient({
+      token: TOKEN,
+      repo: REPO,
+      retryDelaysMs: [10, 10, 10],
+    });
+    const result = await client.createIssue({ title: 't', body: 'b', labels: [] });
+    expect(result.number).toBe(99);
+  });
 });
