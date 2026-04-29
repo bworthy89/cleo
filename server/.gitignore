@@ -5,6 +5,7 @@ dist/
 featured-broadcasts/registry.json
 .enrichment-cache/
 .tts-cache/
+.bot-state/
 
 # Guardrail: this is a Node.js server directory. If `npx expo run:ios`
 # is run from here by mistake, it generates ios/ + .expo/ + app.json
