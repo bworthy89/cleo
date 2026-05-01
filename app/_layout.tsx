@@ -1,14 +1,37 @@
 import { useEffect } from 'react';
-import { View } from 'react-native';
+import { AppState, View } from 'react-native';
 import { Stack } from 'expo-router';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
+import * as Updates from 'expo-updates';
 import { OfflineBanner, useNetworkStatus } from '../src/components/OfflineBanner';
-import { initLogger } from '../src/services/logger';
+import { initLogger, logger } from '../src/services/logger';
+import { broadcastPlayer } from '../src/engines/BroadcastPlayer.singleton';
 
 initLogger();
 
 SplashScreen.preventAutoHideAsync();
+
+// Foreground update check. ON_LOAD covers cold launches; this catches updates
+// pushed while the app was backgrounded so a tester who keeps the app open
+// for hours still gets rollbacks within minutes of foregrounding. Reload is
+// gated on no-broadcast-active so it never interrupts audio.
+async function checkForOtaUpdate() {
+  try {
+    const result = await Updates.checkForUpdateAsync();
+    if (!result.isAvailable) return;
+    await Updates.fetchUpdateAsync();
+    const state = broadcastPlayer.getStatus().state;
+    const safeToReload = state === 'idle' || state === 'ended' || state === 'error';
+    if (safeToReload) {
+      await Updates.reloadAsync();
+    }
+    // If a broadcast is playing/loading/paused, leave the fetched update queued.
+    // Next cold start picks it up automatically.
+  } catch (err) {
+    logger.warn('updates', 'foreground update check failed', err);
+  }
+}
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
@@ -24,6 +47,14 @@ export default function RootLayout() {
       SplashScreen.hideAsync();
     }
   }, [fontsLoaded, fontError]);
+
+  useEffect(() => {
+    if (__DEV__) return;
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active') void checkForOtaUpdate();
+    });
+    return () => sub.remove();
+  }, []);
 
   const isOffline = useNetworkStatus();
 

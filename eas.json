@@ -13,8 +13,9 @@
     },
     "production": {
       "distribution": "store",
+      "channel": "production",
       "env": {
-        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
+        "SENTRY_DISABLE_AUTO_UPLOAD": "false"
       },
       "ios": {
         "buildConfiguration": "Release"

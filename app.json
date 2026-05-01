@@ -3,7 +3,15 @@
     "name": "ONAY",
     "slug": "cleo",
     "version": "1.2.0",
-    "runtimeVersion": "1.1.2",
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/65e6f716-8b20-415c-9827-cfcef3e2c8ae",
+      "enabled": true,
+      "fallbackToCacheTimeout": 0,
+      "checkAutomatically": "ON_LOAD"
+    },
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -16,7 +24,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.worthymedia.cleo",
-      "buildNumber": "63",
+      "buildNumber": "64",
       "infoPlist": {
         "NSAppleMusicUsageDescription": "ONAY uses Apple Music to play your playlists with AI-powered radio hosting.",
         "NSPhotoLibraryUsageDescription": "ONAY may access your photo library to set a profile picture.",
@@ -65,7 +73,8 @@
           }
         }
       ],
-      "@sentry/react-native",
+      "@sentry/react-native/expo",
+      "expo-updates",
       "expo-web-browser"
     ],
     "extra": {
