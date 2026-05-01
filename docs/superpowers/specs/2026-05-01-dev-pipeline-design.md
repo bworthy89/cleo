@@ -150,34 +150,100 @@ Confirm `server/package.json`'s `dev` script uses `tsx watch` or `nodemon` so fi
 
 ## Tier 2 — Workflow hygiene (small, daily, compounding)
 
-### 1. WORKLOG.md (gitignored)
+### 1. Obsidian as the workspace (vault, Daily Notes, NOW/NEXT/LATER, task aggregation)
 
-A single text file at the repo root. One line per session, end of day:
+Replaces what would otherwise be three separate text files (WORKLOG, NOW/NEXT/LATER, scattered notes) with a single local-first markdown workspace that already overlaps with this repo's existing `docs/` structure.
+
+**Vault location: the repo's own `docs/` directory.**
 
 ```
-2026-05-01: SQLite design doc, pushed to claude/analyze-... branch. Tomorrow: pick a starting phase.
-2026-05-02: started Phase 0, scaffolded Db service. Blocked on Drizzle yes/no.
-2026-05-03: decided no Drizzle. Phase 1 BroadcastStore migration; tests pass except one identity assertion.
+docs/                              ← Obsidian vault root
+  superpowers/
+    specs/                         ← already there; backlinkable as [[2026-05-01-sqlite-migration-design]]
+    plans/                         ← already there
+  daily/                           ← NEW, gitignored — Daily Notes auto-create here
+    2026-05-13.md
+    2026-05-14.md
+  index.md                         ← NEW — NOW/NEXT/LATER lives here
+  ideas/                           ← NEW, gitignored — quick capture for half-thoughts
+  .obsidian/                       ← Obsidian config + plugin settings, gitignored
 ```
 
-Add `WORKLOG.md` to `.gitignore`. Costs two minutes per day. Fixes "what was I doing last Tuesday" entirely.
+Add to `.gitignore`:
+```
+docs/.obsidian/
+docs/daily/
+docs/ideas/
+```
 
-### 2. NOW / NEXT / LATER list
+Specs and plans stay versioned in git. Daily notes, half-thoughts, and Obsidian config stay personal. The vault sees them all as one navigable graph.
 
-Single text file or a 3-column GitHub Project. Three buckets:
+**Plugins — start with two, resist adding more:**
 
-- **NOW** — exactly one thing. The current focus.
-- **NEXT** — three to five things. The on-deck queue.
-- **LATER** — the dump. Ideas, deferred bugs, post-beta polish.
+- **Daily Notes** (built-in core plugin, just enable). Configures `docs/daily/` as the daily-note folder, `YYYY-MM-DD` as the filename format. Opening Obsidian creates today's note automatically; that's the WORKLOG, no remembering required.
+- **Tasks** (community plugin). Treats every `- [ ]` across every file in the vault as a queryable task. The plan docs in `docs/superpowers/plans/` already use checkbox syntax — every unchecked box across every plan + today's daily + `index.md` becomes one unified list, queried via:
+  ```tasks
+  not done
+  group by filename
+  sort by priority
+  ```
 
-Rule: don't pick from NEXT until NOW is empty. When the "what should I work on" decision hits, look at NOW.
+**Don't install yet:** Dataview, Kanban, Templater, Calendar, custom graph view tweaks. They're tempting and they'll calcify the vault's structure before you know what shape you actually want it in. Add only when you catch yourself doing manual work the plugin would automate.
 
-Could live in:
-- `TODO.md` (simplest, gitignored or committed)
-- GitHub Issues with milestone columns
-- A single Notion/Linear board
+**`docs/index.md` — the NOW/NEXT/LATER home:**
 
-Pick the one with the lowest friction; ceremony kills this format.
+```markdown
+# Index
+
+## NOW
+- [ ] SQLite Phase 2 — EnrichmentCache + FeaturedRegistry + CuratorPublishBudget
+
+## NEXT
+- [ ] SQLite Phase 3 — EventRecorder + retention call sites
+- [ ] SQLite Phase 4 — backfill + deploy
+- [ ] SQLite Phase 5 — admin endpoints
+- [ ] Sentry source-map upload (beta blocker)
+
+## LATER
+- [ ] In-app feedback mailto link in SettingsDrawer
+- [ ] Native Swift cleanup (eject code, beginTTSBackgroundTask leftovers)
+- [ ] Maestro flows for login → bake → playback
+- [ ] Reactotron setup
+```
+
+Rule: don't pick from NEXT until NOW is empty. The Tasks plugin's "all open tasks" view aggregates this with every other `- [ ]` in the vault, so the daily note's tasks and the index's tasks land together.
+
+**WORKLOG via Daily Notes:**
+
+The end-of-day entry that would have lived in `WORKLOG.md` instead lives in today's daily note:
+
+```markdown
+# 2026-05-13
+
+## Worked on
+- SQLite Phase 1 done, tests green
+- Found one identity-assertion test that needed updating; fixed
+- Pushed to `feat/sqlite-store`
+
+## Tomorrow
+- Phase 2 — three more stores following the Phase 1 template
+
+## Blocked / open
+- Drizzle yes/no — leaning no
+```
+
+Backlinks make this navigable: write `[[2026-05-01-sqlite-migration-design]]` in your daily note and click through to the spec. A week later when you're trying to remember why a thing happened, the daily note has the trail.
+
+**Sync — pick one before the vault has anything in it:**
+
+- **Obsidian Sync** ($8/mo, official, end-to-end encrypted, just works). Recommended. Treat as a dev-tool subscription.
+- **iCloud Drive** (free, Apple-native, occasional file-lock conflicts on iOS). Acceptable.
+- **Git** (free, requires Working Copy on iOS, manual). High friction, not recommended for daily notes.
+- **Syncthing** (free, P2P, requires both devices online or a relay). Most setup, low overhead once running.
+
+For "whatever is easiest," Obsidian Sync at $8/mo is the answer. Cheap, no maintenance, works between Mac dev box and the iPhone you're testing the app on.
+
+**Cost:** ~30 min total — install Obsidian, point it at `docs/`, enable Daily Notes, install Tasks, write a starter `index.md`, configure sync. **Payoff:** WORKLOG happens automatically, every plan-doc checkbox shows up in one query, half-formed thoughts have somewhere to land on phone, specs/plans gain backlinks for free.
 
 ### 3. One-branch-at-a-time rule
 
@@ -312,15 +378,9 @@ Replace with `npm run bump:build`:
 
 Morning:
 
-```
-$ cat WORKLOG.md | tail -3
-2026-05-12: Phase 1 SQLite migration done, tests green. Tomorrow: Phase 2 (other 3 stores).
-
-$ cat TODO.md
-NOW:   SQLite Phase 2 — EnrichmentCache + FeaturedRegistry + CuratorPublishBudget
-NEXT:  Phase 3 (EventRecorder), Phase 4 (backfill), Phase 5 (admin endpoints)
-LATER: in-app feedback mailto, dSYM upload automation, native cleanup
-```
+1. Open Obsidian. Today's daily note auto-creates: `docs/daily/2026-05-13.md`.
+2. Glance at yesterday's daily for context (Obsidian's previous-day link or the file list).
+3. Open `docs/index.md`. Pick from NOW. The Tasks plugin's aggregated view shows every open `- [ ]` across plans and notes if you want a wider read.
 
 Three terminal tabs open:
 1. `server` — `npm run dev` (hot-reload)
@@ -333,13 +393,11 @@ Make changes. Tests run automatically. Smoke-bake when touching the pipeline.
 - Native client change → `expo run:ios --device` (5–10 min)
 - Server change → push to `staging` → auto-deploys → curl-test → push to `main` → auto-deploys to prod
 
-End of session:
+If a half-thought lands mid-session — a bug to investigate later, an idea for a feature, a tester comment to follow up on — drop it in `docs/ideas/` (gitignored, capture-only) instead of letting it derail the current task.
 
-```
-$ echo "2026-05-13: Phase 2 done, all stores migrated. tests green, smoke-bake green. Tomorrow: Phase 3 EventRecorder." >> WORKLOG.md
-```
+End of session — write the daily note's "Worked on" / "Tomorrow" / "Blocked" sections (~2 min). Move any completed `- [ ]` from `index.md`'s NOW into "Worked on." Promote one item from NEXT to NOW.
 
-No more "did I run tests" / "did I deploy" / "what was I doing." Each loop is short enough that you stay in flow.
+No more "did I run tests" / "did I deploy" / "what was I doing." Each loop is short enough that you stay in flow, and the workspace remembers context for you across sessions.
 
 ---
 
@@ -354,10 +412,9 @@ Ordered by ratio of pain-relief to effort:
 - 1.4 Server hot-reload verification (zero–15 min)
 
 **Phase 2 — Workflow hygiene (~1 hour total, daily compounding)**
-- 2.1 WORKLOG.md + .gitignore entry (10 min)
-- 2.2 NOW/NEXT/LATER list seeded with current state (15 min)
-- 2.3 Definition-of-done checklists written down (30 min)
-- 2.4 One-branch-at-a-time rule adopted (zero — it's a behavior change)
+- 2.1 Obsidian vault setup (~30 min): install Obsidian, point at `docs/`, enable Daily Notes, install Tasks plugin, configure sync (Obsidian Sync recommended), add `docs/.obsidian/` + `docs/daily/` + `docs/ideas/` to `.gitignore`, write a starter `docs/index.md` with NOW/NEXT/LATER seeded from current work
+- 2.2 Definition-of-done checklists written down (~30 min) — either in `DOD.md` or as the body of `.github/PULL_REQUEST_TEMPLATE.md`
+- 2.3 One-branch-at-a-time rule adopted (zero — it's a behavior change)
 
 **Phase 3 — Staging environment (~half day)**
 - 3.1 Second PM2 process + Caddy block on the VPS
@@ -386,7 +443,7 @@ Ordered by ratio of pain-relief to effort:
 - **Reactotron / Flipper.** Useful for client debugging but not the core friction. Optional add-on.
 - **Multi-environment secret management** (Doppler, 1Password CLI, etc.). The two-environment story (staging + prod) doesn't need it yet.
 - **Code review / PR templates.** Solo dev; no review to template.
-- **Linear / Notion / Jira integration.** The NOW/NEXT/LATER text file is intentionally lighter than any of these.
+- **Linear / Notion / Jira integration.** Obsidian (see Tier 2) replaces these for a solo dev — local-first, markdown-native, free aside from the optional sync subscription, and the vault is the existing `docs/` directory so specs and plans become first-class navigable notes. Revisit only if a collaborator joins and shared boards become necessary.
 - **Replacing Hostinger as the host.** Separate decision. Discussed in the broader infra notes; not part of dev pipeline.
 - **Sentry source-map upload.** Important for production crash debugging, but a separate work item; not part of the dev *loop*.
 
@@ -397,5 +454,7 @@ Ordered by ratio of pain-relief to effort:
 - **EAS build channel naming.** `production` for TestFlight + App Store, `preview` for internal? Or do you want a `staging` channel pointed at the staging server so internal device builds hit staging by default? Latter is cleaner; former is closer to standard.
 - **Staging cost.** Sharing prod LLM/TTS keys with staging means staging usage burns the same quota. Acceptable for low staging volume; consider a separate Gemini key if staging tests start dominating the 20 RPM cap.
 - **Smoke-bake fixture freshness.** Canned Apple Music IDs in `tracks.json` will go stale (deletions, regional unavailability). Plan: refresh the fixture quarterly or whenever the smoke fails on data, not logic.
+- **Obsidian sync choice.** Obsidian Sync ($8/mo) recommended for "easiest." iCloud Drive viable but flaky on iOS. Decide before the vault accumulates content — switching sync providers later is a manual rsync exercise.
+- **Vault scope creep.** Obsidian's plugin ecosystem is enormous and most of it is a trap. Discipline: Daily Notes + Tasks only at first. Add Dataview / Kanban / Templater only when manual work justifies them, not preemptively.
 - **WORKLOG ownership if a collaborator joins later.** Today: gitignored, personal. If a second dev joins, switch to a per-developer file or move to a shared format. Not a near-term concern.
 - **Definition of Done strictness.** Treat the checklists as a default that can be skipped knowingly, or as a hard gate? Lean default — the point is to make skipping deliberate, not impossible.
