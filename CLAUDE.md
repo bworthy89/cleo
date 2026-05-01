@@ -672,17 +672,31 @@ EXPO_PUBLIC_SENTRY_DSN
   via `removeBroadcastFromHistory()`. Playback tap re-verifies.
 
 ### Build / deployment
-- **Sentry source-map upload — partly wired, not yet verified end-to-end as of
-  2026-05-01.** EAS production builds are configured to upload via `SENTRY_AUTH_TOKEN`
-  + `SENTRY_ORG` + `SENTRY_PROJECT` EAS secrets; `SENTRY_DISABLE_AUTO_UPLOAD` is
-  set to `"false"` in `eas.json` production profile (was `"true"` before OTA work).
-  But sentry.io shows zero releases for the project after build 64 went out, meaning
-  the upload step likely failed silently. Diagnose by reading the EAS build log
-  for `sentry-cli` lines. Local-device builds (`expo run:ios --device`) still need
-  the override `SENTRY_DISABLE_AUTO_UPLOAD=true` because they can't read EAS secrets.
-  Separate gap: `eas update` does NOT auto-upload OTA bundle source maps — needs a
-  post-update `sentry-expo-upload-sourcemaps` script. Both fixes are LATER items
-  in `docs/index.md`.
+- **Sentry source-map upload — verified end-to-end 2026-05-01** (build 65 + OTA).
+  Two upload paths now wired:
+  - **Build-time** (EAS production builds): `@sentry/react-native/expo` plugin in
+    `app.json` configured with explicit `organization: worthy-media` +
+    `project: onay-media-server`. The bare plugin entry (no config object)
+    skips the upload phase silently, which is what bit build 64. EAS secrets
+    `SENTRY_AUTH_TOKEN` + `SENTRY_ORG` + `SENTRY_PROJECT` provide the cred;
+    `eas.json` production profile sets `SENTRY_DISABLE_AUTO_UPLOAD: "false"`.
+  - **OTA** (`eas update`): `scripts/guard-update.mjs` invokes
+    `npx sentry-expo-upload-sourcemaps dist` after a successful update,
+    soft-failing if `SENTRY_AUTH_TOKEN` is unset. Token loaded from
+    `.env.local` (gitignored). Modern artifact-bundle workflow with debug IDs —
+    no Sentry release/dist tagging required.
+  - Local-device builds (`expo run:ios --device`) still need
+    `SENTRY_DISABLE_AUTO_UPLOAD=true` because they can't read EAS secrets.
+- **EAS-stored env vars override local `.env` when `--environment <env>` is
+  passed.** `eas update --environment production` and `eas build --profile
+  production` (which implicitly uses environment=production) pull the EAS server's
+  stored env vars and the values override anything in `.env` / `.env.local` at
+  bundle time. Symptom: bundle keeps containing a stale `EXPO_PUBLIC_*` value no
+  matter what's in your local `.env`. Inspect with
+  `npx eas-cli env:list production`; update with
+  `npx eas-cli env:update production --variable-name <NAME> --value <V> --visibility plaintext --non-interactive`.
+  This is how DSN (and any other `EXPO_PUBLIC_*` runtime config) gets shipped to
+  prod — local `.env` is for dev/local-device, EAS env is the prod source of truth.
 - **R2 API tokens are bucket-scoped by default.** When standing up staging (separate
   R2 bucket per design), the prod token returned `403 AccessDenied` against the new
   `cleo-broadcast-segments-staging` bucket — silently failing all segment uploads,
@@ -732,10 +746,6 @@ compiled in but unreferenced — candidate for native cleanup pass. `SequenceCac
 
 ## What's Left (not yet shipped)
 
-- **OTA Sentry source-map upload** — wired in EAS profile but build-64 release
-  never landed on sentry.io; needs diagnosis of the EAS build log + a separate
-  post-`eas update` script for OTA bundles. Beta blocker (every JS crash unmapped
-  until fixed). Tracked in `docs/index.md` LATER.
 - **Bake abort endpoint** — no `DELETE /broadcast/:id`. User canceling mid-bake still
   pays for all remaining LLM + TTS calls.
 - **Scheduled/autonomous featured bakes** (cron "Monday Reset" etc.) — requires server
