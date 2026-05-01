@@ -19,7 +19,8 @@
     "bump:build": "node scripts/bump-build.mjs",
     "update:prod": "node scripts/guard-update.mjs --branch production --platform ios",
     "update:prod:safe": "node scripts/guard-update.mjs --branch production --platform ios --rollout-percentage 25",
-    "update:prod:noguard": "eas update --branch production --platform ios"
+    "update:prod:noguard": "eas update --branch production --platform ios",
+    "prepare": "husky"
   },
   "dependencies": {
     "@expo-google-fonts/anton": "^0.4.2",
@@ -70,6 +71,7 @@
     "@typescript-eslint/parser": "^8.57.1",
     "eslint": "^10.0.3",
     "eslint-config-prettier": "^10.1.8",
+    "husky": "^9.1.7",
     "jest": "^30.3.0",
     "prettier": "^3.8.1",
     "puppeteer": "^24.41.0",
