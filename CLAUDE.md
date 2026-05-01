@@ -56,9 +56,12 @@ Production: Express broadcast server at `api.worthymedia.tech`. Deploy runbook:
 - **Production:** Express at `api.worthymedia.tech` (Hostinger VPS, port 3102 behind
   Caddy, PM2 app `cleo-broadcast`). `STORAGE_BACKEND=r2` → Cloudflare R2 bucket
   `cleo-broadcast-segments`; segment URLs are 7-day presigned links in the manifest.
+  **Layout: full git clone at `/home/cleo/cleo-broadcast/` with server in `/server`
+  subdir** (post-2026-05-01 migration from rsync-flat layout; old dir kept at
+  `cleo-broadcast-old-2026-05-01` for ~1 week rollback). Tracks `main` branch.
 - **Staging:** Express at `staging.api.worthymedia.tech` (same VPS, port 3103 behind
   Caddy, PM2 app `cleo-broadcast-staging`, git clone at `/home/cleo/cleo-broadcast-staging`,
-  tracks `main` branch). Same Firebase project, same Sentry, separate R2 bucket
+  tracks `staging` branch). Same Firebase project, same Sentry, separate R2 bucket
   `cleo-broadcast-segments-staging`, `CURATOR_PUBLISH_CAP=20` (vs prod's 3). Used as
   pre-prod validation gate AND as the always-on dev backend that local-device installs
   point at. Design + plan: [`docs/superpowers/specs/2026-05-01-staging-server-design.md`](docs/superpowers/specs/2026-05-01-staging-server-design.md).
@@ -443,6 +446,18 @@ server-side Firestore writes was a hard prereq.
   regressions before they hit origin or CI. Pre-commit was deliberately not used
   per the dev-pipeline spec — too frequent. Husky managed via `prepare` script
   in root `package.json`.
+- **Auto-deploy on push** (`.github/workflows/deploy.yml`): SSHes to VPS as
+  `cleo`, `git pull`, `npm ci && npm run build`, `pm2 reload`, then `curl /health`
+  with up to 10s retry. Push to `staging` branch → staging tier (~30s end-to-end);
+  push to `main` → prod tier (~30s). Concurrency queues per branch so two
+  pushes serialize. **Skip lever:** include `[skip deploy]` in the commit
+  message to short-circuit (distinct from `[skip ci]` which would also skip
+  test.yml). Manual escape hatch via `gh workflow run deploy.yml --ref <branch>`
+  if you need to redeploy without a code change. Design: [`docs/superpowers/specs/2026-05-01-auto-deploy-design.md`](docs/superpowers/specs/2026-05-01-auto-deploy-design.md).
+  Standard server-change workflow: push to `staging` → wait for green deploy →
+  smoke-test on staging → merge `staging → main` → push → wait for green prod
+  deploy → 5 min log soak. NEVER push directly to `main` for non-trivial
+  server changes.
 
 ---
 

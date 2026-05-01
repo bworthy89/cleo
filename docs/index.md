@@ -15,13 +15,14 @@ Project conventions and topology: [[Conventions]].
 - [ ] Sentry source-map fix — beta blocker, was punted as LATER but should jump the queue once external testers are imminent (every OTA crash is currently unmapped)
 - [ ] Root typecheck cleanup so it can join CI — fix tsconfig to exclude `server/**` (server has its own tsconfig + the build-step typecheck) and `v2-migration/**` (migration scratchpad), fix the testID prop error in `src/screens/home/HomeBroadcastScreen.tsx:673` (CatalogRow doesn't accept testID per current Props type)
 - [ ] Root lint cleanup so it can join CI — `npm install --save-dev eslint-plugin-react-hooks`, then either accept or fix the 25 no-explicit-any / unused-var warnings
-- [ ] Dev pipeline Phase 5 — auto-deploy on push to staging / main (last dev pipeline phase; depends on Phase 3 staging which is now done)
 
 ## LATER
+- [ ] **Dev pipeline → done.** All 5 phases shipped 2026-05-01. Auto-deploy verified on both tiers. Next dev-pipeline-adjacent items: SHA-pin `appleboy/ssh-action@v1` to a verified commit hash; switch prod PM2 to cluster mode (`exec_mode: 'cluster'`, `instances: 'max'`) for zero-downtime reload (currently fork mode with ~1s reload window); migrate prod to use `ecosystem.config.cjs` instead of inline pm2 start args (so logs land in `server/logs/`).
 - [ ] Bake abort endpoint (`DELETE /broadcast/:id`)
 - [ ] Native Swift cleanup (eject code, `beginTTSBackgroundTask` / `silencePlayer` leftovers)
 - [ ] R2 presign TTL tightening (7d → 24h to match BroadcastStore)
 - [ ] Rollback Fastify decommission (`pm2 delete cleo-api` once new server is stable)
+- [ ] Cleanup `cleo-broadcast-old-2026-05-01` directory on VPS once auto-deploy has soaked for ~1 week (≥2026-05-08)
 - [ ] Investigate framing-segment word-count drift — `cold_open` running ~19 words (spec 35-50) and `sign_off` ~23 words (spec 35-55) under Groq primary; `deep_dive` and `tight_bridge` are in spec. Compare against a Gemini run; if Groq-specific, tune the framing-tier prompts. Surfaced by smoke-bake 2026-05-01.
 
 ---
