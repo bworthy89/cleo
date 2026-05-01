@@ -474,6 +474,7 @@ EXPO_PUBLIC_SENTRY_DSN
 
 ## Important Conventions
 
+- **Workflow + Definition of Done — see [`DOD.md`](DOD.md).** One-branch-at-a-time rule, single-mode-session preference, and per-change-type DOD checklists (server / client JS / native iOS) live there. Check before declaring a change done.
 - All components TypeScript strict mode; no inline styles (everything from `design-tokens.ts`).
 - **All API calls go through `authenticatedFetch`** — attaches Firebase JWT, prepends
   `API_BASE_URL`. Always pass a relative path; passing a full URL creates a malformed
