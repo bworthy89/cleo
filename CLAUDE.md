@@ -432,6 +432,17 @@ server-side Firestore writes was a hard prereq.
   reports Sentry source-map status. Output is a single Status / Findings /
   Recommended-actions markdown report in the routine dashboard. To add new
   routines, see `https://claude.ai/code/routines`.
+- **CI on push** (`.github/workflows/test.yml`): two parallel jobs on every push
+  to `main`/`staging` and every PR — `Client jest` (root `npm test`) and
+  `Server build + jest` (server `npm ci && npm run build && npm test`). Both
+  green as of 2026-05-01 (16/156 client, 56/540 server). Root typecheck + lint
+  are NOT in CI yet — they have pre-existing errors (see "Known Issues" below);
+  add them once those are fixed (LATER items in `docs/index.md`).
+- **Pre-push hook** (`.husky/pre-push`): runs `npm test` (root jest, ~4s) before
+  `git push`. Fast enough not to be `--no-verify`'d in practice; catches client
+  regressions before they hit origin or CI. Pre-commit was deliberately not used
+  per the dev-pipeline spec — too frequent. Husky managed via `prepare` script
+  in root `package.json`.
 
 ---
 

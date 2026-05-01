@@ -1,0 +1,49 @@
+# Phase 4 CI on push — runs the green checks identified during the Phase 4
+# audit (2026-05-01). Two parallel jobs so client and server tests run
+# independently and one failure surfaces immediately without waiting on the other.
+#
+# What's NOT here yet (tracked as LATER items in docs/index.md):
+#   - Root typecheck (`tsc --noEmit`): currently red because root tsconfig pulls
+#     server files under Expo's process.env type augmentation, plus a pre-existing
+#     testID prop error in HomeBroadcastScreen.tsx and a v2-migration/stubs MMKV
+#     issue. Fix root tsconfig excludes + the prop error to unblock.
+#   - Root lint (`eslint src/`): currently red because the eslint config references
+#     the react-hooks/exhaustive-deps rule but eslint-plugin-react-hooks isn't
+#     installed. Install the plugin to unblock.
+#
+# Both items will graduate into this workflow once the underlying errors are
+# resolved.
+
+name: test
+
+on:
+  push:
+    branches: [main, staging]
+  pull_request:
+
+jobs:
+  client-tests:
+    name: Client jest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm test
+
+  server-tests:
+    name: Server build + jest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: server/package-lock.json
+      - run: cd server && npm ci
+      - run: cd server && npm run build  # tsc emit serves as server typecheck
+      - run: cd server && npm test
