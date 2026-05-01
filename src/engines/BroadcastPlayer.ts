@@ -87,6 +87,13 @@ export class BroadcastPlayer {
   private currentSegmentIndex = -1;
   private subscriptions: Array<() => void> = [];
   private trackEndedResolve: (() => void) | null = null;
+  /** Cancellation handle for the active waitForTrackEnd polling chain.
+   *  end() invokes this so the recursive setTimeout(tick, 1000) chain stops
+   *  immediately instead of leaking past the current track / past test
+   *  boundaries (Jest 30 escalates post-teardown console.logs to non-zero
+   *  exit, breaking the pre-push hook). Reset to null in end() and at the
+   *  top of waitForTrackEnd. */
+  private waitTrackEndCancel: (() => void) | null = null;
   /** Reset at each runTrackAt; gates end-of-track detection so brief
    *  pre-playback 'paused'/'stopped' events during audio session handoff
    *  don't trigger a false track-end. */
@@ -450,7 +457,11 @@ export class BroadcastPlayer {
     this.scrobbler.reset();
     // Resolve any in-flight waitForTrackEnd so the start() main loop unblocks
     // and observes manifest=null on the next iteration check (otherwise the
-    // loop and its Promise leak indefinitely).
+    // loop and its Promise leak indefinitely). waitTrackEndCancel ALSO clears
+    // the pending setTimeout chain so post-end polling can't fire (which
+    // would log past the test boundary and trip Jest 30's exit escalation).
+    this.waitTrackEndCancel?.();
+    this.waitTrackEndCancel = null;
     this.trackEndedResolve?.();
     this.trackEndedResolve = null;
     await this.music.clearNowPlaying().catch(() => {});
@@ -671,19 +682,34 @@ export class BroadcastPlayer {
   }
 
   private waitForTrackEnd(): Promise<void> {
+    // If end() already ran (e.g. it raced music.play to completion in a test),
+    // don't start a polling chain — the manifest is cleared and runMainLoop
+    // will exit on its next iteration check anyway. Without this guard a
+    // post-end waitForTrackEnd would have no waitTrackEndCancel registered
+    // and its setTimeout(tick, 1000) chain would leak past test boundaries,
+    // eventually hitting the timeout path and logging post-teardown.
+    if (!this.manifest) return Promise.resolve();
     // Reset per-track signals so positional detection in handlePlaybackState
     // starts from a clean slate when this track begins.
     this.sawPlayingForCurrentTrack = false;
     this.maxPlaybackTimeSeen = 0;
     return new Promise(resolve => {
       let resolved = false;
+      let scheduled: ReturnType<typeof setTimeout> | null = null;
       const done = (reason: string) => {
         if (resolved) return;
         resolved = true;
+        if (scheduled) { clearTimeout(scheduled); scheduled = null; }
         console.log(`[BroadcastPlayer] track-end detected via ${reason}`);
         resolve();
       };
       this.trackEndedResolve = () => done('event');
+      // Allow end() to abort the polling chain immediately. Without this the
+      // recursive setTimeout(tick, 1000) keeps firing post-end (or post-test
+      // teardown when fake timers are switched back to real), eventually
+      // hitting the maxSec timeout path and logging "track-end detected via
+      // timeout" after Jest has marked the test done.
+      this.waitTrackEndCancel = () => done('aborted');
 
       // Poll loop: checks both status and playback position every second.
       // Events via onPlaybackStateChanged can drop during Metro reconnects
@@ -745,9 +771,9 @@ export class BroadcastPlayer {
           console.warn(`[BroadcastPlayer] waitForTrackEnd timeout after ${maxSec}s — advancing`);
           return done('timeout');
         }
-        setTimeout(tick, 1000);
+        scheduled = setTimeout(tick, 1000);
       };
-      setTimeout(tick, 1000);
+      scheduled = setTimeout(tick, 1000);
     });
   }
 
