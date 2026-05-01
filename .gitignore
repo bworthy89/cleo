@@ -63,3 +63,8 @@ server/.cache/
 
 # VoxCPM listening test outputs (personal A/B audio samples)
 /voxcpm-samples/
+
+# Obsidian vault — personal workspace (specs/plans stay tracked)
+docs/.obsidian/
+docs/daily/
+docs/ideas/

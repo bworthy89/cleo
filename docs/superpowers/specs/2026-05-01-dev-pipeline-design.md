@@ -49,29 +49,155 @@ The new entries (smoke bake, staging server) plug the two gaps where today's onl
 
 ---
 
+## The workspace
+
+Before the loops or the automation, the spine: a single local-first markdown vault that holds NOW/NEXT/LATER, daily notes, half-thoughts, and the existing `docs/superpowers/` specs and plans. Every loop in the rest of this document feeds back into the vault — what got shipped today, what's blocked, what to pick up tomorrow. The vault is where the work is *organized*; the tiers below are how the work is *executed*.
+
+**Vault location: the repo's own `docs/` directory.**
+
+```text
+docs/                              ← Obsidian vault root
+  Conventions.md → ../CLAUDE.md    ← symlink to project-root CLAUDE.md; renamed so
+                                     Claude Code's CLAUDE.md auto-discovery doesn't
+                                     load it a second time, but Obsidian still
+                                     indexes it as `[[Conventions]]`
+  superpowers/
+    specs/                         ← already there; backlinkable as [[2026-05-01-sqlite-migration-design]]
+    plans/                         ← already there
+  daily/                           ← NEW, gitignored — Daily Notes auto-create here
+    2026-05-13.md
+    2026-05-14.md
+  index.md                         ← NEW — NOW/NEXT/LATER lives here
+  ideas/                           ← NEW, gitignored — quick capture for half-thoughts
+  .obsidian/                       ← Obsidian config + plugin settings, gitignored
+```
+
+Add to `.gitignore`:
+
+```text
+docs/.obsidian/
+docs/daily/
+docs/ideas/
+```
+
+Specs and plans stay versioned in git. Daily notes, half-thoughts, and Obsidian config stay personal. The vault sees them all as one navigable graph, with the root-level `CLAUDE.md` (project rules + conventions) one click away from any daily note via `[[Conventions]]`.
+
+**Plugins — start with two, resist adding more:**
+
+- **Daily Notes** (built-in core plugin, just enable). Configures `docs/daily/` as the daily-note folder, `YYYY-MM-DD` as the filename format. Opening Obsidian creates today's note automatically; that's the WORKLOG, no remembering required.
+- **Tasks** (community plugin). Treats every `- [ ]` across every file in the vault as a queryable task. The plan docs in `docs/superpowers/plans/` already use checkbox syntax — every unchecked box across every plan + today's daily + `index.md` becomes one unified list, queried via:
+  ```tasks
+  not done
+  group by filename
+  sort by priority
+  ```
+
+**Don't install yet:** Dataview, Kanban, Templater, Calendar, custom graph view tweaks. They're tempting and they'll calcify the vault's structure before you know what shape you actually want it in. Add only when you catch yourself doing manual work the plugin would automate.
+
+**`docs/index.md` — the NOW/NEXT/LATER home:**
+
+```markdown
+# Index
+
+## NOW
+- [ ] SQLite Phase 2 — EnrichmentCache + FeaturedRegistry + CuratorPublishBudget
+
+## NEXT
+- [ ] SQLite Phase 3 — EventRecorder + retention call sites
+- [ ] SQLite Phase 4 — backfill + deploy
+- [ ] SQLite Phase 5 — admin endpoints
+- [ ] Sentry source-map upload (beta blocker)
+
+## LATER
+- [ ] In-app feedback mailto link in SettingsDrawer
+- [ ] Native Swift cleanup (eject code, beginTTSBackgroundTask leftovers)
+- [ ] Maestro flows for login → bake → playback
+- [ ] Reactotron setup
+```
+
+Rule: don't pick from NEXT until NOW is empty. The Tasks plugin's "all open tasks" view aggregates this with every other `- [ ]` in the vault, so the daily note's tasks and the index's tasks land together.
+
+**WORKLOG via Daily Notes:**
+
+The end-of-day entry that would have lived in `WORKLOG.md` instead lives in today's daily note:
+
+```markdown
+# 2026-05-13
+
+## Worked on
+- SQLite Phase 1 done, tests green
+- Found one identity-assertion test that needed updating; fixed
+- Pushed to `feat/sqlite-store`
+
+## Tomorrow
+- Phase 2 — three more stores following the Phase 1 template
+
+## Blocked / open
+- Drizzle yes/no — leaning no
+```
+
+Backlinks make this navigable: write `[[2026-05-01-sqlite-migration-design]]` in your daily note and click through to the spec. Reference `[[Conventions]]` to jump straight into project conventions when something feels off. A week later when you're trying to remember why a thing happened, the daily note has the trail.
+
+**Sync — pick one before the vault has anything in it:**
+
+- **Obsidian Sync** ($8/mo, official, end-to-end encrypted, just works). Recommended. Treat as a dev-tool subscription.
+- **iCloud Drive** (free, Apple-native, occasional file-lock conflicts on iOS). Acceptable.
+- **Git** (free, requires Working Copy on iOS, manual). High friction, not recommended for daily notes.
+- **Syncthing** (free, P2P, requires both devices online or a relay). Most setup, low overhead once running.
+
+For "whatever is easiest," Obsidian Sync at $8/mo is the answer. Cheap, no maintenance, works between Mac dev box and the iPhone you're testing the app on.
+
+**Cost:** ~30 min total — install Obsidian, point at `docs/`, symlink `CLAUDE.md` in as `Conventions.md`, enable Daily Notes, install Tasks, write a starter `index.md`, configure sync. **Payoff:** the workspace foundation that every loop below feeds into.
+
+---
+
 ## Tier 1 — Testing-loop fixes (highest leverage)
 
 ### 1. Expo OTA updates (highest absolute payoff)
 
-Configure `expo-updates` against the TestFlight build channel so JS-only changes can ship in ~2 min instead of a 30–60 min EAS+TestFlight round-trip.
+Install + configure `expo-updates` so JS-only changes can ship in ~2 min instead of a 30–60 min EAS+TestFlight round-trip. **Not currently installed** — `package.json` has no `expo-updates` dep, and the `runtimeVersion: "1.1.2"` in `app.json` is currently inert (and has already drifted from `version: "1.2.0"`, demonstrating exactly the manual-bump failure mode).
 
 ```bash
-# After config:
+# After install + config:
 eas update --branch production --message "fix: profile typo"
 # ↑ Ships to every TestFlight build already installed on testers' devices.
 ```
 
 **What can OTA-update:** screens, components, hooks, engines (`BroadcastPlayer`, `Scrobbler`, etc.), services, prompts, copy, design tokens, anything purely JS+TS.
 
-**What still needs a rebuild:** Swift native module (`modules/expo-music-kit/ios/...`), `app.json` config, new dependencies, EAS build profile changes, asset catalog (icons), Live Activity widget.
+**What still needs a rebuild:** anything that changes the native fingerprint — Swift native module (`modules/expo-music-kit/ios/...`), new dependencies, `app.json` plugin config, EAS profile changes, Live Activity widget. With `fingerprint` runtime policy (below), this is enforced automatically: the runtime version changes, and OTAs published from the new build don't reach old binaries.
 
-**Setup:**
+**Setup — five pieces, in order:**
 
-- Add `expo-updates` to `app.json` with `runtimeVersion` (already at `1.1.2` per app.json).
-- Configure update channels: `production` for TestFlight + App Store, `preview` for internal builds.
-- Add `npm run update:prod` and `npm run update:preview` scripts.
+1. **Install + configure `expo-updates`.** `npx expo install expo-updates`, add the plugin to `app.json`'s `plugins` array, run prebuild locally to regenerate the iOS Updates plist entries (CLAUDE.md notes prebuild no longer runs in EAS, so this is manual + committed).
+2. **Switch to fingerprint runtime versioning.** Replace the static `runtimeVersion: "1.1.2"` in `app.json` with `runtimeVersion: { "policy": "fingerprint" }`. Expo hashes native deps + config; bumps automatically when native changes, stays put for JS-only changes. Catches the cases `appVersion` policy misses (e.g. a new native dep without a marketing version bump).
+3. **Single channel: `production`.** No `preview` channel — there's no preview-builds cohort to ship to, and a solo-dev "promote from preview to production" loop is theater. For risky changes, use `eas update --branch production --rollout-percentage 25` and watch Sentry; for trivial ones, full rollout. Defer a `staging` channel until Phase 3 lands the staging server.
+4. **Sentry source-map upload — bundled, not deferred.** Without source maps, every JS crash post-OTA reads `<unknown>:0` and OTA becomes a debugging regression. Required:
+   - Create a Sentry write-scope auth token in the Sentry web UI.
+   - Add `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` as EAS secrets (`eas secret:create`).
+   - Configure the `@sentry/react-native` plugin in `app.json` with org + project.
+   - Flip `SENTRY_DISABLE_AUTO_UPLOAD` from `"true"` to `"false"` in `eas.json` production env.
+   - For OTA pushes: `eas update` uploads source maps automatically once configured.
+5. **Foreground update check with broadcast guard.** Default `expo-updates` checks at cold start only — a rollback only reaches a tester on next quit-and-relaunch. Add an `AppState` hook in `app/_layout.tsx` that calls `Updates.checkForUpdateAsync()` on foreground transition. Critically: **never `Updates.reloadAsync()` mid-broadcast** (would interrupt audio). Gate the reload on `BroadcastPlayer.isPlaying === false`; if an update is queued and the user is playing, defer the reload until the next cold start.
 
-**Cost:** ~half day. **Payoff:** the 80% of polish/tweak work that's JS-only stops requiring a build cycle.
+**Rollback playbook (document this somewhere greppable):**
+
+```bash
+eas update:list --branch production           # find the previous group ID
+eas update:republish --group <prev-id> --branch production
+eas update:list --branch production           # confirm republished group is at top
+```
+
+Caveat: testers need to relaunch the app for the rollback to take effect (or trigger via the foreground hook from step 5).
+
+**Scripts to add:**
+
+```json
+"update:prod": "eas update --branch production",
+"update:prod:safe": "eas update --branch production --rollout-percentage 25"
+```
+
+**Cost:** ~1 full day (revised from spec's original "half day" once source-map upload, fingerprint policy, foreground hook, and rollback dry-run are included). **Payoff:** the 80% of polish/tweak work that's JS-only stops requiring a build cycle, AND post-OTA crashes remain debuggable.
 
 ### 2. Smoke-bake script
 
@@ -151,113 +277,19 @@ Confirm `server/package.json`'s `dev` script uses `tsx watch` or `nodemon` so fi
 
 ## Tier 2 — Workflow hygiene (small, daily, compounding)
 
-### 1. Obsidian as the workspace (vault, Daily Notes, NOW/NEXT/LATER, task aggregation)
+(The Obsidian vault — the spine the rest of these hygiene rules write into — is covered in [The workspace](#the-workspace) above.)
 
-Replaces what would otherwise be three separate text files (WORKLOG, NOW/NEXT/LATER, scattered notes) with a single local-first markdown workspace that already overlaps with this repo's existing `docs/` structure.
-
-**Vault location: the repo's own `docs/` directory.**
-
-```text
-docs/                              ← Obsidian vault root
-  superpowers/
-    specs/                         ← already there; backlinkable as [[2026-05-01-sqlite-migration-design]]
-    plans/                         ← already there
-  daily/                           ← NEW, gitignored — Daily Notes auto-create here
-    2026-05-13.md
-    2026-05-14.md
-  index.md                         ← NEW — NOW/NEXT/LATER lives here
-  ideas/                           ← NEW, gitignored — quick capture for half-thoughts
-  .obsidian/                       ← Obsidian config + plugin settings, gitignored
-```
-
-Add to `.gitignore`:
-
-```text
-docs/.obsidian/
-docs/daily/
-docs/ideas/
-```
-
-Specs and plans stay versioned in git. Daily notes, half-thoughts, and Obsidian config stay personal. The vault sees them all as one navigable graph.
-
-**Plugins — start with two, resist adding more:**
-
-- **Daily Notes** (built-in core plugin, just enable). Configures `docs/daily/` as the daily-note folder, `YYYY-MM-DD` as the filename format. Opening Obsidian creates today's note automatically; that's the WORKLOG, no remembering required.
-- **Tasks** (community plugin). Treats every `- [ ]` across every file in the vault as a queryable task. The plan docs in `docs/superpowers/plans/` already use checkbox syntax — every unchecked box across every plan + today's daily + `index.md` becomes one unified list, queried via:
-  ```tasks
-  not done
-  group by filename
-  sort by priority
-  ```
-
-**Don't install yet:** Dataview, Kanban, Templater, Calendar, custom graph view tweaks. They're tempting and they'll calcify the vault's structure before you know what shape you actually want it in. Add only when you catch yourself doing manual work the plugin would automate.
-
-**`docs/index.md` — the NOW/NEXT/LATER home:**
-
-```markdown
-# Index
-
-## NOW
-- [ ] SQLite Phase 2 — EnrichmentCache + FeaturedRegistry + CuratorPublishBudget
-
-## NEXT
-- [ ] SQLite Phase 3 — EventRecorder + retention call sites
-- [ ] SQLite Phase 4 — backfill + deploy
-- [ ] SQLite Phase 5 — admin endpoints
-- [ ] Sentry source-map upload (beta blocker)
-
-## LATER
-- [ ] In-app feedback mailto link in SettingsDrawer
-- [ ] Native Swift cleanup (eject code, beginTTSBackgroundTask leftovers)
-- [ ] Maestro flows for login → bake → playback
-- [ ] Reactotron setup
-```
-
-Rule: don't pick from NEXT until NOW is empty. The Tasks plugin's "all open tasks" view aggregates this with every other `- [ ]` in the vault, so the daily note's tasks and the index's tasks land together.
-
-**WORKLOG via Daily Notes:**
-
-The end-of-day entry that would have lived in `WORKLOG.md` instead lives in today's daily note:
-
-```markdown
-# 2026-05-13
-
-## Worked on
-- SQLite Phase 1 done, tests green
-- Found one identity-assertion test that needed updating; fixed
-- Pushed to `feat/sqlite-store`
-
-## Tomorrow
-- Phase 2 — three more stores following the Phase 1 template
-
-## Blocked / open
-- Drizzle yes/no — leaning no
-```
-
-Backlinks make this navigable: write `[[2026-05-01-sqlite-migration-design]]` in your daily note and click through to the spec. A week later when you're trying to remember why a thing happened, the daily note has the trail.
-
-**Sync — pick one before the vault has anything in it:**
-
-- **Obsidian Sync** ($8/mo, official, end-to-end encrypted, just works). Recommended. Treat as a dev-tool subscription.
-- **iCloud Drive** (free, Apple-native, occasional file-lock conflicts on iOS). Acceptable.
-- **Git** (free, requires Working Copy on iOS, manual). High friction, not recommended for daily notes.
-- **Syncthing** (free, P2P, requires both devices online or a relay). Most setup, low overhead once running.
-
-For "whatever is easiest," Obsidian Sync at $8/mo is the answer. Cheap, no maintenance, works between Mac dev box and the iPhone you're testing the app on.
-
-**Cost:** ~30 min total — install Obsidian, point it at `docs/`, enable Daily Notes, install Tasks, write a starter `index.md`, configure sync. **Payoff:** WORKLOG happens automatically, every plan-doc checkbox shows up in one query, half-formed thoughts have somewhere to land on phone, specs/plans gain backlinks for free.
-
-### 3. One-branch-at-a-time rule
+### 1. One-branch-at-a-time rule
 
 Don't open a new feature branch while another is half-done. Either:
 
 - Finish and merge, **or**
-- Commit, push, document state in WORKLOG, then `git checkout main && git checkout -b new-thing`, **or**
-- `git stash push -m "wip: sqlite phase 1, blocked on identity test"` with a meaningful message, document in WORKLOG.
+- Commit, push, document state in today's daily note, then `git checkout main && git checkout -b new-thing`, **or**
+- `git stash push -m "wip: sqlite phase 1, blocked on identity test"` with a meaningful message, document in today's daily note.
 
 This single rule eliminates the "pile of half-finished branches" problem at the cost of forcing a moment of state-capture.
 
-### 4. Definition of Done by change type
+### 2. Definition of Done by change type
 
 Three checklists, written once. Either tape them to a wall, save as `DOD.md`, or stick them in `.github/PULL_REQUEST_TEMPLATE.md`.
 
@@ -271,9 +303,9 @@ Three checklists, written once. Either tape them to a wall, save as `DOD.md`, or
 **Client JS/UI change:**
 - [ ] Renders correctly on simulator
 - [ ] Renders correctly on device (or explicitly noted as "needs device test")
-- [ ] OTA-pushable (no native changes)
-- [ ] Pushed via `eas update --branch preview` for self-test
-- [ ] Promoted to `production` channel after confirmation
+- [ ] OTA-pushable (fingerprint runtime policy auto-validates this; if the runtime version changed locally, you need a native build instead)
+- [ ] Published: `npm run update:prod -- --message "..."` for trivial; `npm run update:prod:safe -- --message "..."` (25% rollout) for non-trivial
+- [ ] Sentry watched for ~30 min after push; if crash rate spikes, `eas update:republish --group <prev-id> --branch production`
 
 **Native iOS change:**
 - [ ] Clean local rebuild (`expo run:ios --device`)
@@ -282,7 +314,7 @@ Three checklists, written once. Either tape them to a wall, save as `DOD.md`, or
 - [ ] TestFlight build installed and basic flow tested
 - [ ] `CURRENT_PROJECT_VERSION` in pbxproj + `app.json` `ios.buildNumber` bumped in lockstep
 
-### 5. Single-mode sessions when possible
+### 3. Single-mode sessions when possible
 
 Either client OR server work in a session, not interleaved. Saves the ~15 min context-switching tax. When a change genuinely spans both (a new API endpoint + the screen that calls it), batch the server side first to completion, then switch.
 
@@ -396,45 +428,51 @@ Replace with `npm run bump:build`:
 
 ## A normal session, after all of this
 
-Morning:
+**Vault first.**
 
 1. Open Obsidian. Today's daily note auto-creates: `docs/daily/2026-05-13.md`.
 2. Glance at yesterday's daily for context (Obsidian's previous-day link or the file list).
 3. Open `docs/index.md`. Pick from NOW. The Tasks plugin's aggregated view shows every open `- [ ]` across plans and notes if you want a wider read.
 
-Three terminal tabs open:
+**Then the loops.** Three terminal tabs:
+
 1. `server` — `npm run dev` (hot-reload)
 2. `tests` — `npm run test:watch` in `server/`
 3. `metro` — only if doing client work
 
 Make changes. Tests run automatically. Smoke-bake when touching the pipeline.
 
-- JS-only client change → `eas update --branch preview` to see it on a device build (~2 min)
-- Native client change → `expo run:ios --device` (5–10 min)
+- JS-only client change → `npm run update:prod` (or `:prod:safe` for 25% rollout) (~2 min)
+- Native client change → `expo run:ios --device` (5–10 min); fingerprint policy bumps the runtime, so previous OTAs stay scoped to old binaries
 - Server change → push to `staging` → auto-deploys → curl-test → push to `main` → auto-deploys to prod
 
 If a half-thought lands mid-session — a bug to investigate later, an idea for a feature, a tester comment to follow up on — drop it in `docs/ideas/` (gitignored, capture-only) instead of letting it derail the current task.
 
-End of session — write the daily note's "Worked on" / "Tomorrow" / "Blocked" sections (~2 min). Move any completed `- [ ]` from `index.md`'s NOW into "Worked on." Promote one item from NEXT to NOW.
+**Vault last.** Write the daily note's "Worked on" / "Tomorrow" / "Blocked" sections (~2 min). Move any completed `- [ ]` from `index.md`'s NOW into "Worked on." Promote one item from NEXT to NOW.
 
-No more "did I run tests" / "did I deploy" / "what was I doing." Each loop is short enough that you stay in flow, and the workspace remembers context for you across sessions.
+No more "did I run tests" / "did I deploy" / "what was I doing." Each loop is short enough that you stay in flow, and the vault holds the context across sessions.
 
 ---
 
 ## Sequencing
 
-Ordered by ratio of pain-relief to effort:
+Ordered by ratio of pain-relief to effort. Phase 0 first — the rest of the phases write into it.
 
-**Phase 1 — Tier 1 testing-loop fixes (~1.5 days total)**
-- 1.1 Expo OTA wiring (half day) — biggest absolute win
+**Phase 0 — Workspace setup (~30 min)** — the foundation everything else feeds into
+- 0.1 Install Obsidian, point at `docs/`, enable Daily Notes, install Tasks plugin, configure sync (Obsidian Sync recommended)
+- 0.2 Add `docs/.obsidian/` + `docs/daily/` + `docs/ideas/` to `.gitignore`
+- 0.3 Symlink `CLAUDE.md` into the vault under a different filename: `ln -s ../CLAUDE.md docs/Conventions.md` — Claude Code keeps loading the root `CLAUDE.md` from project root and the vault gets a `[[Conventions]]` backlink target without triggering a second auto-load (the rename matters: a `docs/CLAUDE.md` symlink would double-load ~40KB of conventions per session)
+- 0.4 Write a starter `docs/index.md` with NOW/NEXT/LATER seeded from current work
+
+**Phase 1 — Tier 1 testing-loop fixes (~2 days total)**
+- 1.1 Expo OTA wiring with source maps + fingerprint runtime + foreground hook + rollback playbook (1 day) — biggest absolute win, but full-day not half-day once source-map upload is bundled in (don't ship OTA without it)
 - 1.2 Smoke-bake script (30 min) — fastest payoff
 - 1.3 Jest watch in a tab (zero) — do today
 - 1.4 Server hot-reload verification (zero–15 min)
 
-**Phase 2 — Workflow hygiene (~1 hour total, daily compounding)**
-- 2.1 Obsidian vault setup (~30 min): install Obsidian, point at `docs/`, enable Daily Notes, install Tasks plugin, configure sync (Obsidian Sync recommended), add `docs/.obsidian/` + `docs/daily/` + `docs/ideas/` to `.gitignore`, write a starter `docs/index.md` with NOW/NEXT/LATER seeded from current work
-- 2.2 Definition-of-done checklists written down (~30 min) — either in `DOD.md` or as the body of `.github/PULL_REQUEST_TEMPLATE.md`
-- 2.3 One-branch-at-a-time rule adopted (zero — it's a behavior change)
+**Phase 2 — Workflow hygiene (~30 min total, daily compounding)**
+- 2.1 Definition-of-done checklists written down (~30 min) — either in `DOD.md` or as the body of `.github/PULL_REQUEST_TEMPLATE.md`
+- 2.2 One-branch-at-a-time rule adopted (zero — it's a behavior change)
 
 **Phase 3 — Staging environment (~half day)**
 - 3.1 Second PM2 process + Caddy block on the VPS
@@ -453,7 +491,7 @@ Ordered by ratio of pain-relief to effort:
 - 5.3 Test by pushing a no-op change to `staging`
 - 5.4 Update `server/DEPLOY.md` to point at the action
 
-**Total: ~2.5 days of focused work.** Each phase is independently usable; no phase blocks the next. Phase 1 alone returns most of the value.
+**Total: ~2.5 days of focused work.** Each phase is independently usable. Phase 0 first — it's the workspace the rest of the phases feed into. Phase 1 alone returns most of the loop value.
 
 ---
 
@@ -463,15 +501,14 @@ Ordered by ratio of pain-relief to effort:
 - **Reactotron / Flipper.** Useful for client debugging but not the core friction. Optional add-on.
 - **Multi-environment secret management** (Doppler, 1Password CLI, etc.). The two-environment story (staging + prod) doesn't need it yet.
 - **Code review / PR templates.** Solo dev; no review to template.
-- **Linear / Notion / Jira integration.** Obsidian (see Tier 2) replaces these for a solo dev — local-first, markdown-native, free aside from the optional sync subscription, and the vault is the existing `docs/` directory so specs and plans become first-class navigable notes. Revisit only if a collaborator joins and shared boards become necessary.
+- **Linear / Notion / Jira integration.** Obsidian (see [The workspace](#the-workspace) above) replaces these for a solo dev — local-first, markdown-native, free aside from the optional sync subscription, and the vault is the existing `docs/` directory so specs and plans become first-class navigable notes. Revisit only if a collaborator joins and shared boards become necessary.
 - **Replacing Hostinger as the host.** Separate decision. Discussed in the broader infra notes; not part of dev pipeline.
-- **Sentry source-map upload.** Important for production crash debugging, but a separate work item; not part of the dev *loop*.
 
 ---
 
 ## Open questions
 
-- **EAS build channel naming.** `production` for TestFlight + App Store, `preview` for internal? Or do you want a `staging` channel pointed at the staging server so internal device builds hit staging by default? Latter is cleaner; former is closer to standard.
+- **EAS build channel naming.** Resolved 2026-05-01: single `production` channel for now, with `--rollout-percentage` for risky pushes. Add a `staging` channel later when Phase 3's staging server lands so internal builds can target staging by default.
 - **Staging cost.** Sharing prod LLM/TTS keys with staging means staging usage burns the same quota. Acceptable for low staging volume; consider a separate Gemini key if staging tests start dominating the 20 RPM cap.
 - **Smoke-bake fixture freshness.** Canned Apple Music IDs in `tracks.json` will go stale (deletions, regional unavailability). Plan: refresh the fixture quarterly or whenever the smoke fails on data, not logic.
 - **Obsidian sync choice.** Obsidian Sync ($8/mo) recommended for "easiest." iCloud Drive viable but flaky on iOS. Decide before the vault accumulates content — switching sync providers later is a manual rsync exercise.
