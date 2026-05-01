@@ -28,10 +28,10 @@ Soft rule — easily violated when bug-chasing — but worth defaulting to.
 
 - [ ] Affected jest tests pass (`cd server && npm test` or run the specific suite)
 - [ ] `cd server && npm run smoke:bake` passes (catches pipeline regressions in 5–10s; uses the canned 5-track fixture)
-- [ ] **Deployed to staging first**: ssh into VPS → `cd /home/cleo/cleo-broadcast-staging && git pull && cd server && npm ci && npm run build && pm2 reload cleo-broadcast-staging`
-- [ ] Staging smoke-tested by hand: either local-device install with `EXPO_PUBLIC_API_URL=https://staging.api.worthymedia.tech` in `.env.local` and run a bake from the app, OR `curl https://staging.api.worthymedia.tech/health` plus `pm2 logs cleo-broadcast-staging` for any new code paths exercised
-- [ ] Then deployed to prod manually per `server/DEPLOY.md` (rsync from local) — the staging clone uses `git pull` while prod uses `rsync`; this divergence is intentional for now (Phase 5 will harmonize both via auto-deploy)
-- [ ] PM2 logs sane for ~5 min after prod deploy: `ssh cleo@<VPS_HOST> 'pm2 logs cleo-broadcast --lines 100'` shows no health-check flap, no Sentry spike, no 5xx pattern
+- [ ] **Push to `staging` branch** → auto-deploy fires (~30s end-to-end). Watch GH Actions: https://github.com/bworthy89/cleo/actions. If red, fix before proceeding. If green, staging tier is now live with your change.
+- [ ] Smoke-test on staging: either local-device install with `EXPO_PUBLIC_API_URL=https://staging.api.worthymedia.tech` in `.env.local` and bake from the app, OR `curl https://staging.api.worthymedia.tech/health` plus `ssh cleo@<VPS_HOST> 'pm2 logs cleo-broadcast-staging --lines 50 --nostream'` for any new code paths exercised
+- [ ] **Merge `staging` → `main` and push** — prod auto-deploys in ~30s. Watch GH Actions for green health check.
+- [ ] PM2 logs sane for ~5 min after prod deploy: `ssh cleo@<VPS_HOST> 'pm2 logs cleo-broadcast --lines 100 --nostream'` shows no health-check flap, no Sentry spike, no 5xx pattern. (`[skip deploy]` in commit message bypasses auto-deploy — use only for docs-only commits, never code.)
 
 ### Client JS/UI change
 

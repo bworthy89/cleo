@@ -1,10 +1,24 @@
 # Production Deploy Runbook — cleo-broadcast
 
 Target VPS: `cleo@<VPS_HOST>` (Hostinger, ID <HOSTINGER_ID>)
-Sidecar directory: `/home/cleo/cleo-broadcast/` (keeps existing `/home/cleo/cleo-api/` untouched for rollback)
+Path (post-2026-05-01 migration): `/home/cleo/cleo-broadcast/` is now a full
+git clone with the server in `/server/` subdir. Old rsync-flat layout moved to
+`cleo-broadcast-old-2026-05-01` for ~1 week rollback window.
 Port: `3102` (behind Caddy at `api.worthymedia.tech`)
 
-> **Staging tier exists too** — see [Staging deploy](#staging-deploy) at the end of this doc. Standard workflow: deploy to staging first via git pull, smoke-test, THEN deploy to prod via the rsync below. Both tiers live on the same VPS.
+> **🤖 Auto-deploy is the primary path now** (Phase 5, 2026-05-01). `git push origin main` triggers `.github/workflows/deploy.yml` which SSHes in, pulls, builds, reloads PM2, and health-checks — done in ~30s. The rsync runbook below is the **manual escape hatch** for: bootstrapping on a new VPS, recovering from a broken auto-deploy, or one-off ops where you can't / don't want to push to GitHub.
+>
+> **Standard workflow:** `git push origin staging` → auto-deploy to staging tier → smoke-test → merge `staging → main` → `git push origin main` → auto-deploy to prod. See [`docs/superpowers/specs/2026-05-01-auto-deploy-design.md`](../docs/superpowers/specs/2026-05-01-auto-deploy-design.md).
+>
+> **Manual auto-deploy trigger:** `gh workflow run deploy.yml --ref main` (or `--ref staging`). Useful for re-deploying without a code change.
+>
+> **Skip lever:** include `[skip deploy]` in the commit message to bypass the workflow. For docs-only commits.
+
+---
+
+## Manual deploy (legacy / escape hatch)
+
+The rsync-based ritual below was the primary procedure pre-2026-05-01. It still works (and the prod dir's `.git` directory means `git pull` is also available for ad-hoc pulls without the workflow). Use this when auto-deploy is broken or unavailable.
 
 ## Pre-flight (local, already done)
 
