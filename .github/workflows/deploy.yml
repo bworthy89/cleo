@@ -1,0 +1,104 @@
+# Phase 5 auto-deploy. SSH to the VPS as cleo, git pull on the appropriate
+# tier, build, pm2 reload, then health-check. Failure exits non-zero so the
+# workflow run goes red and GitHub's normal notifications fire.
+#
+# Branch model:
+#   push to staging  →  staging tier (cleo-broadcast-staging on :3103)
+#   push to main     →  prod tier   (cleo-broadcast on :3102)
+#
+# Skip lever: include `[skip deploy]` anywhere in the commit message to
+# short-circuit. (Distinct from GitHub's `[skip ci]` which would also skip
+# test.yml — we want tests to run for docs-only commits, just not deploys.)
+#
+# Concurrency: queue per branch so two pushes to the same tier serialize
+# rather than racing. Different tiers can deploy concurrently.
+#
+# Action pinning: appleboy/ssh-action@v1 is a major-version tag for now.
+# To tighten security, pin to a SHA — see https://github.com/appleboy/ssh-action/releases
+# for the latest verified commit hash, then replace `@v1` below. Tracked as
+# a LATER hardening item.
+
+name: deploy
+
+on:
+  push:
+    branches: [staging, main]
+
+concurrency:
+  group: deploy-${{ github.ref_name }}
+  cancel-in-progress: false  # queue, don't cancel
+
+jobs:
+  deploy-staging:
+    name: Deploy → staging tier
+    if: github.ref_name == 'staging' && !contains(github.event.head_commit.message, '[skip deploy]')
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH + git pull + build + reload
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script_stop: true  # exit on first failed command in the script block
+          script: |
+            set -e
+            cd ~/cleo-broadcast-staging
+            git fetch origin staging
+            git reset --hard origin/staging
+            cd server
+            npm ci --no-audit --no-fund
+            npm run build
+            pm2 reload cleo-broadcast-staging
+            pm2 save
+
+      - name: Health check (up to 10s)
+        run: |
+          for i in 1 2 3 4 5; do
+            sleep 2
+            code=$(curl -s -o /dev/null -w "%{http_code}" https://staging.api.worthymedia.tech/health)
+            if [ "$code" = "200" ]; then
+              echo "✓ staging /health returned $code on attempt $i"
+              exit 0
+            fi
+            echo "attempt $i: got $code, retrying in 2s..."
+          done
+          echo "✗ staging /health did not return 200 after 5 attempts"
+          exit 1
+
+  deploy-prod:
+    name: Deploy → prod tier
+    if: github.ref_name == 'main' && !contains(github.event.head_commit.message, '[skip deploy]')
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH + git pull + build + reload
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script_stop: true
+          script: |
+            set -e
+            cd ~/cleo-broadcast
+            git fetch origin main
+            git reset --hard origin/main
+            cd server
+            npm ci --no-audit --no-fund
+            npm run build
+            pm2 reload cleo-broadcast
+            pm2 save
+
+      - name: Health check (up to 10s)
+        run: |
+          for i in 1 2 3 4 5; do
+            sleep 2
+            code=$(curl -s -o /dev/null -w "%{http_code}" https://api.worthymedia.tech/health)
+            if [ "$code" = "200" ]; then
+              echo "✓ prod /health returned $code on attempt $i"
+              exit 0
+            fi
+            echo "attempt $i: got $code, retrying in 2s..."
+          done
+          echo "✗ prod /health did not return 200 after 5 attempts"
+          exit 1
