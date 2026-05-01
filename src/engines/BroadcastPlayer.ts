@@ -666,6 +666,7 @@ export class BroadcastPlayer {
     }
     await this.waitForTrackEnd();
     this.stopElapsedPump();
+    if (!this.manifest) return;
     console.log(`[BroadcastPlayer] track ended: ${track.id}`);
   }
 

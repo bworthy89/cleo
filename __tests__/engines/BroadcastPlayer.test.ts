@@ -107,12 +107,48 @@ const makeDeps = () => {
   };
 };
 
+// Track every BroadcastPlayer instance the suite creates so afterEach can
+// end() them. Without this, start()'s async chain keeps running past the test
+// boundary — runTrackAt fires its "track ended" console.log after teardown,
+// Jest 30 escalates "Cannot log after tests are done" to a non-zero exit, and
+// the pre-push hook (which runs npm test) flakes whenever real-timer-driven
+// polling outpaces the test body. End() clears the manifest, which the new
+// `if (!this.manifest) return;` guard in runTrackAt picks up.
+const tracked: BroadcastPlayer[] = [];
+type DepsT = ReturnType<typeof makeDeps>;
+const makePlayer = (
+  deps: DepsT,
+  overrides: Partial<{
+    music: DepsT['music'];
+    native: DepsT['native'];
+    manifestClient: DepsT['manifestClient'];
+    stingers: DepsT['stingers'];
+    scrobbler: ConstructorParameters<typeof BroadcastPlayer>[4];
+  }> = {},
+): BroadcastPlayer => {
+  const args: ConstructorParameters<typeof BroadcastPlayer> = [
+    overrides.music ?? deps.music,
+    overrides.native ?? deps.native,
+    overrides.manifestClient ?? deps.manifestClient,
+    overrides.stingers ?? deps.stingers,
+  ];
+  if (overrides.scrobbler !== undefined) args.push(overrides.scrobbler);
+  const p = new BroadcastPlayer(...args);
+  tracked.push(p);
+  return p;
+};
+
 describe('BroadcastPlayer', () => {
+  afterEach(async () => {
+    for (const p of tracked) {
+      try { await p.end(); } catch { /* ignore */ }
+    }
+    tracked.length = 0;
+  });
+
   it('starts idle and advances to loading/playing_segment on start()', async () => {
     const deps = makeDeps();
-    const player = new BroadcastPlayer(
-      deps.music, deps.native, deps.manifestClient, deps.stingers,
-    );
+    const player = makePlayer(deps);
     expect(player.getStatus().state).toBe('idle');
     player.start(makeManifest(), ['https://cdn/seg0-v0.mp3']);
     await Promise.resolve();
@@ -121,9 +157,7 @@ describe('BroadcastPlayer', () => {
 
   it('ducks music and plays segment audio for the cold open', async () => {
     const deps = makeDeps();
-    const player = new BroadcastPlayer(
-      deps.music, deps.native, deps.manifestClient, deps.stingers,
-    );
+    const player = makePlayer(deps);
     player.start(makeManifest(), ['https://cdn/seg0-v0.mp3']);
     // Let microtasks flush enough for the cold_open to ducks + play.
     for (let i = 0; i < 20; i++) await Promise.resolve();
@@ -133,9 +167,7 @@ describe('BroadcastPlayer', () => {
 
   it('pause() during a segment lets ONAY finish speaking (no stopAudio) and parks the loop', async () => {
     const deps = makeDeps();
-    const player = new BroadcastPlayer(
-      deps.music, deps.native, deps.manifestClient, deps.stingers,
-    );
+    const player = makePlayer(deps);
     player.start(makeManifest(), ['https://cdn/seg0-v0.mp3']);
     for (let i = 0; i < 20; i++) await Promise.resolve();
     await player.pause();
@@ -145,9 +177,7 @@ describe('BroadcastPlayer', () => {
 
   it('pause() during loading still marks the player paused and blocks progression', async () => {
     const deps = makeDeps();
-    const player = new BroadcastPlayer(
-      deps.music, deps.native, deps.manifestClient, deps.stingers,
-    );
+    const player = makePlayer(deps);
     player.start(makeManifest(), ['https://cdn/seg0-v0.mp3']);
     await player.pause();
     expect(player.getStatus().state).toBe('paused');
@@ -155,9 +185,7 @@ describe('BroadcastPlayer', () => {
 
   it('resume() wakes the main loop so advancement resumes', async () => {
     const deps = makeDeps();
-    const player = new BroadcastPlayer(
-      deps.music, deps.native, deps.manifestClient, deps.stingers,
-    );
+    const player = makePlayer(deps);
     player.start(makeManifest(), ['https://cdn/seg0-v0.mp3']);
     for (let i = 0; i < 20; i++) await Promise.resolve();
     await player.pause();
@@ -168,9 +196,7 @@ describe('BroadcastPlayer', () => {
 
   it('end() cleans up and returns to idle', async () => {
     const deps = makeDeps();
-    const player = new BroadcastPlayer(
-      deps.music, deps.native, deps.manifestClient, deps.stingers,
-    );
+    const player = makePlayer(deps);
     player.start(makeManifest(), ['https://cdn/seg0-v0.mp3']);
     await Promise.resolve();
     await player.end();
@@ -183,9 +209,7 @@ describe('BroadcastPlayer', () => {
       require('../../src/services/Storage');
     clearPersistedBroadcast();
     const deps = makeDeps();
-    const player = new BroadcastPlayer(
-      deps.music, deps.native, deps.manifestClient, deps.stingers,
-    );
+    const player = makePlayer(deps);
     player.start(makeManifest(), ['https://cdn/seg0-v0.mp3']);
     // Let initPlayback seed the persisted record.
     for (let i = 0; i < 20; i++) await Promise.resolve();
@@ -200,9 +224,7 @@ describe('BroadcastPlayer', () => {
 
   it('runTrackAt sets NowPlaying track metadata before music.play', async () => {
     const deps = makeDeps();
-    const player = new BroadcastPlayer(
-      deps.music, deps.native, deps.manifestClient, deps.stingers,
-    );
+    const player = makePlayer(deps);
     player.start(makeManifest(), ['https://cdn/seg0-v0.mp3']);
     // Drive past cold_open to hit runTrackAt(0).
     for (let i = 0; i < 80; i++) await Promise.resolve();
@@ -216,9 +238,7 @@ describe('BroadcastPlayer', () => {
 
   it('wraps native listener errors so one throwing callback does not kill the player', async () => {
     const deps = makeDeps();
-    const player = new BroadcastPlayer(
-      deps.music, deps.native, deps.manifestClient, deps.stingers,
-    );
+    const player = makePlayer(deps);
     player.start(makeManifest(), ['https://cdn/seg0-v0.mp3']);
     await Promise.resolve();
     expect(() => deps.fireStateChanged('playing')).not.toThrow();
@@ -243,9 +263,7 @@ describe('BroadcastPlayer', () => {
     };
     (deps.manifestClient.fetchManifest as jest.Mock).mockResolvedValueOnce(ready);
 
-    const player = new BroadcastPlayer(
-      deps.music, deps.native, deps.manifestClient, deps.stingers,
-    );
+    const player = makePlayer(deps);
     player.start(pending, ['u0']);
     await Promise.resolve();
     await player.pollManifestOnce();
@@ -299,9 +317,7 @@ describe('BroadcastPlayer', () => {
         getPlaybackStatus: jest.fn(async () => 'stopped'),
         getPlaybackTime: jest.fn(async () => 1),
       };
-      const player = new BroadcastPlayer(
-        music, deps.native, deps.manifestClient, deps.stingers,
-      );
+      const player = makePlayer(deps, { music });
       player.start(pending, ['https://cdn/seg0-v0.mp3']);
       await driveBothTracksToEnd(deps);
       for (let i = 0; i < 80; i++) await Promise.resolve();
@@ -328,9 +344,7 @@ describe('BroadcastPlayer', () => {
         getPlaybackStatus: jest.fn(async () => 'stopped'),
         getPlaybackTime: jest.fn(async () => 1),
       };
-      const player = new BroadcastPlayer(
-        music, deps.native, deps.manifestClient, deps.stingers,
-      );
+      const player = makePlayer(deps, { music });
       player.start(pending, ['https://cdn/seg0-v0.mp3']);
       await driveBothTracksToEnd(deps);
       for (let i = 0; i < 80; i++) await Promise.resolve();
@@ -356,9 +370,7 @@ describe('BroadcastPlayer', () => {
         getPlaybackStatus: jest.fn(async () => 'stopped'),
         getPlaybackTime: jest.fn(async () => 1),
       };
-      const player = new BroadcastPlayer(
-        music, deps.native, deps.manifestClient, deps.stingers,
-      );
+      const player = makePlayer(deps, { music });
       // Compress timeout + poll interval so the test runs in real-time without fake timers.
       const tuning = player as unknown as {
         SEGMENT_READY_TIMEOUT_MS: number;
@@ -387,9 +399,7 @@ describe('BroadcastPlayer', () => {
       const deps = makeDeps();
       const setBroadcastActive = jest.fn(async (_a: boolean) => {});
       const native = { ...deps.native, setBroadcastActive };
-      const player = new BroadcastPlayer(
-        deps.music, native, deps.manifestClient, deps.stingers,
-      );
+      const player = makePlayer(deps, { native });
 
       player.start(makeManifest(), ['https://cdn/seg0-v0.mp3']);
       for (let i = 0; i < 5; i++) await Promise.resolve();
@@ -402,9 +412,7 @@ describe('BroadcastPlayer', () => {
 
     it('does not crash if native module lacks setBroadcastActive', async () => {
       const deps = makeDeps();
-      const player = new BroadcastPlayer(
-        deps.music, deps.native, deps.manifestClient, deps.stingers,
-      );
+      const player = makePlayer(deps);
       // deps.native intentionally has no setBroadcastActive — must be safe to omit.
       // start() is fire-and-forget (the broadcast loop); end() is what we await.
       player.start(makeManifest(), ['https://cdn/seg0-v0.mp3']);
@@ -418,9 +426,7 @@ describe('BroadcastPlayer', () => {
       // Uses a 3-track sparse manifest so a transition segment sits between
       // t1 and t2; ending t1 should kick the transition (seg1) TTS.
       const deps = makeDeps();
-      const player = new BroadcastPlayer(
-        deps.music, deps.native, deps.manifestClient, deps.stingers,
-      );
+      const player = makePlayer(deps);
       player.start(makeManifest3(), ['https://cdn/seg0-v0.mp3']);
       // Flush cold_open segment and transition into runTrackAt(0)
       for (let i = 0; i < 40; i++) await Promise.resolve();
@@ -465,9 +471,7 @@ describe('BroadcastPlayer', () => {
       // Under sparse segment shape, a 2-track broadcast has only cold_open
       // (seg0) + sign_off (seg1) — no transition between t0 and t1.
       const deps = makeDeps();
-      const player = new BroadcastPlayer(
-        deps.music, deps.native, deps.manifestClient, deps.stingers,
-      );
+      const player = makePlayer(deps);
       player.start(makeManifest(), ['https://cdn/seg0-v0.mp3']);
 
       // Cold open → runTrackAt(0)
@@ -498,9 +502,7 @@ describe('BroadcastPlayer', () => {
       // Use a 3-track sparse manifest so there IS a downstream segment
       // (transition before t2, seg1) whose non-firing we can verify.
       const deps = makeDeps();
-      const player = new BroadcastPlayer(
-        deps.music, deps.native, deps.manifestClient, deps.stingers,
-      );
+      const player = makePlayer(deps);
       player.start(makeManifest3(), ['https://cdn/seg0-v0.mp3']);
       for (let i = 0; i < 40; i++) await Promise.resolve();
       expect(deps.logs).toContain('play:t0');
@@ -557,9 +559,7 @@ describe('BroadcastPlayer', () => {
         getPlaybackStatus: jest.fn(async () => 'stopped'),
         getPlaybackTime: jest.fn(async () => 1),
       };
-      const player = new BroadcastPlayer(
-        music, deps.native, deps.manifestClient, deps.stingers,
-      );
+      const player = makePlayer(deps, { music });
       player.start(makeManifest5(), ['https://cdn/seg0-v0.mp3']);
 
       // Drive each track to 'playing' then 'stopped' via event stream so
@@ -616,9 +616,7 @@ describe('BroadcastPlayer', () => {
         ],
       };
 
-      const player = new BroadcastPlayer(
-        music, deps.native, deps.manifestClient, deps.stingers,
-      );
+      const player = makePlayer(deps, { music });
       player.start(manifest, ['https://cdn/seg0-v0.mp3']);
 
       for (let t = 0; t < 2; t++) {
@@ -670,9 +668,7 @@ describe('BroadcastPlayer', () => {
         ],
       };
 
-      const player = new BroadcastPlayer(
-        music, deps.native, deps.manifestClient, deps.stingers,
-      );
+      const player = makePlayer(deps, { music });
       player.start(manifest, ['https://cdn/seg0-v0.mp3']);
 
       for (let t = 0; t < 3; t++) {
@@ -704,9 +700,7 @@ describe('BroadcastPlayer', () => {
         getPlaybackStatus: jest.fn(async () => 'stopped'),
         getPlaybackTime: jest.fn(async () => 1),
       };
-      const player = new BroadcastPlayer(
-        music, deps.native, deps.manifestClient, deps.stingers,
-      );
+      const player = makePlayer(deps, { music });
 
       const samples: number[] = [];
       const sample = () => samples.push(player.getStatus().progress);
@@ -768,9 +762,7 @@ describe('BroadcastPlayer', () => {
         ],
       };
 
-      const player = new BroadcastPlayer(
-        music, deps.native, deps.manifestClient, deps.stingers,
-      );
+      const player = makePlayer(deps, { music });
       player.start(manifest, ['https://cdn/seg0-v0.mp3']);
 
       // Immediately after start(), record is seeded with cursor -1.
@@ -837,9 +829,7 @@ describe('BroadcastPlayer', () => {
 
     it('cursor === -1 behaves identically to start (plays cold_open then all 5 tracks)', async () => {
       const { deps, music, driveTrackEnd } = makeDriver();
-      const player = new BroadcastPlayer(
-        music, deps.native, deps.manifestClient, deps.stingers,
-      );
+      const player = makePlayer(deps, { music });
       player.resume(make5Manifest(), -1);
       for (let t = 0; t < 5; t++) await driveTrackEnd();
       for (let i = 0; i < 80; i++) await Promise.resolve();
@@ -863,9 +853,7 @@ describe('BroadcastPlayer', () => {
 
     it('cursor=2 (transition precedes t2) replays seg1 then plays t2 onward — cold_open NOT replayed', async () => {
       const { deps, music, driveTrackEnd } = makeDriver();
-      const player = new BroadcastPlayer(
-        music, deps.native, deps.manifestClient, deps.stingers,
-      );
+      const player = makePlayer(deps, { music });
       player.resume(make5Manifest(), 2);
       // Remaining flow: seg1 → t2 → t3 → seg2 → t4 → seg3
       for (let t = 0; t < 3; t++) await driveTrackEnd();
@@ -891,9 +879,7 @@ describe('BroadcastPlayer', () => {
 
     it('cursor=3 (no transition precedes t3) starts at t3 without any intro segment', async () => {
       const { deps, music, driveTrackEnd } = makeDriver();
-      const player = new BroadcastPlayer(
-        music, deps.native, deps.manifestClient, deps.stingers,
-      );
+      const player = makePlayer(deps, { music });
       player.resume(make5Manifest(), 3);
       // Remaining flow: t3 → seg2 → t4 → seg3
       for (let t = 0; t < 2; t++) await driveTrackEnd();
@@ -913,9 +899,7 @@ describe('BroadcastPlayer', () => {
 
     it('cursor=1 (no transition precedes t1) starts at t1 — nextSegmentIdx skips past the cold_open slot', async () => {
       const { deps, music, driveTrackEnd } = makeDriver();
-      const player = new BroadcastPlayer(
-        music, deps.native, deps.manifestClient, deps.stingers,
-      );
+      const player = makePlayer(deps, { music });
       player.resume(make5Manifest(), 1);
       // Remaining: t1 → seg1 → t2 → t3 → seg2 → t4 → seg3
       for (let t = 0; t < 4; t++) await driveTrackEnd();
@@ -943,9 +927,7 @@ describe('BroadcastPlayer', () => {
       getPlaybackStatus: jest.fn(async () => 'stopped'),
       getPlaybackTime: jest.fn(async () => 1),
     };
-    const player = new BroadcastPlayer(
-      music, deps.native, deps.manifestClient, deps.stingers,
-    );
+    const player = makePlayer(deps, { music });
     player.start(makeManifest3(), ['https://cdn/seg0-v0.mp3']);
     // Drive all 3 tracks through to sign-off.
     for (let t = 0; t < 3; t++) {
@@ -962,9 +944,7 @@ describe('BroadcastPlayer', () => {
 
   it('end() clears the NowPlaying tile', async () => {
     const deps = makeDeps();
-    const player = new BroadcastPlayer(
-      deps.music, deps.native, deps.manifestClient, deps.stingers,
-    );
+    const player = makePlayer(deps);
     player.start(makeManifest(), ['https://cdn/seg0-v0.mp3']);
     for (let i = 0; i < 20; i++) await Promise.resolve();
     await player.end();
@@ -978,9 +958,7 @@ describe('BroadcastPlayer', () => {
       getPlaybackStatus: jest.fn(async () => 'stopped'),
       getPlaybackTime: jest.fn(async () => 1),
     };
-    const player = new BroadcastPlayer(
-      music, deps.native, deps.manifestClient, deps.stingers,
-    );
+    const player = makePlayer(deps, { music });
     player.start(makeManifest(), ['https://cdn/seg0-v0.mp3']);
     for (let t = 0; t < 2; t++) {
       for (let i = 0; i < 80; i++) await Promise.resolve();
@@ -1000,9 +978,7 @@ describe('BroadcastPlayer', () => {
       setPersistedBroadcast({ manifest, trackCursor: 99, updatedAt: Date.now() });
 
       const { deps, music } = makeDriver();
-      const player = new BroadcastPlayer(
-        music, deps.native, deps.manifestClient, deps.stingers,
-      );
+      const player = makePlayer(deps, { music });
       await player.resume(manifest, 99);
 
       expect(getPersistedBroadcast()).toBeUndefined();
@@ -1022,9 +998,7 @@ describe('BroadcastPlayer', () => {
         getPlaybackStatus: jest.fn(async () => 'playing'),
         getPlaybackTime:   jest.fn(async () => { t += 1; return t; }),
       };
-      player = new BroadcastPlayer(
-        music, deps.native, deps.manifestClient, deps.stingers,
-      );
+      player = makePlayer(deps, { music });
       player.start(makeManifest(), ['https://cdn/seg0-v0.mp3']);
       // Allow cold_open + runTrackAt(0) to be reached.
       for (let i = 0; i < 80; i++) { await Promise.resolve(); }
@@ -1055,9 +1029,7 @@ describe('BroadcastPlayer', () => {
 
   it('remote pause from lock screen pauses the broadcast', async () => {
     const deps = makeDeps();
-    const player = new BroadcastPlayer(
-      deps.music, deps.native, deps.manifestClient, deps.stingers,
-    );
+    const player = makePlayer(deps);
     player.start(makeManifest(), ['https://cdn/seg0-v0.mp3']);
     for (let i = 0; i < 20; i++) await Promise.resolve();
     expect(deps.music.subscribeRemoteCommands).toHaveBeenCalled();
@@ -1094,9 +1066,7 @@ describe('BroadcastPlayer', () => {
           getPlaybackStatus: jest.fn(async () => 'playing'),
           getPlaybackTime: jest.fn(async () => 0),
         };
-        player = new BroadcastPlayer(
-          music, deps.native, deps.manifestClient, deps.stingers, scrobbler,
-        );
+        player = makePlayer(deps, { music, scrobbler });
 
         player.start(makeManifest(), ['https://cdn/seg0-v0.mp3']);
 
@@ -1177,9 +1147,7 @@ describe('BroadcastPlayer', () => {
         getPlaybackTime: jest.fn(async () => 1),
       };
 
-      const player = new BroadcastPlayer(
-        music, deps.native, deps.manifestClient, deps.stingers,
-      );
+      const player = makePlayer(deps, { music });
 
       // Don't await — we need to inspect state while resume is mid-flight.
       const resumeP = player.resume(make5Manifest(), 2);
@@ -1249,9 +1217,7 @@ describe('BroadcastPlayer', () => {
         getPlaybackTime: jest.fn(async () => 1),
       };
 
-      const player = new BroadcastPlayer(
-        music, deps.native, deps.manifestClient, deps.stingers,
-      );
+      const player = makePlayer(deps, { music });
 
       player.start(make5Manifest(), ['https://cdn/seg0-v0.mp3']);
 
