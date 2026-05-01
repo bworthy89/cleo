@@ -4,7 +4,7 @@
     "slug": "cleo",
     "version": "1.2.0",
     "runtimeVersion": {
-      "policy": "fingerprint"
+      "policy": "appVersion"
     },
     "updates": {
       "url": "https://u.expo.dev/65e6f716-8b20-415c-9827-cfcef3e2c8ae",
