@@ -368,17 +368,39 @@ server-side Firestore writes was a hard prereq.
 - **Local-device install**: `SENTRY_DISABLE_AUTO_UPLOAD=true npx expo run:ios --device`.
   Auto-managed signing, team `8F2VWCN5KF`. iOS platform SDK must match device iOS.
 - **TestFlight submission (EAS)**:
-  1. Bump `CURRENT_PROJECT_VERSION` in `ios/ONAY.xcodeproj/project.pbxproj` (all 4
-     occurrences; `Info.plist` + `MARKETING_VERSION` inherit via substitution vars).
-     Also bump `ios.buildNumber` in `app.json` for parity — `eas.json`
-     `appVersionSource: "local"` reads pbxproj as truth, so the pbxproj number
-     is what ships.
+  1. Bump versions atomically: `npm run bump:build` (default = build number only,
+     for TestFlight iteration) or `npm run bump:build -- --release patch|minor|major`
+     (when adding native deps; bumps `expo.version` + `expo.runtimeVersion` in
+     `app.json` AND `EXUpdatesRuntimeVersion` in `Expo.plist` in lockstep with the
+     build number). Five sources stay in sync: pbxproj×4 + app.json buildNumber +
+     app.json version + app.json runtimeVersion + Expo.plist EXUpdatesRuntimeVersion.
+     Pre-flight validation refuses to run if any are out of sync (`--force` overrides).
+     Never edit them by hand — bare workflow can't use auto-bump policies (see OTA
+     section below), so the script is the only safe atomic operation.
   2. `eas build --profile production --platform ios [--non-interactive]` —
      first time per new target needs interactive mode so EAS can provision the
      Apple App ID for the widget extension (`com.worthymedia.cleo.ONAYWidgets`);
      subsequent builds can use `--non-interactive`.
   3. `eas submit --profile production --platform ios --latest` — uploads the
      .ipa to App Store Connect (ASC app ID `6760923768`, team `8F2VWCN5KF`).
+- **OTA push (JS-only changes)**: `npm run update:prod -- --message "..."` (full
+  rollout) or `npm run update:prod:safe -- --message "..."` (25% rollout). Both go
+  through `scripts/guard-update.mjs` which compares working tree `expo.runtimeVersion`
+  against the runtimeVersion of the latest finished production EAS build — refuses
+  the push if they differ (means you've made native-bumping changes since last build
+  and an OTA would crash old binaries). `update:prod:noguard` exists as the
+  emergency escape hatch but should almost never be needed. `--platform ios` is
+  baked into all three scripts; without it `eas update` defaults to `--platform all`
+  and tries to export web (which we don't have wired). Bare workflow forces literal
+  `runtimeVersion` in app.json — no `policy: "fingerprint"` or `policy: "appVersion"`
+  (EAS errors out). The bump script enforces the lockstep that policy objects would
+  have automated.
+- **OTA rollback**: `eas update:list --branch production --platform ios` to find
+  the previous group ID, then `eas update:republish --group <prev-id> --platform ios`
+  (do NOT pass `--branch` — EAS rejects the combo). Republished group becomes the
+  new latest; testers get it on next cold-launch (or sooner via the foreground hook
+  in `app/_layout.tsx`, which only reloads when no broadcast is playing so it never
+  interrupts audio).
 - **Icon + splash sync**: after editing `assets/icon.png` directly run
   `npm run icons:sync` to copy the PNG into `ios/ONAY/Images.xcassets` slots.
   After editing `scripts/icons/master.html` run `npm run icons` for the full
@@ -595,8 +617,17 @@ EXPO_PUBLIC_SENTRY_DSN
   via `removeBroadcastFromHistory()`. Playback tap re-verifies.
 
 ### Build / deployment
-- **Sentry source-map upload fails** without org config — always build with
-  `SENTRY_DISABLE_AUTO_UPLOAD=true` (already set in `eas.json` production profile).
+- **Sentry source-map upload — partly wired, not yet verified end-to-end as of
+  2026-05-01.** EAS production builds are configured to upload via `SENTRY_AUTH_TOKEN`
+  + `SENTRY_ORG` + `SENTRY_PROJECT` EAS secrets; `SENTRY_DISABLE_AUTO_UPLOAD` is
+  set to `"false"` in `eas.json` production profile (was `"true"` before OTA work).
+  But sentry.io shows zero releases for the project after build 64 went out, meaning
+  the upload step likely failed silently. Diagnose by reading the EAS build log
+  for `sentry-cli` lines. Local-device builds (`expo run:ios --device`) still need
+  the override `SENTRY_DISABLE_AUTO_UPLOAD=true` because they can't read EAS secrets.
+  Separate gap: `eas update` does NOT auto-upload OTA bundle source maps — needs a
+  post-update `sentry-expo-upload-sourcemaps` script. Both fixes are LATER items
+  in `docs/index.md`.
 - **iOS platform SDK** must match device iOS version. New iOS releases require Xcode >
   Settings > Platforms download (~8GB) before `expo run:ios --device` works.
 - **pbxproj `objectVersion = 56` pin.** Xcode 26 writes `objectVersion = 70`, but
@@ -633,6 +664,10 @@ compiled in but unreferenced — candidate for native cleanup pass. `SequenceCac
 
 ## What's Left (not yet shipped)
 
+- **OTA Sentry source-map upload** — wired in EAS profile but build-64 release
+  never landed on sentry.io; needs diagnosis of the EAS build log + a separate
+  post-`eas update` script for OTA bundles. Beta blocker (every JS crash unmapped
+  until fixed). Tracked in `docs/index.md` LATER.
 - **Bake abort endpoint** — no `DELETE /broadcast/:id`. User canceling mid-bake still
   pays for all remaining LLM + TTS calls.
 - **Scheduled/autonomous featured bakes** (cron "Monday Reset" etc.) — requires server
