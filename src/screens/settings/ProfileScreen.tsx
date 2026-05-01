@@ -436,7 +436,7 @@ export function ProfileScreen() {
 
         {/* Colophon */}
         <View style={styles.colophon}>
-          <Text style={styles.colophonText}>ONAY RADIO · EST. 2026</Text>
+          <Text style={styles.colophonText}>ONAY RADIO · EST. MMXXVI</Text>
           <Text style={styles.colophonText}>NO ALGORITHMS · NO SHUFFLE · SIDE A → SIDE B</Text>
         </View>
       </ScrollView>
