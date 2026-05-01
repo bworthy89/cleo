@@ -15,7 +15,9 @@
     "env:dev": "./scripts/env-dev.sh",
     "dev:app": "./scripts/env-dev.sh && expo start",
     "icons": "node scripts/generate-icons.mjs",
-    "icons:sync": "node scripts/generate-icons.mjs --sync-only"
+    "icons:sync": "node scripts/generate-icons.mjs --sync-only",
+    "update:prod": "eas update --branch production",
+    "update:prod:safe": "eas update --branch production --rollout-percentage 25"
   },
   "dependencies": {
     "@expo-google-fonts/anton": "^0.4.2",
@@ -46,6 +48,7 @@
     "expo-router": "~55.0.5",
     "expo-splash-screen": "~55.0.10",
     "expo-status-bar": "~55.0.4",
+    "expo-updates": "~55.0.21",
     "expo-web-browser": "~55.0.14",
     "react": "19.2.0",
     "react-dom": "^19.2.4",
