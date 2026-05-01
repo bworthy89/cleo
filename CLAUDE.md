@@ -427,14 +427,21 @@ server-side Firestore writes was a hard prereq.
   target > Signing & Capabilities.
 - **iOS deployment target**: 16.2 (MusicLibraryRequest requirement + Live
   Activities + iOS 16.2-gated APIs in ONAYWidgets).
-- **Scheduled remote checks**: weekly OTA pipeline health check runs every
-  Monday 9am EDT (`trig_01EFnDkAktM8Z8DENByshKTZ`,
-  https://claude.ai/code/routines/trig_01EFnDkAktM8Z8DENByshKTZ). Read-only;
-  validates the bump-script lockstep, looks for native-bumping commits since
-  the last `runtimeVersion` bump, verifies guard + scripts + eas.json config,
-  reports Sentry source-map status. Output is a single Status / Findings /
-  Recommended-actions markdown report in the routine dashboard. To add new
-  routines, see `https://claude.ai/code/routines`.
+- **Scheduled remote checks**: two weekly health checks, both read-only, both
+  output Status / Findings / Recommended-actions markdown to their routine
+  dashboards. Add new routines via `https://claude.ai/code/routines`.
+  - **OTA pipeline** — Monday 9:00am EDT (`trig_01EFnDkAktM8Z8DENByshKTZ`,
+    https://claude.ai/code/routines/trig_01EFnDkAktM8Z8DENByshKTZ). Validates
+    `bump:build` lockstep, looks for native-bumping commits since the last
+    `runtimeVersion` bump, verifies guard + scripts + `eas.json` config,
+    reports Sentry source-map status.
+  - **Auto-deploy pipeline** — Monday 9:30am EDT (`trig_01BtuuEQTGUcPGzSuQDbUECo`,
+    https://claude.ai/code/routines/trig_01BtuuEQTGUcPGzSuQDbUECo). Counts
+    deploy.yml run successes/failures last 7 days, curls both tier `/health`
+    endpoints, checks for commit/deploy gap on each tier (latest branch SHA
+    vs latest successful deploy SHA), verifies workflow file integrity,
+    surfaces follow-ups (SHA-pin status, cluster-mode migration, `cleo-broadcast-old-2026-05-01`
+    cleanup reminder after 2026-05-08).
 - **CI on push** (`.github/workflows/test.yml`): two parallel jobs on every push
   to `main`/`staging` and every PR — `Client jest` (root `npm test`) and
   `Server build + jest` (server `npm ci && npm run build && npm test`). Both
