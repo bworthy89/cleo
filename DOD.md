@@ -39,7 +39,7 @@ Soft rule — easily violated when bug-chasing — but worth defaulting to.
 - [ ] Renders correctly on device (`SENTRY_DISABLE_AUTO_UPLOAD=true npx expo run:ios --device`), or explicitly noted as "needs device test"
 - [ ] OTA-pushable: change is purely JS/TS (no native deps, no `app.json` plugin changes, no `ios/` edits). Guard script auto-validates this — it'll refuse the push if working-tree `runtimeVersion` doesn't match the latest TestFlight build's
 - [ ] Published: `npm run update:prod -- --message "..."` (full rollout, for trivial) OR `npm run update:prod:safe -- --message "..."` (25% rollout, for non-trivial). Both go through `scripts/guard-update.mjs`
-- [ ] Sentry watched ~30 min after push; if crash rate spikes, `eas update:republish --group <prev-id> --platform ios` (NOT `--branch` — EAS rejects the combo). **Caveat:** Sentry source-map upload is currently broken (LATER item in `docs/index.md`); JS crashes will be unmapped until fixed
+- [ ] Sentry watched ~30 min after push; if crash rate spikes, `eas update:republish --group <prev-id> --platform ios` (NOT `--branch` — EAS rejects the combo). Source maps auto-upload via `scripts/guard-update.mjs` post-OTA — confirm `[sentry] sourcemaps uploaded.` in the script output
 
 ### Native iOS change
 
@@ -48,7 +48,7 @@ Soft rule — easily violated when bug-chasing — but worth defaulting to.
 - [ ] Bumped via `npm run bump:build` — pick the right mode:
   - **Default** (`npm run bump:build`): build number only. Use when no native deps changed, no Swift changed, no plugin config changed. Preserves the OTA chain (old binaries can still receive OTAs from this build's runtime).
   - **`-- --release patch|minor|major`**: build number + `expo.version` + `runtimeVersion` (app.json) + `EXUpdatesRuntimeVersion` (Expo.plist), all in lockstep. Use when adding/changing native deps (`react-native-*`, `expo-*` with native, `@react-native-*`), modifying `modules/expo-music-kit/`, or any Swift change. Intentionally breaks the OTA chain — old binaries on the previous runtime won't receive OTAs from this build (correct: the JS bundle now expects native APIs they don't have)
-- [ ] EAS production build succeeded: `eas build --profile production --platform ios --non-interactive`. Watch the build log for the Sentry source-map upload step — currently silently failing (LATER fix)
+- [ ] EAS production build succeeded: `eas build --profile production --platform ios --non-interactive`. Confirm `sentry-cli` source-map upload succeeded in the build log (look for `Source Map Upload Report` lines after Hermes bundling)
 - [ ] EAS submit succeeded: `eas submit --profile production --platform ios --latest`
 - [ ] TestFlight build installed on device, opened once to register on the production update channel
 - [ ] Smoke a basic flow: cold launch → onboarding-or-resume routes correctly → start a broadcast → first track plays → cold open audio plays

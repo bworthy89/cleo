@@ -17,9 +17,9 @@
     "icons": "node scripts/generate-icons.mjs",
     "icons:sync": "node scripts/generate-icons.mjs --sync-only",
     "bump:build": "node scripts/bump-build.mjs",
-    "update:prod": "node scripts/guard-update.mjs --branch production --platform ios",
-    "update:prod:safe": "node scripts/guard-update.mjs --branch production --platform ios --rollout-percentage 25",
-    "update:prod:noguard": "eas update --branch production --platform ios",
+    "update:prod": "node scripts/guard-update.mjs --branch production --platform ios --environment production",
+    "update:prod:safe": "node scripts/guard-update.mjs --branch production --platform ios --environment production --rollout-percentage 25",
+    "update:prod:noguard": "eas update --branch production --platform ios --environment production",
     "prepare": "husky"
   },
   "dependencies": {
