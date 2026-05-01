@@ -12,7 +12,6 @@ Project conventions and topology: [[Conventions]].
 
 ## NEXT
 
-- [ ] Sentry source-map fix — beta blocker, was punted as LATER but should jump the queue once external testers are imminent (every OTA crash is currently unmapped)
 - [ ] Root typecheck cleanup so it can join CI — fix tsconfig to exclude `server/**` (server has its own tsconfig + the build-step typecheck) and `v2-migration/**` (migration scratchpad), fix the testID prop error in `src/screens/home/HomeBroadcastScreen.tsx:673` (CatalogRow doesn't accept testID per current Props type)
 - [ ] Root lint cleanup so it can join CI — `npm install --save-dev eslint-plugin-react-hooks`, then either accept or fix the 25 no-explicit-any / unused-var warnings
 

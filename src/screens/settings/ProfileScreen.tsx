@@ -575,7 +575,6 @@ const styles = StyleSheet.create({
     color: AM.amber,
     lineHeight: 22,
   },
-
   colophon: {
     marginTop: Space.s40,
     paddingTop: 16,
