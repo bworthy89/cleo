@@ -411,6 +411,14 @@ server-side Firestore writes was a hard prereq.
   target > Signing & Capabilities.
 - **iOS deployment target**: 16.2 (MusicLibraryRequest requirement + Live
   Activities + iOS 16.2-gated APIs in ONAYWidgets).
+- **Scheduled remote checks**: weekly OTA pipeline health check runs every
+  Monday 9am EDT (`trig_01EFnDkAktM8Z8DENByshKTZ`,
+  https://claude.ai/code/routines/trig_01EFnDkAktM8Z8DENByshKTZ). Read-only;
+  validates the bump-script lockstep, looks for native-bumping commits since
+  the last `runtimeVersion` bump, verifies guard + scripts + eas.json config,
+  reports Sentry source-map status. Output is a single Status / Findings /
+  Recommended-actions markdown report in the routine dashboard. To add new
+  routines, see `https://claude.ai/code/routines`.
 
 ---
 
