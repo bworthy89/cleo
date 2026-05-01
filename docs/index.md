@@ -13,12 +13,11 @@ Project conventions and topology: [[Conventions]].
 ## NEXT
 
 - [ ] Sentry source-map fix — beta blocker, was punted as LATER but should jump the queue once external testers are imminent (every OTA crash is currently unmapped)
-- [ ] Dev pipeline Phase 3 — staging environment (needs its own design pass first — R2 / Firebase / DB-state choices unspecified)
-- [ ] Dev pipeline Phase 4 — automation safety net (CI on push, pre-push hook, build-number bump script)
+- [ ] Root typecheck cleanup so it can join CI — fix tsconfig to exclude `server/**` (server has its own tsconfig + the build-step typecheck) and `v2-migration/**` (migration scratchpad), fix the testID prop error in `src/screens/home/HomeBroadcastScreen.tsx:673` (CatalogRow doesn't accept testID per current Props type)
+- [ ] Root lint cleanup so it can join CI — `npm install --save-dev eslint-plugin-react-hooks`, then either accept or fix the 25 no-explicit-any / unused-var warnings
+- [ ] Dev pipeline Phase 5 — auto-deploy on push to staging / main (last dev pipeline phase; depends on Phase 3 staging which is now done)
 
 ## LATER
-
-- [ ] Dev pipeline Phase 5 — auto-deploy on push to staging / main
 - [ ] Bake abort endpoint (`DELETE /broadcast/:id`)
 - [ ] Native Swift cleanup (eject code, `beginTTSBackgroundTask` / `silencePlayer` leftovers)
 - [ ] R2 presign TTL tightening (7d → 24h to match BroadcastStore)

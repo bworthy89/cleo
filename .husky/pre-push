@@ -1,0 +1,12 @@
+# Phase 4 pre-push hook (runs once per push, ~4s).
+# Catches client jest regressions before they reach origin / CI.
+# Skip via `git push --no-verify` only when explicitly intentional.
+#
+# Why pre-push not pre-commit: per docs/superpowers/specs/2026-05-01-dev-pipeline-design.md
+# Tier 3 #3 — pre-commit hooks fire too often and tend to get --no-verify'd in
+# practice. Pre-push is cheap enough not to.
+#
+# Server jest is intentionally NOT run here (would add ~22s).
+# Server work is gated by CI (.github/workflows/test.yml) on push.
+
+npm test
