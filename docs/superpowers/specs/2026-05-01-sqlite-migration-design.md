@@ -54,7 +54,7 @@ The fix is one SQLite file holding all four stores, plus a new `app_events` tabl
 1. **D1 → D7 retention measurement.** The Phase 2 gate. A new `app_events` table indexed on `(user_id, occurred_at)` makes cohort queries one SELECT.
 2. **Honest bake completion status.** Slot states become queryable rows. `bake_status` aggregates from per-slot status: `healthy` if all `ready`, `degraded` if any `failed`, `failed` if `cold_open` failed. The current "all slots failed but bake reports completed" bug becomes a one-line fix.
 3. **Real backups.** `sqlite3 cleo.db ".backup ..."` is a one-line cron job. One file, one snapshot, no race with atomic-rename writers.
-4. **Admin queries.** Existing `/admin/*` routes currently tail PM2 logs (`server/src/routes/admin.ts`). With rows, the admin surface can show recent bakes, failure rates per vibe, curator activity, top-failing TTS providers.
+4. **Admin queries.** Existing `/admin/*` routes currently tail PM2 logs (`server/src/routes/admin.ts`). With rows, the admin surface can show recent bakes, failure rates per vibe, curator activity, top-failing TTS providers. See the **Admin surface** section below for concrete endpoint sketches and the deliberate decision to stay JSON-only at first.
 5. **Crashed-bake recovery.** Boot-time sweep marks abandoned `'baking'` rows as `'failed'` and `pending` slots as `'aborted'`. Today these vanish; tomorrow the client gets a meaningful manifest state.
 
 ---
@@ -266,6 +266,87 @@ FROM cohort c LEFT JOIN app_events e ON e.user_id = c.user_id;
 
 ---
 
+## Admin surface
+
+### Today
+
+The admin surface is two endpoints, both in `server/src/routes/admin.ts`:
+
+- `GET /admin/logs?stream=out|err|all&user=<sub>&id=<short>&lines=<n>` — text/plain tail of PM2's `out.log` / `error.log` with substring filtering. Operator-friendly (paste into a browser URL bar).
+- `GET /admin/status` — JSON snapshot: uptime, memory (RSS / heap / external), `BroadcastStore.size()`, `orchestrator.inFlightCount`, provider health (`llm.getStatus()` / `tts.getStatus()`), log file sizes.
+
+Auth is two-path via `adminGate()` (`admin.ts:135-157`): `X-Admin-Token` header against `ADMIN_BEARER_TOKEN` env (≥16 chars), or Firebase JWT + curator allowlist. There is no HTML, no static assets, no client UI.
+
+The endpoints today can answer "what is the server doing right now" but not "what has happened." Anything historical requires `grep` on PM2 output.
+
+### After the migration
+
+The same `adminGate` chain protects a new family of SQL-backed endpoints. Each is 5-15 lines of route handler over a prepared statement. JSON-only — no HTML — so the curl/browser-bar workflow already in use stays primary.
+
+```
+GET /admin/bakes?status=failed&since=<ms>&limit=<n>
+  -> [{ id, user_id, vibe, length, created_at, bake_status, slot_summary }]
+  SQL: SELECT b.*, json_group_array(json_object('idx', s.slot_index, 'status', s.status))
+       FROM broadcasts b LEFT JOIN broadcast_slots s ON s.broadcast_id = b.id
+       WHERE b.created_at > ? AND b.bake_status = ?
+       GROUP BY b.id ORDER BY b.created_at DESC LIMIT ?
+
+GET /admin/bakes/:id
+  -> { broadcast, slots, events }
+  Joins broadcasts, broadcast_slots, and app_events for one bake.
+  The "what happened to this user's bake" deep-dive that today requires
+  grep over PM2 logs by short id.
+
+GET /admin/users/:uid/activity?since=<ms>
+  -> { app_opens, broadcasts_created, broadcasts_completed, broadcasts_failed, last_seen_at }
+  One user's recent activity. Useful when a tester reports a bug —
+  paste their uid and see what they actually did.
+
+GET /admin/retention?cohort_days=<n>
+  -> { d0_users, d1_returners, d7_returners, d1_pct, d7_pct }
+  The Phase 2 gate query, cached at 5min TTL. Same SQL as the
+  EventRecorder section; rendered as a single-row JSON.
+
+GET /admin/curators/:uid/publishes?since=<ms>
+  -> [{ broadcast_id, published_at, title, vibe }]
+  Per-curator publish history. Replaces "trust the in-memory counter,"
+  enables the curator-facing "what have I published" view if it ever
+  ships in-app.
+
+GET /admin/featured
+  -> [{ id, slot, theme_day, baked, created_at, manifest_summary }]
+  Admin view of the featured registry, including drafts (baked=0).
+  Today this data is only readable via /broadcast/featured, which
+  filters to baked=1 and returns full manifests.
+
+GET /admin/tts/failures?since=<ms>
+  -> [{ provider, count, sample_errors[3] }]
+  Aggregated from app_events where event_type='broadcast_failed' and
+  payload_json carries the failing provider tag. Surfaces "ElevenLabs
+  has been 503-ing for the last hour" without reading logs.
+```
+
+`/admin/status` gains two fields it can't have today: `broadcast.bakes_today`, `broadcast.failed_today`. Both are one-row counts.
+
+### Why JSON-only first
+
+A web dashboard is a feature, not a foundation. Before building one:
+
+- The audience is one operator and a handful of curators. Curl is enough for the operator; curators don't need a separate portal (see below).
+- The data shapes will shift as the team learns what questions matter. Locking them into a UI early calcifies the wrong layout.
+- A Postman collection or shell-script wrapper around these endpoints gives 80% of dashboard value at 5% of the cost.
+
+Build the HTML dashboard later — and only — when the operator finds themselves writing the same curl invocation three times. At that point the endpoints already exist; the HTML is purely a presentation layer.
+
+### What's deliberately not in this scope
+
+- **HTML dashboard / SPA admin.** Deferred. Two-to-three day effort once the JSON endpoints exist; not blocking.
+- **In-app curator surface.** The "your published broadcasts" view — letting curators see their own publish history and featured-broadcast performance from inside the React Native app — is a product feature, not an admin tool. It uses the same SQLite tables but talks to a different (curator-scoped, non-`/admin/`) route. Belongs in a separate spec.
+- **Off-the-shelf SQL browsers** (`datasette`, `sqlite-web`). Tempting because they're free, but they sit outside the existing auth model, expose schema-level mutation, and would need a separate port or SSH tunnel. Not worth the integration friction at this scale.
+- **Cost / token-spend telemetry.** Provider cost per bake is not in `app_events` today; capturing it requires plumbing through `SegmentGenerator` and the TTS providers. Worth doing, but separate work.
+
+---
+
 ## Generation-transparency guarantee
 
 The migration must not change how broadcasts are generated. Verifying this is structural, not a hope:
@@ -330,7 +411,9 @@ Net: roughly four test files rewritten, 30-60 lines each.
 
 **Phase 4 — backfill + deploy (half day).** Run the backfill on the VPS, verify row counts match the JSON-file keys, smoke-test a bake, archive the JSON files.
 
-Total: ~3 days of focused work. Each phase is independently revertable until Phase 4 deletes the JSON files.
+**Phase 5 — admin endpoints (half day).** Add the JSON-backed `/admin/*` routes from the **Admin surface** section: `/admin/bakes`, `/admin/bakes/:id`, `/admin/users/:uid/activity`, `/admin/retention`, `/admin/curators/:uid/publishes`, `/admin/featured`, `/admin/tts/failures`. Each is a small handler over a prepared statement; reuses the existing `adminGate` chain. No client/UI work.
+
+Total: ~3.5 days of focused work. Each phase is independently revertable until Phase 4 deletes the JSON files. Phase 5 is purely additive — safe to ship separately or alongside Phase 4.
 
 ---
 
