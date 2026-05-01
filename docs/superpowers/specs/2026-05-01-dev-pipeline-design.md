@@ -109,6 +109,7 @@ cd server && npm run test:watch
 The 21 `BroadcastOrchestrator` tests will tell you if you broke the pipeline before any curl invocation. The deterministic-sequencer goldens (`sequencer-goldens.test.ts`) catch sequencing regressions in milliseconds.
 
 Add an equivalent root-level script for client tests:
+
 ```json
 "test:watch": "jest --watch --runInBand"
 ```
@@ -156,7 +157,7 @@ Replaces what would otherwise be three separate text files (WORKLOG, NOW/NEXT/LA
 
 **Vault location: the repo's own `docs/` directory.**
 
-```
+```text
 docs/                              ← Obsidian vault root
   superpowers/
     specs/                         ← already there; backlinkable as [[2026-05-01-sqlite-migration-design]]
@@ -170,7 +171,8 @@ docs/                              ← Obsidian vault root
 ```
 
 Add to `.gitignore`:
-```
+
+```text
 docs/.obsidian/
 docs/daily/
 docs/ideas/
@@ -327,19 +329,37 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Deploy to ${{ github.ref_name }}
+
+      - name: Deploy to staging
+        if: github.ref_name == 'staging'
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.VPS_HOST }}
           username: cleo
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
-            cd ~/cleo-broadcast-${{ github.ref_name }}
-            git pull origin ${{ github.ref_name }}
+            cd ~/cleo-broadcast-staging
+            git pull origin staging
             npm ci --production=false
             npm run build
-            pm2 reload cleo-broadcast-${{ github.ref_name }}
+            pm2 reload cleo-broadcast-staging
+
+      - name: Deploy to production
+        if: github.ref_name == 'main'
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: cleo
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            cd ~/cleo-broadcast
+            git pull origin main
+            npm ci --production=false
+            npm run build
+            pm2 reload cleo-broadcast
 ```
+
+Note: the production app and directory are `cleo-broadcast` (matches the existing CLAUDE.md / `server/DEPLOY.md` topology), not `cleo-broadcast-main`. The staging counterpart is `cleo-broadcast-staging`. Branch-specific steps (rather than `${{ github.ref_name }}` interpolation in paths) keep the deploy script honest about which environment it's writing to.
 
 **Cost:** ~half day setup including secrets management. **Payoff:** server deploys become `git push`. Removes the deploy-friction-shapes-behavior anti-pattern.
 
@@ -347,7 +367,7 @@ jobs:
 
 `husky` configured to run `npm run typecheck` before push. Catches obvious mistakes without slowing down individual commits.
 
-```
+```text
 .husky/pre-push:
   npm run typecheck
 ```

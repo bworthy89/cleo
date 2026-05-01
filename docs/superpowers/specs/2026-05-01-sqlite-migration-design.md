@@ -73,7 +73,7 @@ CREATE TABLE broadcasts (
   playlist_id     TEXT,                   -- nullable (curator broadcasts)
   created_at      INTEGER NOT NULL,       -- ms epoch
   bake_status     TEXT NOT NULL,          -- 'baking' | 'completed' | 'degraded' | 'failed' | 'aborted'
-  abort_requested INTEGER NOT NULL DEFAULT 0,
+  abort_requested INTEGER NOT NULL DEFAULT 0,  -- boolean: 0 = false, 1 = true
   manifest_json   TEXT NOT NULL           -- full Manifest blob, source of truth for shape
 );
 CREATE INDEX idx_broadcasts_user_created ON broadcasts(user_id, created_at DESC);
@@ -155,17 +155,33 @@ One thin wrapper, one connection per process:
 export class Db {
   private readonly db: Database;  // better-sqlite3 instance
   constructor(filePath: string) {
-    this.db = new Database(filePath);
-    this.db.pragma('journal_mode = WAL');
-    this.db.pragma('foreign_keys = ON');
-    this.db.exec(readSchemaSql());
-    this.markCrashedBakes();  // bake_status='baking' → 'failed'
+    try {
+      this.db = new Database(filePath);
+      this.db.pragma('journal_mode = WAL');
+      this.db.pragma('foreign_keys = ON');
+      this.db.exec(readSchemaSql());
+      this.markCrashedBakes();  // bake_status='baking' → 'failed'
+    } catch (err) {
+      // Close the handle if it opened before a later step threw; otherwise
+      // we leak file descriptors and the DB stays locked across restarts.
+      try { this.db?.close(); } catch { /* ignore */ }
+      throw new DbBootError(filePath, err);
+    }
   }
   prepare<T>(sql: string): Statement<T> { ... }
   transaction<T>(fn: () => T): T { return this.db.transaction(fn)(); }
   close(): void { this.db.close(); }
 }
 ```
+
+**Boot-time error policy.** Each step inside the constructor has a distinct failure mode and each one must abort startup with an actionable message — never partial-init a half-broken DB:
+
+- `new Database(filePath)` — file I/O / permissions / disk full. Wrap in try/catch, log `db.boot.open`, rethrow.
+- `pragma('journal_mode = WAL')` — fails if the file lives on a filesystem without WAL support (rare; some network mounts). Log `db.boot.wal`, rethrow.
+- `db.exec(schema)` — schema syntax errors are programmer mistakes, not transient; fail loud and refuse to start.
+- `markCrashedBakes()` — its own UPDATE; errors propagate. Treat its successful completion as a precondition for serving traffic. The HTTP listener should be bound *after* `new Db(...)` returns, not in parallel.
+
+Transient I/O is not retried in the constructor. The right scope for retry is the wrapping process supervisor (PM2 already restarts on failure with backoff). Logic-level errors deserve a fast, loud failure with a `DbBootError` that names the failing step in its message.
 
 Constructed once in `server/src/index.ts`. Injected into the four stores and the new `EventRecorder`. Tests build `new Db(':memory:')` — SQLite's in-memory mode means tests don't touch disk and every test gets a clean DB.
 
@@ -283,7 +299,7 @@ The endpoints today can answer "what is the server doing right now" but not "wha
 
 The same `adminGate` chain protects a new family of SQL-backed endpoints. Each is 5-15 lines of route handler over a prepared statement. JSON-only — no HTML — so the curl/browser-bar workflow already in use stays primary.
 
-```
+```text
 GET /admin/bakes?status=failed&since=<ms>&limit=<n>
   -> [{ id, user_id, vibe, length, created_at, bake_status, slot_summary }]
   SQL: SELECT b.*, json_group_array(json_object('idx', s.slot_index, 'status', s.status))
@@ -340,7 +356,7 @@ Build the HTML dashboard later — and only — when the operator finds themselv
 
 ### What's deliberately not in this scope
 
-- **HTML dashboard / SPA admin.** Deferred. Two-to-three day effort once the JSON endpoints exist; not blocking.
+- **HTML dashboard / SPA admin.** Deferred. Two-to-three-day effort once the JSON endpoints exist; not blocking.
 - **In-app curator surface.** The "your published broadcasts" view — letting curators see their own publish history and featured-broadcast performance from inside the React Native app — is a product feature, not an admin tool. It uses the same SQLite tables but talks to a different (curator-scoped, non-`/admin/`) route. Belongs in a separate spec.
 - **Off-the-shelf SQL browsers** (`datasette`, `sqlite-web`). Tempting because they're free, but they sit outside the existing auth model, expose schema-level mutation, and would need a separate port or SSH tunnel. Not worth the integration friction at this scale.
 - **Cost / token-spend telemetry.** Provider cost per bake is not in `app_events` today; capturing it requires plumbing through `SegmentGenerator` and the TTS providers. Worth doing, but separate work.
@@ -379,9 +395,31 @@ The **one** new behavior introduced by the migration is the boot-time crashed-ba
 
 ## Boot-time backfill
 
-One-shot script: `server/src/scripts/backfill-sqlite.ts`. Reads `enrichment-cache/tracks.json` and `featured-broadcasts/registry.json`, writes rows. Idempotent (`INSERT OR IGNORE`). Run once on the VPS during the deploy window. After a successful boot, the JSON files are renamed to `.bak` and removed in a follow-up commit.
+One-shot script: `server/src/scripts/backfill-sqlite.ts`. Reads `enrichment-cache/tracks.json` and `featured-broadcasts/registry.json`, writes rows. Idempotent (`INSERT OR IGNORE`). Run once on the VPS during the deploy window.
 
 `BroadcastStore` and `CuratorPublishBudget` have nothing to backfill — both were process-memory.
+
+### `.bak` retention and verification gating
+
+After backfill completes, rename the source JSON files to `.bak`:
+
+- `server/.enrichment-cache/tracks.json` → `tracks.json.bak`
+- `server/featured-broadcasts/registry.json` → `registry.json.bak`
+
+**Retention policy:** keep `.bak` files for **at least 7 days, or one full release cycle** (whichever is longer). They are the only on-disk fallback if a SQLite-side bug surfaces post-deploy and the new tables need to be rebuilt. Don't delete on the same deploy that creates them.
+
+**Verification steps required before deletion:**
+
+1. Re-run `backfill-sqlite.ts` against the live DB and confirm row count matches the JSON-file key count for both `enrichment` and `featured_broadcasts`. Idempotent inserts must produce zero new rows on the second run.
+2. Spot-check 5 random `enrichment` rows: query SQLite by `track_key`, parse `data_json`, deep-equal compare to the corresponding entry in `tracks.json.bak`. Any mismatch blocks deletion.
+3. Spot-check every `featured_broadcasts` row (the set is small): SELECT, parse `manifest_json`, deep-equal compare to `registry.json.bak`'s `records[]` entry by `id`.
+4. Run a real bake end-to-end against the SQLite-backed `BroadcastStore` (smoke-bake script) and confirm `bake_status` reaches `completed` and all slots are `ready`. Confirms `BroadcastStore` works without falling back to anything.
+5. Trigger a `CuratorPublishBudget.tryReserve` from a curator account and confirm a row lands in `curator_publishes`. Confirms the budget store works against SQLite.
+6. After all five pass and 7+ days have elapsed since rename, delete the `.bak` files in a single commit titled "remove sqlite-migration .bak fallbacks."
+
+**Ownership:** the operator who ran the backfill is responsible for deletion. If a different person is running the post-deploy verification, they own steps 1-5 and must hand off step 6 explicitly.
+
+**Revert path:** if any verification step fails, restore by renaming `tracks.json.bak` → `tracks.json` and `registry.json.bak` → `registry.json`, then revert the deploy that swapped `EnrichmentCache` / `FeaturedBroadcastRegistry` to their SQLite-backed implementations. The SQLite tables can be left in place; the old JSON-backed stores ignore them.
 
 ---
 
@@ -409,11 +447,19 @@ Net: roughly four test files rewritten, 30-60 lines each.
 
 **Phase 3 — `EventRecorder` and three call sites (half day).** The retention-gate unlock. Smallest change, biggest product impact.
 
-**Phase 4 — backfill + deploy (half day).** Run the backfill on the VPS, verify row counts match the JSON-file keys, smoke-test a bake, archive the JSON files.
+**Phase 4 — backfill + deploy (half day).** Run the backfill on the VPS, verify row counts match the JSON-file keys, smoke-test a bake, rename source JSON files to `.bak` (do not delete; see retention policy in **Boot-time backfill**).
+
+**Phase 4.5 — automated backups (~2 hours).** This must land before the `.bak` files are deleted, and ideally before Phase 4 ships. After the SQLite migration, the database file is a single point of failure with much higher blast radius than the JSON-file stores it replaces. Concretely:
+
+- **Primary backup job:** cron entry on the VPS, hourly during waking hours plus a nightly run, calling `sqlite3 ~/cleo-broadcast/.broadcast-cache/cleo.db ".backup /var/backups/cleo/cleo-$(date +%F-%H).db"`. WAL-aware; doesn't block writers.
+- **Off-box copy:** the **Open questions** "Backup destination" decision must be resolved before Phase 4 deploys. Default recommendation: SCP nightly to a Hetzner storage box or push to R2 under a `cleo-backups/` prefix. GitHub-encrypted-repo is acceptable for low-volume but adds friction. Pick one; document it.
+- **Retention:** 24 hourly backups + 14 daily backups + 12 weekly backups. Old backups expire via a `find ... -mtime +N -delete` cron line.
+- **Restore drill (mandatory):** before Phase 4 ships, copy the most recent backup to a scratch path, open it with `sqlite3`, run `PRAGMA integrity_check`, run a representative SELECT against `broadcasts` and `enrichment`, confirm the data matches expectations. If the restore drill fails, the deploy doesn't ship until it passes.
+- **Monitoring:** the backup cron should write a sentinel file (`/var/backups/cleo/last-success`) on success. A `/admin/status` field surfaces "minutes since last backup" so a stale backup is visible without SSH.
 
 **Phase 5 — admin endpoints (half day).** Add the JSON-backed `/admin/*` routes from the **Admin surface** section: `/admin/bakes`, `/admin/bakes/:id`, `/admin/users/:uid/activity`, `/admin/retention`, `/admin/curators/:uid/publishes`, `/admin/featured`, `/admin/tts/failures`. Each is a small handler over a prepared statement; reuses the existing `adminGate` chain. No client/UI work.
 
-Total: ~3.5 days of focused work. Each phase is independently revertable until Phase 4 deletes the JSON files. Phase 5 is purely additive — safe to ship separately or alongside Phase 4.
+Total: ~3.75 days of focused work. Each phase is independently revertable until Phase 4 renames the JSON files (and even then `.bak` retention preserves a manual revert path for 7+ days). Phase 4.5 is non-negotiable before deletion of the `.bak` fallbacks. Phase 5 is purely additive — safe to ship separately or alongside Phase 4.
 
 ---
 
@@ -438,5 +484,5 @@ Total: ~3.5 days of focused work. Each phase is independently revertable until P
 ## Open questions
 
 - **Drizzle ORM yes or no.** Adds ~half a day, gains type-checked queries and a migrations DSL. Lean toward yes if the team plans to add tables; lean toward raw `better-sqlite3` if the schema stays this size.
-- **Backup destination.** SCP to a second VPS? R2? GitHub repo (encrypted)? Pick one before Phase 4.
+- **Backup destination.** SCP to a second VPS / Hetzner storage box? R2 under `cleo-backups/`? GitHub-encrypted repo? **Must be picked before Phase 4 deploys** — the choice determines the off-box copy step in Phase 4.5. Default recommendation: R2, since the broadcast pipeline already authenticates to it. Document the choice in `server/DEPLOY.md` once made.
 - **Event payload schema.** Today `payload_json` is freeform. Consider defining typed payloads per event type to avoid drift.
