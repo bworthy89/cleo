@@ -56,6 +56,12 @@ Production: Express broadcast server at `api.worthymedia.tech`. Deploy runbook:
 - **Production:** Express at `api.worthymedia.tech` (Hostinger VPS, port 3102 behind
   Caddy, PM2 app `cleo-broadcast`). `STORAGE_BACKEND=r2` → Cloudflare R2 bucket
   `cleo-broadcast-segments`; segment URLs are 7-day presigned links in the manifest.
+- **Staging:** Express at `staging.api.worthymedia.tech` (same VPS, port 3103 behind
+  Caddy, PM2 app `cleo-broadcast-staging`, git clone at `/home/cleo/cleo-broadcast-staging`,
+  tracks `main` branch). Same Firebase project, same Sentry, separate R2 bucket
+  `cleo-broadcast-segments-staging`, `CURATOR_PUBLISH_CAP=20` (vs prod's 3). Used as
+  pre-prod validation gate AND as the always-on dev backend that local-device installs
+  point at. Design + plan: [`docs/superpowers/specs/2026-05-01-staging-server-design.md`](docs/superpowers/specs/2026-05-01-staging-server-design.md).
 - Firebase JWT auth (`requireAuth`) gates all routes. Ownership gate on
   `GET /broadcast/:id/manifest` + `/broadcast-asset/*` — both 404 unless
   `manifest.userId === req.uid` or `manifest.userId === 'curator'`.
@@ -367,6 +373,13 @@ server-side Firestore writes was a hard prereq.
   `ios/.xcode.env.local` (user-specific NODE_BINARY path).
 - **Local-device install**: `SENTRY_DISABLE_AUTO_UPLOAD=true npx expo run:ios --device`.
   Auto-managed signing, team `8F2VWCN5KF`. iOS platform SDK must match device iOS.
+- **Mobile testing against staging**: create `.env.local` at project root with
+  `EXPO_PUBLIC_API_URL=https://staging.api.worthymedia.tech`, then run the local-device
+  install command above. `EXPO_PUBLIC_*` vars MUST be in `.env`/`.env.local` files —
+  Expo SDK 55 does NOT honor them from shell env at build time. The binary then targets
+  staging from anywhere (LAN-independent). Delete `.env.local` to revert to prod URL
+  from `.env` on the next install. Same bundle ID means this overwrites a TestFlight
+  install (and vice versa); only one at a time.
 - **TestFlight submission (EAS)**:
   1. Bump versions atomically: `npm run bump:build` (default = build number only,
      for TestFlight iteration) or `npm run bump:build -- --release patch|minor|major`
@@ -637,6 +650,19 @@ EXPO_PUBLIC_SENTRY_DSN
   Separate gap: `eas update` does NOT auto-upload OTA bundle source maps — needs a
   post-update `sentry-expo-upload-sourcemaps` script. Both fixes are LATER items
   in `docs/index.md`.
+- **R2 API tokens are bucket-scoped by default.** When standing up staging (separate
+  R2 bucket per design), the prod token returned `403 AccessDenied` against the new
+  `cleo-broadcast-segments-staging` bucket — silently failing all segment uploads,
+  500'ing `/broadcast/create`, and stopping background slot generation cold (chain
+  doesn't fire when storage upload throws). The fix is to widen the existing R2 token's
+  bucket scope in the Cloudflare dashboard (R2 → Manage R2 API Tokens → Edit) to
+  cover both buckets, or move it to "All buckets" / account scope. New buckets
+  inheriting account scope automatically.
+- **`EXPO_PUBLIC_*` shell env vars are ignored at build time.** Expo SDK 55 only
+  reads them from `.env` / `.env.local` files. `EXPO_PUBLIC_API_URL=... npx expo run:ios`
+  silently uses whatever's in `.env` — set the value in `.env.local` instead (gitignored,
+  takes precedence over `.env`). Confirmed via the `[APIDiag]` console.log baked into
+  `src/services/api.ts`.
 - **iOS platform SDK** must match device iOS version. New iOS releases require Xcode >
   Settings > Platforms download (~8GB) before `expo run:ios --device` works.
 - **pbxproj `objectVersion = 56` pin.** Xcode 26 writes `objectVersion = 70`, but

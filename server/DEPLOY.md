@@ -4,6 +4,8 @@ Target VPS: `cleo@<VPS_HOST>` (Hostinger, ID <HOSTINGER_ID>)
 Sidecar directory: `/home/cleo/cleo-broadcast/` (keeps existing `/home/cleo/cleo-api/` untouched for rollback)
 Port: `3102` (behind Caddy at `api.worthymedia.tech`)
 
+> **Staging tier exists too** — see [Staging deploy](#staging-deploy) at the end of this doc. Standard workflow: deploy to staging first via git pull, smoke-test, THEN deploy to prod via the rsync below. Both tiers live on the same VPS.
+
 ## Pre-flight (local, already done)
 
 - [x] `npm run build` succeeds
@@ -233,3 +235,56 @@ The script is idempotent — re-running updates existing alerts by name rather t
 - [ ] `SENTRY_TRACES_SAMPLE_RATE` set (recommended: `0.2` initially; tighten down once event volume is calibrated).
 - [ ] `./server/scripts/sentry-setup-alerts.sh` run successfully (creates the 3 alerts above).
 - [ ] Verified: trigger a bake from a prod TestFlight build; confirm the bake transaction appears in Sentry's Performance tab and `tts.provider-fallback` events appear in Issues when fallback is forced.
+
+
+---
+
+## Staging deploy
+
+Sister tier on the same VPS. Use this for "I built a server change locally, want to validate against real R2/Gemini/VoxCPM before merging to main."
+
+**Topology:**
+- Path: `/home/cleo/cleo-broadcast-staging/` (full git clone of `bworthy89/cleo`; server lives at `server/` subdir)
+- Port: `3103`
+- PM2 app: `cleo-broadcast-staging` (fork mode)
+- Hostname: `staging.api.worthymedia.tech` (Caddy reverse-proxy)
+- R2 bucket: `cleo-broadcast-segments-staging` (separate from prod)
+- `.env`: `/home/cleo/cleo-broadcast-staging/server/.env` (copied from prod with three diffs — `R2_BUCKET`, `CURATOR_PUBLISH_CAP`, `BROADCAST_ASSET_BASE_URL`)
+
+**Deploy a server change to staging:**
+
+```bash
+# from local: push to main (or whatever branch staging tracks)
+git push origin main
+
+# on VPS:
+ssh cleo@<VPS_HOST>
+cd /home/cleo/cleo-broadcast-staging
+git pull
+cd server && npm ci && npm run build
+pm2 reload cleo-broadcast-staging
+```
+
+(Diverges from prod which uses rsync — see Steps 2–3 above. Phase 5 of the dev pipeline will harmonize both tiers via auto-deploy.)
+
+**Smoke after staging deploy:**
+
+```bash
+# health
+curl https://staging.api.worthymedia.tech/health
+
+# logs
+ssh cleo@<VPS_HOST> "pm2 logs cleo-broadcast-staging --lines 50 --nostream"
+
+# end-to-end: install local-device build pointed at staging
+# (from project root)
+echo "EXPO_PUBLIC_API_URL=https://staging.api.worthymedia.tech" > .env.local
+SENTRY_DISABLE_AUTO_UPLOAD=true npx expo run:ios --device
+# bake from the app, watch logs
+# delete .env.local when done to revert .env (prod URL)
+```
+
+**Gotchas (learned 2026-05-01 during initial staging stand-up):**
+- R2 API tokens are bucket-scoped by default. If the prod token only has access to `cleo-broadcast-segments`, segment uploads to staging silently fail with 403 → bakes 500 + background slots never run. Fix: widen the token to all buckets in the Cloudflare R2 dashboard (Manage R2 API Tokens → Edit → bucket scope).
+- Expo SDK 55 reads `EXPO_PUBLIC_*` ONLY from `.env`/`.env.local`, not from shell env vars. Use `.env.local` for the staging URL override; do NOT pass it inline on the command line.
+- VPS git clone needs a deploy key — `~/.ssh/github_deploy` (ed25519) was generated on 2026-05-01; pubkey added to repo Settings → Deploy keys (read-only). `~/.ssh/config` configures `github.com → IdentityFile ~/.ssh/github_deploy`.
