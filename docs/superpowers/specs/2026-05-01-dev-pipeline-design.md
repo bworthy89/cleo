@@ -244,6 +244,8 @@ Add an equivalent root-level script for client tests:
 
 ### 4. Staging server (kills the "deploy to prod to test" problem)
 
+> **Resolved 2026-05-01.** This section is the original sketch; the resolved design (R2 / Firebase / DB-state / curator / quota choices) lives in [`2026-05-01-staging-server-design.md`](2026-05-01-staging-server-design.md). Implementation plan: [`docs/superpowers/plans/2026-05-01-staging-server-implementation.md`](../plans/2026-05-01-staging-server-implementation.md).
+
 Run a second instance of the broadcast server on the same VPS, on a different port, behind a different Caddy hostname, with a separate database file.
 
 **Setup:**
