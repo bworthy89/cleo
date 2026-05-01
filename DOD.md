@@ -28,8 +28,10 @@ Soft rule — easily violated when bug-chasing — but worth defaulting to.
 
 - [ ] Affected jest tests pass (`cd server && npm test` or run the specific suite)
 - [ ] `cd server && npm run smoke:bake` passes (catches pipeline regressions in 5–10s; uses the canned 5-track fixture)
-- [ ] Deployed to prod manually per `server/DEPLOY.md` (staging tier doesn't exist yet — Phase 3 future work; no `cleo-broadcast-staging` PM2 process to deploy to)
-- [ ] PM2 logs sane for ~5 min after deploy: `ssh cleo@187.124.69.95 'pm2 logs cleo-broadcast --lines 100'` shows no health-check flap, no Sentry spike, no 5xx pattern
+- [ ] **Deployed to staging first**: ssh into VPS → `cd /home/cleo/cleo-broadcast-staging && git pull && cd server && npm ci && npm run build && pm2 reload cleo-broadcast-staging`
+- [ ] Staging smoke-tested by hand: either local-device install with `EXPO_PUBLIC_API_URL=https://staging.api.worthymedia.tech` in `.env.local` and run a bake from the app, OR `curl https://staging.api.worthymedia.tech/health` plus `pm2 logs cleo-broadcast-staging` for any new code paths exercised
+- [ ] Then deployed to prod manually per `server/DEPLOY.md` (rsync from local) — the staging clone uses `git pull` while prod uses `rsync`; this divergence is intentional for now (Phase 5 will harmonize both via auto-deploy)
+- [ ] PM2 logs sane for ~5 min after prod deploy: `ssh cleo@187.124.69.95 'pm2 logs cleo-broadcast --lines 100'` shows no health-check flap, no Sentry spike, no 5xx pattern
 
 ### Client JS/UI change
 
