@@ -36,22 +36,28 @@ export class CuratorPublishBudget {
   tryReserve(uid: string): ReserveResult {
     const now = this.clock();
     const cutoff = now - this.windowMs;
-    const rows = this.db.prepare<{ published_at: number }>(
-      `SELECT published_at FROM curator_publishes
-       WHERE curator_uid = ? AND published_at > ?
-       ORDER BY published_at ASC`,
-    ).all(uid, cutoff);
+    // Wrap SELECT + conditional INSERT in a transaction so the count and
+    // insert are atomic. better-sqlite3 is single-threaded within a process,
+    // but a future PM2 cluster-mode rollout would expose the TOCTOU window
+    // here without this guard.
+    return this.db.transaction((): ReserveResult => {
+      const rows = this.db.prepare<{ published_at: number }>(
+        `SELECT published_at FROM curator_publishes
+         WHERE curator_uid = ? AND published_at > ?
+         ORDER BY published_at ASC`,
+      ).all(uid, cutoff);
 
-    if (rows.length >= this.capPerWindow) {
-      const oldest = rows[0].published_at;
-      const retryAfterMs = oldest + this.windowMs - now;
-      return { ok: false, retryAfterMs, current: rows.length };
-    }
+      if (rows.length >= this.capPerWindow) {
+        const oldest = rows[0].published_at;
+        const retryAfterMs = oldest + this.windowMs - now;
+        return { ok: false, retryAfterMs, current: rows.length };
+      }
 
-    this.db.prepare(
-      'INSERT INTO curator_publishes (curator_uid, published_at) VALUES (?, ?)',
-    ).run(uid, now);
-    return { ok: true };
+      this.db.prepare(
+        'INSERT INTO curator_publishes (curator_uid, published_at) VALUES (?, ?)',
+      ).run(uid, now);
+      return { ok: true };
+    });
   }
 }
 
