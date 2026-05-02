@@ -240,6 +240,20 @@ export function createAdminRouter(deps: AdminRouterDeps): Router {
     } catch {
       // Keep defaults; not fatal for a status call.
     }
+    // Phase 4.5 backup observability: read the mtime of the sentinel file
+    // dropped by server/scripts/backup-cleo-db.sh on every successful run.
+    // Returns null when the sentinel doesn't exist (staging, fresh VPS,
+    // local dev). Default dir matches the install-backup-cron.sh layout;
+    // override via BACKUP_SENTINEL_DIR for tests.
+    const sentinelDir = process.env.BACKUP_SENTINEL_DIR ?? '/var/backups/cleo';
+    let lastBackupMinutesAgo: number | null = null;
+    try {
+      const stat = await fs.promises.stat(path.join(sentinelDir, 'last-success'));
+      lastBackupMinutesAgo = Math.round((Date.now() - stat.mtimeMs) / 60_000);
+    } catch {
+      // Sentinel missing — leave null.
+    }
+
     res.json({
       status: 'ok',
       uptime: process.uptime(),
@@ -257,6 +271,7 @@ export function createAdminRouter(deps: AdminRouterDeps): Router {
         tts: deps.tts.getStatus(),
       },
       logs: logSizes,
+      lastBackupMinutesAgo,
       timestamp: new Date().toISOString(),
     });
   });
