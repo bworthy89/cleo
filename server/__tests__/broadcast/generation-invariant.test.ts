@@ -83,11 +83,11 @@ describe('generation invariant — sqlite store', () => {
     expect(fetched.broadcastId).toBe(manifest.broadcastId);
     expect(fetched.tracks).toEqual(manifest.tracks);
     expect(fetched.segmentSlots.length).toBe(manifest.segmentSlots.length);
-    // Slot 0 (cold_open) is baked synchronously inside create() and is
-    // deterministically 'ready' once the background work has settled. Wait
-    // first to avoid racing the Db close.
+    // Re-fetch after background work settles so slot 0's 'ready' status
+    // isn't coupled to the synchronous slot-0 timing inside create().
     await orch.waitForCompletion(manifest.broadcastId);
-    expect(fetched.segmentSlots[0].status).toBe('ready');
+    const settled = orch.getManifest(manifest.broadcastId)!;
+    expect(settled.segmentSlots[0].status).toBe('ready');
     db.close();
   });
 });

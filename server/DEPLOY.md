@@ -319,15 +319,19 @@ full design.
 `better-sqlite3@^12` is a native addon. Before merging this branch, verify:
 
 1. **Node version on the VPS is 20+** (better-sqlite3 v12 engines field requires it):
+
    ```bash
    ssh cleo@187.124.69.95 'node --version'
    ```
+
    If the VPS reports Node 18 or 19, install Node 20+ (e.g., `nvm install 20 && nvm alias default 20`) before deploying.
 
 2. **Build toolchain present** for the native compile fallback. `prebuild-install` will try to download a prebuilt binary first; on miss, it falls back to `node-gyp rebuild` which needs `gcc`/`g++`/`make`/`python3`:
+
    ```bash
    ssh cleo@187.124.69.95 'gcc --version && python3 --version && make --version | head -1'
    ```
+
    If any are missing, install build-essential (`sudo apt install -y build-essential python3`).
 
    Symptom of a missing toolchain: `npm ci` in `deploy.yml` fails with `gyp ERR! ...` or `cannot find python3`. Task 1 itself doesn't surface this because nothing imports `better-sqlite3` until Task 3+ runtime.
