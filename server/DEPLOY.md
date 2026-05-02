@@ -93,7 +93,7 @@ HEALTH_CHECK_TIMEOUT_MS=2000
 
 # Storage — R2
 STORAGE_BACKEND=r2
-R2_ACCOUNT_ID=REDACTED-R2-ACCOUNT-ID
+R2_ACCOUNT_ID=<your-cloudflare-r2-account-id>     # see OPERATIONS.md
 R2_ACCESS_KEY_ID=<NEW rotated token>
 R2_SECRET_ACCESS_KEY=<NEW rotated token>
 R2_BUCKET=cleo-broadcast-segments
