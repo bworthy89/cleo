@@ -22,6 +22,7 @@ import { EnrichmentCache } from '../enrichment/EnrichmentCache';
 import type { BackgroundEnricher } from '../enrichment/BackgroundEnricher';
 import type { FeatureFetchChain } from './FeatureFetchChain';
 import type { WeatherProvider } from '../../providers/weather/WeatherProvider';
+import { EventRecorder } from '../events/EventRecorder';
 
 /**
  * Maximum number of segments generated in parallel. Each segment costs one
@@ -73,6 +74,13 @@ export class BroadcastOrchestrator {
     featureFetchChain: FeatureFetchChain,
     sequenceCache?: SequenceCache,
     private readonly weatherProvider?: Pick<WeatherProvider, 'getHint'>,
+    /**
+     * Records lifecycle events (broadcast_started/completed/failed) into app_events
+     * for D1→D7 retention queries. Distinct from `bakeTelemetry` (internal server
+     * observability) — both fire from the same code paths but serve different
+     * downstream consumers.
+     */
+    private readonly eventRecorder?: EventRecorder,
   ) {
     this.generator = new SegmentGenerator(llm, tts, storage);
 
@@ -151,6 +159,11 @@ export class BroadcastOrchestrator {
     });
 
     try {
+      this.eventRecorder?.record(input.userId, 'broadcast_started', {
+        vibe: input.vibe,
+        length: input.length,
+        source: input.userId === 'curator' ? 'featured' : 'user',
+      }, { broadcastId });
       // Tester-triage tag. Prefix all bake-scoped logs so `grep "user=foo@bar"`
       // or `grep "id=a3f9k2"` surfaces the full lifecycle of one bake.
       const tag = buildBakeTag(broadcastId, input.userEmail ?? input.userId);
@@ -260,10 +273,26 @@ export class BroadcastOrchestrator {
           .then(() => this.generateSlotsBackground(manifest, ctxWithHint, tag))
           .then(() => {
             const status = this.aborted.has(manifest.broadcastId) ? 'aborted' : 'completed';
-            handle.endBake({ durationMs: Date.now() - startedAt, status });
+            const durationMs = Date.now() - startedAt;
+            handle.endBake({ durationMs, status });
+            // Aborted bakes don't credit the retention funnel — the user cancelled,
+            // so recording completion would inflate D1→D7 numbers artificially.
+            if (status === 'completed') {
+              this.eventRecorder?.record(input.userId, 'broadcast_completed', {
+                durationMs,
+                segmentsPlayed: manifest.segmentSlots.length,
+              }, { broadcastId: manifest.broadcastId });
+            }
           })
           .catch((err) => {
             handle.endBake({ durationMs: Date.now() - startedAt, status: 'failed' });
+            this.eventRecorder?.record(input.userId, 'broadcast_failed', {
+              // slotIndex -1 = background fan-out failure (slots 1..N).
+              // The slot-0 / outer-catch path uses slotIndex 0 for distinction.
+              slotIndex: -1,
+              provider: 'orchestrator',
+              errorCategory: err instanceof Error ? err.name : 'unknown',
+            }, { broadcastId: manifest.broadcastId });
             throw err;
           })
           .finally(() => {
@@ -273,7 +302,12 @@ export class BroadcastOrchestrator {
         this.inFlight.set(manifest.broadcastId, backgroundP);
       } else {
         // Single-slot manifest: no background work, close the span now.
-        handle.endBake({ durationMs: Date.now() - startedAt, status: 'completed' });
+        const durationMs = Date.now() - startedAt;
+        handle.endBake({ durationMs, status: 'completed' });
+        this.eventRecorder?.record(input.userId, 'broadcast_completed', {
+          durationMs,
+          segmentsPlayed: manifest.segmentSlots.length,
+        }, { broadcastId: manifest.broadcastId });
       }
 
       // 6. Return manifest with slot 0 ready; slots 1..N still 'pending'.
@@ -286,6 +320,13 @@ export class BroadcastOrchestrator {
       };
     } catch (err) {
       handle.endBake({ durationMs: Date.now() - startedAt, status: 'failed' });
+      this.eventRecorder?.record(input.userId, 'broadcast_failed', {
+        // slotIndex 0 = slot-0 / cold-open failure caught at the outer try.
+        // Distinct from background-chain failures, which use slotIndex -1.
+        slotIndex: 0,
+        provider: 'orchestrator',
+        errorCategory: err instanceof Error ? err.name : 'unknown',
+      }, { broadcastId });
       throw err;
     }
   }
