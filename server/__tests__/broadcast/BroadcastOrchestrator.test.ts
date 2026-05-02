@@ -76,6 +76,7 @@ describe('BroadcastOrchestrator.create', () => {
     expect(result.manifest.segmentSlots).toHaveLength(4);
     expect(result.firstSegmentUrls).toHaveLength(1);
     expect(result.firstSegmentUrls[0]).toMatch(/^https:\/\/cdn\/broadcast\/.+\/segment\/0\/v0\.mp3$/);
+    await orch.waitForCompletion(result.manifest.broadcastId);
   });
 
   it('marks first slot ready in the store immediately', async () => {
@@ -92,6 +93,7 @@ describe('BroadcastOrchestrator.create', () => {
     const stored = store.get(manifest.broadcastId)!;
     expect(stored.segmentSlots[0].status).toBe('ready');
     expect(stored.segmentSlots[0].audioUrls).toHaveLength(1);
+    await orch.waitForCompletion(manifest.broadcastId);
   });
 
   it('marks slot 0 ready synchronously and the rest pending until waitForCompletion resolves', async () => {
@@ -248,10 +250,11 @@ describe('BroadcastOrchestrator — sync slot 0 + async slots 1..N', () => {
       new BroadcastStore(new Db(':memory:')), enrichCache, enricher, noopFetchChain,
     );
 
-    await orch.create({
+    const { manifest } = await orch.create({
       userId: 'u1', playlistId: 'p1', vibe: 'morning',
       length: 'quick', userContext: ctx, tracks: tracks(20),
     });
+    await orch.waitForCompletion(manifest.broadcastId);
 
     expect(drainSpy).toHaveBeenCalledTimes(1);
     const passed = drainSpy.mock.calls[0][0] as ManifestTrack[];
@@ -377,7 +380,7 @@ describe('BroadcastOrchestrator telemetry', () => {
 
 describe('BroadcastOrchestrator weather hint wiring', () => {
   it('calls weatherProvider.getHint when userContext.weatherCoords is present and threads the hint into prompts', async () => {
-    const getHint = jest.fn(async () => 'It’s 47 and lightly raining in Brooklyn.');
+    const getHint = jest.fn(async () => "It's 47 and lightly raining in Brooklyn.");
     const orch = BroadcastOrchestrator.makeWithDefaults();
     // Inject the weatherProvider through the same private-field override
     // pattern makeWithDefaults uses for sequencer/generator.
@@ -394,7 +397,7 @@ describe('BroadcastOrchestrator weather hint wiring', () => {
       generateVariants,
     };
 
-    await orch.create({
+    const { manifest } = await orch.create({
       userId: 'u1', playlistId: 'p1', vibe: 'morning', length: 'quick',
       tracks: [
         { id: 't0', title: 'Wake', artistName: 'AA', albumTitle: 'Al', duration: 200 },
@@ -410,6 +413,7 @@ describe('BroadcastOrchestrator weather hint wiring', () => {
         weatherCoords: { lat: 40.65, lon: -73.95, cityName: 'Brooklyn' },
       },
     });
+    await orch.waitForCompletion(manifest.broadcastId);
 
     expect(getHint).toHaveBeenCalledWith(
       { lat: 40.65, lon: -73.95 },
@@ -417,6 +421,6 @@ describe('BroadcastOrchestrator weather hint wiring', () => {
     );
     // The cold_open prompt (slot 0) should contain the hint sentence.
     const coldOpenPrompt = capturedUserPrompts[0];
-    expect(coldOpenPrompt).toContain('It’s 47 and lightly raining in Brooklyn.');
+    expect(coldOpenPrompt).toContain("It's 47 and lightly raining in Brooklyn.");
   });
 });

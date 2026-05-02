@@ -34,8 +34,9 @@ describe('BroadcastOrchestrator events', () => {
       noopLLM, noopTTS, noopStorage, store, cache, enricher, fetchChain,
       undefined, undefined, recorder,
     );
+    let broadcastId: string | undefined;
     try {
-      await orch.create({
+      const result = await orch.create({
         userId: 'u1', userEmail: 'a@b.c',
         playlistId: 'p1', vibe: 'morning', length: 'quick',
         userContext: { timeOfDay: '12:00', dayOfWeek: 'Mon', firstTimeUser: false },
@@ -47,7 +48,11 @@ describe('BroadcastOrchestrator events', () => {
           { id: 't4', title: 'T4', artistName: 'A', albumTitle: 'Al', duration: 200 },
         ],
       });
+      broadcastId = result.manifest.broadcastId;
     } catch { /* may throw if downstream dies; we only care about the started event */ }
+    if (broadcastId) {
+      try { await orch.waitForCompletion(broadcastId); } catch { /* ignore */ }
+    }
     const row = db.prepare<{ event_type: string; user_id: string; payload_json: string }>(
       "SELECT event_type, user_id, payload_json FROM app_events WHERE event_type = 'broadcast_started'",
     ).get();
@@ -71,8 +76,9 @@ describe('BroadcastOrchestrator events', () => {
       noopLLM, noopTTS, noopStorage, store, cache, enricher, fetchChain,
       undefined, undefined, recorder,
     );
+    let broadcastId: string | undefined;
     try {
-      await orch.create({
+      const result = await orch.create({
         userId: 'curator',
         playlistId: null, vibe: 'morning', length: 'quick',
         userContext: { timeOfDay: '12:00', dayOfWeek: 'Mon', firstTimeUser: false },
@@ -84,7 +90,11 @@ describe('BroadcastOrchestrator events', () => {
           { id: 't4', title: 'T4', artistName: 'A', albumTitle: 'Al', duration: 200 },
         ],
       });
+      broadcastId = result.manifest.broadcastId;
     } catch { /* same tolerance */ }
+    if (broadcastId) {
+      try { await orch.waitForCompletion(broadcastId); } catch { /* ignore */ }
+    }
     const row = db.prepare<{ payload_json: string }>(
       "SELECT payload_json FROM app_events WHERE event_type = 'broadcast_started'",
     ).get();

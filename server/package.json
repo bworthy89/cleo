@@ -10,7 +10,7 @@
     "build": "tsc && npm run build:copy-assets",
     "build:copy-assets": "mkdir -p dist/services/db && cp src/services/db/schema.sql dist/services/db/schema.sql",
     "start": "node dist/index.js",
-    "test": "jest --forceExit",
+    "test": "jest",
     "test:watch": "jest --watch",
     "backfill-sqlite": "tsx src/scripts/backfill-sqlite.ts",
     "bake-featured": "tsx scripts/bake-featured.ts",
