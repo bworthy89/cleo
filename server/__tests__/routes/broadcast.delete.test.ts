@@ -6,6 +6,7 @@ import request from 'supertest';
 import { createBroadcastRouter } from '@/routes/broadcast';
 import { BroadcastOrchestrator } from '@/services/broadcast/BroadcastOrchestrator';
 import { BroadcastStore } from '@/services/broadcast/BroadcastStore';
+import { Db } from '@/services/db/Db';
 import { EnrichmentCache } from '@/services/enrichment/EnrichmentCache';
 import { BackgroundEnricher } from '@/services/enrichment/BackgroundEnricher';
 import { FeatureFetchChain } from '@/services/broadcast/FeatureFetchChain';
@@ -59,7 +60,7 @@ describe('DELETE /broadcast/:id', () => {
       fetchWikipedia: async () => null,
       fetchLastFm: async () => null,
     });
-    store = new BroadcastStore();
+    store = new BroadcastStore(new Db(':memory:'));
     orch = new BroadcastOrchestrator(
       makeMockLLM(JSON.stringify({ ordered: ['t0'] })), makeMockTTS(), makeStorage(),
       store, enrichCache, enricher, noopFetchChain,

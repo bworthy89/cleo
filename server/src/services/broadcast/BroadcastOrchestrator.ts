@@ -14,6 +14,7 @@ const LENGTH_TO_N: Record<BroadcastLength, number> = {
   quick: 5, standard: 9, long: 15,
 };
 import { BroadcastStore } from './BroadcastStore';
+import { Db } from '../db/Db';
 import { LLMTrackSequencer, type ITrackSequencer } from './TrackSequencer';
 import { DeterministicTrackSequencer } from './DeterministicTrackSequencer';
 import { SequenceCache } from './SequenceCache';
@@ -113,7 +114,8 @@ export class BroadcastOrchestrator {
     const noopStorage: ObjectStorage = {
       put: async (key: string) => `noop://${key}`,
     };
-    const store = new BroadcastStore();
+    const db = new Db(':memory:');
+    const store = new BroadcastStore(db);
     const cache = new EnrichmentCache('/tmp/noop-enrich.json');
     const enricher = overrides.backgroundEnricher
       ? (overrides.backgroundEnricher as unknown as BackgroundEnricher)
