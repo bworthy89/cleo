@@ -45,6 +45,7 @@ import { FeatureFetchChain } from './services/broadcast/FeatureFetchChain';
 import { gracefulShutdown } from './shutdown';
 import { CuratorPublishBudget, makeCuratorPublishBudgetMiddleware } from './services/curator/CuratorPublishBudget';
 import { Db } from './services/db/Db';
+import { EventRecorder } from './services/events/EventRecorder';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3001;
@@ -216,10 +217,11 @@ async function bootstrap(): Promise<void> {
     enrichmentCache, new DefaultEnrichmentFetcher(), featureFetchChain,
   );
 
+  const eventRecorder = new EventRecorder(db);
   const broadcastOrchestrator = new BroadcastOrchestrator(
     llmProvider, ttsProvider, broadcastStorage, broadcastStore,
     enrichmentCache, backgroundEnricher, featureFetchChain,
-    undefined, weatherProvider,
+    undefined, weatherProvider, eventRecorder,
   );
 
   // Public health endpoint — unauthenticated, synthesizes TTS + bake-queue status.
