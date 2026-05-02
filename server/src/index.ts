@@ -10,6 +10,7 @@ if (process.env.SENTRY_DSN) {
   });
 }
 
+import * as fs from 'fs';
 import * as path from 'path';
 import express from 'express';
 import cors from 'cors';
@@ -43,6 +44,7 @@ import { DeezerFeaturesFetcher } from './services/enrichment/fetchers/DeezerFeat
 import { FeatureFetchChain } from './services/broadcast/FeatureFetchChain';
 import { gracefulShutdown } from './shutdown';
 import { CuratorPublishBudget, makeCuratorPublishBudgetMiddleware } from './services/curator/CuratorPublishBudget';
+import { Db } from './services/db/Db';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3001;
@@ -175,7 +177,17 @@ const broadcastStorage = createStorage({
   BROADCAST_CACHE_DIR: process.env.BROADCAST_CACHE_DIR
     ?? path.resolve(__dirname, '../.broadcast-cache'),
 });
-const broadcastStore = new BroadcastStore();
+
+// One SQLite file holds every state store the broadcast server keeps
+// (broadcasts, slots, enrichment, featured, curator publishes, app_events).
+// WAL mode + boot-time crashed-bake sweep happen inside the Db constructor.
+const dbPath = process.env.SQLITE_DB_PATH
+  ?? path.resolve(__dirname, '../.broadcast-cache/cleo.db');
+fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+const db = new Db(dbPath);
+console.log(`[boot] sqlite db opened at ${dbPath}`);
+
+const broadcastStore = new BroadcastStore(db);
 
 // Enrichment cache + background worker — fills Genius/MusicBrainz metadata
 // for tracks seen during bakes so future sequencer calls have richer context.
