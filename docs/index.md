@@ -12,7 +12,6 @@ Project conventions and topology: [[Conventions]].
 
 ## NEXT
 
-- [ ] Root lint cleanup so it can join CI — `npm install --save-dev eslint-plugin-react-hooks`, then either accept or fix the 25 no-explicit-any / unused-var warnings
 
 ## LATER
 - [ ] **Dev pipeline → done.** All 5 phases shipped 2026-05-01. Auto-deploy verified on both tiers. Next dev-pipeline-adjacent items: SHA-pin `appleboy/ssh-action@v1` to a verified commit hash; switch prod PM2 to cluster mode (`exec_mode: 'cluster'`, `instances: 'max'`) for zero-downtime reload (currently fork mode with ~1s reload window); migrate prod to use `ecosystem.config.cjs` instead of inline pm2 start args (so logs land in `server/logs/`).

@@ -26,7 +26,7 @@ export function OfflineBanner({ isOffline }: { isOffline: boolean }) {
       duration: 300,
       useNativeDriver: true,
     }).start();
-  }, [isOffline]);
+  }, [isOffline, translateY]);
 
   if (!isOffline) return null;
 

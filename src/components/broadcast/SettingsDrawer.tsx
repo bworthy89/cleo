@@ -12,7 +12,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import auth from '@react-native-firebase/auth';
-import { AM, Fonts, Space, TypeScale, ZIndex } from '../../tokens/design-tokens';
+import { AM, Fonts, TypeScale, ZIndex } from '../../tokens/design-tokens';
 import { Tick } from '../crate/Tick';
 import { storage, StorageKeys } from '../../services/Storage';
 import { musicKitPlayer } from '../../services/MusicKitPlayer';

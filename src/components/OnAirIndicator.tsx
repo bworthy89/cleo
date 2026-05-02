@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, View } from 'react-native';
+import { Animated, StyleSheet } from 'react-native';
 import { AM, AMGlow } from '../tokens/design-tokens';
 import { useAppActive } from '../hooks/useAppActive';
 
