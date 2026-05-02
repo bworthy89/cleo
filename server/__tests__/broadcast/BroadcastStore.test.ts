@@ -125,31 +125,39 @@ describe('BroadcastStore (sqlite)', () => {
   });
 
   it('boot sweep marks orphaned baking rows as failed and pending slots as aborted', () => {
-    // First Db: simulate a bake that started but never finished.
     const tmp = `/tmp/test-cleo-bootsweep-${process.pid}-${Date.now()}.db`;
-    const first = new Db(tmp);
-    const fStore = new BroadcastStore(first);
-    fStore.put(baseManifest());
-    // Manually flip the status to 'baking' to simulate mid-flight crash —
-    // BroadcastStore.put writes 'baking' by default but be explicit.
-    first.prepare(
-      "UPDATE broadcasts SET bake_status='baking' WHERE id='b1'",
-    ).run();
-    first.close();
-    // Second Db: opening it triggers markCrashedBakes.
-    const second = new Db(tmp);
-    const { bake_status } = second.prepare<{ bake_status: string }>(
-      "SELECT bake_status FROM broadcasts WHERE id='b1'",
-    ).get();
-    expect(bake_status).toBe('failed');
-    const slotStatuses = second.prepare<{ status: string }>(
-      "SELECT status FROM broadcast_slots WHERE broadcast_id='b1' ORDER BY slot_index",
-    ).all().map(r => r.status);
-    expect(slotStatuses).toEqual(['aborted', 'aborted']);
-    second.close();
-    require('fs').unlinkSync(tmp);
-    for (const ext of ['-wal', '-shm']) {
-      try { require('fs').unlinkSync(tmp + ext); } catch {}
+    let first: Db | undefined;
+    let second: Db | undefined;
+    try {
+      // First Db: simulate a bake that started but never finished.
+      first = new Db(tmp);
+      const fStore = new BroadcastStore(first);
+      fStore.put(baseManifest());
+      // Manually flip the status to 'baking' to simulate mid-flight crash —
+      // BroadcastStore.put writes 'baking' by default but be explicit.
+      first.prepare(
+        "UPDATE broadcasts SET bake_status='baking' WHERE id='b1'",
+      ).run();
+      first.close();
+      first = undefined;
+
+      // Second Db: opening it triggers markCrashedBakes.
+      second = new Db(tmp);
+      const { bake_status } = second.prepare<{ bake_status: string }>(
+        "SELECT bake_status FROM broadcasts WHERE id='b1'",
+      ).get();
+      expect(bake_status).toBe('failed');
+      const slotStatuses = second.prepare<{ status: string }>(
+        "SELECT status FROM broadcast_slots WHERE broadcast_id='b1' ORDER BY slot_index",
+      ).all().map(r => r.status);
+      expect(slotStatuses).toEqual(['aborted', 'aborted']);
+    } finally {
+      try { first?.close(); } catch { /* ignore */ }
+      try { second?.close(); } catch { /* ignore */ }
+      try { require('fs').unlinkSync(tmp); } catch { /* ignore */ }
+      for (const ext of ['-wal', '-shm']) {
+        try { require('fs').unlinkSync(tmp + ext); } catch { /* ignore */ }
+      }
     }
   });
 });

@@ -59,6 +59,7 @@ async function main() {
   console.log(`Baking featured broadcast from ${resolvedConfig}...`);
   const record = await bakeFeatured({ configPath: resolvedConfig, orchestrator: orch, registry });
   console.log(`Done. Baked ${record.id} with ${record.manifest.segmentSlots.length} segments.`);
+  try { db.close(); } catch (err) { console.warn('[bake-featured] db.close failed:', err); }
   process.exit(0);
 }
 

@@ -63,6 +63,11 @@ CREATE TABLE IF NOT EXISTS curator_publishes (
 CREATE INDEX IF NOT EXISTS idx_curator_uid_time ON curator_publishes(curator_uid, published_at);
 
 -- New: retention measurement (Phase 2 gate unlock)
+-- PRIVACY NOTE: `user_id` is the Firebase UID (pseudonymous identifier — not
+-- email or PII directly). Rows in this table are subject to user-erasure
+-- requests: deleting a user from Firebase requires also DELETE FROM app_events
+-- WHERE user_id = ?. Retention policy: not yet bounded; revisit if app_events
+-- volume becomes a concern (rotate to monthly partitions or apply a TTL).
 CREATE TABLE IF NOT EXISTS app_events (
   id              INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id         TEXT NOT NULL,

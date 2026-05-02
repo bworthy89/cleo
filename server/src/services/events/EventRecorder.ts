@@ -26,15 +26,25 @@ export class EventRecorder {
     payload: AppEventPayloads[T],
     opts?: { broadcastId?: string },
   ): void {
-    this.db.prepare(
-      `INSERT INTO app_events (user_id, event_type, occurred_at, broadcast_id, payload_json)
-       VALUES (?, ?, ?, ?, ?)`,
-    ).run(
-      userId,
-      type,
-      Date.now(),
-      opts?.broadcastId ?? null,
-      JSON.stringify(payload),
-    );
+    // Best-effort: telemetry must never crash the user-facing path. A DB-level
+    // failure here (closed handle, disk full, schema drift) gets logged and
+    // swallowed — the broadcast lifecycle continues uninterrupted.
+    try {
+      this.db.prepare(
+        `INSERT INTO app_events (user_id, event_type, occurred_at, broadcast_id, payload_json)
+         VALUES (?, ?, ?, ?, ?)`,
+      ).run(
+        userId,
+        type,
+        Date.now(),
+        opts?.broadcastId ?? null,
+        JSON.stringify(payload),
+      );
+    } catch (err) {
+      console.warn(
+        `[EventRecorder] record failed (type=${type} userId=${userId} broadcastId=${opts?.broadcastId ?? 'null'}):`,
+        err,
+      );
+    }
   }
 }

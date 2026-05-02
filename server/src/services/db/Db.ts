@@ -75,7 +75,7 @@ export class Db {
    */
   private markCrashedBakes(): void {
     const now = Date.now();
-    const tx = this.db.transaction(() => {
+    this.db.transaction(() => {
       const failed = this.db.prepare(
         "UPDATE broadcasts SET bake_status='failed' WHERE bake_status='baking'",
       ).run();
@@ -86,7 +86,6 @@ export class Db {
           "(SELECT id FROM broadcasts WHERE bake_status='failed')",
         ).run(now);
       }
-    });
-    tx();
+    })();
   }
 }

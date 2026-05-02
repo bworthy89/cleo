@@ -15,7 +15,5 @@ ios/
 app.json
 .xcode.env.local
 
-# SQLite database (created at runtime; backed up via Phase 4.5 cron)
-.broadcast-cache/cleo.db
-.broadcast-cache/cleo.db-wal
-.broadcast-cache/cleo.db-shm
+# Note: SQLite database files (cleo.db, cleo.db-wal, cleo.db-shm) are created
+# at runtime under .broadcast-cache/ which is already ignored above.
