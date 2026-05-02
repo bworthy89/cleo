@@ -14,3 +14,8 @@ ios/
 .expo/
 app.json
 .xcode.env.local
+
+# SQLite database (created at runtime; backed up via Phase 4.5 cron)
+.broadcast-cache/cleo.db
+.broadcast-cache/cleo.db-wal
+.broadcast-cache/cleo.db-shm
