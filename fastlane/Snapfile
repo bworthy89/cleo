@@ -1,0 +1,41 @@
+# 6.9" iPhone is the only display class App Store Connect strictly requires
+# for a new submission. Single device keeps the matrix fast (~3-4 min per
+# capture run). To add a 6.5" fallback, install the iOS 18 sim runtime via
+# Xcode ▸ Settings ▸ Platforms and add "iPhone 11 Pro Max" — that runtime is
+# not bundled with Xcode 26.
+devices([
+  "iPhone 17 Pro Max"
+])
+
+languages([
+  "en-US"
+])
+
+# Point at the workspace (CocoaPods generates ONAY.xcworkspace alongside the
+# raw .xcodeproj). Snapshot needs an explicit hint when invoked from the repo
+# root rather than from inside ios/.
+workspace("./ios/ONAY.xcworkspace")
+
+# The scheme whose Test action drives the UITest target. The ONAY scheme has
+# ONAYUiTests in its Test action — see fastlane/SETUP.md §3.
+scheme("ONAY")
+
+# Where Snapshot writes the captured PNGs. Frameit + Deliver both read from
+# this same root, so keeping it inside fastlane/ lets `frame` and `upload`
+# pick them up without flag changes.
+output_directory("./fastlane/screenshots")
+
+# Wipe previously generated screenshots before each run so the directory
+# only contains the latest pass — avoids stale 6.5" / 6.9" mixes.
+clear_previous_screenshots(true)
+
+# 9:41 AM, full battery, full reception. Only takes effect on simulators
+# running iOS 13+, which is every device in the matrix above.
+override_status_bar(true)
+
+# Stop on first failure inside the UI test — fail fast rather than burning
+# 10 minutes capturing identical broken screenshots across 2 devices × 1
+# locale.
+stop_after_first_error(true)
+
+# For more options run: fastlane action snapshot

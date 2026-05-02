@@ -1310,10 +1310,10 @@ git commit -m "feat: Phase 2 complete — Apple Music auth, playlists, playback 
 
 Phase 2 is complete when all of the following work on a physical device:
 
-- [ ] Apple Music authorization prompt appears and grants access
-- [ ] User's library playlists appear as portrait station cards
-- [ ] Tapping a playlist starts music playback
-- [ ] Now Playing shows the current track title
-- [ ] Track changes are detected automatically (song-end detection)
-- [ ] Recently played tracks are persisted to MMKV
-- [ ] No crashes on authorization denial (graceful fallback)
+- [x] Apple Music authorization prompt appears and grants access ✅ 2026-05-01
+- [x] User's library playlists appear as portrait station cards ✅ 2026-05-01
+- [x] Tapping a playlist starts music playback ✅ 2026-05-01
+- [x] Now Playing shows the current track title ✅ 2026-05-01
+- [x] Track changes are detected automatically (song-end detection) ✅ 2026-05-01
+- [x] Recently played tracks are persisted to MMKV ✅ 2026-05-01
+- [x] No crashes on authorization denial (graceful fallback) ✅ 2026-05-01

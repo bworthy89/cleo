@@ -1,0 +1,38 @@
+default_platform(:ios)
+
+platform :ios do
+  desc "Capture App Store screenshots via XCUITest. Requires the ONAYUITests target to exist (see fastlane/SETUP.md) and Metro to be running with EXPO_PUBLIC_UITEST_MODE=true on each simulator's host network."
+  lane :snapshot_capture do
+    # Forward the UITEST flag through to xcodebuild so any code paths
+    # inspecting process env (rather than the embedded Metro env) can see
+    # it. The hard gate is still EXPO_PUBLIC_UITEST_MODE in Metro's env at
+    # bundle time — see featureFlags.ts.
+    ENV["EXPO_PUBLIC_UITEST_MODE"] = "true"
+    snapshot
+  end
+
+  desc "Frame raw screenshots with device bezels and marketing text"
+  lane :frame do
+    frameit(
+      path: "./fastlane/screenshots/en-US",
+      white: false,
+      force_device_type: "iPhone 15 Pro Max"
+    )
+  end
+
+  desc "Upload metadata and screenshots to App Store Connect"
+  lane :upload do
+    deliver(
+      app_identifier: "com.worthymedia.cleo",
+      skip_binary_upload: true,
+      skip_app_version_update: true,
+      force: true,
+      metadata_path: "./fastlane/metadata",
+      screenshots_path: "./fastlane/screenshots",
+      overwrite_screenshots: true,
+      submit_for_review: false,
+      automatic_release: false,
+      precheck_include_in_app_purchases: false
+    )
+  end
+end

@@ -1,0 +1,4 @@
+app_identifier("com.worthymedia.cleo")
+apple_id("bworthy89@gmail.com")
+team_id("8F2VWCN5KF")
+# itc_team_id will be set after first `fastlane deliver` run

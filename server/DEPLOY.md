@@ -392,3 +392,121 @@ JSON-backed code ignores them.
   `/admin/curators/:uid/publishes`, `/admin/featured`,
   `/admin/tts/failures`). Purely additive — ship anytime after Phase 4.
   See "Admin surface" in the spec; a separate implementation plan will follow.
+
+
+## Phase 4.5 — automated cleo.db backups (deployed 2026-05-XX)
+
+Hourly local snapshots + nightly off-box copy to R2 bucket
+`cleo-broadcast-backups`. Hard prereq for deleting the `.bak` JSON
+fallbacks. Design source: [SQLite migration spec, Phase 4.5
+section](../docs/superpowers/specs/2026-05-01-sqlite-migration-design.md).
+
+### Cloudflare ops (run once, before installing cron)
+
+1. **Create the R2 bucket.** Cloudflare dashboard → R2 → Create bucket
+   → name `cleo-broadcast-backups`. Default region/jurisdiction is fine.
+
+2. **Mint a NEW R2 API token** scoped to this bucket only.
+   - Cloudflare dashboard → R2 → Manage R2 API Tokens → Create API token
+   - Permissions: Object Read & Write
+   - Specify bucket: `cleo-broadcast-backups`
+   - Copy the **Access Key ID** and **Secret Access Key** (shown once)
+   - Note the **endpoint URL** (`https://<account-id>.r2.cloudflarestorage.com`)
+
+   **Do not reuse** `R2_ACCESS_KEY_ID` from the existing
+   segment-upload token — separate blast radius if this one leaks.
+
+3. **Configure 3 lifecycle rules on the bucket:**
+   - Cloudflare dashboard → R2 → `cleo-broadcast-backups` → Settings → Object lifecycle rules
+   - Rule 1: Prefix `hourly/`, expire current versions after 1 day
+   - Rule 2: Prefix `daily/`, expire current versions after 14 days
+   - Rule 3: Prefix `weekly/`, expire current versions after 84 days
+
+   These mirror the spec's 24h / 14d / 12w retention. R2 enforces
+   them server-side; the upload script doesn't need a delete loop.
+
+4. **Add the new env vars to `/home/cleo/cleo-broadcast/server/.env`:**
+   ```env
+   R2_BACKUP_ACCESS_KEY_ID=<from step 2>
+   R2_BACKUP_SECRET_ACCESS_KEY=<from step 2>
+   R2_BACKUP_BUCKET=cleo-broadcast-backups
+   R2_BACKUP_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com
+   ```
+
+### Install backup cron (run on the VPS as root)
+
+```bash
+ssh cleo@<VPS_HOST>
+sudo apt install -y awscli       # if not already installed
+sudo bash /home/cleo/cleo-broadcast/server/scripts/install-backup-cron.sh
+```
+
+The installer:
+- Creates `/var/backups/cleo/{hourly,daily,weekly}/` owned by `cleo`
+- Writes `/etc/cron.d/cleo-backup` with hourly + nightly entries
+- Reloads cron so the new entries take effect
+- Echoes a 3-step "verify" checklist on success
+
+### Verify backups are running
+
+After install, seed the first run manually so you don't have to wait
+for the next hour boundary:
+
+```bash
+sudo -u cleo bash -c 'set -a; . /home/cleo/cleo-broadcast/server/.env; set +a; \
+  /home/cleo/cleo-broadcast/server/scripts/backup-cleo-db.sh'
+ls -la /var/backups/cleo/hourly/
+sqlite3 /var/backups/cleo/hourly/cleo-*.db "PRAGMA integrity_check;"
+```
+
+Expected: a file in `hourly/` with current mtime; `integrity_check` returns `ok`.
+
+Wait until 04:00 the next morning, then verify the off-box copy:
+
+```bash
+ls -la /var/log/cleo-backup.log
+aws s3 ls s3://cleo-broadcast-backups/hourly/ \
+  --endpoint-url "$R2_BACKUP_ENDPOINT"
+```
+
+Expected: log lines from the upload script; objects under `hourly/` in R2.
+
+`/admin/status` now also reports `lastBackupMinutesAgo`:
+
+```bash
+curl -s -H "X-Admin-Token: $ADMIN_BEARER_TOKEN" \
+  https://api.worthymedia.tech/admin/status | jq .lastBackupMinutesAgo
+```
+
+Should return a small integer (minutes since the most recent
+`backup-cleo-db.sh` run). Stale = something's wrong.
+
+### Restore drill (run before deleting `.bak` JSON fallbacks)
+
+The migration's 7-day `.bak` retention window is set by Phase 4. Before
+deleting them, run the drill:
+
+```bash
+ssh cleo@<VPS_HOST>
+cd /home/cleo/cleo-broadcast
+set -a; . server/.env; set +a
+bash server/scripts/restore-drill.sh
+```
+
+Expected: prints `[restore-drill] PASS`. Steps performed:
+1. Lists `daily/` in R2, picks the latest
+2. Downloads to a scratch directory
+3. Runs `PRAGMA integrity_check` — must return `ok`
+4. Counts rows in `broadcasts` and `enrichment` (informational)
+5. Confirms the `app_events` table is present (proves it's the post-migration schema)
+
+If FAIL, do **not** delete the `.bak` files. Investigate.
+
+### Known follow-ups
+
+- Automated weekly restore drill (a fourth cron entry) — defer until the
+  first manual drill has shipped successfully and we know the assertions
+  are stable.
+- A `last-r2-success` sentinel separate from `last-success` if operator
+  ever wants to distinguish "local backup ran" from "off-box copy ran" —
+  current single-sentinel design covers the common case.

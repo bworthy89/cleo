@@ -1,0 +1,14 @@
+/* Screenshot 1 — Home (featured rail + Build CTA) */
+"01_home" = "Tonight on ONAY";
+
+/* Screenshot 2 — Setup sheet, vibe picker */
+"02_setup_vibe" = "Pick a vibe, get a broadcast";
+
+/* Screenshot 3 — Ask ONAY curation result */
+"03_ask_onay" = "Tell her a mood";
+
+/* Screenshot 4 — Now Playing (manual capture against a real bake) */
+"04_player" = "AI commentary between every track";
+
+/* Screenshot 5 — Profile / Settings */
+"05_profile" = "Your radio, tuned in";

@@ -1,0 +1,22 @@
+ONAY is your personal AI radio host. Pick a playlist, choose a vibe, and ONAY transforms it into a live radio broadcast — with voice commentary between every track.
+
+No more silent playlist shuffling. ONAY listens to what's playing and delivers real radio moments: artist callouts, track intros, genre bridges, and mid-song drops that make every session feel alive.
+
+HOW IT WORKS
+• Pick any Apple Music playlist or station
+• Choose a vibe — chill, workout, lateNight, party, and more
+• ONAY takes over as your AI host, speaking between tracks with context-aware commentary
+• Smooth radio-style crossfades blend ONAY's voice with the music
+
+FEATURES
+• 12 broadcast vibes that shape ONAY's tone and energy
+• Smart transitions — ONAY knows the artist, the genre, and what just played
+• Session memory — ONAY remembers your listening history across sessions
+• Editorial insight cards with producer credits and song context
+• Session arc visualization so you can see your broadcast unfold
+• Broadcast archives to revisit past sessions
+
+DESIGNED FOR LISTENERS
+ONAY isn't a chatbot. It's a radio host. Every word is crafted for the ear — natural delivery, warm timing, and zero filler. The experience is built around the music, not the AI.
+
+Requires an Apple Music subscription.
