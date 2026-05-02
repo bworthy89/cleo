@@ -1,20 +1,17 @@
 import { EnrichmentCache, type EnrichmentRecord } from '../../src/services/enrichment/EnrichmentCache';
-import * as fs from 'fs/promises';
-import * as path from 'path';
-import * as os from 'os';
+import { Db } from '../../src/services/db/Db';
 
 describe('EnrichmentCache — extended fields', () => {
-  let tmp: string;
+  let db: Db;
   let cache: EnrichmentCache;
 
-  beforeEach(async () => {
-    tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'enrich-test-'));
-    cache = new EnrichmentCache(path.join(tmp, 'tracks.json'));
-    await cache.load();
+  beforeEach(() => {
+    db = new Db(':memory:');
+    cache = new EnrichmentCache(db);
   });
 
-  afterEach(async () => {
-    await fs.rm(tmp, { recursive: true, force: true });
+  afterEach(() => {
+    db.close();
   });
 
   it('stores and retrieves isrc / features / featuresSource', async () => {

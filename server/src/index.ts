@@ -191,9 +191,7 @@ const broadcastStore = new BroadcastStore(db);
 
 // Enrichment cache + background worker — fills Genius/MusicBrainz metadata
 // for tracks seen during bakes so future sequencer calls have richer context.
-const enrichmentCache = new EnrichmentCache(
-  path.resolve(__dirname, '../.enrichment-cache/tracks.json'),
-);
+const enrichmentCache = new EnrichmentCache(db);
 
 async function bootstrap(): Promise<void> {
   await enrichmentCache.load();

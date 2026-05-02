@@ -1,9 +1,7 @@
-import { promises as fs } from 'fs';
-import * as path from 'path';
-import * as os from 'os';
 import { LLMTrackSequencer } from '@/services/broadcast/TrackSequencer';
 import { SequenceCache } from '@/services/broadcast/SequenceCache';
 import { EnrichmentCache } from '@/services/enrichment/EnrichmentCache';
+import { Db } from '@/services/db/Db';
 import type { ManifestTrack } from '@/services/broadcast/types';
 import type { LLMCaller } from '@/services/broadcast/SegmentGenerator';
 import type { LLMRequest, LLMResponse } from '@/providers/llm/types';
@@ -21,11 +19,8 @@ function mockLLM(responses: string[]): jest.Mocked<LLMCaller> {
   };
 }
 
-async function emptyEnrichmentCache(): Promise<EnrichmentCache> {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'seq-test-'));
-  const c = new EnrichmentCache(path.join(dir, 'tracks.json'));
-  await c.load();
-  return c;
+function emptyEnrichmentCache(): EnrichmentCache {
+  return new EnrichmentCache(new Db(':memory:'));
 }
 
 describe('LLMTrackSequencer.sequence', () => {
@@ -34,7 +29,7 @@ describe('LLMTrackSequencer.sequence', () => {
 
   it('returns cached order on cache hit', async () => {
     const cache = new SequenceCache();
-    const enrich = await emptyEnrichmentCache();
+    const enrich = emptyEnrichmentCache();
     const llm = mockLLM(['{"ordered":["0","1","2","3","4"]}']);
     const seq = new LLMTrackSequencer(llm, cache, enrich);
 
@@ -55,7 +50,7 @@ describe('LLMTrackSequencer.sequence', () => {
 
   it('calls LLM on cache miss and returns ordered tracks', async () => {
     const cache = new SequenceCache();
-    const enrich = await emptyEnrichmentCache();
+    const enrich = emptyEnrichmentCache();
     const llm = mockLLM(['{"ordered":["2","4","0","6","8"]}']);
     const seq = new LLMTrackSequencer(llm, cache, enrich);
 
@@ -70,7 +65,7 @@ describe('LLMTrackSequencer.sequence', () => {
 
   it('retries once on invalid JSON, then falls back', async () => {
     const cache = new SequenceCache();
-    const enrich = await emptyEnrichmentCache();
+    const enrich = emptyEnrichmentCache();
     const llm = mockLLM(['not json', 'also not json']);
     const seq = new LLMTrackSequencer(llm, cache, enrich);
 
@@ -85,7 +80,7 @@ describe('LLMTrackSequencer.sequence', () => {
 
   it('retries once on hallucinated IDs', async () => {
     const cache = new SequenceCache();
-    const enrich = await emptyEnrichmentCache();
+    const enrich = emptyEnrichmentCache();
     const llm = mockLLM([
       '{"ordered":["99","88","77","66","55"]}', // all hallucinated
       '{"ordered":["0","1","2","3","4"]}',       // valid on retry
@@ -103,7 +98,7 @@ describe('LLMTrackSequencer.sequence', () => {
 
   it('retries on wrong-length output', async () => {
     const cache = new SequenceCache();
-    const enrich = await emptyEnrichmentCache();
+    const enrich = emptyEnrichmentCache();
     const llm = mockLLM([
       '{"ordered":["0","1","2"]}',              // too short
       '{"ordered":["0","1","2","3","4"]}',       // correct length
@@ -122,7 +117,7 @@ describe('LLMTrackSequencer.sequence', () => {
   it('caps pool at 40 tracks when input is larger', async () => {
     const largePool = Array.from({ length: 100 }, (_, i) => track(String(i), `Artist${i}`));
     const cache = new SequenceCache();
-    const enrich = await emptyEnrichmentCache();
+    const enrich = emptyEnrichmentCache();
     const llm = mockLLM(['{"ordered":["0","1","2","3","4"]}']);
     const seq = new LLMTrackSequencer(llm, cache, enrich);
 
@@ -139,7 +134,7 @@ describe('LLMTrackSequencer.sequence', () => {
 
   it('throws fast when pool < N', async () => {
     const cache = new SequenceCache();
-    const enrich = await emptyEnrichmentCache();
+    const enrich = emptyEnrichmentCache();
     const llm = mockLLM(['{"ordered":[]}']);
     const seq = new LLMTrackSequencer(llm, cache, enrich);
 
@@ -151,7 +146,7 @@ describe('LLMTrackSequencer.sequence', () => {
 
   it('includes arc prose, preferred, avoid, and soft-signal framing in prompt', async () => {
     const cache = new SequenceCache();
-    const enrich = await emptyEnrichmentCache();
+    const enrich = emptyEnrichmentCache();
     const llm = mockLLM(['{"ordered":["0","1","2","3","4"]}']);
     const seq = new LLMTrackSequencer(llm, cache, enrich);
 
@@ -171,7 +166,7 @@ describe('LLMTrackSequencer.sequence', () => {
 
   it('runs repair after LLM (duplicate removed)', async () => {
     const cache = new SequenceCache();
-    const enrich = await emptyEnrichmentCache();
+    const enrich = emptyEnrichmentCache();
     // LLM duplicates track "0"
     const llm = mockLLM(['{"ordered":["0","0","1","2","3"]}']);
     const seq = new LLMTrackSequencer(llm, cache, enrich);
@@ -187,7 +182,7 @@ describe('LLMTrackSequencer.sequence', () => {
 
   it('passes enrichment to the LLM when cache has records', async () => {
     const cache = new SequenceCache();
-    const enrich = await emptyEnrichmentCache();
+    const enrich = emptyEnrichmentCache();
     await enrich.set('t-0', 'Artist0', {
       genre: 'soul', producer: 'Stevie Wonder',
       lastEnrichedAt: Date.now(), source: 'hybrid',
@@ -207,7 +202,7 @@ describe('LLMTrackSequencer.sequence', () => {
 
   it('includes wikipediaSummary first sentence in per-track enrichment hints', async () => {
     const cache = new SequenceCache();
-    const enrich = await emptyEnrichmentCache();
+    const enrich = emptyEnrichmentCache();
     await enrich.set('t-0', 'Artist0', {
       wikipediaSummary: 'Dummy song is a classic 1972 soul track. It later won two Grammy awards.',
       lastEnrichedAt: Date.now(), source: 'wikipedia',
@@ -233,7 +228,7 @@ describe('LLMTrackSequencer.sequence', () => {
     it('logs source + vibe + N + first/last ids on LLM success', async () => {
       const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
       const cache = new SequenceCache();
-      const enrich = await emptyEnrichmentCache();
+      const enrich = emptyEnrichmentCache();
       const llm = mockLLM(['{"ordered":["2","4","0","6","8"]}']);
       const seq = new LLMTrackSequencer(llm, cache, enrich);
 
@@ -251,7 +246,7 @@ describe('LLMTrackSequencer.sequence', () => {
 
     it('logs source=cache on cache hit', async () => {
       const cache = new SequenceCache();
-      const enrich = await emptyEnrichmentCache();
+      const enrich = emptyEnrichmentCache();
       const llm = mockLLM(['{"ordered":["0","1","2","3","4"]}']);
       const seq = new LLMTrackSequencer(llm, cache, enrich);
 
@@ -267,7 +262,7 @@ describe('LLMTrackSequencer.sequence', () => {
       const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
       jest.spyOn(console, 'warn').mockImplementation(() => {});
       const cache = new SequenceCache();
-      const enrich = await emptyEnrichmentCache();
+      const enrich = emptyEnrichmentCache();
       const llm = mockLLM(['not json', 'still not json']);
       const seq = new LLMTrackSequencer(llm, cache, enrich);
 
@@ -283,7 +278,7 @@ describe('LLMTrackSequencer featureSlots', () => {
   const ctx = { timeOfDay: 'night', dayOfWeek: 'Sat' };
 
   it('returns featureSlots from a valid LLM response', async () => {
-    const enrich = await emptyEnrichmentCache();
+    const enrich = emptyEnrichmentCache();
     const llm = mockLLM([
       JSON.stringify({ ordered: ['1','2','3','4','5'], featureSlots: [2] }),
     ]);
@@ -299,7 +294,7 @@ describe('LLMTrackSequencer featureSlots', () => {
   });
 
   it('drops out-of-range featureSlots', async () => {
-    const enrich = await emptyEnrichmentCache();
+    const enrich = emptyEnrichmentCache();
     const llm = mockLLM([
       JSON.stringify({ ordered: ['1','2','3','4','5'], featureSlots: [0, 2, 99] }),
     ]);
@@ -315,7 +310,7 @@ describe('LLMTrackSequencer featureSlots', () => {
   });
 
   it('forces at least one featureSlot at the middle transition when empty', async () => {
-    const enrich = await emptyEnrichmentCache();
+    const enrich = emptyEnrichmentCache();
     const llm = mockLLM([
       JSON.stringify({ ordered: ['1','2','3','4','5'], featureSlots: [] }),
     ]);
@@ -332,7 +327,7 @@ describe('LLMTrackSequencer featureSlots', () => {
   });
 
   it('truncates featureSlots count when LLM returns too many', async () => {
-    const enrich = await emptyEnrichmentCache();
+    const enrich = emptyEnrichmentCache();
     const llm = mockLLM([
       JSON.stringify({ ordered: ['1','2','3','4','5'], featureSlots: [1, 2, 3, 4] }),
     ]);
