@@ -2,6 +2,11 @@
 -- Applied idempotently at boot via Db's `db.exec(readSchemaSql())` call.
 -- Source of truth for shape: docs/superpowers/specs/2026-05-01-sqlite-migration-design.md
 
+-- Note: CHECK constraints below are applied to NEW tables only. Existing
+-- production tables (post-migration) won't gain the constraint via the
+-- idempotent CREATE TABLE IF NOT EXISTS path. Apply via ALTER TABLE in a
+-- future migration if backfilling validation to existing data is needed.
+
 -- Replaces BroadcastStore.entries
 CREATE TABLE IF NOT EXISTS broadcasts (
   id              TEXT PRIMARY KEY,
@@ -10,8 +15,8 @@ CREATE TABLE IF NOT EXISTS broadcasts (
   length          TEXT NOT NULL,          -- 'quick' | 'standard' | 'long'
   playlist_id     TEXT,                   -- nullable (curator broadcasts)
   created_at      INTEGER NOT NULL,       -- ms epoch
-  bake_status     TEXT NOT NULL,          -- 'baking' | 'completed' | 'degraded' | 'failed' | 'aborted'
-  abort_requested INTEGER NOT NULL DEFAULT 0,  -- boolean: 0 = false, 1 = true
+  bake_status     TEXT NOT NULL CHECK (bake_status IN ('baking','completed','degraded','failed','aborted')),
+  abort_requested INTEGER NOT NULL DEFAULT 0 CHECK (abort_requested IN (0, 1)),
   manifest_json   TEXT NOT NULL           -- full Manifest blob, source of truth for shape
 );
 CREATE INDEX IF NOT EXISTS idx_broadcasts_user_created ON broadcasts(user_id, created_at DESC);
@@ -20,7 +25,7 @@ CREATE INDEX IF NOT EXISTS idx_broadcasts_bakestatus  ON broadcasts(bake_status,
 CREATE TABLE IF NOT EXISTS broadcast_slots (
   broadcast_id    TEXT NOT NULL,
   slot_index      INTEGER NOT NULL,
-  status          TEXT NOT NULL,          -- 'pending' | 'ready' | 'failed' | 'aborted'
+  status          TEXT NOT NULL CHECK (status IN ('pending','ready','failed','aborted')),
   audio_urls_json TEXT,                   -- nullable until ready
   attempt_count   INTEGER NOT NULL DEFAULT 0,
   updated_at      INTEGER NOT NULL,
@@ -47,7 +52,7 @@ CREATE TABLE IF NOT EXISTS featured_broadcasts (
   vibe            TEXT NOT NULL,
   length          TEXT NOT NULL,
   artwork_url     TEXT,
-  baked           INTEGER NOT NULL,       -- 0 | 1
+  baked           INTEGER NOT NULL CHECK (baked IN (0, 1)),
   created_at      INTEGER NOT NULL,
   manifest_json   TEXT NOT NULL
 );
@@ -71,7 +76,7 @@ CREATE INDEX IF NOT EXISTS idx_curator_uid_time ON curator_publishes(curator_uid
 CREATE TABLE IF NOT EXISTS app_events (
   id              INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id         TEXT NOT NULL,
-  event_type      TEXT NOT NULL,          -- 'app_open' | 'broadcast_started' | 'broadcast_completed' | 'broadcast_failed' | 'track_completed'
+  event_type      TEXT NOT NULL CHECK (event_type IN ('app_open','broadcast_started','broadcast_completed','broadcast_failed','track_completed')),
   occurred_at     INTEGER NOT NULL,
   broadcast_id    TEXT,                   -- nullable
   payload_json    TEXT

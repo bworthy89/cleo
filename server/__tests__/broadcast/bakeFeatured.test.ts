@@ -54,26 +54,30 @@ describe('bakeFeatured', () => {
 
     // Production wires all three stores onto the same Db instance; match that here.
     const sharedDb = new Db(':memory:');
-    const reg = new FeaturedBroadcastRegistry(sharedDb);
-    await reg.load();
-    const enrichCache = new EnrichmentCache(sharedDb);
-    const enricher = new BackgroundEnricher(enrichCache, {
-      fetchGenius: jest.fn(async () => null),
-      fetchMusicBrainz: jest.fn(async () => null),
-      fetchWikipedia: async () => null,
-      fetchLastFm: async () => null,
-    });
-    const orch = new BroadcastOrchestrator(
-      makeMockLLM(SEQUENCER_RESPONSE), makeMockTTS(), makeStorage(),
-      new BroadcastStore(sharedDb), enrichCache, enricher, noopFetchChain,
-    );
+    try {
+      const reg = new FeaturedBroadcastRegistry(sharedDb);
+      await reg.load();
+      const enrichCache = new EnrichmentCache(sharedDb);
+      const enricher = new BackgroundEnricher(enrichCache, {
+        fetchGenius: jest.fn(async () => null),
+        fetchMusicBrainz: jest.fn(async () => null),
+        fetchWikipedia: async () => null,
+        fetchLastFm: async () => null,
+      });
+      const orch = new BroadcastOrchestrator(
+        makeMockLLM(SEQUENCER_RESPONSE), makeMockTTS(), makeStorage(),
+        new BroadcastStore(sharedDb), enrichCache, enricher, noopFetchChain,
+      );
 
-    await bakeFeatured({ configPath, orchestrator: orch, registry: reg });
+      await bakeFeatured({ configPath, orchestrator: orch, registry: reg });
 
-    const list = reg.list();
-    expect(list).toHaveLength(1);
-    expect(list[0].id).toBe('c1');
-    expect(list[0].baked).toBe(true);
-    expect(list[0].manifest.segmentSlots.every(s => s.status === 'ready')).toBe(true);
+      const list = reg.list();
+      expect(list).toHaveLength(1);
+      expect(list[0].id).toBe('c1');
+      expect(list[0].baked).toBe(true);
+      expect(list[0].manifest.segmentSlots.every(s => s.status === 'ready')).toBe(true);
+    } finally {
+      sharedDb.close();
+    }
   });
 });

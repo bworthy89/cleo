@@ -36,7 +36,7 @@ describe('backfill-sqlite', () => {
       enrichmentJsonPath: enrichmentJson,
       registryJsonPath: path.join(workDir, 'registry.json'), // missing — fine
     });
-    const { n } = db.prepare<{ n: number }>('SELECT COUNT(*) AS n FROM enrichment').get();
+    const { n } = db.prepare<{ n: number }>('SELECT COUNT(*) AS n FROM enrichment').get()!;
     expect(n).toBe(2);
     db.close();
   });
@@ -60,7 +60,7 @@ describe('backfill-sqlite', () => {
       enrichmentJsonPath: path.join(workDir, 'tracks.json'),
       registryJsonPath: registryJson,
     });
-    const { n } = db.prepare<{ n: number }>('SELECT COUNT(*) AS n FROM featured_broadcasts').get();
+    const { n } = db.prepare<{ n: number }>('SELECT COUNT(*) AS n FROM featured_broadcasts').get()!;
     expect(n).toBe(1);
     db.close();
   });
