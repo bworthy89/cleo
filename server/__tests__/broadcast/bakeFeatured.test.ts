@@ -52,10 +52,11 @@ describe('bakeFeatured', () => {
       })),
     }));
 
-    const regDb = new Db(':memory:');
-    const reg = new FeaturedBroadcastRegistry(regDb);
+    // Production wires all three stores onto the same Db instance; match that here.
+    const sharedDb = new Db(':memory:');
+    const reg = new FeaturedBroadcastRegistry(sharedDb);
     await reg.load();
-    const enrichCache = new EnrichmentCache(new Db(':memory:'));
+    const enrichCache = new EnrichmentCache(sharedDb);
     const enricher = new BackgroundEnricher(enrichCache, {
       fetchGenius: jest.fn(async () => null),
       fetchMusicBrainz: jest.fn(async () => null),
@@ -64,7 +65,7 @@ describe('bakeFeatured', () => {
     });
     const orch = new BroadcastOrchestrator(
       makeMockLLM(SEQUENCER_RESPONSE), makeMockTTS(), makeStorage(),
-      new BroadcastStore(new Db(':memory:')), enrichCache, enricher, noopFetchChain,
+      new BroadcastStore(sharedDb), enrichCache, enricher, noopFetchChain,
     );
 
     await bakeFeatured({ configPath, orchestrator: orch, registry: reg });

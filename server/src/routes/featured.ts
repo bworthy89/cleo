@@ -94,7 +94,9 @@ export function createFeaturedRouter(
         // the response on missing headers; payload_json stays freeform.
         const platformHeader = req.header('x-cleo-platform');
         const platform = platformHeader === 'android' ? 'android' : 'ios';
-        const appVersion = req.header('x-cleo-app-version') ?? 'unknown';
+        // Cap to 50 chars — header is client-controlled; an attacker could
+        // otherwise bloat payload_json with a huge string.
+        const appVersion = (req.header('x-cleo-app-version') ?? 'unknown').slice(0, 50);
         const buildNumber = Number.parseInt(req.header('x-cleo-build-number') ?? '0', 10) || 0;
         eventRecorder.record(req.uid, 'app_open', { appVersion, platform, buildNumber });
       } catch (err) {
