@@ -116,7 +116,7 @@ export class BroadcastOrchestrator {
     };
     const db = new Db(':memory:');
     const store = new BroadcastStore(db);
-    const cache = new EnrichmentCache('/tmp/noop-enrich.json');
+    const cache = new EnrichmentCache(db);
     const enricher = overrides.backgroundEnricher
       ? (overrides.backgroundEnricher as unknown as BackgroundEnricher)
       : ({ drainNow: async () => {} } as unknown as BackgroundEnricher);

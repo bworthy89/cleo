@@ -1,8 +1,6 @@
-import { promises as fs } from 'fs';
-import * as path from 'path';
-import * as os from 'os';
 import { BackgroundEnricher, type EnrichmentFetcher } from '@/services/enrichment/BackgroundEnricher';
 import { EnrichmentCache, type EnrichmentRecord } from '@/services/enrichment/EnrichmentCache';
+import { Db } from '@/services/db/Db';
 import type { ManifestTrack } from '@/services/broadcast/types';
 import { bakeTelemetry } from '@/services/telemetry/BakeTelemetry';
 
@@ -39,16 +37,13 @@ function makeFetcher(): jest.Mocked<EnrichmentFetcher> {
   };
 }
 
-async function tempCache(): Promise<EnrichmentCache> {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'bg-enrich-'));
-  const cache = new EnrichmentCache(path.join(dir, 'tracks.json'));
-  await cache.load();
-  return cache;
+function tempCache(): EnrichmentCache {
+  return new EnrichmentCache(new Db(':memory:'));
 }
 
 describe('BackgroundEnricher', () => {
   it('enriches each track and writes to cache', async () => {
-    const cache = await tempCache();
+    const cache = tempCache();
     const fetcher = makeFetcher();
     const enricher = new BackgroundEnricher(cache, fetcher);
 
@@ -64,7 +59,7 @@ describe('BackgroundEnricher', () => {
   });
 
   it('skips tracks enriched within 30 days', async () => {
-    const cache = await tempCache();
+    const cache = tempCache();
     await cache.set('title-a', 'artist-a', {
       genre: 'old', lastEnrichedAt: Date.now(), source: 'hybrid',
     });
@@ -79,7 +74,7 @@ describe('BackgroundEnricher', () => {
   });
 
   it('re-enriches after 30-day threshold', async () => {
-    const cache = await tempCache();
+    const cache = tempCache();
     await cache.set('title-a', 'artist-a', {
       genre: 'old',
       lastEnrichedAt: Date.now() - 31 * 24 * 60 * 60 * 1000,
@@ -95,7 +90,7 @@ describe('BackgroundEnricher', () => {
   });
 
   it('tolerates fetcher errors — other tracks still process', async () => {
-    const cache = await tempCache();
+    const cache = tempCache();
     const fetcher = makeFetcher();
     (fetcher.fetchGenius as jest.Mock).mockRejectedValueOnce(new Error('boom'));
     const enricher = new BackgroundEnricher(cache, fetcher);
@@ -109,7 +104,7 @@ describe('BackgroundEnricher', () => {
   });
 
   it('tags source as genius-only when MB returns null', async () => {
-    const cache = await tempCache();
+    const cache = tempCache();
     const fetcher = makeFetcher();
     (fetcher.fetchMusicBrainz as jest.Mock).mockResolvedValueOnce(null);
     const enricher = new BackgroundEnricher(cache, fetcher);
@@ -121,7 +116,7 @@ describe('BackgroundEnricher', () => {
   });
 
   it('tags source as musicbrainz-only when Genius returns null', async () => {
-    const cache = await tempCache();
+    const cache = tempCache();
     const fetcher = makeFetcher();
     (fetcher.fetchGenius as jest.Mock).mockResolvedValueOnce(null);
     const enricher = new BackgroundEnricher(cache, fetcher);
@@ -135,7 +130,7 @@ describe('BackgroundEnricher', () => {
 
 describe('BackgroundEnricher.drainNow', () => {
   it('enriches all tracks in parallel and resolves when done', async () => {
-    const cache = await tempCache();
+    const cache = tempCache();
     const fetcher = makeFetcher();
     const enricher = new BackgroundEnricher(cache, fetcher);
 
@@ -154,7 +149,7 @@ describe('BackgroundEnricher.drainNow', () => {
   });
 
   it('skips already-cached tracks within the refresh window', async () => {
-    const cache = await tempCache();
+    const cache = tempCache();
     await cache.set('title-a', 'artist-a', {
       genre: 'cached', lastEnrichedAt: Date.now(), source: 'hybrid',
     });
@@ -180,7 +175,7 @@ describe('BackgroundEnricher.drainNow telemetry', () => {
   });
 
   it('records timing for each API call', async () => {
-    const cache = await tempCache();
+    const cache = tempCache();
     const fetcher = makeFetcher();
     const enricher = new BackgroundEnricher(cache, fetcher);
 
@@ -201,7 +196,7 @@ describe('BackgroundEnricher.drainNow telemetry', () => {
   });
 
   it('records durationMs as a non-negative number for each API call', async () => {
-    const cache = await tempCache();
+    const cache = tempCache();
     const fetcher = makeFetcher();
     const enricher = new BackgroundEnricher(cache, fetcher);
 
@@ -216,7 +211,7 @@ describe('BackgroundEnricher.drainNow telemetry', () => {
   });
 
   it('does not record timing when track is already cached', async () => {
-    const cache = await tempCache();
+    const cache = tempCache();
     await cache.set('title-a', 'artist-a', {
       genre: 'cached', lastEnrichedAt: Date.now(), source: 'hybrid',
     });

@@ -56,8 +56,7 @@ describe('bakeFeatured', () => {
 
     const reg = new FeaturedBroadcastRegistry(regPath);
     await reg.load();
-    const enrichCache = new EnrichmentCache(path.join(tmp, 'tracks.json'));
-    await enrichCache.load();
+    const enrichCache = new EnrichmentCache(new Db(':memory:'));
     const enricher = new BackgroundEnricher(enrichCache, {
       fetchGenius: jest.fn(async () => null),
       fetchMusicBrainz: jest.fn(async () => null),

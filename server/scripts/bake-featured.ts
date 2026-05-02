@@ -1,7 +1,9 @@
 import 'dotenv/config';
+import * as fs from 'fs';
 import * as path from 'path';
 import { createStorage } from '../src/services/storage/createStorage';
 import { BroadcastStore } from '../src/services/broadcast/BroadcastStore';
+import { Db } from '../src/services/db/Db';
 import { BroadcastOrchestrator } from '../src/services/broadcast/BroadcastOrchestrator';
 import { FeaturedBroadcastRegistry } from '../src/services/broadcast/FeaturedBroadcastRegistry';
 import { bakeFeatured } from '../src/services/broadcast/bakeFeatured';
@@ -27,10 +29,12 @@ async function main() {
     BROADCAST_CACHE_DIR: process.env.BROADCAST_CACHE_DIR
       ?? path.resolve(__dirname, '../.broadcast-cache'),
   });
-  const store = new BroadcastStore();
-  const enrichmentCache = new EnrichmentCache(
-    path.resolve(__dirname, '../.enrichment-cache/tracks.json'),
-  );
+  const dbPath = process.env.SQLITE_DB_PATH
+    ?? path.resolve(__dirname, '../.broadcast-cache/cleo.db');
+  fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+  const db = new Db(dbPath);
+  const store = new BroadcastStore(db);
+  const enrichmentCache = new EnrichmentCache(db);
   await enrichmentCache.load();
   const recco = new ReccoBeatsFetcher();
   const deezer = new DeezerFeaturesFetcher();
