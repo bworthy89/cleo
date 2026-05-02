@@ -12,6 +12,7 @@
     "start": "node dist/index.js",
     "test": "jest",
     "test:watch": "jest --watch",
+    "backfill-sqlite": "tsx src/scripts/backfill-sqlite.ts",
     "bake-featured": "tsx scripts/bake-featured.ts",
     "eval-sequencer-gate": "tsx scripts/eval-sequencer-gate.ts"
   },
