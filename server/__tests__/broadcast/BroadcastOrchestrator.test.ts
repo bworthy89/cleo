@@ -50,10 +50,8 @@ const SEQUENCER_RESPONSE_LONG = JSON.stringify({
   ordered: ['t0', 't1', 't2', 't3', 't4', 't5', 't6', 't7', 't8', 't9', 't10', 't11', 't12', 't13', 't14'],
 });
 
-async function makeDeps() {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'orch-test-'));
-  const enrichCache = new EnrichmentCache(path.join(dir, 'tracks.json'));
-  await enrichCache.load();
+function makeDeps() {
+  const enrichCache = new EnrichmentCache(new Db(':memory:'));
   const enricher = new BackgroundEnricher(enrichCache, {
     fetchGenius: jest.fn(async () => null),
     fetchMusicBrainz: jest.fn(async () => null),
@@ -65,7 +63,7 @@ async function makeDeps() {
 
 describe('BroadcastOrchestrator.create', () => {
   it('returns manifest + first segment URLs synchronously', async () => {
-    const { enrichCache, enricher } = await makeDeps();
+    const { enrichCache, enricher } = makeDeps();
     const orch = new BroadcastOrchestrator(
       makeMockLLM(SEQUENCER_RESPONSE), makeMockTTS(), makeStorage(),
       new BroadcastStore(new Db(':memory:')), enrichCache, enricher, noopFetchChain,
@@ -81,7 +79,7 @@ describe('BroadcastOrchestrator.create', () => {
   });
 
   it('marks first slot ready in the store immediately', async () => {
-    const { enrichCache, enricher } = await makeDeps();
+    const { enrichCache, enricher } = makeDeps();
     const store = new BroadcastStore(new Db(':memory:'));
     const orch = new BroadcastOrchestrator(
       makeMockLLM(SEQUENCER_RESPONSE), makeMockTTS(), makeStorage(),
@@ -97,7 +95,7 @@ describe('BroadcastOrchestrator.create', () => {
   });
 
   it('marks slot 0 ready synchronously and the rest pending until waitForCompletion resolves', async () => {
-    const { enrichCache, enricher } = await makeDeps();
+    const { enrichCache, enricher } = makeDeps();
     const llm = makeMockLLM(SEQUENCER_RESPONSE);
     const tts = makeMockTTS();
     const store = new BroadcastStore(new Db(':memory:'));
@@ -127,7 +125,7 @@ describe('BroadcastOrchestrator.create', () => {
   });
 
   it('marks individual slots as failed on provider errors without rejecting create()', async () => {
-    const { enrichCache, enricher } = await makeDeps();
+    const { enrichCache, enricher } = makeDeps();
     const llm = makeMockLLM();
     // Sequence of calls: sequencer (JSON), cold_open (sync, must succeed),
     // then slots 1..N in background. Fail one non-cold-open slot; the
@@ -157,7 +155,7 @@ describe('BroadcastOrchestrator.create', () => {
   });
 
   it('isInFlight is true immediately after create() and false after waitForCompletion', async () => {
-    const { enrichCache, enricher } = await makeDeps();
+    const { enrichCache, enricher } = makeDeps();
     const orch = new BroadcastOrchestrator(
       makeMockLLM(SEQUENCER_RESPONSE), makeMockTTS(), makeStorage(),
       new BroadcastStore(new Db(':memory:')), enrichCache, enricher, noopFetchChain,
@@ -176,7 +174,7 @@ describe('BroadcastOrchestrator.create', () => {
 
 describe('BroadcastOrchestrator — sync slot 0 + async slots 1..N', () => {
   it('returns slot 0 ready synchronously; all slots ready after waitForCompletion', async () => {
-    const { enrichCache, enricher } = await makeDeps();
+    const { enrichCache, enricher } = makeDeps();
     const orch = new BroadcastOrchestrator(
       makeMockLLM(SEQUENCER_RESPONSE), makeMockTTS(), makeStorage(),
       new BroadcastStore(new Db(':memory:')), enrichCache, enricher, noopFetchChain,
@@ -194,7 +192,7 @@ describe('BroadcastOrchestrator — sync slot 0 + async slots 1..N', () => {
   });
 
   it('drainNow completes before any slot > 0 starts', async () => {
-    const { enrichCache, enricher } = await makeDeps();
+    const { enrichCache, enricher } = makeDeps();
     const llm = makeMockLLM(SEQUENCER_RESPONSE);
     const tts = makeMockTTS();
     const storage = makeStorage();
@@ -242,7 +240,7 @@ describe('BroadcastOrchestrator — sync slot 0 + async slots 1..N', () => {
   });
 
   it('drains enrichment for the chosen N tracks only, not the full pool', async () => {
-    const { enrichCache, enricher } = await makeDeps();
+    const { enrichCache, enricher } = makeDeps();
     const drainSpy = jest.spyOn(enricher, 'drainNow');
 
     const orch = new BroadcastOrchestrator(
@@ -261,7 +259,7 @@ describe('BroadcastOrchestrator — sync slot 0 + async slots 1..N', () => {
   });
 
   it('respects the segment generation concurrency cap of 4 for background slots', async () => {
-    const { enrichCache, enricher } = await makeDeps();
+    const { enrichCache, enricher } = makeDeps();
 
     // Instrument TTS so we can count concurrent segment generations during
     // the background slots 1..N fan-out. Slot 0 runs alone (sync) before

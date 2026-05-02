@@ -1,6 +1,3 @@
-import { promises as fs } from 'fs';
-import * as path from 'path';
-import * as os from 'os';
 import express from 'express';
 import request from 'supertest';
 import { createBroadcastRouter } from '@/routes/broadcast';
@@ -48,27 +45,21 @@ const makeManifest = (broadcastId: string, userId: string): Manifest => ({
 describe('DELETE /broadcast/:id', () => {
   let orch: BroadcastOrchestrator;
   let store: BroadcastStore;
-  let tmpDir: string;
 
-  beforeEach(async () => {
-    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'broadcast-delete-'));
-    const enrichCache = new EnrichmentCache(path.join(tmpDir, 'tracks.json'));
-    await enrichCache.load();
+  beforeEach(() => {
+    const db = new Db(':memory:');
+    const enrichCache = new EnrichmentCache(db);
     const enricher = new BackgroundEnricher(enrichCache, {
       fetchGenius: jest.fn(async () => null),
       fetchMusicBrainz: jest.fn(async () => null),
       fetchWikipedia: async () => null,
       fetchLastFm: async () => null,
     });
-    store = new BroadcastStore(new Db(':memory:'));
+    store = new BroadcastStore(db);
     orch = new BroadcastOrchestrator(
       makeMockLLM(JSON.stringify({ ordered: ['t0'] })), makeMockTTS(), makeStorage(),
       store, enrichCache, enricher, noopFetchChain,
     );
-  });
-
-  afterEach(async () => {
-    await fs.rm(tmpDir, { recursive: true, force: true });
   });
 
   it('returns 404 for unknown broadcast id', async () => {

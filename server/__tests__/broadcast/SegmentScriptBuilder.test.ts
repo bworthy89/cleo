@@ -1,9 +1,7 @@
 import { buildSegmentPrompts } from '@/services/broadcast/SegmentScriptBuilder';
 import type { Manifest } from '@/services/broadcast/types';
-import { promises as fs } from 'fs';
-import * as path from 'path';
-import * as os from 'os';
 import { EnrichmentCache } from '@/services/enrichment/EnrichmentCache';
+import { Db } from '@/services/db/Db';
 
 const makeManifest = (): Manifest => ({
   broadcastId: 'b1', userId: 'u1', playlistId: 'p1',
@@ -111,9 +109,7 @@ describe('buildSegmentPrompts', () => {
     async function enrichCacheWith(entries: Array<{
       title: string; artist: string; producer?: string; sample?: string;
     }>): Promise<EnrichmentCache> {
-      const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'ssb-test-'));
-      const cache = new EnrichmentCache(path.join(dir, 'tracks.json'));
-      await cache.load();
+      const cache = new EnrichmentCache(new Db(':memory:'));
       for (const e of entries) {
         await cache.set(e.title, e.artist, {
           producer: e.producer,
