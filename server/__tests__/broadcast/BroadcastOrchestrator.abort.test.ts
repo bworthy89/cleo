@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { BroadcastOrchestrator } from '@/services/broadcast/BroadcastOrchestrator';
 import { BroadcastStore } from '@/services/broadcast/BroadcastStore';
+import { Db } from '@/services/db/Db';
 import { EnrichmentCache } from '@/services/enrichment/EnrichmentCache';
 import { BackgroundEnricher } from '@/services/enrichment/BackgroundEnricher';
 import { FeatureFetchChain } from '@/services/broadcast/FeatureFetchChain';
@@ -85,7 +86,7 @@ describe('BroadcastOrchestrator.abortBake — worker integration', () => {
       fetchWikipedia: async () => null,
       fetchLastFm: async () => null,
     });
-    const store = new BroadcastStore();
+    const store = new BroadcastStore(new Db(':memory:'));
 
     // TTS that takes 50ms per call so we can abort during slot 1's generation.
     const slowTTS = {

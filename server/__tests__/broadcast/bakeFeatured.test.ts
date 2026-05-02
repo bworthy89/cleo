@@ -2,6 +2,7 @@ import { bakeFeatured } from '@/services/broadcast/bakeFeatured';
 import { FeaturedBroadcastRegistry } from '@/services/broadcast/FeaturedBroadcastRegistry';
 import { BroadcastOrchestrator } from '@/services/broadcast/BroadcastOrchestrator';
 import { BroadcastStore } from '@/services/broadcast/BroadcastStore';
+import { Db } from '@/services/db/Db';
 import { EnrichmentCache } from '@/services/enrichment/EnrichmentCache';
 import { BackgroundEnricher } from '@/services/enrichment/BackgroundEnricher';
 import { FeatureFetchChain } from '@/services/broadcast/FeatureFetchChain';
@@ -65,7 +66,7 @@ describe('bakeFeatured', () => {
     });
     const orch = new BroadcastOrchestrator(
       makeMockLLM(SEQUENCER_RESPONSE), makeMockTTS(), makeStorage(),
-      new BroadcastStore(), enrichCache, enricher, noopFetchChain,
+      new BroadcastStore(new Db(':memory:')), enrichCache, enricher, noopFetchChain,
     );
 
     await bakeFeatured({ configPath, orchestrator: orch, registry: reg });

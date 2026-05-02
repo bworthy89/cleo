@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { BroadcastOrchestrator } from '@/services/broadcast/BroadcastOrchestrator';
 import { BroadcastStore } from '@/services/broadcast/BroadcastStore';
+import { Db } from '@/services/db/Db';
 import { EnrichmentCache } from '@/services/enrichment/EnrichmentCache';
 import { BackgroundEnricher } from '@/services/enrichment/BackgroundEnricher';
 import { FeatureFetchChain } from '@/services/broadcast/FeatureFetchChain';
@@ -67,7 +68,7 @@ describe('BroadcastOrchestrator.create', () => {
     const { enrichCache, enricher } = await makeDeps();
     const orch = new BroadcastOrchestrator(
       makeMockLLM(SEQUENCER_RESPONSE), makeMockTTS(), makeStorage(),
-      new BroadcastStore(), enrichCache, enricher, noopFetchChain,
+      new BroadcastStore(new Db(':memory:')), enrichCache, enricher, noopFetchChain,
     );
     const result = await orch.create({
       userId: 'u1', playlistId: 'p1', vibe: 'morning',
@@ -81,7 +82,7 @@ describe('BroadcastOrchestrator.create', () => {
 
   it('marks first slot ready in the store immediately', async () => {
     const { enrichCache, enricher } = await makeDeps();
-    const store = new BroadcastStore();
+    const store = new BroadcastStore(new Db(':memory:'));
     const orch = new BroadcastOrchestrator(
       makeMockLLM(SEQUENCER_RESPONSE), makeMockTTS(), makeStorage(),
       store, enrichCache, enricher, noopFetchChain,
@@ -99,7 +100,7 @@ describe('BroadcastOrchestrator.create', () => {
     const { enrichCache, enricher } = await makeDeps();
     const llm = makeMockLLM(SEQUENCER_RESPONSE);
     const tts = makeMockTTS();
-    const store = new BroadcastStore();
+    const store = new BroadcastStore(new Db(':memory:'));
     const orch = new BroadcastOrchestrator(
       llm, tts, makeStorage(), store, enrichCache, enricher, noopFetchChain,
     );
@@ -138,7 +139,7 @@ describe('BroadcastOrchestrator.create', () => {
       .mockImplementationOnce(async () => { throw new Error('llm exploded'); })
       .mockImplementation(async () => ({ text: 'ok' }));
 
-    const store = new BroadcastStore();
+    const store = new BroadcastStore(new Db(':memory:'));
     const orch = new BroadcastOrchestrator(
       llm, makeMockTTS(), makeStorage(), store, enrichCache, enricher, noopFetchChain,
     );
@@ -159,7 +160,7 @@ describe('BroadcastOrchestrator.create', () => {
     const { enrichCache, enricher } = await makeDeps();
     const orch = new BroadcastOrchestrator(
       makeMockLLM(SEQUENCER_RESPONSE), makeMockTTS(), makeStorage(),
-      new BroadcastStore(), enrichCache, enricher, noopFetchChain,
+      new BroadcastStore(new Db(':memory:')), enrichCache, enricher, noopFetchChain,
     );
     const { manifest } = await orch.create({
       userId: 'u1', playlistId: 'p1', vibe: 'morning',
@@ -178,7 +179,7 @@ describe('BroadcastOrchestrator — sync slot 0 + async slots 1..N', () => {
     const { enrichCache, enricher } = await makeDeps();
     const orch = new BroadcastOrchestrator(
       makeMockLLM(SEQUENCER_RESPONSE), makeMockTTS(), makeStorage(),
-      new BroadcastStore(), enrichCache, enricher, noopFetchChain,
+      new BroadcastStore(new Db(':memory:')), enrichCache, enricher, noopFetchChain,
     );
     const res = await orch.create({
       userId: 'u1', playlistId: 'p1', vibe: 'morning',
@@ -216,7 +217,7 @@ describe('BroadcastOrchestrator — sync slot 0 + async slots 1..N', () => {
     });
 
     const orch = new BroadcastOrchestrator(
-      llm, tts, storage, new BroadcastStore(), enrichCache, enricher, noopFetchChain,
+      llm, tts, storage, new BroadcastStore(new Db(':memory:')), enrichCache, enricher, noopFetchChain,
     );
 
     const { manifest } = await orch.create({
@@ -246,7 +247,7 @@ describe('BroadcastOrchestrator — sync slot 0 + async slots 1..N', () => {
 
     const orch = new BroadcastOrchestrator(
       makeMockLLM(SEQUENCER_RESPONSE), makeMockTTS(), makeStorage(),
-      new BroadcastStore(), enrichCache, enricher, noopFetchChain,
+      new BroadcastStore(new Db(':memory:')), enrichCache, enricher, noopFetchChain,
     );
 
     await orch.create({
@@ -278,7 +279,7 @@ describe('BroadcastOrchestrator — sync slot 0 + async slots 1..N', () => {
 
     const orch = new BroadcastOrchestrator(
       makeMockLLM(SEQUENCER_RESPONSE_LONG), tts, makeStorage(),
-      new BroadcastStore(), enrichCache, enricher, noopFetchChain,
+      new BroadcastStore(new Db(':memory:')), enrichCache, enricher, noopFetchChain,
     );
 
     const { manifest } = await orch.create({
