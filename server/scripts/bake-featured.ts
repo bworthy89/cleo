@@ -53,9 +53,7 @@ async function main() {
     enrichmentCache, backgroundEnricher, featureFetchChain,
   );
 
-  const registry = new FeaturedBroadcastRegistry(
-    path.resolve(__dirname, '../featured-broadcasts/registry.json'),
-  );
+  const registry = new FeaturedBroadcastRegistry(db);
   await registry.load();
 
   console.log(`Baking featured broadcast from ${resolvedConfig}...`);

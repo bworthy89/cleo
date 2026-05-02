@@ -2,10 +2,8 @@ import express from 'express';
 import request from 'supertest';
 import { createFeaturedRouter } from '@/routes/featured';
 import { FeaturedBroadcastRegistry } from '@/services/broadcast/FeaturedBroadcastRegistry';
+import { Db } from '@/services/db/Db';
 import type { BroadcastOrchestrator } from '@/services/broadcast/BroadcastOrchestrator';
-import * as fs from 'fs/promises';
-import * as path from 'path';
-import * as os from 'os';
 
 const authStub = (uid: string): express.RequestHandler =>
   (req, _res, next) => { (req as express.Request & { uid?: string }).uid = uid; next(); };
@@ -25,16 +23,16 @@ function stubOrchestrator(): BroadcastOrchestrator {
 
 describe('featured router', () => {
   let reg: FeaturedBroadcastRegistry;
-  let dir: string;
+  let db: Db;
 
   beforeEach(async () => {
-    dir = await fs.mkdtemp(path.join(os.tmpdir(), 'featured-'));
-    reg = new FeaturedBroadcastRegistry(path.join(dir, 'registry.json'));
+    db = new Db(':memory:');
+    reg = new FeaturedBroadcastRegistry(db);
     await reg.load();
   });
 
-  afterEach(async () => {
-    await fs.rm(dir, { recursive: true, force: true });
+  afterEach(() => {
+    db.close();
   });
 
   const buildApp = () => {
