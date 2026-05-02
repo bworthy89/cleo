@@ -34,11 +34,9 @@ const makeStorage = (): ObjectStorage => ({
 
 describe('bakeFeatured', () => {
   let tmp: string;
-  let regPath: string;
 
   beforeEach(async () => {
     tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'bake-'));
-    regPath = path.join(tmp, 'registry.json');
   });
 
   afterEach(async () => {
@@ -54,7 +52,8 @@ describe('bakeFeatured', () => {
       })),
     }));
 
-    const reg = new FeaturedBroadcastRegistry(regPath);
+    const regDb = new Db(':memory:');
+    const reg = new FeaturedBroadcastRegistry(regDb);
     await reg.load();
     const enrichCache = new EnrichmentCache(new Db(':memory:'));
     const enricher = new BackgroundEnricher(enrichCache, {

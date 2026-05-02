@@ -252,9 +252,7 @@ async function bootstrap(): Promise<void> {
   app.use(requireAuth, createBroadcastRouter(broadcastOrchestrator, broadcastStore, generationLimiter));
 
   // Featured broadcasts (ONAY-curated, shared across users)
-  const featuredRegistry = new FeaturedBroadcastRegistry(
-    path.resolve(__dirname, '../featured-broadcasts/registry.json'),
-  );
+  const featuredRegistry = new FeaturedBroadcastRegistry(db);
   featuredRegistry.load().catch(err => console.error('[featured] registry load failed', err));
   // createFeaturedRouter args: registry, orchestrator, bakeLimiter, publishBudget.
   // Both middlewares are RequestHandler | undefined so TS won't catch a swap.

@@ -1,107 +1,129 @@
 import { FeaturedBroadcastRegistry, type FeaturedBroadcast } from '@/services/broadcast/FeaturedBroadcastRegistry';
-import * as fs from 'fs/promises';
-import * as path from 'path';
-import * as os from 'os';
+import { Db } from '@/services/db/Db';
+import type { Manifest } from '@/services/broadcast/types';
 
-describe('FeaturedBroadcastRegistry', () => {
-  let dir: string;
-  let reg: FeaturedBroadcastRegistry;
+const baseManifest = (id: string): Manifest => ({
+  broadcastId: id, userId: 'curator', playlistId: null,
+  vibe: 'morning', length: 'standard', createdAt: Date.now(),
+  tracks: [{ id: 't0', title: 'T', artistName: 'A', albumTitle: 'Al', duration: 200 }],
+  segmentSlots: [
+    { index: 0, kind: 'cold_open', beforeTrackId: 't0', variantCount: 3, status: 'ready', audioUrls: ['u0'] },
+  ],
+});
 
-  beforeEach(async () => {
-    dir = await fs.mkdtemp(path.join(os.tmpdir(), 'featured-'));
-    reg = new FeaturedBroadcastRegistry(path.join(dir, 'registry.json'));
-    await reg.load();
+const sampleRecord = (id: string, overrides: Partial<FeaturedBroadcast> = {}): FeaturedBroadcast => ({
+  id, title: 'T', description: 'D', vibe: 'morning', length: 'standard',
+  baked: true, createdAt: Date.now(), manifest: baseManifest(id),
+  ...overrides,
+});
+
+const newRegistry = (): { db: Db; reg: FeaturedBroadcastRegistry } => {
+  const db = new Db(':memory:');
+  return { db, reg: new FeaturedBroadcastRegistry(db) };
+};
+
+describe('FeaturedBroadcastRegistry (sqlite)', () => {
+  it('load() resolves immediately', async () => {
+    const { db, reg } = newRegistry();
+    await expect(reg.load()).resolves.toBeUndefined();
+    db.close();
   });
 
-  afterEach(async () => {
-    await fs.rm(dir, { recursive: true, force: true });
-  });
-
-  const mk = (id: string, baked: boolean): FeaturedBroadcast => ({
-    id, title: `T ${id}`, description: 'D', vibe: 'morning', length: 'quick',
-    baked, createdAt: Date.now(),
-    manifest: { broadcastId: id, userId: 'curator', playlistId: null,
-      vibe: 'morning', length: 'quick', createdAt: Date.now(),
-      tracks: [], segmentSlots: [] },
-  });
-
-  it('starts empty', () => {
+  it('list() returns empty for fresh db', () => {
+    const { db, reg } = newRegistry();
     expect(reg.list()).toEqual([]);
+    db.close();
   });
 
-  it('put + list returns baked records only', async () => {
-    await reg.put(mk('a', true));
-    await reg.put(mk('b', false));
+  it('put + list returns the record', async () => {
+    const { db, reg } = newRegistry();
+    await reg.put(sampleRecord('a'));
     const list = reg.list();
     expect(list).toHaveLength(1);
     expect(list[0].id).toBe('a');
+    db.close();
   });
 
-  it('persists across load cycles', async () => {
-    await reg.put(mk('x', true));
-
-    const reg2 = new FeaturedBroadcastRegistry(path.join(dir, 'registry.json'));
-    await reg2.load();
-    expect(reg2.list()).toHaveLength(1);
-    expect(reg2.list()[0].id).toBe('x');
+  it('list() filters out unbaked records', async () => {
+    const { db, reg } = newRegistry();
+    await reg.put(sampleRecord('a', { baked: true }));
+    await reg.put(sampleRecord('b', { baked: false }));
+    const list = reg.list();
+    expect(list.map(r => r.id)).toEqual(['a']);
+    db.close();
   });
 
-  it('remove deletes a record', async () => {
-    await reg.put(mk('a', true));
+  it('list() orders morning slot, evening slot, then legacy', async () => {
+    const { db, reg } = newRegistry();
+    await reg.put(sampleRecord('legacy'));
+    await reg.put(sampleRecord('evening', { slot: 'evening' }));
+    await reg.put(sampleRecord('morning', { slot: 'morning' }));
+    const list = reg.list();
+    expect(list.map(r => r.id)).toEqual(['morning', 'evening', 'legacy']);
+    db.close();
+  });
+
+  it('put() updates an existing record by id', async () => {
+    const { db, reg } = newRegistry();
+    await reg.put(sampleRecord('a', { title: 'first' }));
+    await reg.put(sampleRecord('a', { title: 'second' }));
+    expect(reg.list()[0].title).toBe('second');
+    db.close();
+  });
+
+  it('remove() deletes a record', async () => {
+    const { db, reg } = newRegistry();
+    await reg.put(sampleRecord('a'));
     await reg.remove('a');
     expect(reg.list()).toEqual([]);
+    db.close();
   });
 
-  it('load tolerates malformed JSON (resets to empty, does not crash)', async () => {
-    const p = path.join(dir, 'registry.json');
-    await fs.writeFile(p, 'not valid json {{{');
-    const reg3 = new FeaturedBroadcastRegistry(p);
-    await expect(reg3.load()).resolves.toBeUndefined();
-    expect(reg3.list()).toEqual([]);
-  });
-
-  it('save is atomic (tmp file + rename)', async () => {
-    const p = path.join(dir, 'registry.json');
-    await reg.put(mk('a', true));
-    const listing = await fs.readdir(dir);
-    // After successful write, only the final file should remain — no stray .tmp
-    expect(listing.filter(f => f.endsWith('.tmp'))).toEqual([]);
-    expect(listing).toContain('registry.json');
-    const content = await fs.readFile(p, 'utf8');
-    expect(JSON.parse(content).records).toHaveLength(1);
-  });
-
-  const mkSlot = (id: string, slot: 'morning'|'evening', day: 'mon', createdAt: number) => ({
-    id, slot, themeDay: day, title: `T ${id}`, description: 'D',
-    vibe: slot === 'morning' ? 'morning' as const : 'lateNight' as const,
-    length: 'quick' as const,
-    baked: true, createdAt,
-    manifest: { broadcastId: id, userId: 'curator', playlistId: null,
-      vibe: 'morning' as const, length: 'quick' as const, createdAt,
-      tracks: [], segmentSlots: [] },
-  });
-
-  it('slot put overwrites on id match (newer wins)', async () => {
-    await reg.put(mkSlot('slot_morning', 'morning', 'mon', 100));
-    await reg.put(mkSlot('slot_morning', 'morning', 'mon', 200));
-    const list = reg.list();
-    expect(list).toHaveLength(1);
-    expect(list[0].createdAt).toBe(200);
-  });
-
-  it('list orders morning → evening → legacy', async () => {
-    await reg.put(mk('legacy-a', true));
-    await reg.put(mkSlot('slot_evening', 'evening', 'mon', 10));
-    await reg.put(mkSlot('slot_morning', 'morning', 'mon', 10));
-    const ids = reg.list().map(r => r.id);
-    expect(ids).toEqual(['slot_morning', 'slot_evening', 'legacy-a']);
-  });
-
-  it('getBySlot returns the record or null', async () => {
-    expect(reg.getBySlot('morning')).toBeNull();
-    await reg.put(mkSlot('slot_morning', 'morning', 'mon', 10));
-    const got = reg.getBySlot('morning');
-    expect(got?.id).toBe('slot_morning');
+  it('getBySlot returns the matching baked record or null', async () => {
+    const { db, reg } = newRegistry();
+    await reg.put(sampleRecord('m', { slot: 'morning' }));
+    expect(reg.getBySlot('morning')!.id).toBe('m');
     expect(reg.getBySlot('evening')).toBeNull();
+    db.close();
+  });
+
+  it('getBySlot returns the most recent baked record when multiple share the slot', async () => {
+    const { db, reg } = newRegistry();
+    await reg.put(sampleRecord('old', { slot: 'morning', createdAt: 1000 }));
+    // Bypass put()'s natural-key upsert (which would overwrite by id) by
+    // inserting a second row directly. In production the slot ids 'slot_morning'
+    // and 'slot_evening' enforce uniqueness through put's ON CONFLICT, but the
+    // SQL ordering still has to behave correctly if two rows ever coexist —
+    // pin the contract here.
+    db.prepare(
+      `INSERT INTO featured_broadcasts
+       (id, slot, theme_day, title, description, vibe, length, artwork_url, baked, created_at, manifest_json)
+       VALUES ('new', 'morning', null, 'T', 'D', 'morning', 'standard', null, 1, 2000, ?)`,
+    ).run(JSON.stringify(baseManifest('new')));
+    expect(reg.getBySlot('morning')!.id).toBe('new');
+    db.close();
+  });
+
+  it('returns defensive copies (caller mutations do not leak)', async () => {
+    const { db, reg } = newRegistry();
+    await reg.put(sampleRecord('a'));
+    const out = reg.list()[0];
+    out.title = 'mutated';
+    expect(reg.list()[0].title).not.toBe('mutated');
+    db.close();
+  });
+
+  it('rowToRecord throws descriptively on corrupt manifest_json', () => {
+    const { db, reg } = newRegistry();
+    // Bypass put() to insert a corrupt row directly so we can exercise the
+    // try/catch in rowToRecord. A corrupt manifest_json in the DB is the
+    // operator-visible signal — fail loud, don't silently drop the record.
+    db.prepare(
+      `INSERT INTO featured_broadcasts
+       (id, slot, theme_day, title, description, vibe, length, artwork_url, baked, created_at, manifest_json)
+       VALUES ('bad', null, null, 'T', 'D', 'morning', 'standard', null, 1, 1000, 'not-json')`,
+    ).run();
+    expect(() => reg.list()).toThrow(/manifest_json corrupt for id="bad"/);
+    db.close();
   });
 });
