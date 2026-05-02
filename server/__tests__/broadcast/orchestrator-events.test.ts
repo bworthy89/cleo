@@ -120,7 +120,7 @@ describe('BroadcastOrchestrator events', () => {
     const failed = db.prepare<{ n: number }>(
       "SELECT COUNT(*) AS n FROM app_events WHERE event_type = 'broadcast_failed'",
     ).get();
-    expect(completed.n + failed.n).toBeGreaterThanOrEqual(1);
+    expect(completed.n + failed.n).toBe(1);
     db.close();
   });
 

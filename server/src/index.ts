@@ -333,6 +333,7 @@ async function bootstrap(): Promise<void> {
     console.log(`[shutdown] received ${signal}, draining...`);
     await gracefulShutdown(server, [], { timeoutMs: 10_000 });
     console.log('[shutdown] done');
+    try { db.close(); } catch (err) { console.warn('[shutdown] db.close failed:', err); }
     process.exit(0);
   };
   process.once('SIGINT', () => void shutdown('SIGINT'));

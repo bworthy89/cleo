@@ -336,6 +336,8 @@ full design.
 
    Symptom of a missing toolchain: `npm ci` in `deploy.yml` fails with `gyp ERR! ...` or `cannot find python3`. Task 1 itself doesn't surface this because nothing imports `better-sqlite3` until Task 3+ runtime.
 
+3. **Backup cron uses `DB_PATH` and `BACKUP_DIR` env vars per environment;** defaults in the spec doc (`docs/superpowers/specs/2026-05-01-sqlite-migration-design.md`, Phase 4.5 section). Phase 4.5 will operationalize this.
+
 ### One-time backfill (run once on the VPS during the migration deploy)
 
 ```bash
