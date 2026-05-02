@@ -7,7 +7,8 @@
   },
   "scripts": {
     "dev": "npx tsx watch src/index.ts",
-    "build": "tsc",
+    "build": "tsc && npm run build:copy-assets",
+    "build:copy-assets": "mkdir -p dist/services/db && cp src/services/db/schema.sql dist/services/db/schema.sql",
     "start": "node dist/index.js",
     "test": "jest",
     "test:watch": "jest --watch",
