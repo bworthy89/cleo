@@ -670,7 +670,6 @@ export default function HomeBroadcastScreen() {
                 placeholder="pick a vibe"
                 value={vibe ? VIBE_LABEL[vibe] : null}
                 onPress={() => openSheetAt(1)}
-                testID="home-setup-vibe-row"
               />
               <CatalogRow
                 label="LENGTH"
