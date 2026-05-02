@@ -1,0 +1,51 @@
+{
+  "device_frame_version": "latest",
+  "default": {
+    "keyword": {
+      "font": "./fonts/SpaceGrotesk-Bold.ttf",
+      "color": "#E5C487",
+      "font_size": 72
+    },
+    "title": {
+      "font": "./fonts/Inter-Regular.ttf",
+      "color": "#E5E2E1",
+      "font_size": 36
+    },
+    "background": "#0D0D0D",
+    "padding": 50,
+    "show_complete_frame": true,
+    "stack_title": false
+  },
+  "data": [
+    {
+      "filter": "01_home",
+      "keyword": {
+        "text": "Tonight\non ONAY"
+      }
+    },
+    {
+      "filter": "02_setup_vibe",
+      "keyword": {
+        "text": "Pick a vibe,\nget a broadcast"
+      }
+    },
+    {
+      "filter": "03_ask_onay",
+      "keyword": {
+        "text": "Tell her\na mood"
+      }
+    },
+    {
+      "filter": "04_player",
+      "keyword": {
+        "text": "AI commentary\nbetween every track"
+      }
+    },
+    {
+      "filter": "05_profile",
+      "keyword": {
+        "text": "Your radio,\ntuned in"
+      }
+    }
+  ]
+}
