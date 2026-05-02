@@ -18,7 +18,7 @@ describe('GET /broadcast/featured app_open piggyback', () => {
     expect(res.status).toBe(200);
     const row = db.prepare<{ user_id: string; payload_json: string }>(
       'SELECT user_id, payload_json FROM app_events',
-    ).get();
+    ).get()!;
     expect(row.user_id).toBe('u1');
     expect(JSON.parse(row.payload_json).platform).toBe('ios');
     db.close();
@@ -39,7 +39,7 @@ describe('GET /broadcast/featured app_open piggyback', () => {
     expect(res.status).toBe(200);
     const row = db.prepare<{ payload_json: string }>(
       'SELECT payload_json FROM app_events',
-    ).get();
+    ).get()!;
     expect(JSON.parse(row.payload_json)).toEqual({
       appVersion: '1.2.3',
       platform: 'android',
@@ -56,6 +56,22 @@ describe('GET /broadcast/featured app_open piggyback', () => {
     app.use(createFeaturedRouter(registry));
     const res = await request(app).get('/broadcast/featured');
     expect(res.status).toBe(200);
+    db.close();
+  });
+
+  it('skips app_open when platform header is explicit-but-invalid', async () => {
+    const db = new Db(':memory:');
+    const registry = new FeaturedBroadcastRegistry(db);
+    const recorder = new EventRecorder(db);
+    const app = express();
+    app.use((req, _res, next) => { (req as { uid?: string }).uid = 'u4'; next(); });
+    app.use(createFeaturedRouter(registry, undefined, undefined, undefined, recorder));
+    const res = await request(app)
+      .get('/broadcast/featured')
+      .set('x-cleo-platform', 'web');
+    expect(res.status).toBe(200);
+    const { n } = db.prepare<{ n: number }>('SELECT COUNT(*) AS n FROM app_events').get()!;
+    expect(n).toBe(0);
     db.close();
   });
 });

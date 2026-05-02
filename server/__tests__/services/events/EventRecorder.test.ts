@@ -12,7 +12,7 @@ describe('EventRecorder', () => {
     });
     const row = db.prepare<{ user_id: string; event_type: string; payload_json: string }>(
       'SELECT user_id, event_type, payload_json FROM app_events',
-    ).get();
+    ).get()!;
     expect(row.user_id).toBe('u1');
     expect(row.event_type).toBe('app_open');
     expect(JSON.parse(row.payload_json)).toEqual({
@@ -33,7 +33,7 @@ describe('EventRecorder', () => {
     }, { broadcastId: 'b1' });
     const row = db.prepare<{ broadcast_id: string }>(
       'SELECT broadcast_id FROM app_events',
-    ).get();
+    ).get()!;
     expect(row.broadcast_id).toBe('b1');
     db.close();
   });
@@ -46,7 +46,7 @@ describe('EventRecorder', () => {
     recorder.record('u1', 'track_completed', { trackIndex: 0, wasSkipped: false, listenedMs: 200000 }, { broadcastId: 'b1' });
     const { n } = db.prepare<{ n: number }>(
       'SELECT COUNT(*) AS n FROM app_events',
-    ).get();
+    ).get()!;
     expect(n).toBe(3);
     db.close();
   });
@@ -59,7 +59,7 @@ describe('EventRecorder', () => {
     const after = Date.now();
     const { occurred_at } = db.prepare<{ occurred_at: number }>(
       'SELECT occurred_at FROM app_events',
-    ).get();
+    ).get()!;
     expect(occurred_at).toBeGreaterThanOrEqual(before);
     expect(occurred_at).toBeLessThanOrEqual(after);
     db.close();

@@ -8,7 +8,9 @@ type RawStatement = ReturnType<BetterSqliteDatabase['prepare']>;
 
 export interface Statement<Row = unknown> {
   run(...params: unknown[]): { changes: number; lastInsertRowid: number | bigint };
-  get(...params: unknown[]): Row;
+  /** Returns the first matching row, or `undefined` if none — matches
+   *  better-sqlite3's runtime behavior. Callers must narrow before use. */
+  get(...params: unknown[]): Row | undefined;
   all(...params: unknown[]): Row[];
   iterate(...params: unknown[]): IterableIterator<Row>;
 }

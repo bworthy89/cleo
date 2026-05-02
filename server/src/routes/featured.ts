@@ -93,12 +93,24 @@ export function createFeaturedRouter(
         // Client-platform headers — fall back to 'unknown' rather than block
         // the response on missing headers; payload_json stays freeform.
         const platformHeader = req.header('x-cleo-platform');
-        const platform = platformHeader === 'android' ? 'android' : 'ios';
-        // Cap to 50 chars — header is client-controlled; an attacker could
-        // otherwise bloat payload_json with a huge string.
-        const appVersion = (req.header('x-cleo-app-version') ?? 'unknown').slice(0, 50);
-        const buildNumber = Number.parseInt(req.header('x-cleo-build-number') ?? '0', 10) || 0;
-        eventRecorder.record(req.uid, 'app_open', { appVersion, platform, buildNumber });
+        // Missing header defaults to 'ios' (we're iOS-only — old clients without
+        // the header are iOS). Explicit-but-invalid values (e.g., 'web') skip
+        // the event so we don't pollute analytics by forcing a default.
+        let platform: 'ios' | 'android' | null;
+        if (platformHeader === undefined) {
+          platform = 'ios';
+        } else if (platformHeader === 'ios' || platformHeader === 'android') {
+          platform = platformHeader;
+        } else {
+          platform = null;
+        }
+        if (platform !== null) {
+          // Cap to 50 chars — header is client-controlled; an attacker could
+          // otherwise bloat payload_json with a huge string.
+          const appVersion = (req.header('x-cleo-app-version') ?? 'unknown').slice(0, 50);
+          const buildNumber = Number.parseInt(req.header('x-cleo-build-number') ?? '0', 10) || 0;
+          eventRecorder.record(req.uid, 'app_open', { appVersion, platform, buildNumber });
+        }
       } catch (err) {
         console.warn('[featured] app_open record failed:', err);
       }

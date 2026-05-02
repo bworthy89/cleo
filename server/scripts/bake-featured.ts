@@ -33,37 +33,38 @@ async function main() {
     ?? path.resolve(__dirname, '../.broadcast-cache/cleo.db');
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
   const db = new Db(dbPath);
-  const store = new BroadcastStore(db);
-  const enrichmentCache = new EnrichmentCache(db);
-  await enrichmentCache.load();
-  const recco = new ReccoBeatsFetcher();
-  const deezer = new DeezerFeaturesFetcher();
-  const lastFmTags = {
-    async get(title: string, artist: string): Promise<string[]> {
-      const rec = enrichmentCache.get(title, artist);
-      return rec?.moodTags ?? [];
-    },
-  };
-  const featureFetchChain = new FeatureFetchChain({ recco, deezer, lastFmTags });
-  const backgroundEnricher = new BackgroundEnricher(
-    enrichmentCache, new DefaultEnrichmentFetcher(), featureFetchChain,
-  );
-  const orch = new BroadcastOrchestrator(
-    llmProvider, ttsProvider, storage, store,
-    enrichmentCache, backgroundEnricher, featureFetchChain,
-  );
+  try {
+    const store = new BroadcastStore(db);
+    const enrichmentCache = new EnrichmentCache(db);
+    await enrichmentCache.load();
+    const recco = new ReccoBeatsFetcher();
+    const deezer = new DeezerFeaturesFetcher();
+    const lastFmTags = {
+      async get(title: string, artist: string): Promise<string[]> {
+        const rec = enrichmentCache.get(title, artist);
+        return rec?.moodTags ?? [];
+      },
+    };
+    const featureFetchChain = new FeatureFetchChain({ recco, deezer, lastFmTags });
+    const backgroundEnricher = new BackgroundEnricher(
+      enrichmentCache, new DefaultEnrichmentFetcher(), featureFetchChain,
+    );
+    const orch = new BroadcastOrchestrator(
+      llmProvider, ttsProvider, storage, store,
+      enrichmentCache, backgroundEnricher, featureFetchChain,
+    );
 
-  const registry = new FeaturedBroadcastRegistry(db);
-  await registry.load();
+    const registry = new FeaturedBroadcastRegistry(db);
+    await registry.load();
 
-  console.log(`Baking featured broadcast from ${resolvedConfig}...`);
-  const record = await bakeFeatured({ configPath: resolvedConfig, orchestrator: orch, registry });
-  console.log(`Done. Baked ${record.id} with ${record.manifest.segmentSlots.length} segments.`);
-  try { db.close(); } catch (err) { console.warn('[bake-featured] db.close failed:', err); }
-  process.exit(0);
+    console.log(`Baking featured broadcast from ${resolvedConfig}...`);
+    const record = await bakeFeatured({ configPath: resolvedConfig, orchestrator: orch, registry });
+    console.log(`Done. Baked ${record.id} with ${record.manifest.segmentSlots.length} segments.`);
+  } catch (err) {
+    console.error(err);
+    process.exitCode = 1;
+  } finally {
+    try { db.close(); } catch (err) { console.warn('[bake-featured] db.close failed:', err); }
+  }
+  process.exit(process.exitCode ?? 0);
 }
-
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
