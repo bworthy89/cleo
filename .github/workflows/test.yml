@@ -1,10 +1,10 @@
-# CI on push — three parallel jobs so client tests, server build/tests, and
-# root typecheck each surface failures independently without waiting on the
-# others.
+# CI on push — four parallel jobs so client tests, server build/tests,
+# typecheck, and lint each surface failures independently without waiting on
+# the others.
 #
-# Not yet here (tracked in docs/index.md NEXT):
-#   - Root lint (`eslint src/`): blocked on `eslint-plugin-react-hooks` install
-#     + a triage pass on the 25 no-explicit-any / unused-var warnings.
+# Lint runs at default warning threshold (warnings allowed, errors fail). The
+# 20 remaining warnings are all `no-explicit-any` at API/event boundaries —
+# intentional, accepted as documented in docs/index.md.
 
 name: test
 
@@ -37,6 +37,18 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npm run typecheck
+
+  lint:
+    name: Lint (client + server)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run lint
 
   server-tests:
     name: Server build + jest

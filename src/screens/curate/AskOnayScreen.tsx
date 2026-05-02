@@ -453,7 +453,7 @@ export function AskOnayScreen() {
 
             {/* Sleeve preview row */}
             <View style={styles.sleeveRow}>
-              {sleeves.map((t, i) => (
+              {sleeves.map((t, _i) => (
                 <SleeveArt
                   key={t.id}
                   title={t.title}
