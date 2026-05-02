@@ -128,16 +128,6 @@ function parsePositiveInt(raw: string | undefined, fallback: number, name: strin
   return n;
 }
 
-const curatorPublishBudget = new CuratorPublishBudget({
-  capPerWindow: parsePositiveInt(process.env.CURATOR_PUBLISH_CAP, 3, 'CURATOR_PUBLISH_CAP'),
-  windowMs: parsePositiveInt(
-    process.env.CURATOR_PUBLISH_WINDOW_MS,
-    24 * 60 * 60 * 1000,
-    'CURATOR_PUBLISH_WINDOW_MS',
-  ),
-});
-const curatorPublishBudgetMiddleware = makeCuratorPublishBudgetMiddleware(curatorPublishBudget);
-
 // WeatherProvider is optional — null when OPENWEATHER_API_KEY is unset.
 // The orchestrator skips weather injection entirely when the provider is
 // missing, so first-launch deploys without the key still work.
@@ -186,6 +176,17 @@ const dbPath = process.env.SQLITE_DB_PATH
 fs.mkdirSync(path.dirname(dbPath), { recursive: true });
 const db = new Db(dbPath);
 console.log(`[boot] sqlite db opened at ${dbPath}`);
+
+const curatorPublishBudget = new CuratorPublishBudget({
+  db,
+  capPerWindow: parsePositiveInt(process.env.CURATOR_PUBLISH_CAP, 3, 'CURATOR_PUBLISH_CAP'),
+  windowMs: parsePositiveInt(
+    process.env.CURATOR_PUBLISH_WINDOW_MS,
+    24 * 60 * 60 * 1000,
+    'CURATOR_PUBLISH_WINDOW_MS',
+  ),
+});
+const curatorPublishBudgetMiddleware = makeCuratorPublishBudgetMiddleware(curatorPublishBudget);
 
 const broadcastStore = new BroadcastStore(db);
 

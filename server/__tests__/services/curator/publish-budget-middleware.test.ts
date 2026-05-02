@@ -6,6 +6,7 @@ import {
   makeCuratorPublishBudgetMiddleware,
 } from '@/services/curator/CuratorPublishBudget';
 import { bakeTelemetry } from '@/services/telemetry/BakeTelemetry';
+import { Db } from '@/services/db/Db';
 
 const stubUid = (uid: string | undefined): RequestHandler => (req, _res, next) => {
   if (uid !== undefined) (req as AuthenticatedRequest).uid = uid;
@@ -35,7 +36,9 @@ describe('makeCuratorPublishBudgetMiddleware', () => {
   });
 
   it('passes requests through under cap', async () => {
+    const db = new Db(':memory:');
     const budget = new CuratorPublishBudget({
+      db,
       capPerWindow: 3,
       windowMs: 24 * 60 * 60 * 1000,
     });
@@ -45,10 +48,13 @@ describe('makeCuratorPublishBudgetMiddleware', () => {
       expect(res.status).toBe(200);
     }
     expect(telemetrySpy).not.toHaveBeenCalled();
+    db.close();
   });
 
   it('returns 429 with Retry-After header and retryAfterMs body at cap', async () => {
+    const db = new Db(':memory:');
     const budget = new CuratorPublishBudget({
+      db,
       capPerWindow: 3,
       windowMs: 60 * 60 * 1000, // 1h
     });
@@ -68,10 +74,13 @@ describe('makeCuratorPublishBudgetMiddleware', () => {
     expect(typeof res.body.error).toBe('string');
     expect(res.body.error).toContain('(3 per');  // cap interpolated in semantic context
     expect(res.body.error).toContain('per 1h');  // window interpolated
+    db.close();
   });
 
   it('calls bakeTelemetry.recordPublishCapHit exactly once on rejection', async () => {
+    const db = new Db(':memory:');
     const budget = new CuratorPublishBudget({
+      db,
       capPerWindow: 1,
       windowMs: 24 * 60 * 60 * 1000,
     });
@@ -84,10 +93,13 @@ describe('makeCuratorPublishBudgetMiddleware', () => {
       current: 1,
       retryAfterMs: expect.any(Number),
     });
+    db.close();
   });
 
   it('returns 500 when req.uid is unset (defensive — auth chain misconfigured)', async () => {
+    const db = new Db(':memory:');
     const budget = new CuratorPublishBudget({
+      db,
       capPerWindow: 3,
       windowMs: 24 * 60 * 60 * 1000,
     });
@@ -96,5 +108,6 @@ describe('makeCuratorPublishBudgetMiddleware', () => {
     expect(res.status).toBe(500);
     expect(res.body.error).toMatch(/internal server error/i);
     expect(telemetrySpy).not.toHaveBeenCalled();
+    db.close();
   });
 });
