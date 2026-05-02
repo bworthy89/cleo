@@ -264,6 +264,7 @@ async function bootstrap(): Promise<void> {
     broadcastOrchestrator,
     generationLimiter,
     curatorPublishBudgetMiddleware,
+    eventRecorder,
   ));
 
   // Weather service router — mounted under auth only when the provider is configured
