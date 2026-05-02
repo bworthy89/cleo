@@ -30,5 +30,6 @@ describe('BroadcastOrchestrator threads broadcastId into sequence()', () => {
 
     expect(captured).toHaveLength(1);
     expect(captured[0]).toBe(result.manifest.broadcastId);
+    await orch.waitForCompletion(result.manifest.broadcastId);
   });
 });

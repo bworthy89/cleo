@@ -81,6 +81,7 @@ describe('broadcast router', () => {
     expect(res.body.manifest.broadcastId).toBeDefined();
     expect(res.body.manifest.userId).toBe('uid-123');
     expect(res.body.firstSegmentUrls).toHaveLength(1);
+    await orch.waitForCompletion(res.body.manifest.broadcastId);
   });
 
   it('POST /broadcast/create 400s on invalid body', async () => {
@@ -117,6 +118,7 @@ describe('broadcast router', () => {
     const res = await request(app).get(`/broadcast/${id}/manifest`);
     expect(res.status).toBe(200);
     expect(res.body.broadcastId).toBe(id);
+    await orch.waitForCompletion(id);
   });
 
   it('GET /broadcast/:id/manifest returns 404 for unknown id', async () => {
@@ -151,6 +153,7 @@ describe('broadcast router', () => {
     })();
     const res = await request(attackerApp).get(`/broadcast/${id}/manifest`);
     expect(res.status).toBe(404);
+    await orch.waitForCompletion(id);
   });
 
   it('GET /broadcast/:id/manifest allows any uid for curator-owned (featured) broadcasts', async () => {
@@ -180,5 +183,6 @@ describe('broadcast router', () => {
     const res = await request(otherApp).get(`/broadcast/${id}/manifest`);
     expect(res.status).toBe(200);
     expect(res.body.broadcastId).toBe(id);
+    await orch.waitForCompletion(id);
   });
 });
