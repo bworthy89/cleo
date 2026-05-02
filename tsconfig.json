@@ -16,7 +16,6 @@
     "ios",
     "build",
     "dist",
-    "cleo",
     "server",
     "v2-migration"
   ]
