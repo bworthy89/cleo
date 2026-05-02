@@ -1,3 +1,20 @@
 # yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+#
+# Auto-review disabled 2026-05-02. The SQLite migration PR cycle generated
+# four rounds of overlapping review (rounds 2-4 mostly re-flagged items
+# round-1 already covered, plus a few factually wrong findings about the
+# slot-status enum). Signal-to-noise didn't justify the review-loop overhead.
+#
+# To request review on demand, comment `@coderabbitai review` on the PR.
+# To re-enable auto-review, flip `reviews.auto_review.enabled` back to true.
+
 reviews:
   profile: assertive
+  auto_review:
+    enabled: false
+    drafts: false
+  request_changes_workflow: false
+  high_level_summary: false
+  poem: false
+  review_status: false
+  collapse_walkthrough: false
