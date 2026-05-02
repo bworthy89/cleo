@@ -131,9 +131,11 @@ export class BroadcastStore {
    *  applied lazily on `get`). Used by the admin status endpoint for a rough
    *  footprint signal. */
   size(): number {
-    const { n } = this.db.prepare<{ n: number }>(
+    const row = this.db.prepare<{ n: number }>(
       'SELECT COUNT(*) AS n FROM broadcasts',
     ).get();
-    return n;
+    // COUNT(*) always returns exactly one row, so the undefined branch is
+    // unreachable; treat it as 0 defensively.
+    return row?.n ?? 0;
   }
 }

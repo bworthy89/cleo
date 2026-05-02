@@ -1,5 +1,11 @@
+import { createHash } from 'crypto';
 import type { Db } from '../db/Db';
 import type { Vibe, BroadcastLength } from '../broadcast/types';
+
+function redactId(id: string | null | undefined): string {
+  if (!id) return 'null';
+  return createHash('sha256').update(id).digest('hex').slice(0, 8);
+}
 
 /**
  * Discriminated payload map. Adding a new event type means adding an entry
@@ -42,7 +48,7 @@ export class EventRecorder {
       );
     } catch (err) {
       console.warn(
-        `[EventRecorder] record failed (type=${type} userId=${userId} broadcastId=${opts?.broadcastId ?? 'null'}):`,
+        `[EventRecorder] record failed (type=${type} user=${redactId(userId)} broadcast=${redactId(opts?.broadcastId)}):`,
         err,
       );
     }

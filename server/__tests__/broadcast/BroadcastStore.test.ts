@@ -145,7 +145,7 @@ describe('BroadcastStore (sqlite)', () => {
       second = new Db(tmp);
       const { bake_status } = second.prepare<{ bake_status: string }>(
         "SELECT bake_status FROM broadcasts WHERE id='b1'",
-      ).get();
+      ).get()!;
       expect(bake_status).toBe('failed');
       const slotStatuses = second.prepare<{ status: string }>(
         "SELECT status FROM broadcast_slots WHERE broadcast_id='b1' ORDER BY slot_index",

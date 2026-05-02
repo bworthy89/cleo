@@ -30,7 +30,7 @@ describe('Db', () => {
     const db = new Db(tmp);
     const { journal_mode } = db.prepare<{ journal_mode: string }>(
       'PRAGMA journal_mode',
-    ).get();
+    ).get()!;
     expect(journal_mode).toBe('wal');
     db.close();
     require('fs').unlinkSync(tmp);
@@ -44,7 +44,7 @@ describe('Db', () => {
     const db = new Db(':memory:');
     const { foreign_keys } = db.prepare<{ foreign_keys: number }>(
       'PRAGMA foreign_keys',
-    ).get();
+    ).get()!;
     expect(foreign_keys).toBe(1);
     db.close();
   });
@@ -67,7 +67,7 @@ describe('Db', () => {
     });
     const { n } = db.prepare<{ n: number }>(
       "SELECT COUNT(*) AS n FROM broadcast_slots WHERE broadcast_id='t1'",
-    ).get();
+    ).get()!;
     expect(n).toBe(1);
     db.close();
   });
