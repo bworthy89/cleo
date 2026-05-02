@@ -1,18 +1,24 @@
-// Pre-OTA-push guard. Refuses `eas update --branch production` when the
-// working tree's runtimeVersion doesn't match the runtimeVersion that the
-// latest finished production EAS build shipped with — that mismatch means
-// you've made a native-bumping change since the last build and the OTA
-// would land on a binary it doesn't match (= crash).
+// Pre-OTA-push guard + post-OTA Sentry source-map upload.
 //
-// Wraps `eas update` so the guard can't be bypassed via npm script. Use
-// `update:prod:noguard` if you genuinely need to push despite the warning
-// (rare; usually the warning is right and you need a new EAS build first).
+// Pre-push: refuses `eas update --branch production` when the working tree's
+// runtimeVersion doesn't match the runtimeVersion the latest finished
+// production EAS build shipped with — mismatch means native-bumping changes
+// since the last build, and the OTA would land on a binary it doesn't match
+// (= crash). `update:prod:noguard` exists as the emergency escape hatch.
+//
+// Post-update: when the eas update succeeds AND `SENTRY_AUTH_TOKEN` is set
+// in the local env (read from `.env.local` or `.env`), runs
+// `npx sentry-expo-upload-sourcemaps dist` to push the just-built JS bundle's
+// sourcemaps to Sentry. Without this, OTA crashes report `<unknown>:0` and
+// are effectively undebuggable. Soft failure: if the sourcemap upload fails,
+// the OTA push still counts as success — but a warning prints loudly.
 //
 // Usage (from package.json scripts, not directly):
 //   node scripts/guard-update.mjs --branch production --message "..."
 //   node scripts/guard-update.mjs --branch production --rollout-percentage 25 --message "..."
 
 import { readFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
@@ -20,6 +26,27 @@ import { dirname, resolve } from 'node:path';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
 const APP_JSON = resolve(ROOT, 'app.json');
+
+// Load env vars from .env.local + .env so SENTRY_AUTH_TOKEN can live in
+// .env.local (gitignored) like other Expo build-time secrets. Manual parse —
+// tiny and zero deps. Existing process.env values win (don't overwrite shell-set).
+function loadEnvFile(path) {
+  try {
+    const content = readFileSync(path, 'utf8');
+    for (const rawLine of content.split('\n')) {
+      const line = rawLine.trim();
+      if (!line || line.startsWith('#')) continue;
+      const m = line.match(/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
+      if (!m) continue;
+      const [, k, vRaw] = m;
+      if (process.env[k] !== undefined) continue;
+      const v = vRaw.replace(/^['"]|['"]$/g, '');
+      process.env[k] = v;
+    }
+  } catch { /* file missing — fine */ }
+}
+loadEnvFile(resolve(ROOT, '.env.local'));
+loadEnvFile(resolve(ROOT, '.env'));
 
 async function readWorkingTreeRuntimeVersion() {
   const raw = await readFile(APP_JSON, 'utf8');
@@ -73,6 +100,37 @@ function execEasUpdate(forwardArgs) {
   });
 }
 
+// Post-OTA: upload the JS bundle's sourcemaps to Sentry so OTA crashes
+// land symbolicated. Soft failure — OTA already shipped, this is just
+// crash-debugging hygiene.
+function uploadOtaSourcemaps() {
+  return new Promise((resolvePromise) => {
+    if (!process.env.SENTRY_AUTH_TOKEN) {
+      console.warn('[sentry] SENTRY_AUTH_TOKEN not set — skipping source-map upload.');
+      console.warn('[sentry]   Set in .env.local (gitignored) to enable. Without it, OTA crashes will be unmapped.');
+      resolvePromise(0);
+      return;
+    }
+    console.log('[sentry] uploading OTA bundle source maps from dist/ ...');
+    const child = spawn('npx', ['sentry-expo-upload-sourcemaps', 'dist'], {
+      stdio: 'inherit',
+      env: process.env,
+    });
+    child.on('close', (code) => {
+      if (code !== 0) {
+        console.warn(`[sentry] sourcemap upload exited ${code} — OTA shipped successfully but crashes from this bundle may not symbolicate. Investigate sentry-cli output above.`);
+      } else {
+        console.log('[sentry] sourcemaps uploaded.');
+      }
+      resolvePromise(code ?? 1);
+    });
+    child.on('error', (err) => {
+      console.warn(`[sentry] failed to spawn sentry-expo-upload-sourcemaps: ${err.message}`);
+      resolvePromise(0); // soft fail — don't block OTA success on this
+    });
+  });
+}
+
 async function main() {
   const forwardArgs = process.argv.slice(2);
 
@@ -103,6 +161,13 @@ async function main() {
   }
 
   const exitCode = await execEasUpdate(forwardArgs);
+  if (exitCode === 0) {
+    // eas update succeeded — try to push sourcemaps. Result is informational
+    // only; we exit with the original eas update exit code.
+    await uploadOtaSourcemaps();
+  } else {
+    console.warn('[sentry] eas update failed — skipping sourcemap upload.');
+  }
   process.exit(exitCode);
 }
 

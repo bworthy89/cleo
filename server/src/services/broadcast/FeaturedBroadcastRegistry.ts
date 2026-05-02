@@ -1,7 +1,6 @@
-import * as fs from 'fs/promises';
-import * as path from 'path';
 import type { Manifest } from './types';
 import type { SlotKey, DayOfWeek } from '../../config/tonightOnOnay';
+import type { Db } from '../db/Db';
 
 export interface FeaturedBroadcast {
   id: string;
@@ -21,62 +20,107 @@ export interface FeaturedBroadcast {
   manifest: Manifest;
 }
 
-interface Snapshot { records: FeaturedBroadcast[] }
+interface Row {
+  id: string;
+  slot: string | null;
+  theme_day: string | null;
+  title: string;
+  description: string;
+  vibe: string;
+  length: string;
+  artwork_url: string | null;
+  baked: number;
+  created_at: number;
+  manifest_json: string;
+}
+
+function rowToRecord(row: Row): FeaturedBroadcast {
+  let manifest: Manifest;
+  try {
+    manifest = JSON.parse(row.manifest_json) as Manifest;
+  } catch (err) {
+    throw new Error(`featured_broadcasts.manifest_json corrupt for id="${row.id}": ${(err as Error).message}`);
+  }
+  return {
+    id: row.id,
+    slot: (row.slot as SlotKey | null) ?? undefined,
+    themeDay: (row.theme_day as DayOfWeek | null) ?? undefined,
+    title: row.title,
+    description: row.description,
+    vibe: row.vibe as Manifest['vibe'],
+    length: row.length as Manifest['length'],
+    artworkUrl: row.artwork_url ?? undefined,
+    baked: row.baked === 1,
+    createdAt: row.created_at,
+    manifest,
+  };
+}
 
 export class FeaturedBroadcastRegistry {
-  private records: FeaturedBroadcast[] = [];
-
-  constructor(private readonly filePath: string) {}
+  constructor(private readonly db: Db) {}
 
   async load(): Promise<void> {
-    try {
-      const raw = await fs.readFile(this.filePath, 'utf8');
-      const parsed = JSON.parse(raw) as Snapshot;
-      this.records = parsed.records ?? [];
-    } catch (err: unknown) {
-      const code = (err as NodeJS.ErrnoException | null)?.code;
-      if (code === 'ENOENT') { this.records = []; return; }
-      // Malformed JSON should not crash startup. Log, reset, and continue —
-      // a corrupted registry is recoverable by re-running bakeFeatured jobs.
-      console.warn(`[FeaturedBroadcastRegistry] load failed, resetting:`, err);
-      this.records = [];
-    }
+    return;
   }
 
   async put(record: FeaturedBroadcast): Promise<void> {
-    const idx = this.records.findIndex(r => r.id === record.id);
-    if (idx >= 0) this.records[idx] = record;
-    else this.records.push(record);
-    await this.save();
+    this.db.prepare(
+      `INSERT INTO featured_broadcasts
+       (id, slot, theme_day, title, description, vibe, length, artwork_url, baked, created_at, manifest_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         slot = excluded.slot,
+         theme_day = excluded.theme_day,
+         title = excluded.title,
+         description = excluded.description,
+         vibe = excluded.vibe,
+         length = excluded.length,
+         artwork_url = excluded.artwork_url,
+         baked = excluded.baked,
+         created_at = excluded.created_at,
+         manifest_json = excluded.manifest_json`,
+    ).run(
+      record.id,
+      record.slot ?? null,
+      record.themeDay ?? null,
+      record.title,
+      record.description,
+      record.vibe,
+      record.length,
+      record.artworkUrl ?? null,
+      record.baked ? 1 : 0,
+      record.createdAt,
+      JSON.stringify(record.manifest),
+    );
   }
 
   async remove(id: string): Promise<void> {
-    this.records = this.records.filter(r => r.id !== id);
-    await this.save();
+    this.db.prepare('DELETE FROM featured_broadcasts WHERE id = ?').run(id);
   }
 
   /** Baked records only, ordered: morning slot → evening slot → legacy. */
   list(): FeaturedBroadcast[] {
-    const baked = this.records.filter(r => r.baked);
-    const rank = (r: FeaturedBroadcast) =>
-      r.slot === 'morning' ? 0 : r.slot === 'evening' ? 1 : 2;
-    return [...baked]
-      .sort((a, b) => rank(a) - rank(b))
-      .map(r => ({ ...r }));
+    // Slot ordering: morning (0) → evening (1) → legacy (2). CASE expression
+    // replaces the old hand-rolled rank() function from the JSON-file version.
+    const rows = this.db.prepare<Row>(
+      `SELECT * FROM featured_broadcasts
+       WHERE baked = 1
+       ORDER BY CASE slot
+                  WHEN 'morning' THEN 0
+                  WHEN 'evening' THEN 1
+                  ELSE 2
+                END,
+                created_at DESC`,
+    ).all();
+    return rows.map(rowToRecord);
   }
 
   getBySlot(slot: SlotKey): FeaturedBroadcast | null {
-    const hit = this.records.find(r => r.baked && r.slot === slot);
-    return hit ? { ...hit } : null;
-  }
-
-  /** Atomic write: tmp file + rename. Prevents registry corruption if the
-   *  process crashes mid-write. */
-  private async save(): Promise<void> {
-    const dir = path.dirname(this.filePath);
-    await fs.mkdir(dir, { recursive: true });
-    const tmp = `${this.filePath}.${process.pid}.tmp`;
-    await fs.writeFile(tmp, JSON.stringify({ records: this.records }, null, 2));
-    await fs.rename(tmp, this.filePath);
+    const row = this.db.prepare<Row>(
+      `SELECT * FROM featured_broadcasts
+       WHERE baked = 1 AND slot = ?
+       ORDER BY created_at DESC LIMIT 1`,
+    ).get(slot);
+    return row ? rowToRecord(row) : null;
   }
 }

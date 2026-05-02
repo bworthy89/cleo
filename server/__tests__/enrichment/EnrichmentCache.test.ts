@@ -1,120 +1,77 @@
-import { promises as fs } from 'fs';
-import * as path from 'path';
-import * as os from 'os';
 import { EnrichmentCache, type EnrichmentRecord } from '@/services/enrichment/EnrichmentCache';
+import { Db } from '@/services/db/Db';
 
-async function tempDir(): Promise<string> {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'enrich-cache-test-'));
-  return dir;
-}
-
-const record: EnrichmentRecord = {
-  genre: 'soul', moodTags: ['warm', 'smooth'], releaseYear: '1972',
-  producer: 'Quincy Jones', lastEnrichedAt: Date.now(), source: 'hybrid',
+const newCache = (): { db: Db; cache: EnrichmentCache } => {
+  const db = new Db(':memory:');
+  return { db, cache: new EnrichmentCache(db) };
 };
 
-describe('EnrichmentCache', () => {
-  let dir: string;
-  beforeEach(async () => { dir = await tempDir(); });
-  afterEach(async () => { await fs.rm(dir, { recursive: true, force: true }); });
+const sampleRecord = (overrides: Partial<EnrichmentRecord> = {}): EnrichmentRecord => ({
+  genre: 'house',
+  moodTags: ['driving'],
+  lastEnrichedAt: 1_700_000_000_000,
+  source: 'genius',
+  ...overrides,
+});
 
-  it('returns null for missing key before load', async () => {
-    const cache = new EnrichmentCache(path.join(dir, 'tracks.json'));
-    await cache.load();
-    expect(cache.get('Song', 'Artist')).toBeNull();
+describe('EnrichmentCache (sqlite)', () => {
+  it('load() resolves immediately (no-op)', async () => {
+    const { db, cache } = newCache();
+    await expect(cache.load()).resolves.toBeUndefined();
+    db.close();
   });
 
-  it('writes and reads back a record', async () => {
-    const cache = new EnrichmentCache(path.join(dir, 'tracks.json'));
-    await cache.load();
-    await cache.set('Song', 'Artist', record);
-    expect(cache.get('Song', 'Artist')).toMatchObject(record);
+  it('returns null for missing entries', () => {
+    const { db, cache } = newCache();
+    expect(cache.get('Title', 'Artist')).toBeNull();
+    db.close();
   });
 
-  it('persists across reload', async () => {
-    const file = path.join(dir, 'tracks.json');
-    const first = new EnrichmentCache(file);
-    await first.load();
-    await first.set('Song', 'Artist', record);
-
-    const second = new EnrichmentCache(file);
-    await second.load();
-    expect(second.get('Song', 'Artist')).toMatchObject(record);
-  });
-
-  it('normalizes keys: (feat. X) collides with base title', async () => {
-    const cache = new EnrichmentCache(path.join(dir, 'tracks.json'));
-    await cache.load();
-    await cache.set('Song', 'Artist', record);
-    expect(cache.get('Song (feat. Nobody)', 'Artist')).toMatchObject(record);
+  it('writes and reads back a record (key normalization preserved)', async () => {
+    const { db, cache } = newCache();
+    const rec = sampleRecord();
+    await cache.set('Title (feat. X)', 'Artist', rec);
+    expect(cache.get('Title', 'Artist')).toEqual(rec);
+    expect(cache.get('TITLE   (feat. someone)', 'artist')).toEqual(rec);
+    db.close();
   });
 
   it('normalizes keys: (Remastered YYYY) collides', async () => {
-    const cache = new EnrichmentCache(path.join(dir, 'tracks.json'));
-    await cache.load();
-    await cache.set('Song', 'Artist', record);
-    expect(cache.get('Song (Remastered 2020)', 'Artist')).toMatchObject(record);
+    const { db, cache } = newCache();
+    await cache.set('Song', 'Artist', sampleRecord());
+    expect(cache.get('Song (Remastered 2020)', 'Artist')).not.toBeNull();
+    db.close();
   });
 
   it('normalizes keys: - Deluxe Edition collides', async () => {
-    const cache = new EnrichmentCache(path.join(dir, 'tracks.json'));
-    await cache.load();
-    await cache.set('Song', 'Artist', record);
-    expect(cache.get('Song - Deluxe Edition', 'Artist')).toMatchObject(record);
+    const { db, cache } = newCache();
+    await cache.set('Song', 'Artist', sampleRecord());
+    expect(cache.get('Song - Deluxe Edition', 'Artist')).not.toBeNull();
+    db.close();
   });
 
-  it('is case-insensitive on normalization', async () => {
-    const cache = new EnrichmentCache(path.join(dir, 'tracks.json'));
-    await cache.load();
-    await cache.set('Song', 'Artist', record);
-    expect(cache.get('SONG', 'ARTIST')).toMatchObject(record);
+  it('overwrites existing entries on set', async () => {
+    const { db, cache } = newCache();
+    await cache.set('T', 'A', sampleRecord({ genre: 'house' }));
+    await cache.set('T', 'A', sampleRecord({ genre: 'techno' }));
+    expect(cache.get('T', 'A')!.genre).toBe('techno');
+    db.close();
   });
 
-  it('tolerates malformed JSON — starts with empty state', async () => {
-    const file = path.join(dir, 'tracks.json');
-    await fs.writeFile(file, '{ not valid json', 'utf8');
-    const cache = new EnrichmentCache(file);
-    await cache.load();
-    expect(cache.get('Song', 'Artist')).toBeNull();
-    await cache.set('Song', 'Artist', record);
-    expect(cache.get('Song', 'Artist')).toMatchObject(record);
+  it('persists across cache instances on the same Db', async () => {
+    const { db, cache } = newCache();
+    await cache.set('T', 'A', sampleRecord());
+    const second = new EnrichmentCache(db);
+    expect(second.get('T', 'A')).not.toBeNull();
+    db.close();
   });
 
-  it('writes atomically (tmp file then rename)', async () => {
-    const file = path.join(dir, 'tracks.json');
-    const cache = new EnrichmentCache(file);
-    await cache.load();
-    await cache.set('Song', 'Artist', record);
-    // No leftover .tmp file
-    const files = await fs.readdir(dir);
-    expect(files.filter(f => f.endsWith('.tmp'))).toHaveLength(0);
-    expect(files).toContain('tracks.json');
-  });
-});
-
-describe('EnrichmentCache — concurrent writes', () => {
-  it('serializes parallel set() calls without losing data on disk', async () => {
-    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'enrichment-cache-race-'));
-    const filePath = path.join(dir, 'tracks.json');
-    const cache = new EnrichmentCache(filePath);
-    await cache.load();
-
-    const sets = Array.from({ length: 10 }, (_, i) =>
-      cache.set(`title-${i}`, 'artist', {
-        producer: `P${i}`,
-        lastEnrichedAt: Date.now(),
-        source: 'genius',
-      }),
-    );
-    await Promise.all(sets);
-
-    // Reload from disk via a fresh instance to verify persistence.
-    const fresh = new EnrichmentCache(filePath);
-    await fresh.load();
-    for (let i = 0; i < 10; i++) {
-      expect(fresh.get(`title-${i}`, 'artist')).toMatchObject({ producer: `P${i}` });
-    }
-
-    await fs.rm(dir, { recursive: true, force: true });
+  it('returns null for malformed data_json (matches file-backed tolerance)', () => {
+    const { db, cache } = newCache();
+    db.prepare(
+      "INSERT INTO enrichment (track_key, data_json, fetched_at, source) VALUES (?, ?, ?, ?)",
+    ).run('badkey|badartist', '{not valid json', 0, 'genius');
+    expect(cache.get('badkey', 'badartist')).toBeNull();
+    db.close();
   });
 });

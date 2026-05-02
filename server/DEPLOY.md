@@ -1,10 +1,24 @@
 # Production Deploy Runbook — cleo-broadcast
 
 Target VPS: `cleo@<VPS_HOST>` (Hostinger, ID <HOSTINGER_ID>)
-Sidecar directory: `/home/cleo/cleo-broadcast/` (keeps existing `/home/cleo/cleo-api/` untouched for rollback)
+Path (post-2026-05-01 migration): `/home/cleo/cleo-broadcast/` is now a full
+git clone with the server in `/server/` subdir. Old rsync-flat layout moved to
+`cleo-broadcast-old-2026-05-01` for ~1 week rollback window.
 Port: `3102` (behind Caddy at `api.worthymedia.tech`)
 
-> **Staging tier exists too** — see [Staging deploy](#staging-deploy) at the end of this doc. Standard workflow: deploy to staging first via git pull, smoke-test, THEN deploy to prod via the rsync below. Both tiers live on the same VPS.
+> **🤖 Auto-deploy is the primary path now** (Phase 5, 2026-05-01). `git push origin main` triggers `.github/workflows/deploy.yml` which SSHes in, pulls, builds, reloads PM2, and health-checks — done in ~30s. The rsync runbook below is the **manual escape hatch** for: bootstrapping on a new VPS, recovering from a broken auto-deploy, or one-off ops where you can't / don't want to push to GitHub.
+>
+> **Standard workflow:** `git push origin staging` → auto-deploy to staging tier → smoke-test → merge `staging → main` → `git push origin main` → auto-deploy to prod. See [`docs/superpowers/specs/2026-05-01-auto-deploy-design.md`](../docs/superpowers/specs/2026-05-01-auto-deploy-design.md).
+>
+> **Manual auto-deploy trigger:** `gh workflow run deploy.yml --ref main` (or `--ref staging`). Useful for re-deploying without a code change.
+>
+> **Skip lever:** include `[skip deploy]` in the commit message to bypass the workflow. For docs-only commits.
+
+---
+
+## Manual deploy (legacy / escape hatch)
+
+The rsync-based ritual below was the primary procedure pre-2026-05-01. It still works (and the prod dir's `.git` directory means `git pull` is also available for ad-hoc pulls without the workflow). Use this when auto-deploy is broken or unavailable.
 
 ## Pre-flight (local, already done)
 
@@ -288,3 +302,93 @@ SENTRY_DISABLE_AUTO_UPLOAD=true npx expo run:ios --device
 - R2 API tokens are bucket-scoped by default. If the prod token only has access to `cleo-broadcast-segments`, segment uploads to staging silently fail with 403 → bakes 500 + background slots never run. Fix: widen the token to all buckets in the Cloudflare R2 dashboard (Manage R2 API Tokens → Edit → bucket scope).
 - Expo SDK 55 reads `EXPO_PUBLIC_*` ONLY from `.env`/`.env.local`, not from shell env vars. Use `.env.local` for the staging URL override; do NOT pass it inline on the command line.
 - VPS git clone needs a deploy key — `~/.ssh/github_deploy` (ed25519) was generated on 2026-05-01; pubkey added to repo Settings → Deploy keys (read-only). `~/.ssh/config` configures `github.com → IdentityFile ~/.ssh/github_deploy`.
+
+
+---
+
+## SQLite migration runbook (2026-05-XX deploy)
+
+The broadcast server now keeps all four state stores plus retention events
+in one SQLite file at `.broadcast-cache/cleo.db`. WAL mode, single-process,
+synchronous via `better-sqlite3`. See
+`docs/superpowers/specs/2026-05-01-sqlite-migration-design.md` for the
+full design.
+
+### Pre-deploy toolchain checks
+
+`better-sqlite3@^12` is a native addon. Before merging this branch, verify:
+
+1. **Node version on the VPS is 20+** (better-sqlite3 v12 engines field requires it):
+
+   ```bash
+   ssh cleo@<VPS_HOST> 'node --version'
+   ```
+
+   If the VPS reports Node 18 or 19, install Node 20+ (e.g., `nvm install 20 && nvm alias default 20`) before deploying.
+
+2. **Build toolchain present** for the native compile fallback. `prebuild-install` will try to download a prebuilt binary first; on miss, it falls back to `node-gyp rebuild` which needs `gcc`/`g++`/`make`/`python3`:
+
+   ```bash
+   ssh cleo@<VPS_HOST> 'gcc --version && python3 --version && make --version | head -1'
+   ```
+
+   If any are missing, install build-essential (`sudo apt install -y build-essential python3`).
+
+   Symptom of a missing toolchain: `npm ci` in `deploy.yml` fails with `gyp ERR! ...` or `cannot find python3`. Task 1 itself doesn't surface this because nothing imports `better-sqlite3` until Task 3+ runtime.
+
+3. **Backup cron uses `DB_PATH` and `BACKUP_DIR` env vars per environment;** defaults in the spec doc (`docs/superpowers/specs/2026-05-01-sqlite-migration-design.md`, Phase 4.5 section). Phase 4.5 will operationalize this.
+
+### One-time backfill (run once on the VPS during the migration deploy)
+
+```bash
+ssh cleo@<VPS_HOST>
+cd /home/cleo/cleo-broadcast/server
+git pull origin main
+npm ci && npm run build
+pm2 stop cleo-broadcast
+npm run backfill-sqlite
+# Output should report "[backfill] enrichment: <N> rows inserted" and
+# "[backfill] featured: <M> rows inserted". M should equal the number of
+# records[] entries in featured-broadcasts/registry.json (small set,
+# verify by hand). N should equal the number of keys in
+# .enrichment-cache/tracks.json.tracks.
+mv .enrichment-cache/tracks.json .enrichment-cache/tracks.json.bak
+mv featured-broadcasts/registry.json featured-broadcasts/registry.json.bak
+pm2 start cleo-broadcast
+pm2 logs cleo-broadcast --lines 50  # look for "[boot] sqlite db opened at ..."
+curl -s https://api.worthymedia.tech/health  # expect {"status":"ok"}
+```
+
+### `.bak` retention and verification
+
+Keep the `.bak` files for at least 7 days, or one full release cycle —
+whichever is longer. Before deletion, run all five checks listed in the
+design doc's "**.bak retention and verification gating**" section:
+
+1. Re-run `npm run backfill-sqlite`; expect zero new rows on the second run.
+2. Spot-check 5 random `enrichment` rows against `tracks.json.bak`.
+3. Spot-check every `featured_broadcasts` row against `registry.json.bak`.
+4. Run a real bake end-to-end against the SQLite store; confirm completion.
+5. Trigger a curator publish; confirm a row lands in `curator_publishes`.
+
+After all five pass, delete in a single commit titled
+"remove sqlite-migration .bak fallbacks."
+
+### Revert path
+
+If any step fails, restore by renaming `.bak` back, then revert the deploy
+that swapped the stores. The SQLite tables can be left in place — the old
+JSON-backed code ignores them.
+
+### Known follow-ups
+
+- **Phase 4.5 — automated backups to R2** (`cleo-broadcast-backups` bucket,
+  separate token, hourly local + nightly off-box, lifecycle-rule retention).
+  Required before deleting the `.bak` fallbacks. See "Phase 4.5" in
+  `docs/superpowers/specs/2026-05-01-sqlite-migration-design.md`; a separate
+  implementation plan will follow.
+- **Phase 5 — admin endpoints** (`/admin/bakes`, `/admin/bakes/:id`,
+  `/admin/users/:uid/activity`, `/admin/retention`,
+  `/admin/curators/:uid/publishes`, `/admin/featured`,
+  `/admin/tts/failures`). Purely additive — ship anytime after Phase 4.
+  See "Admin surface" in the spec; a separate implementation plan will follow.

@@ -1,8 +1,9 @@
 # SQLite Migration Design
 
-**Status:** Draft / sketch — not yet scheduled.
+**Status:** Approved — ready for implementation plan.
 **Author:** Captured from analysis on `claude/analyze-beta-testing-plan-QEqqM`.
 **Date:** 2026-05-01.
+**Decisions:** Raw `better-sqlite3` (no ORM). R2 backups under `cleo-broadcast-backups`. Typed payloads in TS, freeform `payload_json` in DB.
 
 ---
 
@@ -61,7 +62,7 @@ The fix is one SQLite file holding all four stores, plus a new `app_events` tabl
 
 ## Schema
 
-One file: `server/.broadcast-cache/cleo.db`. WAL journal mode. `better-sqlite3` driver (synchronous, single-process — fits the orchestrator's existing model).
+One file: `server/.broadcast-cache/cleo.db`. WAL journal mode. `better-sqlite3` driver (synchronous, single-process — fits the orchestrator's existing model). No ORM — raw `db.prepare(...)` everywhere. Schema lives in `server/src/services/db/schema.sql`, applied idempotently via `IF NOT EXISTS` at boot. Drizzle / umzug get adopted when the second schema change lands; not before.
 
 ```sql
 -- Replaces BroadcastStore.entries
@@ -241,28 +242,37 @@ The lazy on-read pruning (`CuratorPublishBudget.ts:38`) is replaced by a once-a-
 
 ```ts
 // server/src/services/events/EventRecorder.ts (sketch)
-export type EventType =
-  | 'app_open'
-  | 'broadcast_started'
-  | 'broadcast_completed'
-  | 'broadcast_failed'
-  | 'track_completed';
+type AppEventPayloads = {
+  app_open:             { appVersion: string; platform: 'ios' | 'android'; buildNumber: number };
+  broadcast_started:    { vibe: Vibe; length: BroadcastLength; source: 'user' | 'featured' };
+  broadcast_completed:  { durationMs: number; segmentsPlayed: number };
+  broadcast_failed:     { slotIndex: number; provider: string; errorCategory: string };
+  track_completed:      { trackIndex: number; wasSkipped: boolean; listenedMs: number };
+};
+export type EventType = keyof AppEventPayloads;
 
 export class EventRecorder {
   constructor(private db: Db) {}
-  record(userId: string, type: EventType, opts?: { broadcastId?: string; payload?: unknown }): void {
+  record<T extends EventType>(
+    userId: string,
+    type: T,
+    payload: AppEventPayloads[T],
+    opts?: { broadcastId?: string }
+  ): void {
     this.db.prepare(`
       INSERT INTO app_events (user_id, event_type, occurred_at, broadcast_id, payload_json)
       VALUES (?, ?, ?, ?, ?)
-    `).run(userId, type, Date.now(), opts?.broadcastId ?? null, opts?.payload ? JSON.stringify(opts.payload) : null);
+    `).run(userId, type, Date.now(), opts?.broadcastId ?? null, JSON.stringify(payload));
   }
 }
 ```
 
+Payload shape is enforced by the type system at every call site; the DB column stays freeform `TEXT` so adding a field is a one-line type-map edit and never requires a migration. Admin queries that aggregate on payload fields (`/admin/tts/failures`) read via `json_extract(payload_json, '$.provider')`. If a particular field becomes hot enough to warrant indexing, promote it to a real column then.
+
 Wired into:
 
 - `BroadcastOrchestrator.create` — `broadcast_started` at the top of `try`, `broadcast_completed` / `broadcast_failed` in the success and catch paths.
-- A new `POST /events/app-open`, or piggyback on `GET /broadcast/featured` (the home screen always hits it) → `app_open`.
+- `app_open` — piggyback on `GET /broadcast/featured`. The home screen hits it on every cold launch, so adding the recorder call inside the route handler costs zero new routes and zero new client work. (No standalone `POST /events/app-open` — keep the surface tight; revisit only if a flow ever lands a user past auth without touching `/broadcast/featured`.)
 - Optional later: client-side `track_completed` reports.
 
 D1 → D7 retention becomes:
@@ -451,9 +461,9 @@ Net: roughly four test files rewritten, 30-60 lines each.
 
 **Phase 4.5 — automated backups (~2 hours).** This must land before the `.bak` files are deleted, and ideally before Phase 4 ships. After the SQLite migration, the database file is a single point of failure with much higher blast radius than the JSON-file stores it replaces. Concretely:
 
-- **Primary backup job:** cron entry on the VPS, hourly during waking hours plus a nightly run, calling `sqlite3 ~/cleo-broadcast/.broadcast-cache/cleo.db ".backup /var/backups/cleo/cleo-$(date +%F-%H).db"`. WAL-aware; doesn't block writers.
-- **Off-box copy:** the **Open questions** "Backup destination" decision must be resolved before Phase 4 deploys. Default recommendation: SCP nightly to a Hetzner storage box or push to R2 under a `cleo-backups/` prefix. GitHub-encrypted-repo is acceptable for low-volume but adds friction. Pick one; document it.
-- **Retention:** 24 hourly backups + 14 daily backups + 12 weekly backups. Old backups expire via a `find ... -mtime +N -delete` cron line.
+- **Primary backup job:** cron entry on the VPS, hourly during waking hours plus a nightly run. Set `DB_PATH` and `BACKUP_DIR` in the cron environment (or sourced from a per-environment config) and call `sqlite3 "$DB_PATH" ".backup $BACKUP_DIR/cleo-$(date +%F-%H).db"`. WAL-aware; doesn't block writers. Default values for prod: `DB_PATH=/home/cleo/cleo-broadcast/server/.broadcast-cache/cleo.db`, `BACKUP_DIR=/var/backups/cleo` — but the operator must set these per environment. Add to `server/DEPLOY.md` once Phase 4.5 lands.
+- **Off-box copy:** nightly push to R2 bucket `cleo-broadcast-backups` under a date-keyed prefix (`hourly/YYYY-MM-DD-HH.db`, `daily/YYYY-MM-DD.db`, `weekly/YYYY-WW.db`). Mint a **separate R2 token** for backups — do not reuse `R2_ACCESS_KEY_ID` from `server/.env` (different blast radius if exposed). New env vars `R2_BACKUP_ACCESS_KEY_ID` / `R2_BACKUP_SECRET_ACCESS_KEY` / `R2_BACKUP_BUCKET=cleo-broadcast-backups`. Document in `server/DEPLOY.md`.
+- **Retention:** 24 hourly + 14 daily + 12 weekly. Local cron expires old files via `find ... -mtime +N -delete`. R2 expiration enforced by an R2 lifecycle rule on the bucket — three rules keyed on the prefix above with corresponding TTLs. No client-side delete loop required.
 - **Restore drill (mandatory):** before Phase 4 ships, copy the most recent backup to a scratch path, open it with `sqlite3`, run `PRAGMA integrity_check`, run a representative SELECT against `broadcasts` and `enrichment`, confirm the data matches expectations. If the restore drill fails, the deploy doesn't ship until it passes.
 - **Monitoring:** the backup cron should write a sentinel file (`/var/backups/cleo/last-success`) on success. A `/admin/status` field surfaces "minutes since last backup" so a stale backup is visible without SSH.
 
@@ -468,7 +478,7 @@ Total: ~3.75 days of focused work. Each phase is independently revertable until 
 - **`structuredClone` semantics.** Existing tests may assert reference identity contracts that SQLite's natural fresh-object semantics happen to satisfy, but spot-check. If any test asserts two consecutive reads return non-`===` objects, the migration is fine; if any test asserts they *are* `===`, that's a bug in the test that the migration will surface.
 - **`UPDATE broadcast_slots` race vs. concurrent workers.** Today's worker pool (`BroadcastOrchestrator.ts:344`) doesn't synchronize because each slot index is owned by exactly one worker. SQLite is fine with concurrent UPDATEs to different rows in WAL mode. If two workers ever race on the same slot, that's a pre-existing bug surfaced by the migration, not caused by it. Worth confirming by reading the worker loop carefully.
 - **Hot-path cost of `abort_requested` polling.** The `aborted` Set check (`BroadcastOrchestrator.ts:346`) is O(1). A SQLite read on every loop iteration would add ~10-50µs. Negligible, but the design keeps an in-memory mirror of the column to avoid the question entirely.
-- **Backup as a day-one priority.** `sqlite3 cleo.db ".backup ..."` in cron, with a second box pulling backups via SCP. Without this, the migration *increases* blast radius — one file destroys everything — until a backup story exists.
+- **Backup as a day-one priority.** `sqlite3 cleo.db ".backup ..."` in cron plus the nightly R2 push to `cleo-broadcast-backups` (see Phase 4.5). Without this, the migration *increases* blast radius — one file destroys everything — until a backup story exists.
 
 ---
 
@@ -481,8 +491,10 @@ Total: ~3.75 days of focused work. Each phase is independently revertable until 
 
 ---
 
-## Open questions
+## Resolved decisions
 
-- **Drizzle ORM yes or no.** Adds ~half a day, gains type-checked queries and a migrations DSL. Lean toward yes if the team plans to add tables; lean toward raw `better-sqlite3` if the schema stays this size.
-- **Backup destination.** SCP to a second VPS / Hetzner storage box? R2 under `cleo-backups/`? GitHub-encrypted repo? **Must be picked before Phase 4 deploys** — the choice determines the off-box copy step in Phase 4.5. Default recommendation: R2, since the broadcast pipeline already authenticates to it. Document the choice in `server/DEPLOY.md` once made.
-- **Event payload schema.** Today `payload_json` is freeform. Consider defining typed payloads per event type to avoid drift.
+(Were "Open questions" in earlier draft; settled 2026-05-01 before plan-writing.)
+
+- **ORM:** raw `better-sqlite3`, no Drizzle. Schema is six tables; the half-day saved matters more in Phase 2 than the type-checked query builder. Adopt Drizzle later as a pure refactor when the second schema change lands.
+- **Backup destination:** R2 bucket `cleo-broadcast-backups`, separate token from the segment-upload one, lifecycle-rule retention. R2 is already proven in the pipeline; single-provider risk is acceptable at our scale and a Hetzner mirror is a clean later addition if it ever bites.
+- **Event payload schema:** typed in TS via discriminated union (`AppEventPayloads` map), freeform `TEXT` in DB. Compile-time safety on call sites, zero migration cost when fields evolve, JSON1 for ad-hoc admin aggregates. Promote a field to a real column if/when its query becomes hot.

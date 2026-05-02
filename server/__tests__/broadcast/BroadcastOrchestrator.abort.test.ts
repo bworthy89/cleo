@@ -1,8 +1,6 @@
-import { promises as fs } from 'fs';
-import * as path from 'path';
-import * as os from 'os';
 import { BroadcastOrchestrator } from '@/services/broadcast/BroadcastOrchestrator';
 import { BroadcastStore } from '@/services/broadcast/BroadcastStore';
+import { Db } from '@/services/db/Db';
 import { EnrichmentCache } from '@/services/enrichment/EnrichmentCache';
 import { BackgroundEnricher } from '@/services/enrichment/BackgroundEnricher';
 import { FeatureFetchChain } from '@/services/broadcast/FeatureFetchChain';
@@ -76,16 +74,15 @@ const makeStorage = (): ObjectStorage => ({
 
 describe('BroadcastOrchestrator.abortBake — worker integration', () => {
   it('worker loop exits after abort; remaining slots stay aborted', async () => {
-    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'orch-abort-'));
-    const enrichCache = new EnrichmentCache(path.join(tmp, 'tracks.json'));
-    await enrichCache.load();
+    const db = new Db(':memory:');
+    const enrichCache = new EnrichmentCache(db);
     const enricher = new BackgroundEnricher(enrichCache, {
       fetchGenius: jest.fn(async () => null),
       fetchMusicBrainz: jest.fn(async () => null),
       fetchWikipedia: async () => null,
       fetchLastFm: async () => null,
     });
-    const store = new BroadcastStore();
+    const store = new BroadcastStore(db);
 
     // TTS that takes 50ms per call so we can abort during slot 1's generation.
     const slowTTS = {
@@ -128,7 +125,5 @@ describe('BroadcastOrchestrator.abortBake — worker integration', () => {
     expect(orch.isInFlight(id)).toBe(false);
     const internalAborted = (orch as unknown as { aborted: Set<string> }).aborted;
     expect(internalAborted.has(id)).toBe(false);
-
-    await fs.rm(tmp, { recursive: true, force: true });
   });
 });

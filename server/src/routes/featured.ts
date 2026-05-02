@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { FeaturedBroadcastRegistry } from '../services/broadcast/FeaturedBroadcastRegistry';
 import type { BroadcastOrchestrator } from '../services/broadcast/BroadcastOrchestrator';
 import { requireCurator, type AuthenticatedRequest } from '../middleware/auth';
+import type { EventRecorder } from '../services/events/EventRecorder';
 import { getThemeFor } from '../config/tonightOnOnay';
 
 const vibeSchema = z.enum([
@@ -78,10 +79,42 @@ export function createFeaturedRouter(
   orchestrator?: BroadcastOrchestrator,
   bakeLimiter?: RequestHandler,
   publishBudget?: RequestHandler,
+  eventRecorder?: EventRecorder,
 ): Router {
   const router = Router();
 
-  router.get('/broadcast/featured', (_req, res) => {
+  router.get('/broadcast/featured', (req: AuthenticatedRequest, res) => {
+    // Piggyback `app_open` here — the home screen always hits this route on
+    // cold launch, so this is the canonical "user opened the app" signal
+    // without standing up a separate /events/app-open endpoint. Best-effort:
+    // if recorder write fails, the GET still returns the featured list.
+    if (eventRecorder && req.uid) {
+      try {
+        // Client-platform headers — fall back to 'unknown' rather than block
+        // the response on missing headers; payload_json stays freeform.
+        const platformHeader = req.header('x-cleo-platform');
+        // Missing header defaults to 'ios' (we're iOS-only — old clients without
+        // the header are iOS). Explicit-but-invalid values (e.g., 'web') skip
+        // the event so we don't pollute analytics by forcing a default.
+        let platform: 'ios' | 'android' | null;
+        if (platformHeader === undefined) {
+          platform = 'ios';
+        } else if (platformHeader === 'ios' || platformHeader === 'android') {
+          platform = platformHeader;
+        } else {
+          platform = null;
+        }
+        if (platform !== null) {
+          // Cap to 50 chars — header is client-controlled; an attacker could
+          // otherwise bloat payload_json with a huge string.
+          const appVersion = (req.header('x-cleo-app-version') ?? 'unknown').slice(0, 50);
+          const buildNumber = Number.parseInt(req.header('x-cleo-build-number') ?? '0', 10) || 0;
+          eventRecorder.record(req.uid, 'app_open', { appVersion, platform, buildNumber });
+        }
+      } catch (err) {
+        console.warn('[featured] app_open record failed:', err);
+      }
+    }
     res.json({ broadcasts: registry.list() });
   });
 

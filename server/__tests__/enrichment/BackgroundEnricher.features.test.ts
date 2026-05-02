@@ -1,20 +1,17 @@
 import { BackgroundEnricher } from '@/services/enrichment/BackgroundEnricher';
 import { EnrichmentCache } from '@/services/enrichment/EnrichmentCache';
-import * as fs from 'fs/promises';
-import * as path from 'path';
-import * as os from 'os';
+import { Db } from '@/services/db/Db';
 
 describe('BackgroundEnricher features stage', () => {
-  let tmp: string;
+  let db: Db;
   let cache: EnrichmentCache;
 
-  beforeEach(async () => {
-    tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'enrich-bg-'));
-    cache = new EnrichmentCache(path.join(tmp, 'tracks.json'));
-    await cache.load();
+  beforeEach(() => {
+    db = new Db(':memory:');
+    cache = new EnrichmentCache(db);
   });
 
-  afterEach(async () => { await fs.rm(tmp, { recursive: true, force: true }); });
+  afterEach(() => { db.close(); });
 
   it('populates features on the cached record after drainNow', async () => {
     const fakeFetcher = {

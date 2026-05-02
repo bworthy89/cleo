@@ -28,10 +28,10 @@ Soft rule — easily violated when bug-chasing — but worth defaulting to.
 
 - [ ] Affected jest tests pass (`cd server && npm test` or run the specific suite)
 - [ ] `cd server && npm run smoke:bake` passes (catches pipeline regressions in 5–10s; uses the canned 5-track fixture)
-- [ ] **Deployed to staging first**: ssh into VPS → `cd /home/cleo/cleo-broadcast-staging && git pull && cd server && npm ci && npm run build && pm2 reload cleo-broadcast-staging`
-- [ ] Staging smoke-tested by hand: either local-device install with `EXPO_PUBLIC_API_URL=https://staging.api.worthymedia.tech` in `.env.local` and run a bake from the app, OR `curl https://staging.api.worthymedia.tech/health` plus `pm2 logs cleo-broadcast-staging` for any new code paths exercised
-- [ ] Then deployed to prod manually per `server/DEPLOY.md` (rsync from local) — the staging clone uses `git pull` while prod uses `rsync`; this divergence is intentional for now (Phase 5 will harmonize both via auto-deploy)
-- [ ] PM2 logs sane for ~5 min after prod deploy: `ssh cleo@<VPS_HOST> 'pm2 logs cleo-broadcast --lines 100'` shows no health-check flap, no Sentry spike, no 5xx pattern
+- [ ] **Push to `staging` branch** → auto-deploy fires (~30s end-to-end). Watch GH Actions: https://github.com/bworthy89/cleo/actions. If red, fix before proceeding. If green, staging tier is now live with your change.
+- [ ] Smoke-test on staging: either local-device install with `EXPO_PUBLIC_API_URL=https://staging.api.worthymedia.tech` in `.env.local` and bake from the app, OR `curl https://staging.api.worthymedia.tech/health` plus `ssh cleo@<VPS_HOST> 'pm2 logs cleo-broadcast-staging --lines 50 --nostream'` for any new code paths exercised
+- [ ] **Merge `staging` → `main` and push** — prod auto-deploys in ~30s. Watch GH Actions for green health check.
+- [ ] PM2 logs sane for ~5 min after prod deploy: `ssh cleo@<VPS_HOST> 'pm2 logs cleo-broadcast --lines 100 --nostream'` shows no health-check flap, no Sentry spike, no 5xx pattern. (`[skip deploy]` in commit message bypasses auto-deploy — use only for docs-only commits, never code.)
 
 ### Client JS/UI change
 
@@ -39,7 +39,7 @@ Soft rule — easily violated when bug-chasing — but worth defaulting to.
 - [ ] Renders correctly on device (`SENTRY_DISABLE_AUTO_UPLOAD=true npx expo run:ios --device`), or explicitly noted as "needs device test"
 - [ ] OTA-pushable: change is purely JS/TS (no native deps, no `app.json` plugin changes, no `ios/` edits). Guard script auto-validates this — it'll refuse the push if working-tree `runtimeVersion` doesn't match the latest TestFlight build's
 - [ ] Published: `npm run update:prod -- --message "..."` (full rollout, for trivial) OR `npm run update:prod:safe -- --message "..."` (25% rollout, for non-trivial). Both go through `scripts/guard-update.mjs`
-- [ ] Sentry watched ~30 min after push; if crash rate spikes, `eas update:republish --group <prev-id> --platform ios` (NOT `--branch` — EAS rejects the combo). **Caveat:** Sentry source-map upload is currently broken (LATER item in `docs/index.md`); JS crashes will be unmapped until fixed
+- [ ] Sentry watched ~30 min after push; if crash rate spikes, `eas update:republish --group <prev-id> --platform ios` (NOT `--branch` — EAS rejects the combo). Source maps auto-upload via `scripts/guard-update.mjs` post-OTA — confirm `[sentry] sourcemaps uploaded.` in the script output
 
 ### Native iOS change
 
@@ -48,7 +48,7 @@ Soft rule — easily violated when bug-chasing — but worth defaulting to.
 - [ ] Bumped via `npm run bump:build` — pick the right mode:
   - **Default** (`npm run bump:build`): build number only. Use when no native deps changed, no Swift changed, no plugin config changed. Preserves the OTA chain (old binaries can still receive OTAs from this build's runtime).
   - **`-- --release patch|minor|major`**: build number + `expo.version` + `runtimeVersion` (app.json) + `EXUpdatesRuntimeVersion` (Expo.plist), all in lockstep. Use when adding/changing native deps (`react-native-*`, `expo-*` with native, `@react-native-*`), modifying `modules/expo-music-kit/`, or any Swift change. Intentionally breaks the OTA chain — old binaries on the previous runtime won't receive OTAs from this build (correct: the JS bundle now expects native APIs they don't have)
-- [ ] EAS production build succeeded: `eas build --profile production --platform ios --non-interactive`. Watch the build log for the Sentry source-map upload step — currently silently failing (LATER fix)
+- [ ] EAS production build succeeded: `eas build --profile production --platform ios --non-interactive`. Confirm `sentry-cli` source-map upload succeeded in the build log (look for `Source Map Upload Report` lines after Hermes bundling)
 - [ ] EAS submit succeeded: `eas submit --profile production --platform ios --latest`
 - [ ] TestFlight build installed on device, opened once to register on the production update channel
 - [ ] Smoke a basic flow: cold launch → onboarding-or-resume routes correctly → start a broadcast → first track plays → cold open audio plays

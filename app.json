@@ -22,7 +22,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.worthymedia.cleo",
-      "buildNumber": "64",
+      "buildNumber": "65",
       "infoPlist": {
         "NSAppleMusicUsageDescription": "ONAY uses Apple Music to play your playlists with AI-powered radio hosting.",
         "NSPhotoLibraryUsageDescription": "ONAY may access your photo library to set a profile picture.",
@@ -71,7 +71,14 @@
           }
         }
       ],
-      "@sentry/react-native/expo",
+      [
+        "@sentry/react-native/expo",
+        {
+          "url": "https://sentry.io/",
+          "organization": "worthy-media",
+          "project": "onay-media-server"
+        }
+      ],
       "expo-updates",
       "expo-web-browser"
     ],

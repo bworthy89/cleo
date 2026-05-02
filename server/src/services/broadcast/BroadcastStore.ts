@@ -1,4 +1,5 @@
 import type { Manifest, SegmentSlot } from './types';
+import type { Db } from '../db/Db';
 
 // 24h matches the client's BROADCAST_HISTORY_RETENTION_MS and the R2
 // presigned audio-URL TTL (DEFAULT_PRESIGN_TTL_SECONDS). Manifest,
@@ -6,21 +7,83 @@ import type { Manifest, SegmentSlot } from './types';
 // who comes back within 24h can resume; past 24h, all three are gone.
 const TTL_MS = 24 * 60 * 60 * 1000;
 
+interface BroadcastRow {
+  id: string;
+  manifest_json: string;
+  created_at: number;
+}
+
+interface SlotRow {
+  slot_index: number;
+  status: SegmentSlot['status'];
+  audio_urls_json: string | null;
+}
+
 export class BroadcastStore {
-  private readonly entries = new Map<string, Manifest>();
+  constructor(private readonly db: Db) {}
 
   put(manifest: Manifest): void {
-    this.entries.set(manifest.broadcastId, structuredClone(manifest));
+    const now = Date.now();
+    this.db.transaction(() => {
+      this.db.prepare(
+        `INSERT INTO broadcasts
+         (id, user_id, vibe, length, playlist_id, created_at, bake_status, manifest_json)
+         VALUES (?, ?, ?, ?, ?, ?, 'baking', ?)
+         ON CONFLICT(id) DO UPDATE SET
+           manifest_json = excluded.manifest_json,
+           created_at = excluded.created_at,
+           bake_status = excluded.bake_status`,
+      ).run(
+        manifest.broadcastId,
+        manifest.userId,
+        manifest.vibe,
+        manifest.length,
+        manifest.playlistId,
+        manifest.createdAt,
+        JSON.stringify(manifest),
+      );
+      this.db.prepare('DELETE FROM broadcast_slots WHERE broadcast_id = ?').run(manifest.broadcastId);
+      const insertSlot = this.db.prepare(
+        `INSERT INTO broadcast_slots
+         (broadcast_id, slot_index, status, audio_urls_json, attempt_count, updated_at)
+         VALUES (?, ?, ?, ?, 0, ?)`,
+      );
+      for (const slot of manifest.segmentSlots) {
+        insertSlot.run(
+          manifest.broadcastId,
+          slot.index,
+          slot.status,
+          slot.audioUrls ? JSON.stringify(slot.audioUrls) : null,
+          now,
+        );
+      }
+    });
   }
 
   get(id: string): Manifest | undefined {
-    const m = this.entries.get(id);
-    if (!m) return undefined;
-    if (Date.now() - m.createdAt > TTL_MS) {
-      this.entries.delete(id);
+    const row = this.db.prepare<BroadcastRow>(
+      'SELECT id, manifest_json, created_at FROM broadcasts WHERE id = ?',
+    ).get(id);
+    if (!row) return undefined;
+    if (Date.now() - row.created_at > TTL_MS) {
+      this.db.prepare('DELETE FROM broadcasts WHERE id = ?').run(id);
       return undefined;
     }
-    return structuredClone(m);
+    const manifest = JSON.parse(row.manifest_json) as Manifest;
+    const slots = this.db.prepare<SlotRow>(
+      'SELECT slot_index, status, audio_urls_json FROM broadcast_slots ' +
+      'WHERE broadcast_id = ? ORDER BY slot_index',
+    ).all(id);
+    for (const slotRow of slots) {
+      // Locate by value — slot.index doesn't have to equal array position.
+      // Today ManifestBuilder produces contiguous 0..N-1 indices, but pinning
+      // the lookup to the value removes a hidden invariant for future changes.
+      const target = manifest.segmentSlots.find(s => s.index === slotRow.slot_index);
+      if (!target) continue;
+      target.status = slotRow.status;
+      target.audioUrls = slotRow.audio_urls_json ? JSON.parse(slotRow.audio_urls_json) : undefined;
+    }
+    return manifest;
   }
 
   updateSlot(
@@ -28,11 +91,31 @@ export class BroadcastStore {
     slotIndex: number,
     patch: Partial<Pick<SegmentSlot, 'status' | 'audioUrls'>>,
   ): void {
-    const m = this.entries.get(id);
-    if (!m) throw new Error(`broadcast not found: ${id}`);
-    const slot = m.segmentSlots[slotIndex];
-    if (!slot) throw new Error(`slot ${slotIndex} not found`);
-    Object.assign(slot, patch);
+    const setClauses: string[] = [];
+    const params: unknown[] = [];
+    if (patch.status !== undefined) {
+      setClauses.push('status = ?');
+      params.push(patch.status);
+    }
+    if (patch.audioUrls !== undefined) {
+      setClauses.push('audio_urls_json = ?');
+      params.push(JSON.stringify(patch.audioUrls));
+    }
+    if (setClauses.length === 0) return;
+    setClauses.push('updated_at = ?');
+    params.push(Date.now());
+    params.push(id, slotIndex);
+    const result = this.db.prepare(
+      `UPDATE broadcast_slots SET ${setClauses.join(', ')} ` +
+      `WHERE broadcast_id = ? AND slot_index = ?`,
+    ).run(...params);
+    if (result.changes === 0) {
+      const broadcast = this.db.prepare(
+        'SELECT id FROM broadcasts WHERE id = ?',
+      ).get(id);
+      if (!broadcast) throw new Error(`broadcast not found: ${id}`);
+      throw new Error(`slot ${slotIndex} not found`);
+    }
   }
 
   /** Flip every 'pending' slot in this broadcast's manifest to 'aborted'.
@@ -40,17 +123,22 @@ export class BroadcastStore {
    *  BroadcastOrchestrator.abortBake to propagate cancellation into the
    *  store so client polling picks up the aborted state. */
   markPendingSlotsAborted(broadcastId: string): void {
-    const m = this.entries.get(broadcastId);
-    if (!m) return;
-    for (const slot of m.segmentSlots) {
-      if (slot.status === 'pending') slot.status = 'aborted';
-    }
+    this.db.prepare(
+      `UPDATE broadcast_slots
+       SET status = 'aborted', updated_at = ?
+       WHERE broadcast_id = ? AND status = 'pending'`,
+    ).run(Date.now(), broadcastId);
   }
 
-  /** Current entry count (includes not-yet-evicted expired entries; TTL is
+  /** Current row count (includes not-yet-evicted expired entries; TTL is
    *  applied lazily on `get`). Used by the admin status endpoint for a rough
-   *  memory-footprint signal. */
+   *  footprint signal. */
   size(): number {
-    return this.entries.size;
+    const row = this.db.prepare<{ n: number }>(
+      'SELECT COUNT(*) AS n FROM broadcasts',
+    ).get();
+    // COUNT(*) always returns exactly one row, so the undefined branch is
+    // unreachable; treat it as 0 defensively.
+    return row?.n ?? 0;
   }
 }

@@ -1,9 +1,7 @@
-import { promises as fs } from 'fs';
-import * as path from 'path';
 import type { AudioFeatures } from '../broadcast/audio-features';
+import type { Db } from '../db/Db';
 
 export interface EnrichmentRecord {
-  // existing
   genre?: string;
   moodTags?: string[];
   releaseYear?: string;
@@ -15,17 +13,11 @@ export interface EnrichmentRecord {
   lastEnrichedAt: number;
   source: 'genius' | 'musicbrainz' | 'wikipedia' | 'lastfm' | 'hybrid' | 'reccobeats';
 
-  // new
   isrc?: string;
   features?: AudioFeatures;
   featuresSource?: 'reccobeats' | 'synthesized' | 'defaults';
   featuresAt?: number;
   featuresVersion?: number;
-}
-
-interface CacheFile {
-  version: number;
-  tracks: Record<string, EnrichmentRecord>;
 }
 
 function normalizeKey(title: string, artist: string): string {
@@ -39,45 +31,47 @@ function normalizeKey(title: string, artist: string): string {
   return `${clean(title)}|${clean(artist)}`;
 }
 
+interface Row {
+  data_json: string;
+}
+
 export class EnrichmentCache {
-  private data: Record<string, EnrichmentRecord> = {};
-  private loadPromise: Promise<void> | null = null;
-  private flushQueue: Promise<void> = Promise.resolve();
+  constructor(private readonly db: Db) {}
 
-  constructor(private readonly filePath: string) {}
-
+  /**
+   * Kept on the API for shape compatibility with the file-backed predecessor.
+   * The SQLite-backed cache has no in-memory map to populate; reads hit the
+   * table directly. Existing call sites that `await cache.load()` keep working.
+   */
   async load(): Promise<void> {
-    if (this.loadPromise) return this.loadPromise;
-    this.loadPromise = (async () => {
-      try {
-        await fs.mkdir(path.dirname(this.filePath), { recursive: true });
-        const raw = await fs.readFile(this.filePath, 'utf8');
-        const parsed = JSON.parse(raw) as CacheFile;
-        this.data = parsed.tracks ?? {};
-      } catch {
-        this.data = {};
-      }
-    })();
-    return this.loadPromise;
+    return;
   }
 
   get(title: string, artist: string): EnrichmentRecord | null {
     const key = normalizeKey(title, artist);
-    return this.data[key] ?? null;
+    const row = this.db.prepare<Row>(
+      'SELECT data_json FROM enrichment WHERE track_key = ?',
+    ).get(key);
+    if (!row) return null;
+    try {
+      return JSON.parse(row.data_json) as EnrichmentRecord;
+    } catch {
+      // A corrupt row would otherwise crash buildSegmentPrompts. Match the
+      // file-backed predecessor's malformed-JSON tolerance: treat it as a miss
+      // so the enricher will refetch on the next pass.
+      return null;
+    }
   }
 
   async set(title: string, artist: string, record: EnrichmentRecord): Promise<void> {
     const key = normalizeKey(title, artist);
-    this.data[key] = record;
-    const flush = this.flushQueue.then(() => this.doFlush());
-    this.flushQueue = flush.catch(() => {});
-    await flush;
-  }
-
-  private async doFlush(): Promise<void> {
-    const tmp = `${this.filePath}.tmp`;
-    const payload: CacheFile = { version: 1, tracks: this.data };
-    await fs.writeFile(tmp, JSON.stringify(payload, null, 2), 'utf8');
-    await fs.rename(tmp, this.filePath);
+    this.db.prepare(
+      `INSERT INTO enrichment (track_key, data_json, fetched_at, source)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT(track_key) DO UPDATE SET
+         data_json = excluded.data_json,
+         fetched_at = excluded.fetched_at,
+         source = excluded.source`,
+    ).run(key, JSON.stringify(record), record.lastEnrichedAt, record.source);
   }
 }

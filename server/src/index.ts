@@ -10,6 +10,7 @@ if (process.env.SENTRY_DSN) {
   });
 }
 
+import * as fs from 'fs';
 import * as path from 'path';
 import express from 'express';
 import cors from 'cors';
@@ -43,6 +44,8 @@ import { DeezerFeaturesFetcher } from './services/enrichment/fetchers/DeezerFeat
 import { FeatureFetchChain } from './services/broadcast/FeatureFetchChain';
 import { gracefulShutdown } from './shutdown';
 import { CuratorPublishBudget, makeCuratorPublishBudgetMiddleware } from './services/curator/CuratorPublishBudget';
+import { Db } from './services/db/Db';
+import { EventRecorder } from './services/events/EventRecorder';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3001;
@@ -126,16 +129,6 @@ function parsePositiveInt(raw: string | undefined, fallback: number, name: strin
   return n;
 }
 
-const curatorPublishBudget = new CuratorPublishBudget({
-  capPerWindow: parsePositiveInt(process.env.CURATOR_PUBLISH_CAP, 3, 'CURATOR_PUBLISH_CAP'),
-  windowMs: parsePositiveInt(
-    process.env.CURATOR_PUBLISH_WINDOW_MS,
-    24 * 60 * 60 * 1000,
-    'CURATOR_PUBLISH_WINDOW_MS',
-  ),
-});
-const curatorPublishBudgetMiddleware = makeCuratorPublishBudgetMiddleware(curatorPublishBudget);
-
 // WeatherProvider is optional — null when OPENWEATHER_API_KEY is unset.
 // The orchestrator skips weather injection entirely when the provider is
 // missing, so first-launch deploys without the key still work.
@@ -175,13 +168,32 @@ const broadcastStorage = createStorage({
   BROADCAST_CACHE_DIR: process.env.BROADCAST_CACHE_DIR
     ?? path.resolve(__dirname, '../.broadcast-cache'),
 });
-const broadcastStore = new BroadcastStore();
+
+// One SQLite file holds every state store the broadcast server keeps
+// (broadcasts, slots, enrichment, featured, curator publishes, app_events).
+// WAL mode + boot-time crashed-bake sweep happen inside the Db constructor.
+const dbPath = process.env.SQLITE_DB_PATH
+  ?? path.resolve(__dirname, '../.broadcast-cache/cleo.db');
+fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+const db = new Db(dbPath);
+console.log(`[boot] sqlite db opened at ${dbPath}`);
+
+const curatorPublishBudget = new CuratorPublishBudget({
+  db,
+  capPerWindow: parsePositiveInt(process.env.CURATOR_PUBLISH_CAP, 3, 'CURATOR_PUBLISH_CAP'),
+  windowMs: parsePositiveInt(
+    process.env.CURATOR_PUBLISH_WINDOW_MS,
+    24 * 60 * 60 * 1000,
+    'CURATOR_PUBLISH_WINDOW_MS',
+  ),
+});
+const curatorPublishBudgetMiddleware = makeCuratorPublishBudgetMiddleware(curatorPublishBudget);
+
+const broadcastStore = new BroadcastStore(db);
 
 // Enrichment cache + background worker — fills Genius/MusicBrainz metadata
 // for tracks seen during bakes so future sequencer calls have richer context.
-const enrichmentCache = new EnrichmentCache(
-  path.resolve(__dirname, '../.enrichment-cache/tracks.json'),
-);
+const enrichmentCache = new EnrichmentCache(db);
 
 async function bootstrap(): Promise<void> {
   await enrichmentCache.load();
@@ -205,10 +217,11 @@ async function bootstrap(): Promise<void> {
     enrichmentCache, new DefaultEnrichmentFetcher(), featureFetchChain,
   );
 
+  const eventRecorder = new EventRecorder(db);
   const broadcastOrchestrator = new BroadcastOrchestrator(
     llmProvider, ttsProvider, broadcastStorage, broadcastStore,
     enrichmentCache, backgroundEnricher, featureFetchChain,
-    undefined, weatherProvider,
+    undefined, weatherProvider, eventRecorder,
   );
 
   // Public health endpoint — unauthenticated, synthesizes TTS + bake-queue status.
@@ -242,9 +255,7 @@ async function bootstrap(): Promise<void> {
   app.use(requireAuth, createBroadcastRouter(broadcastOrchestrator, broadcastStore, generationLimiter));
 
   // Featured broadcasts (ONAY-curated, shared across users)
-  const featuredRegistry = new FeaturedBroadcastRegistry(
-    path.resolve(__dirname, '../featured-broadcasts/registry.json'),
-  );
+  const featuredRegistry = new FeaturedBroadcastRegistry(db);
   featuredRegistry.load().catch(err => console.error('[featured] registry load failed', err));
   // createFeaturedRouter args: registry, orchestrator, bakeLimiter, publishBudget.
   // Both middlewares are RequestHandler | undefined so TS won't catch a swap.
@@ -253,6 +264,7 @@ async function bootstrap(): Promise<void> {
     broadcastOrchestrator,
     generationLimiter,
     curatorPublishBudgetMiddleware,
+    eventRecorder,
   ));
 
   // Weather service router — mounted under auth only when the provider is configured
@@ -321,6 +333,7 @@ async function bootstrap(): Promise<void> {
     console.log(`[shutdown] received ${signal}, draining...`);
     await gracefulShutdown(server, [], { timeoutMs: 10_000 });
     console.log('[shutdown] done');
+    try { db.close(); } catch (err) { console.warn('[shutdown] db.close failed:', err); }
     process.exit(0);
   };
   process.once('SIGINT', () => void shutdown('SIGINT'));

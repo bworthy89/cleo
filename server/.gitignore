@@ -14,3 +14,6 @@ ios/
 .expo/
 app.json
 .xcode.env.local
+
+# Note: SQLite database files (cleo.db, cleo.db-wal, cleo.db-shm) are created
+# at runtime under .broadcast-cache/ which is already ignored above.

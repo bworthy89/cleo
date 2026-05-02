@@ -1,5 +1,5 @@
 import type { AudioFeatures } from './audio-features';
-import { normalizeTempo, normalizeLoudness } from './audio-features';
+import { normalizeTempo } from './audio-features';
 import type { ManifestTrack } from './types';
 
 export interface AudioFeatureWeights {
