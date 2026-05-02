@@ -65,11 +65,11 @@ mkdir -p server/src/routes
 
 `server/.env`:
 ```
-HEYGEN_API_KEY=REDACTED-HEYGEN-KEY
-CLEO_AVATAR_ID=dff8b7bb77bd4c13ab6a837104163a01
-GOOGLE_TTS_API_KEY=REDACTED-GOOGLE-TTS-KEY
-GEMINI_API_KEY=REDACTED-GEMINI-KEY
-GENIUS_ACCESS_TOKEN=REDACTED-GENIUS-TOKEN
+HEYGEN_API_KEY=<deactivated; HeyGen feature retired>
+CLEO_AVATAR_ID=<deactivated>
+GOOGLE_TTS_API_KEY=<retired; no longer used>
+GEMINI_API_KEY=<rotated; from server/.env>
+GENIUS_ACCESS_TOKEN=<rotated; from server/.env>
 PORT=3001
 ```
 
@@ -973,9 +973,9 @@ git commit -m "feat: add test button for Cleo voice pipeline (Phase 3 milestone)
 
 Phase 3 is complete when:
 
-- [ ] Backend server runs locally with all 5 routes
-- [ ] `/generate-segment` returns Cleo script text from Gemini
-- [ ] `/synthesize-voice` returns base64 audio from Google Cloud TTS
-- [ ] Tapping "TEST CLEO" on device generates a script and speaks it
-- [ ] Fallback fires when backend is unreachable (airplane mode test)
-- [ ] HeyGen and Genius routes respond (even if not fully tested yet)
+- [x] Backend server runs locally with all 5 routes ✅ 2026-05-01
+- [x] `/generate-segment` returns Cleo script text from Gemini ✅ 2026-05-01
+- [x] `/synthesize-voice` returns base64 audio from Google Cloud TTS ✅ 2026-05-01
+- [x] Tapping "TEST CLEO" on device generates a script and speaks it ✅ 2026-05-01
+- [x] Fallback fires when backend is unreachable (airplane mode test) ✅ 2026-05-01
+- [x] HeyGen and Genius routes respond (even if not fully tested yet) ✅ 2026-05-01

@@ -68,3 +68,43 @@ server/.cache/
 docs/.obsidian/
 docs/daily/
 docs/ideas/
+
+# Operational details (hostnames, server paths, routine IDs, internal IPs).
+# Kept locally in OPERATIONS.md, never committed.
+/OPERATIONS.md
+
+# Pre-publication audit artifacts (raw findings include literal secrets)
+/audit-report/
+/audit-before-public.sh
+
+# Loose RTF / scratch files at repo root — historical leak vector
+/*.rtf
+
+# Internal planning briefs (untracked-only, never commit)
+/cleo-*-brief.md
+/cleo-*-plan.md
+
+# Migration archives + scratch
+/v2-migration/
+/v2-migration*.zip
+/local voice tests.md
+/Untitled.rtf
+
+# Stray Firebase config sometimes downloaded to repo root by mistake.
+# The real one lives at ios/ONAY/GoogleService-Info.plist.
+/GoogleService-Info.plist
+
+# Project-scoped MCP server config — contains live API tokens
+# (Vast.ai / Discord / etc.). Each contributor should set up their own.
+/.mcp.json
+
+# Local npm config (legacy-peer-deps preference, possible registry tokens)
+/.npmrc
+
+# Xcode archive output (~3.5 GB of binary build products)
+/build/
+
+# Claude Code / Superpowers / Playwright MCP local session state
+/.claude/
+/.superpowers/
+/.playwright-mcp/
