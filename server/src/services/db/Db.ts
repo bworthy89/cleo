@@ -78,16 +78,24 @@ export class Db {
   private markCrashedBakes(): void {
     const now = Date.now();
     this.db.transaction(() => {
-      const failed = this.db.prepare(
-        "UPDATE broadcasts SET bake_status='failed' WHERE bake_status='baking'",
-      ).run();
-      if (failed.changes > 0) {
-        this.db.prepare(
-          "UPDATE broadcast_slots SET status='aborted', updated_at=? " +
-          "WHERE status='pending' AND broadcast_id IN " +
-          "(SELECT id FROM broadcasts WHERE bake_status='failed')",
-        ).run(now);
-      }
+      // Capture the set of broadcast ids that were 'baking' at boot — i.e.,
+      // the bakes whose owning process died mid-flight. Use this explicit set
+      // for both the broadcasts UPDATE and the slot UPDATE so the sweep
+      // affects only the just-transitioned bakes, not older 'failed' rows
+      // from previous crashes.
+      const baking = this.db.prepare(
+        "SELECT id FROM broadcasts WHERE bake_status='baking'",
+      ).all() as Array<{ id: string }>;
+      if (baking.length === 0) return;
+      const ids = baking.map(r => r.id);
+      const placeholders = ids.map(() => '?').join(',');
+      this.db.prepare(
+        `UPDATE broadcasts SET bake_status='failed' WHERE id IN (${placeholders})`,
+      ).run(...ids);
+      this.db.prepare(
+        `UPDATE broadcast_slots SET status='aborted', updated_at=? ` +
+        `WHERE status='pending' AND broadcast_id IN (${placeholders})`,
+      ).run(now, ...ids);
     })();
   }
 }

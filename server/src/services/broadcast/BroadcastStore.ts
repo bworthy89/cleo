@@ -75,7 +75,10 @@ export class BroadcastStore {
       'WHERE broadcast_id = ? ORDER BY slot_index',
     ).all(id);
     for (const slotRow of slots) {
-      const target = manifest.segmentSlots[slotRow.slot_index];
+      // Locate by value — slot.index doesn't have to equal array position.
+      // Today ManifestBuilder produces contiguous 0..N-1 indices, but pinning
+      // the lookup to the value removes a hidden invariant for future changes.
+      const target = manifest.segmentSlots.find(s => s.index === slotRow.slot_index);
       if (!target) continue;
       target.status = slotRow.status;
       target.audioUrls = slotRow.audio_urls_json ? JSON.parse(slotRow.audio_urls_json) : undefined;

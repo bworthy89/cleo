@@ -64,4 +64,16 @@ describe('EventRecorder', () => {
     expect(occurred_at).toBeLessThanOrEqual(after);
     db.close();
   });
+
+  it('swallows DB errors when the connection is closed (best-effort contract)', () => {
+    const db = new Db(':memory:');
+    const recorder = new EventRecorder(db);
+    db.close();
+    // The Db handle is closed; the next prepare/run inside record() will throw
+    // at the better-sqlite3 layer. EventRecorder must catch and swallow so the
+    // orchestrator's promise chain isn't disrupted by telemetry failures.
+    expect(() => {
+      recorder.record('u1', 'app_open', { appVersion: '1.0', platform: 'ios', buildNumber: 1 });
+    }).not.toThrow();
+  });
 });
