@@ -15,8 +15,8 @@ playback begins, and the client plays the locked episode beginning to end — no
 live reactions. This replaces the prior live-generation model, which failed the iOS
 48s/60s background CPU budget when LLM + TTS ran between tracks.
 
-Production: Express broadcast server at `api.worthymedia.tech`. Deploy runbook:
-`server/DEPLOY.md`.
+Production: Express broadcast server (deploy runbook in `server/DEPLOY.md`;
+hostname / SSH / path specifics in `OPERATIONS.md`, gitignored).
 
 ---
 
@@ -38,10 +38,10 @@ Production: Express broadcast server at `api.worthymedia.tech`. Deploy runbook:
 - **TTS chain:** `TTS_PRIMARY=voxcpm` → `TTS_FALLBACK=cartesia` → ElevenLabs → Orpheus.
   `TTS_FALLBACK` lets the self-hosted primary skip ahead to a chosen paid API instead
   of relying on the default ordering.
-- **VoxCPM2** (primary) runs on the Linux box (<TTS_HOST>) on port 8003, exposed via
-  Pangolin at `<TTS_TUNNEL>`. F5-TTS and CosyVoice were retired
-  2026-04-27 after VoxCPM landed cleaner audio + a workable latency profile (see
-  tuning log Change #10).
+- **VoxCPM2** (primary) runs on a self-hosted GPU box, exposed via a reverse
+  tunnel so the production server can reach it. Hostnames + ports in
+  `OPERATIONS.md`. F5-TTS and CosyVoice were retired 2026-04-27 after VoxCPM
+  landed cleaner audio + a workable latency profile (see tuning log Change #10).
 - **Filesystem TTS cache** at `~/.cache/cleo-tts` (override via `TTS_CACHE_DIR`) dedupes
   identical text across bakes. Must be cleared whenever TTS settings, reference audio,
   or transcript change — stale audio gets served indefinitely otherwise.
@@ -53,15 +53,15 @@ Production: Express broadcast server at `api.worthymedia.tech`. Deploy runbook:
 - **Local dev:** Node.js + Express (`server/`) on port 3001. Jest + ts-jest suite.
   `STORAGE_BACKEND` unset → `LocalFilesystemStorage` under `server/.broadcast-cache/`;
   segments served via `/broadcast-asset/*`.
-- **Production:** Express at `api.worthymedia.tech` (Hostinger VPS, port 3102 behind
-  Caddy, PM2 app `cleo-broadcast`). `STORAGE_BACKEND=r2` → Cloudflare R2 bucket
-  `cleo-broadcast-segments`; segment URLs are 7-day presigned links in the manifest.
-- **Staging:** Express at `staging.api.worthymedia.tech` (same VPS, port 3103 behind
-  Caddy, PM2 app `cleo-broadcast-staging`, git clone at `/home/cleo/cleo-broadcast-staging`,
-  tracks `main` branch). Same Firebase project, same Sentry, separate R2 bucket
-  `cleo-broadcast-segments-staging`, `CURATOR_PUBLISH_CAP=20` (vs prod's 3). Used as
-  pre-prod validation gate AND as the always-on dev backend that local-device installs
-  point at. Design + plan: [`docs/superpowers/specs/2026-05-01-staging-server-design.md`](docs/superpowers/specs/2026-05-01-staging-server-design.md).
+- **Production:** Express on a Hostinger VPS behind Caddy, PM2-managed.
+  `STORAGE_BACKEND=r2` → Cloudflare R2; segment URLs are 7-day presigned links
+  in the manifest. Full git clone with server in `/server` subdir, tracks
+  `main` branch. Hostnames / ports / paths / R2 bucket names in `OPERATIONS.md`.
+- **Staging:** Same VPS, separate Caddy vhost + PM2 app + R2 bucket, tracks
+  `staging` branch. Same Firebase project + Sentry. `CURATOR_PUBLISH_CAP=20`
+  (vs prod's 3). Used as pre-prod validation gate AND as the always-on dev
+  backend that local-device installs point at. Design + plan:
+  [`docs/superpowers/specs/2026-05-01-staging-server-design.md`](docs/superpowers/specs/2026-05-01-staging-server-design.md).
 - Firebase JWT auth (`requireAuth`) gates all routes. Ownership gate on
   `GET /broadcast/:id/manifest` + `/broadcast-asset/*` — both 404 unless
   `manifest.userId === req.uid` or `manifest.userId === 'curator'`.
@@ -372,10 +372,11 @@ server-side Firestore writes was a hard prereq.
   `ios/Pods/`, `ios/build/`, `ios/**/xcuserdata/`, `*.xcuserstate`, and
   `ios/.xcode.env.local` (user-specific NODE_BINARY path).
 - **Local-device install**: `SENTRY_DISABLE_AUTO_UPLOAD=true npx expo run:ios --device`.
-  Auto-managed signing, team `8F2VWCN5KF`. iOS platform SDK must match device iOS.
+  Auto-managed signing (Apple Team ID in `OPERATIONS.md`). iOS platform SDK
+  must match device iOS.
 - **Mobile testing against staging**: create `.env.local` at project root with
-  `EXPO_PUBLIC_API_URL=https://staging.api.worthymedia.tech`, then run the local-device
-  install command above. `EXPO_PUBLIC_*` vars MUST be in `.env`/`.env.local` files —
+  `EXPO_PUBLIC_API_URL=<staging-host>` (see `OPERATIONS.md`), then run the
+  local-device install command above. `EXPO_PUBLIC_*` vars MUST be in `.env`/`.env.local` files —
   Expo SDK 55 does NOT honor them from shell env at build time. The binary then targets
   staging from anywhere (LAN-independent). Delete `.env.local` to revert to prod URL
   from `.env` on the next install. Same bundle ID means this overwrites a TestFlight
@@ -392,10 +393,11 @@ server-side Firestore writes was a hard prereq.
      section below), so the script is the only safe atomic operation.
   2. `eas build --profile production --platform ios [--non-interactive]` —
      first time per new target needs interactive mode so EAS can provision the
-     Apple App ID for the widget extension (`com.worthymedia.cleo.ONAYWidgets`);
-     subsequent builds can use `--non-interactive`.
+     Apple App ID for the widget extension; subsequent builds can use
+     `--non-interactive`.
   3. `eas submit --profile production --platform ios --latest` — uploads the
-     .ipa to App Store Connect (ASC app ID `6760923768`, team `8F2VWCN5KF`).
+     .ipa to App Store Connect. Bundle IDs + ASC app ID + Apple Team ID in
+     `OPERATIONS.md`.
 - **OTA push (JS-only changes)**: `npm run update:prod -- --message "..."` (full
   rollout) or `npm run update:prod:safe -- --message "..."` (25% rollout). Both go
   through `scripts/guard-update.mjs` which compares working tree `expo.runtimeVersion`
@@ -420,18 +422,24 @@ server-side Firestore writes was a hard prereq.
   puppeteer render + sync. Skipping this ships stale artwork — the asset catalog
   is the source of truth for bare-workflow builds; `app.json` `expo.icon` is
   only consulted by `expo prebuild`, which no longer runs in EAS.
-- **Team ID drift**: project file sometimes shows `5MQ5ZR66YN` — fix in Xcode >
-  target > Signing & Capabilities.
+- **Team ID drift**: project file occasionally drifts to a stale Team ID — fix
+  in Xcode > target > Signing & Capabilities. Correct Team ID in
+  `OPERATIONS.md`.
 - **iOS deployment target**: 16.2 (MusicLibraryRequest requirement + Live
   Activities + iOS 16.2-gated APIs in ONAYWidgets).
-- **Scheduled remote checks**: weekly OTA pipeline health check runs every
-  Monday 9am EDT (`trig_01EFnDkAktM8Z8DENByshKTZ`,
-  https://claude.ai/code/routines/trig_01EFnDkAktM8Z8DENByshKTZ). Read-only;
-  validates the bump-script lockstep, looks for native-bumping commits since
-  the last `runtimeVersion` bump, verifies guard + scripts + eas.json config,
-  reports Sentry source-map status. Output is a single Status / Findings /
-  Recommended-actions markdown report in the routine dashboard. To add new
-  routines, see `https://claude.ai/code/routines`.
+- **Scheduled remote checks**: two weekly read-only routines post Status /
+  Findings / Recommended-actions markdown to their dashboards every Monday
+  morning.
+  - **OTA pipeline** validates `bump:build` lockstep, looks for native-bumping
+    commits since the last `runtimeVersion` bump, verifies guard + scripts +
+    `eas.json` config, reports Sentry source-map status.
+  - **Auto-deploy pipeline** counts deploy.yml run successes/failures last 7
+    days, curls both tier `/health` endpoints, checks for commit/deploy gap on
+    each tier (latest branch SHA vs latest successful deploy SHA), verifies
+    workflow file integrity, surfaces follow-ups.
+
+  Routine IDs + URLs in `OPERATIONS.md`. Add new routines via
+  `https://claude.ai/code/routines`.
 - **CI on push** (`.github/workflows/test.yml`): two parallel jobs on every push
   to `main`/`staging` and every PR — `Client jest` (root `npm test`) and
   `Server build + jest` (server `npm ci && npm run build && npm test`). Both
@@ -443,6 +451,18 @@ server-side Firestore writes was a hard prereq.
   regressions before they hit origin or CI. Pre-commit was deliberately not used
   per the dev-pipeline spec — too frequent. Husky managed via `prepare` script
   in root `package.json`.
+- **Auto-deploy on push** (`.github/workflows/deploy.yml`): SSHes to the VPS
+  as the deploy user, `git pull`, `npm ci && npm run build`, `pm2 reload`,
+  then `curl /health` with up to 10s retry. Push to `staging` branch →
+  staging tier (~30s end-to-end); push to `main` → prod tier (~30s).
+  Concurrency queues per branch so two pushes serialize. **Skip lever:**
+  include `[skip deploy]` in the commit message to short-circuit (distinct
+  from `[skip ci]` which would also skip test.yml). Manual escape hatch via
+  `gh workflow run deploy.yml --ref <branch>` if you need to redeploy without
+  a code change. Design:
+  [`docs/superpowers/specs/2026-05-01-auto-deploy-design.md`](docs/superpowers/specs/2026-05-01-auto-deploy-design.md).
+  Standard server-change workflow + SSH user / paths in `OPERATIONS.md`.
+  NEVER push directly to `main` for non-trivial server changes.
 
 ---
 
@@ -473,7 +493,7 @@ TTS_FALLBACK=cartesia
 
 SEQUENCER_MODE=deterministic              # or 'llm' for rollback
 
-VOXCPM_BASE_URL=https://<TTS_TUNNEL>
+VOXCPM_BASE_URL=<self-hosted-tunnel-host>      # see OPERATIONS.md
 VOXCPM_VOICE_REF=onay-cartesia-clean      # ZipEnhancer pre-cleaned reference
 VOXCPM_STYLE_PREFIX=                       # empty under nano-vllm (no paren-style parser); stock VoxCPM2 used "(slow, measured pace, late-night radio)"
 VOXCPM_INFERENCE_TIMESTEPS=10             # 4-30; lower = faster, less prosody
@@ -650,17 +670,31 @@ EXPO_PUBLIC_SENTRY_DSN
   via `removeBroadcastFromHistory()`. Playback tap re-verifies.
 
 ### Build / deployment
-- **Sentry source-map upload — partly wired, not yet verified end-to-end as of
-  2026-05-01.** EAS production builds are configured to upload via `SENTRY_AUTH_TOKEN`
-  + `SENTRY_ORG` + `SENTRY_PROJECT` EAS secrets; `SENTRY_DISABLE_AUTO_UPLOAD` is
-  set to `"false"` in `eas.json` production profile (was `"true"` before OTA work).
-  But sentry.io shows zero releases for the project after build 64 went out, meaning
-  the upload step likely failed silently. Diagnose by reading the EAS build log
-  for `sentry-cli` lines. Local-device builds (`expo run:ios --device`) still need
-  the override `SENTRY_DISABLE_AUTO_UPLOAD=true` because they can't read EAS secrets.
-  Separate gap: `eas update` does NOT auto-upload OTA bundle source maps — needs a
-  post-update `sentry-expo-upload-sourcemaps` script. Both fixes are LATER items
-  in `docs/index.md`.
+- **Sentry source-map upload — verified end-to-end 2026-05-01** (build 65 + OTA).
+  Two upload paths now wired:
+  - **Build-time** (EAS production builds): `@sentry/react-native/expo` plugin
+    in `app.json` configured with explicit `organization` + `project` (values
+    in `OPERATIONS.md`). The bare plugin entry (no config object) skips the
+    upload phase silently, which is what bit build 64. EAS secrets
+    `SENTRY_AUTH_TOKEN` + `SENTRY_ORG` + `SENTRY_PROJECT` provide the cred;
+    `eas.json` production profile sets `SENTRY_DISABLE_AUTO_UPLOAD: "false"`.
+  - **OTA** (`eas update`): `scripts/guard-update.mjs` invokes
+    `npx sentry-expo-upload-sourcemaps dist` after a successful update,
+    soft-failing if `SENTRY_AUTH_TOKEN` is unset. Token loaded from
+    `.env.local` (gitignored). Modern artifact-bundle workflow with debug IDs —
+    no Sentry release/dist tagging required.
+  - Local-device builds (`expo run:ios --device`) still need
+    `SENTRY_DISABLE_AUTO_UPLOAD=true` because they can't read EAS secrets.
+- **EAS-stored env vars override local `.env` when `--environment <env>` is
+  passed.** `eas update --environment production` and `eas build --profile
+  production` (which implicitly uses environment=production) pull the EAS server's
+  stored env vars and the values override anything in `.env` / `.env.local` at
+  bundle time. Symptom: bundle keeps containing a stale `EXPO_PUBLIC_*` value no
+  matter what's in your local `.env`. Inspect with
+  `npx eas-cli env:list production`; update with
+  `npx eas-cli env:update production --variable-name <NAME> --value <V> --visibility plaintext --non-interactive`.
+  This is how DSN (and any other `EXPO_PUBLIC_*` runtime config) gets shipped to
+  prod — local `.env` is for dev/local-device, EAS env is the prod source of truth.
 - **R2 API tokens are bucket-scoped by default.** When standing up staging (separate
   R2 bucket per design), the prod token returned `403 AccessDenied` against the new
   `cleo-broadcast-segments-staging` bucket — silently failing all segment uploads,
@@ -710,10 +744,6 @@ compiled in but unreferenced — candidate for native cleanup pass. `SequenceCac
 
 ## What's Left (not yet shipped)
 
-- **OTA Sentry source-map upload** — wired in EAS profile but build-64 release
-  never landed on sentry.io; needs diagnosis of the EAS build log + a separate
-  post-`eas update` script for OTA bundles. Beta blocker (every JS crash unmapped
-  until fixed). Tracked in `docs/index.md` LATER.
 - **Bake abort endpoint** — no `DELETE /broadcast/:id`. User canceling mid-bake still
   pays for all remaining LLM + TTS calls.
 - **Scheduled/autonomous featured bakes** (cron "Monday Reset" etc.) — requires server
@@ -741,25 +771,19 @@ compiled in but unreferenced — candidate for native cleanup pass. `SequenceCac
 
 ---
 
-## Self-hosted TTS infrastructure (Linux box at <TTS_HOST>)
+## Self-hosted TTS infrastructure
 
-Separate from the Hostinger VPS. Hosts VoxCPM2.
+Separate from the production VPS. Hosts VoxCPM2 (primary TTS) on an NVIDIA
+Blackwell sm_120 GPU + `torch 2.11.0+cu128`. Boots with
+`VOXCPM_LOAD_DENOISER=1` (ZipEnhancer) and `VOXCPM_OPTIMIZE=0` (torch.compile
+asserts on Blackwell + torch 2.11+cu128; revisit when supported).
+`VOXCPM_BASE_URL` points at a reverse tunnel hostname so the production
+server can reach the box.
 
-- **SSH:** `ssh kari@<TTS_HOST>` — NVIDIA 5060 Ti 16 GB (Blackwell, sm_120).
-  GPU swapped from AMD 6700XT 2026-04-27.
-- **VoxCPM2 wrapper:** `~/voxcpm-server/`, systemd unit `voxcpm`, port 8003 (exposed publicly as `voxnano`; internal install dir + unit name kept as `voxcpm`).
-  Boots with `VOXCPM_LOAD_DENOISER=1` (ZipEnhancer for reference cleanup) and
-  `VOXCPM_OPTIMIZE=0` (torch.compile asserts on Blackwell + torch 2.11+cu128;
-  re-enable when supported). Restart-on-failure, auto-start on boot, journal
-  logging via `journalctl -u voxcpm`.
-- **References in `~/voxcpm-server/refs/`:**
-  - `onay-cartesia.wav` (24 kHz, 9.56s) — symlink to original. Cartesia-TTS-generated.
-  - `onay-cartesia-clean.wav` (16 kHz, 9.56s) — **canonical** pre-denoised ref.
-    Generated once at install via VoxCPM's ZipEnhancer; eliminates per-call denoise
-    cost (~3s saved per request).
-- **Pangolin tunnel:** `<TTS_TUNNEL>` → port 8003.
-- **PyTorch:** torch 2.11.0+cu128 — Blackwell sm_120 requires CUDA 12.8 wheels
-  (`pip install torch --index-url https://download.pytorch.org/whl/cu128`).
+- **SSH details, host paths, tunnel hostname** — `OPERATIONS.md`.
+- **Reference audio:** `~/voxcpm-server/refs/onay-cartesia-clean.wav` is the
+  canonical pre-denoised ref (16 kHz). Per-call `denoise:true` is the same
+  operation done lazily — saves ~3s per request to use the pre-clean.
 - **Retired services:** `~/f5tts-server/` and `~/cosyvoice-server/` directories
   remain on disk (~10 GB) as a 1-hour escape hatch but the systemd units are
   disabled. Delete the dirs once VoxCPM has been stable in prod for ~14 days.
