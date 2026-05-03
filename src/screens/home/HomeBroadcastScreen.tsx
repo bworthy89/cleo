@@ -546,251 +546,251 @@ export default function HomeBroadcastScreen() {
   return (
     <BroadcastBackdrop>
       <Animated.View style={[styles.flex, { opacity: fadeIn }]}>
-      <ScrollView
-        style={styles.flex}
-        contentContainerStyle={[
-          styles.scrollContent,
-          {
-            paddingTop: insets.top + Space.s6,
-            paddingBottom: insets.bottom + 120,
-          },
-        ]}
-      >
-        <HealthStatusBanner />
-        <StatusStrip onAir={broadcastActive} num="004" />
-
-        {/* TONIGHT ON ONAY — twin-slot stack */}
-        {morningCard ? (
-          <FeaturedBroadcastCard
-            broadcast={morningCard}
-            onPress={() => playFeatured(morningCard)}
-            tagline={morningCard.description}
-            slotLabel="MORNING"
-          />
-        ) : (
-          <SlotPlaceholderCard slotLabel="MORNING" />
-        )}
-
-        {eveningCard ? (
-          <FeaturedBroadcastCard
-            broadcast={eveningCard}
-            onPress={() => playFeatured(eveningCard)}
-            tagline={eveningCard.description}
-            slotLabel="EVENING"
-          />
-        ) : (
-          <SlotPlaceholderCard slotLabel="EVENING" />
-        )}
-
-        {/* Liner note from ONAY */}
-        <View style={{ marginTop: Space.s26 }}>
-          <LinerNotes>
-            {lead?.description
-              ? `Tonight: ${lead.description.toLowerCase()}. Stay with it through the first side.`
-              : 'Picked records, not algorithms. Stay with them.'}
-          </LinerNotes>
-        </View>
-
-        {/* Primary CTA — tri-state: fresh / resume / now-playing */}
-        {mode.kind === 'resume' && (
-          <>
-            <SectionMarker num="B·01" title="RESUME TONIGHT" side="PICK UP WHERE YOU LEFT OFF" />
-            <View style={{ marginTop: 4 }}>
-              <CatalogRow
-                label="FROM"
-                placeholder=""
-                value={
-                  playlists.find(p => p.id === mode.manifest.playlistId)?.name?.toUpperCase()
-                  ?? `${VIBE_LABEL[mode.manifest.vibe]} · ${mode.manifest.tracks.length} TRACKS`
-                }
-                onPress={onResume}
-              />
-              <CatalogRow
-                label="VIBE"
-                placeholder=""
-                value={VIBE_LABEL[mode.manifest.vibe]}
-                onPress={onResume}
-              />
-              <CatalogRow
-                label="TRACK"
-                placeholder=""
-                value={`${Math.max(0, mode.trackCursor) + 1} OF ${mode.manifest.tracks.length}`}
-                onPress={onResume}
-              />
-            </View>
-
-            <View style={{ height: Space.s22 }} />
-            <StampButton
-              label="RESUME"
-              sub={`TRACK ${Math.max(0, mode.trackCursor) + 1} OF ${mode.manifest.tracks.length}`}
-              onPress={onResume}
-              accessibilityHint="Resume the broadcast where you left off"
-            />
-            <Pressable
-              onPress={onStartFresh}
-              accessibilityRole="button"
-              accessibilityLabel="Start a fresh broadcast"
-              hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
-              style={({ pressed }) => [styles.startFresh, pressed && { opacity: 0.6 }]}
-            >
-              <Text style={styles.startFreshText}>START FRESH</Text>
-            </Pressable>
-          </>
-        )}
-
-        {mode.kind === 'now-playing' && (
-          <>
-            <SectionMarker num="B·01" title="NOW PLAYING" side="ON AIR" />
-            <View style={{ marginTop: 4 }}>
-              <CatalogRow
-                label="FROM"
-                placeholder=""
-                value={
-                  playlists.find(p => p.id === mode.manifest.playlistId)?.name?.toUpperCase()
-                  ?? `${VIBE_LABEL[mode.manifest.vibe]} · ${mode.manifest.tracks.length} TRACKS`
-                }
-                onPress={onOpenNowPlaying}
-              />
-              <CatalogRow
-                label="VIBE"
-                placeholder=""
-                value={VIBE_LABEL[mode.manifest.vibe]}
-                onPress={onOpenNowPlaying}
-              />
-              <CatalogRow
-                label="TRACK"
-                placeholder=""
-                value={`${Math.max(0, mode.trackIndex) + 1} OF ${mode.manifest.tracks.length}`}
-                onPress={onOpenNowPlaying}
-              />
-            </View>
-
-            <View style={{ height: Space.s22 }} />
-            <StampButton
-              label="OPEN PLAYER"
-              sub={`TRACK ${Math.max(0, mode.trackIndex) + 1} OF ${mode.manifest.tracks.length}`}
-              onPress={onOpenNowPlaying}
-              accessibilityHint="Opens the Now Playing screen"
-            />
-          </>
-        )}
-
-        {mode.kind === 'fresh' && (
-          <>
-            <SectionMarker num="B·01" title="ROLL YOUR OWN" side="FROM YOUR LIBRARY" />
-            <View style={{ marginTop: 4 }}>
-              <CatalogRow
-                label="FROM"
-                placeholder="pick a playlist"
-                value={playlistName}
-                onPress={() => openSheetAt(0)}
-              />
-              <CatalogRow
-                label="VIBE"
-                placeholder="pick a vibe"
-                value={vibe ? VIBE_LABEL[vibe] : null}
-                onPress={() => openSheetAt(1)}
-              />
-              <CatalogRow
-                label="LENGTH"
-                placeholder="pick a length"
-                value={length ? LENGTH_LABEL[length] : null}
-                onPress={() => openSheetAt(2)}
-              />
-            </View>
-
-            <View style={{ height: Space.s22 }} />
-            <StampButton
-              label="BEGIN BROADCAST"
-              sub="NO SKIPS · SIT WITH IT"
-              onPress={onBegin}
-              accessibilityHint={
-                playlistId && vibe && length
-                  ? 'Starts your broadcast'
-                  : 'Opens the setup sheet to finish choosing'
-              }
-            />
-          </>
-        )}
-
-        {/* Ask ONAY — dashed invitation */}
-        <SectionMarker num="B·02" title="ASK ONAY" side="TELL HER A MOOD" />
-        <Pressable
-          onPress={() => router.push('/(main)/(crates)')}
-          accessibilityRole="button"
-          accessibilityLabel="Ask ONAY to curate"
-          style={({ pressed }) => [styles.askCard, pressed && { opacity: 0.75 }]}
+        <ScrollView
+          style={styles.flex}
+          contentContainerStyle={[
+            styles.scrollContent,
+            {
+              paddingTop: insets.top + Space.s6,
+              paddingBottom: insets.bottom + 120,
+            },
+          ]}
         >
-          <Text style={styles.askQuote}>
-            &ldquo;rainy, autumn, a little melancholy. nothing obvious.&rdquo;
-          </Text>
-          <Text style={styles.askHint}>ONAY PULLS FROM THE CRATE →</Text>
-        </Pressable>
+          <HealthStatusBanner />
+          <StatusStrip onAir={broadcastActive} num="004" />
 
-        {/* Earlier tonight */}
-        {visibleRecent.length > 0 && (
-          <>
-            <SectionMarker num="B·03" title="EARLIER TONIGHT" side="24 HOURS" />
-            {visibleRecent.map((entry, i) => (
-              <HairlineRow
-                key={entry.manifest.broadcastId}
-                leading={
-                  <Text style={styles.recentNum}>{padIndex(visibleRecent.length - i)}</Text>
-                }
-                value={
-                  <View>
-                    <Text style={styles.recentTitle} numberOfLines={1}>
-                      {titleFor(entry, playlists)}
-                    </Text>
-                    <Text style={styles.recentDate}>{dateLabel(entry)}</Text>
-                  </View>
-                }
-                trailing={
-                  <Text style={styles.recentDuration}>{durationFor(entry)}</Text>
-                }
-                verticalPadding={Space.s14}
-                onPress={() => playRecent(entry)}
-                accessibilityLabel={`Replay ${titleFor(entry, playlists)}`}
+          {/* TONIGHT ON ONAY — twin-slot stack */}
+          {morningCard ? (
+            <FeaturedBroadcastCard
+              broadcast={morningCard}
+              onPress={() => playFeatured(morningCard)}
+              tagline={morningCard.description}
+              slotLabel="MORNING"
+            />
+          ) : (
+            <SlotPlaceholderCard slotLabel="MORNING" />
+          )}
+
+          {eveningCard ? (
+            <FeaturedBroadcastCard
+              broadcast={eveningCard}
+              onPress={() => playFeatured(eveningCard)}
+              tagline={eveningCard.description}
+              slotLabel="EVENING"
+            />
+          ) : (
+            <SlotPlaceholderCard slotLabel="EVENING" />
+          )}
+
+          {/* Liner note from ONAY */}
+          <View style={{ marginTop: Space.s26 }}>
+            <LinerNotes>
+              {lead?.description
+                ? `Tonight: ${lead.description.toLowerCase()}. Stay with it through the first side.`
+                : 'Picked records, not algorithms. Stay with them.'}
+            </LinerNotes>
+          </View>
+
+          {/* Primary CTA — tri-state: fresh / resume / now-playing */}
+          {mode.kind === 'resume' && (
+            <>
+              <SectionMarker num="B·01" title="RESUME TONIGHT" side="PICK UP WHERE YOU LEFT OFF" />
+              <View style={{ marginTop: 4 }}>
+                <CatalogRow
+                  label="FROM"
+                  placeholder=""
+                  value={
+                    playlists.find(p => p.id === mode.manifest.playlistId)?.name?.toUpperCase()
+                    ?? `${VIBE_LABEL[mode.manifest.vibe]} · ${mode.manifest.tracks.length} TRACKS`
+                  }
+                  onPress={onResume}
+                />
+                <CatalogRow
+                  label="VIBE"
+                  placeholder=""
+                  value={VIBE_LABEL[mode.manifest.vibe]}
+                  onPress={onResume}
+                />
+                <CatalogRow
+                  label="TRACK"
+                  placeholder=""
+                  value={`${Math.max(0, mode.trackCursor) + 1} OF ${mode.manifest.tracks.length}`}
+                  onPress={onResume}
+                />
+              </View>
+
+              <View style={{ height: Space.s22 }} />
+              <StampButton
+                label="RESUME"
+                sub={`TRACK ${Math.max(0, mode.trackCursor) + 1} OF ${mode.manifest.tracks.length}`}
+                onPress={onResume}
+                accessibilityHint="Resume the broadcast where you left off"
               />
-            ))}
-          </>
-        )}
+              <Pressable
+                onPress={onStartFresh}
+                accessibilityRole="button"
+                accessibilityLabel="Start a fresh broadcast"
+                hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+                style={({ pressed }) => [styles.startFresh, pressed && { opacity: 0.6 }]}
+              >
+                <Text style={styles.startFreshText}>START FRESH</Text>
+              </Pressable>
+            </>
+          )}
 
-        {/* More from ONAY — featured archive rail; sits last so the catalog
-            numbers run B·01 → B·04 in document order. */}
-        {legacyCards.length > 0 && (
-          <>
-            <SectionMarker num="B·04" title="MORE FROM ONAY" side="ARCHIVE" />
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.rail}
-              snapToInterval={162}
-              decelerationRate="fast"
-              snapToAlignment="start"
-            >
-              {legacyCards.map(fb => (
-                <FeaturedRailCard key={fb.id} broadcast={fb} onPress={() => playFeatured(fb)} />
+          {mode.kind === 'now-playing' && (
+            <>
+              <SectionMarker num="B·01" title="NOW PLAYING" side="ON AIR" />
+              <View style={{ marginTop: 4 }}>
+                <CatalogRow
+                  label="FROM"
+                  placeholder=""
+                  value={
+                    playlists.find(p => p.id === mode.manifest.playlistId)?.name?.toUpperCase()
+                    ?? `${VIBE_LABEL[mode.manifest.vibe]} · ${mode.manifest.tracks.length} TRACKS`
+                  }
+                  onPress={onOpenNowPlaying}
+                />
+                <CatalogRow
+                  label="VIBE"
+                  placeholder=""
+                  value={VIBE_LABEL[mode.manifest.vibe]}
+                  onPress={onOpenNowPlaying}
+                />
+                <CatalogRow
+                  label="TRACK"
+                  placeholder=""
+                  value={`${Math.max(0, mode.trackIndex) + 1} OF ${mode.manifest.tracks.length}`}
+                  onPress={onOpenNowPlaying}
+                />
+              </View>
+
+              <View style={{ height: Space.s22 }} />
+              <StampButton
+                label="OPEN PLAYER"
+                sub={`TRACK ${Math.max(0, mode.trackIndex) + 1} OF ${mode.manifest.tracks.length}`}
+                onPress={onOpenNowPlaying}
+                accessibilityHint="Opens the Now Playing screen"
+              />
+            </>
+          )}
+
+          {mode.kind === 'fresh' && (
+            <>
+              <SectionMarker num="B·01" title="ROLL YOUR OWN" side="FROM YOUR LIBRARY" />
+              <View style={{ marginTop: 4 }}>
+                <CatalogRow
+                  label="FROM"
+                  placeholder="pick a playlist"
+                  value={playlistName}
+                  onPress={() => openSheetAt(0)}
+                />
+                <CatalogRow
+                  label="VIBE"
+                  placeholder="pick a vibe"
+                  value={vibe ? VIBE_LABEL[vibe] : null}
+                  onPress={() => openSheetAt(1)}
+                />
+                <CatalogRow
+                  label="LENGTH"
+                  placeholder="pick a length"
+                  value={length ? LENGTH_LABEL[length] : null}
+                  onPress={() => openSheetAt(2)}
+                />
+              </View>
+
+              <View style={{ height: Space.s22 }} />
+              <StampButton
+                label="BEGIN BROADCAST"
+                sub="NO SKIPS · SIT WITH IT"
+                onPress={onBegin}
+                accessibilityHint={
+                  playlistId && vibe && length
+                    ? 'Starts your broadcast'
+                    : 'Opens the setup sheet to finish choosing'
+                }
+              />
+            </>
+          )}
+
+          {/* Ask ONAY — dashed invitation */}
+          <SectionMarker num="B·02" title="ASK ONAY" side="TELL HER A MOOD" />
+          <Pressable
+            onPress={() => router.push('/(main)/(crates)')}
+            accessibilityRole="button"
+            accessibilityLabel="Ask ONAY to curate"
+            style={({ pressed }) => [styles.askCard, pressed && { opacity: 0.75 }]}
+          >
+            <Text style={styles.askQuote}>
+              &ldquo;rainy, autumn, a little melancholy. nothing obvious.&rdquo;
+            </Text>
+            <Text style={styles.askHint}>ONAY PULLS FROM THE CRATE →</Text>
+          </Pressable>
+
+          {/* Earlier tonight */}
+          {visibleRecent.length > 0 && (
+            <>
+              <SectionMarker num="B·03" title="EARLIER TONIGHT" side="24 HOURS" />
+              {visibleRecent.map((entry, i) => (
+                <HairlineRow
+                  key={entry.manifest.broadcastId}
+                  leading={
+                    <Text style={styles.recentNum}>{padIndex(visibleRecent.length - i)}</Text>
+                  }
+                  value={
+                    <View>
+                      <Text style={styles.recentTitle} numberOfLines={1}>
+                        {titleFor(entry, playlists)}
+                      </Text>
+                      <Text style={styles.recentDate}>{dateLabel(entry)}</Text>
+                    </View>
+                  }
+                  trailing={
+                    <Text style={styles.recentDuration}>{durationFor(entry)}</Text>
+                  }
+                  verticalPadding={Space.s14}
+                  onPress={() => playRecent(entry)}
+                  accessibilityLabel={`Replay ${titleFor(entry, playlists)}`}
+                />
               ))}
-            </ScrollView>
-          </>
-        )}
+            </>
+          )}
 
-        {/* Colophon */}
-        <View style={styles.colophon}>
-          <Text style={styles.colophonText}>ONAY RADIO · EST. 2026</Text>
-          <Text style={styles.colophonText}>
-            NO ALGORITHMS · NO SHUFFLE · SIDE A → SIDE B
-          </Text>
-        </View>
+          {/* More from ONAY — featured archive rail; sits last so the catalog
+              numbers run B·01 → B·04 in document order. */}
+          {legacyCards.length > 0 && (
+            <>
+              <SectionMarker num="B·04" title="MORE FROM ONAY" side="ARCHIVE" />
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.rail}
+                snapToInterval={162}
+                decelerationRate="fast"
+                snapToAlignment="start"
+              >
+                {legacyCards.map(fb => (
+                  <FeaturedRailCard key={fb.id} broadcast={fb} onPress={() => playFeatured(fb)} />
+                ))}
+              </ScrollView>
+            </>
+          )}
 
-        {playlistsError && (
-          <Text style={styles.errorNote}>{playlistsError} Pull to retry.</Text>
-        )}
-        {playlistsLoading && (
-          <Text style={styles.loadingNote}>{'Loading your Apple Music playlists…'}</Text>
-        )}
-      </ScrollView>
+          {/* Colophon */}
+          <View style={styles.colophon}>
+            <Text style={styles.colophonText}>ONAY RADIO · EST. 2026</Text>
+            <Text style={styles.colophonText}>
+              NO ALGORITHMS · NO SHUFFLE · SIDE A → SIDE B
+            </Text>
+          </View>
+
+          {playlistsError && (
+            <Text style={styles.errorNote}>{playlistsError} Pull to retry.</Text>
+          )}
+          {playlistsLoading && (
+            <Text style={styles.loadingNote}>{'Loading your Apple Music playlists…'}</Text>
+          )}
+        </ScrollView>
       </Animated.View>
 
       <SetupSheet
