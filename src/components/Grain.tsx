@@ -8,7 +8,12 @@ import { GrainOpacity } from '../tokens/design-tokens';
  */
 export function Grain() {
   return (
-    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+    <View
+      pointerEvents="none"
+      style={StyleSheet.absoluteFill}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    >
       <Image
         source={require('../../assets/textures/grain.png')}
         resizeMode="repeat"

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { AM, Fonts, TypeScale } from '../../tokens/design-tokens';
 import { useAppActive } from '../../hooks/useAppActive';
-import { useSettings } from '../../contexts/SettingsContext';
+import { OnAirIndicator } from '../OnAirIndicator';
+import { SettingsCog } from './SettingsCog';
 
 interface Props {
   onAir?: boolean;
@@ -31,7 +32,6 @@ function formatClock(d: Date): string {
  */
 export function StatusStrip({ onAir = false, num = '001', clock, hideSettings }: Props) {
   const appActive = useAppActive();
-  const settings = useSettings();
   const [live, setLive] = useState(() => formatClock(new Date()));
 
   useEffect(() => {
@@ -42,7 +42,6 @@ export function StatusStrip({ onAir = false, num = '001', clock, hideSettings }:
   }, [appActive, clock]);
 
   const displayClock = clock ?? live;
-  const showCog = !hideSettings && settings.isActive;
 
   return (
     <View style={styles.row}>
@@ -51,28 +50,9 @@ export function StatusStrip({ onAir = false, num = '001', clock, hideSettings }:
         <Text style={styles.num}>№ {num}</Text>
       </View>
       <View style={styles.right}>
-        <View style={[
-          styles.dot,
-          { backgroundColor: onAir ? AM.oxblood : AM.inkDim,
-            shadowColor: onAir ? AM.oxblood : 'transparent',
-            shadowOpacity: onAir ? 1 : 0,
-            shadowRadius: 6,
-          },
-        ]} />
+        <OnAirIndicator active={onAir} />
         <Text style={styles.num}>{onAir ? 'ON AIR' : 'OFF AIR'} · {displayClock}</Text>
-        {showCog && (
-          <Pressable
-            onPress={settings.open}
-            accessibilityRole="button"
-            accessibilityLabel="Open settings"
-            hitSlop={10}
-            style={({ pressed }) => [styles.cog, pressed && { opacity: 0.5 }]}
-          >
-            <View style={styles.cogBar} />
-            <View style={[styles.cogBar, { marginTop: 3 }]} />
-            <View style={[styles.cogBar, { marginTop: 3 }]} />
-          </Pressable>
-        )}
+        {!hideSettings && <SettingsCog />}
       </View>
     </View>
   );
@@ -109,18 +89,5 @@ const styles = StyleSheet.create({
     fontSize: TypeScale.s9,
     color: AM.inkDim,
     letterSpacing: 2,
-  },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  cog: {
-    padding: 4,
-  },
-  cogBar: {
-    width: 14,
-    height: 1,
-    backgroundColor: AM.inkDim,
   },
 });

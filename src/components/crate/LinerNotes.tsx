@@ -6,17 +6,18 @@ interface Props {
   children: ReactNode;
   /** Small italic attribution under the quote. Defaults to "ONAY". */
   attribution?: string;
-  /** Override border color (defaults to oxblood). */
+  /** Override the attribution color (defaults to oxblood). */
   accent?: string;
 }
 
 /**
- * Editorial "ONAY speaks" block. Serif italic text with an oxblood
- * left border and a mono attribution — not a chat bubble.
+ * Editorial "ONAY speaks" block. Fraunces italic body, then a mono
+ * attribution prefixed with an em-dash. Identified by its typography,
+ * not by chrome: no border, no shadow, no background tint.
  */
 export function LinerNotes({ children, attribution = 'ONAY', accent = AM.oxblood }: Props) {
   return (
-    <View style={[styles.wrap, { borderLeftColor: accent }]}>
+    <View style={styles.wrap}>
       {typeof children === 'string' ? (
         <Text style={styles.body}>{children}</Text>
       ) : (
@@ -29,8 +30,7 @@ export function LinerNotes({ children, attribution = 'ONAY', accent = AM.oxblood
 
 const styles = StyleSheet.create({
   wrap: {
-    borderLeftWidth: 2,
-    paddingLeft: 14,
+    paddingLeft: 0,
   },
   body: {
     fontFamily: Fonts.serif,
