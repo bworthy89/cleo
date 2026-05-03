@@ -1,0 +1,249 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-05-03T00:00:00Z",
+  "title": "Design System: ONAY",
+  "extensions": {
+    "colorMeta": {
+      "amber": {
+        "role": "primary",
+        "displayName": "Amber",
+        "canonical": "oklch(73% 0.13 62)",
+        "tonalRamp": [
+          "oklch(15% 0.05 62)",
+          "oklch(28% 0.08 62)",
+          "oklch(42% 0.11 62)",
+          "oklch(56% 0.13 62)",
+          "oklch(73% 0.13 62)",
+          "oklch(82% 0.11 62)",
+          "oklch(89% 0.08 62)",
+          "oklch(95% 0.04 62)"
+        ]
+      },
+      "oxblood": {
+        "role": "secondary",
+        "displayName": "Oxblood",
+        "canonical": "oklch(46% 0.13 28)",
+        "tonalRamp": [
+          "oklch(15% 0.05 28)",
+          "oklch(25% 0.08 28)",
+          "oklch(36% 0.11 28)",
+          "oklch(46% 0.13 28)",
+          "oklch(58% 0.12 28)",
+          "oklch(72% 0.10 28)",
+          "oklch(85% 0.06 28)",
+          "oklch(95% 0.03 28)"
+        ]
+      },
+      "bg": {
+        "role": "neutral",
+        "displayName": "Warm Black",
+        "canonical": "oklch(10% 0.008 50)",
+        "tonalRamp": [
+          "oklch(6% 0.005 50)",
+          "oklch(10% 0.008 50)",
+          "oklch(20% 0.01 50)",
+          "oklch(35% 0.01 50)",
+          "oklch(50% 0.01 50)",
+          "oklch(70% 0.01 50)",
+          "oklch(85% 0.01 50)",
+          "oklch(95% 0.005 50)"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Cream",
+        "canonical": "oklch(94% 0.025 85)",
+        "tonalRamp": [
+          "oklch(15% 0.01 85)",
+          "oklch(30% 0.015 85)",
+          "oklch(50% 0.02 85)",
+          "oklch(70% 0.025 85)",
+          "oklch(85% 0.025 85)",
+          "oklch(94% 0.025 85)",
+          "oklch(97% 0.015 85)",
+          "oklch(99% 0.005 85)"
+        ]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Paper Stock",
+        "canonical": "oklch(93% 0.04 85)",
+        "tonalRamp": [
+          "oklch(15% 0.015 85)",
+          "oklch(30% 0.025 85)",
+          "oklch(50% 0.035 85)",
+          "oklch(70% 0.045 85)",
+          "oklch(85% 0.045 85)",
+          "oklch(93% 0.04 85)",
+          "oklch(97% 0.025 85)",
+          "oklch(99% 0.01 85)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display (Anton condensed)",
+        "purpose": "Titles, CTA labels, the value column of catalog rows. Always uppercase. iOS requires explicit lineHeight = 1.2 * fontSize because Anton's cap-height clips at tight line-boxes."
+      },
+      "display-stamp": {
+        "displayName": "Display Stamp",
+        "purpose": "The CTA-label tier of Anton: 20px with 0.1em letter-spacing, used inside StampButton."
+      },
+      "body": {
+        "displayName": "Body (Fraunces Italic)",
+        "purpose": "Host commentary, liner-note captions, sheet copy, the ONAY-speaks block. Italic always on. Body line length capped at 65-75ch."
+      },
+      "label": {
+        "displayName": "Label (JetBrains Mono)",
+        "purpose": "Row labels, side metadata, timestamps, ONAY attribution. Always uppercase, 9-12px, letter-spaced 0.2em."
+      },
+      "catalog-num": {
+        "displayName": "Catalog Number",
+        "purpose": "The Mono 500-weight prefix that sits before every Section Marker title. Always amber-dim, never full amber: the title carries the signal weight, not the prefix."
+      }
+    },
+    "shadows": [
+      {
+        "name": "cta-ambient-haze",
+        "value": "0 0 24px rgba(232, 162, 75, 0.12)",
+        "purpose": "Ambient amber halo around the primary play button when it is the next action. Diffuse, low-opacity. Reads as 'this is hot,' not 'this is lifted.' Used only on the active CTA, never on a static button at rest."
+      },
+      {
+        "name": "on-air-pulse-glow",
+        "value": "0 0 6px rgba(164, 58, 46, 1)",
+        "purpose": "Hard oxblood haze around the 5px on-air dot. Animated 1.0 -> 0.65 -> 1.0 over 1.8s. Structural signal: 'the broadcast is live right now.'"
+      },
+      {
+        "name": "oxblood-stamp-offset",
+        "value": "2px 2px 0 #050403",
+        "purpose": "Hard, no-blur offset under oxblood plates. Reads as a wet ink stamp pressed into the sleeve. Used only on oxblood components."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out-exp",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Default exponential ease-out for state transitions, sheet entrances, and tuning-in overlay. No bounce, no elastic."
+      },
+      {
+        "name": "on-air-pulse",
+        "value": "1800ms infinite (0% opacity 1, 50% opacity 0.65, 100% opacity 1)",
+        "purpose": "On-air dot's gentle pulse. Pauses on useAppActive() === false to respect iOS background CPU budget."
+      },
+      {
+        "name": "press-feedback",
+        "value": "opacity 0.8 (stamp buttons) | 0.75 (catalog rows) | 0.6-0.7 (ghost / text buttons)",
+        "purpose": "Touch press states. Paired with Haptics.impactAsync (Medium for stamps, Light for rows)."
+      }
+    ],
+    "breakpoints": []
+  },
+  "components": [
+    {
+      "name": "Stamp Button (Amber)",
+      "kind": "button",
+      "refersTo": "stamp-button-amber",
+      "description": "Primary CTA. Bordered rectangle with four corner Ticks, Anton label, optional mono sub-label, trailing arrow.",
+      "html": "<button class=\"ds-stamp-amber\"><span class=\"ds-tick ds-tick-tl\"></span><span class=\"ds-tick ds-tick-tr\"></span><span class=\"ds-tick ds-tick-bl\"></span><span class=\"ds-tick ds-tick-br\"></span><span class=\"ds-stamp-body\"><span class=\"ds-stamp-label\">DROP THE NEEDLE</span><span class=\"ds-stamp-sub\">CUE BROADCAST</span></span><span class=\"ds-stamp-arrow\">&#8594;</span></button>",
+      "css": ".ds-stamp-amber { position: relative; display: inline-flex; align-items: center; justify-content: space-between; min-width: 280px; padding: 18px 20px 16px; background: #0B0907; border: 1.5px solid #E8A24B; border-radius: 0; color: #E8A24B; font-family: 'Anton', sans-serif; cursor: pointer; transition: opacity 200ms cubic-bezier(0.16, 1, 0.3, 1); } .ds-stamp-amber:hover { opacity: 0.9; } .ds-stamp-amber:active { opacity: 0.8; } .ds-tick { position: absolute; width: 10px; height: 10px; background: #0B0907; border-color: #E8A24B; border-style: solid; border-width: 0; pointer-events: none; } .ds-tick-tl { top: -1px; left: -1px; border-top-width: 1.5px; border-left-width: 1.5px; } .ds-tick-tr { top: -1px; right: -1px; border-top-width: 1.5px; border-right-width: 1.5px; } .ds-tick-bl { bottom: -1px; left: -1px; border-bottom-width: 1.5px; border-left-width: 1.5px; } .ds-tick-br { bottom: -1px; right: -1px; border-bottom-width: 1.5px; border-right-width: 1.5px; } .ds-stamp-body { display: flex; flex-direction: column; align-items: flex-start; flex: 1; } .ds-stamp-label { font-size: 20px; line-height: 24px; letter-spacing: 0.1em; text-transform: uppercase; } .ds-stamp-sub { margin-top: 4px; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase; color: #F4ECDC94; } .ds-stamp-arrow { font-size: 24px; line-height: 28px; margin-left: 12px; }"
+    },
+    {
+      "name": "Stamp Button (Oxblood)",
+      "kind": "button",
+      "refersTo": "stamp-button-oxblood",
+      "description": "Secondary CTA for editorial actions (publish featured, curator-only flows). Identical geometry to the amber stamp; oxblood stroke and label instead.",
+      "html": "<button class=\"ds-stamp-oxblood\"><span class=\"ds-tick-ox ds-tick-ox-tl\"></span><span class=\"ds-tick-ox ds-tick-ox-tr\"></span><span class=\"ds-tick-ox ds-tick-ox-bl\"></span><span class=\"ds-tick-ox ds-tick-ox-br\"></span><span class=\"ds-stamp-body\"><span class=\"ds-stamp-label-ox\">PUBLISH</span><span class=\"ds-stamp-sub\">CURATOR ACTION</span></span><span class=\"ds-stamp-arrow-ox\">&#8594;</span></button>",
+      "css": ".ds-stamp-oxblood { position: relative; display: inline-flex; align-items: center; justify-content: space-between; min-width: 280px; padding: 18px 20px 16px; background: #0B0907; border: 1.5px solid #A43A2E; border-radius: 0; color: #A43A2E; font-family: 'Anton', sans-serif; cursor: pointer; transition: opacity 200ms cubic-bezier(0.16, 1, 0.3, 1); } .ds-stamp-oxblood:active { opacity: 0.8; } .ds-tick-ox { position: absolute; width: 10px; height: 10px; background: #0B0907; border-color: #A43A2E; border-style: solid; border-width: 0; pointer-events: none; } .ds-tick-ox-tl { top: -1px; left: -1px; border-top-width: 1.5px; border-left-width: 1.5px; } .ds-tick-ox-tr { top: -1px; right: -1px; border-top-width: 1.5px; border-right-width: 1.5px; } .ds-tick-ox-bl { bottom: -1px; left: -1px; border-bottom-width: 1.5px; border-left-width: 1.5px; } .ds-tick-ox-br { bottom: -1px; right: -1px; border-bottom-width: 1.5px; border-right-width: 1.5px; } .ds-stamp-label-ox { font-size: 20px; line-height: 24px; letter-spacing: 0.1em; text-transform: uppercase; } .ds-stamp-arrow-ox { font-size: 24px; line-height: 28px; margin-left: 12px; }"
+    },
+    {
+      "name": "Catalog Row",
+      "kind": "input",
+      "refersTo": "catalog-row",
+      "description": "Picklist line. Mono label (left, fixed width) + Anton value (center) + trailing arrow. Hairline divider beneath. Used on the FROM / VIBE / LENGTH rows in the broadcast setup flow.",
+      "html": "<div class=\"ds-catalog-row\"><span class=\"ds-row-label\">FROM</span><span class=\"ds-row-value\">DEEP CUTS 2008</span><span class=\"ds-row-arrow\">&#8594;</span></div>",
+      "css": ".ds-catalog-row { display: flex; align-items: baseline; gap: 14px; padding: 14px 0; border-bottom: 0.5px solid #F4ECDC42; cursor: pointer; transition: opacity 150ms cubic-bezier(0.16, 1, 0.3, 1); } .ds-catalog-row:active { opacity: 0.75; } .ds-row-label { width: 56px; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase; color: #F4ECDC94; } .ds-row-value { flex: 1; font-family: 'Anton', sans-serif; font-size: 16px; line-height: 19px; letter-spacing: 0.04em; text-transform: uppercase; color: #F4ECDC; } .ds-row-arrow { font-family: 'Anton', sans-serif; font-size: 18px; line-height: 22px; color: #F4ECDC94; }"
+    },
+    {
+      "name": "Section Marker",
+      "kind": "nav",
+      "refersTo": "section-marker",
+      "description": "Catalog-style section header. Mono catalog number (amber-dim) + Anton title + hairline rule + optional right-side mono label. The only way to title a section.",
+      "html": "<div class=\"ds-section-marker\"><div class=\"ds-section-row\"><div class=\"ds-section-left\"><span class=\"ds-section-num\">B&middot;01</span><span class=\"ds-section-title\">EARLIER TONIGHT</span></div><span class=\"ds-section-side\">FROM YOUR LIBRARY</span></div></div>",
+      "css": ".ds-section-marker { margin-top: 32px; margin-bottom: 14px; } .ds-section-row { display: flex; align-items: flex-end; justify-content: space-between; padding-bottom: 6px; border-bottom: 1px solid #F4ECDC80; } .ds-section-left { display: flex; align-items: baseline; gap: 10px; flex: 1; } .ds-section-num { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 10px; font-weight: 500; letter-spacing: 0.2em; color: #E8A24B8C; text-transform: uppercase; } .ds-section-title { font-family: 'Anton', sans-serif; font-size: 22px; line-height: 26px; letter-spacing: 0.025em; color: #F4ECDC; text-transform: uppercase; } .ds-section-side { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 9px; letter-spacing: 0.2em; color: #F4ECDC94; text-transform: uppercase; }"
+    },
+    {
+      "name": "Liner Notes",
+      "kind": "card",
+      "refersTo": "liner-notes",
+      "description": "The 'ONAY speaks' editorial block. Fraunces italic body + mono attribution prefixed with em-dash. No side-stripe (the current 2px oxblood border-left in code is a documented violation, scheduled for removal).",
+      "html": "<blockquote class=\"ds-liner-notes\"><p class=\"ds-liner-body\">There is no chronology to a great mixtape, only weather. Tonight starts in low overcast and clears around track six.</p><p class=\"ds-liner-attr\">&mdash; ONAY</p></blockquote>",
+      "css": ".ds-liner-notes { margin: 0; padding: 12px 14px; background: transparent; border: none; } .ds-liner-body { margin: 0; font-family: 'Fraunces', Georgia, serif; font-style: italic; font-size: 15px; line-height: 22.5px; color: #F4ECDCCC; } .ds-liner-attr { margin-top: 8px; margin-bottom: 0; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 9px; letter-spacing: 0.25em; text-transform: uppercase; color: #A43A2E; }"
+    },
+    {
+      "name": "On-Air Indicator (live)",
+      "kind": "custom",
+      "refersTo": "on-air-dot",
+      "description": "5px oxblood circle with a 6px hard oxblood glow, pulsing 1.0 -> 0.65 -> 1.0 over 1.8s. Represents an active broadcast.",
+      "html": "<span class=\"ds-on-air\" role=\"img\" aria-label=\"on air\"></span>",
+      "css": ".ds-on-air { display: inline-block; width: 5px; height: 5px; border-radius: 9999px; background: #A43A2E; box-shadow: 0 0 6px rgba(164, 58, 46, 1); animation: ds-on-air-pulse 1800ms cubic-bezier(0.16, 1, 0.3, 1) infinite; } @keyframes ds-on-air-pulse { 0% { opacity: 1; } 50% { opacity: 0.65; } 100% { opacity: 1; } } @media (prefers-reduced-motion: reduce) { .ds-on-air { animation: none; } }"
+    },
+    {
+      "name": "Hairline Divider",
+      "kind": "custom",
+      "refersTo": "hairline-divider",
+      "description": "1px cream rule at 26-50% alpha. The default separator across the system; used in place of cards, dividers, or background-tinted zones.",
+      "html": "<hr class=\"ds-hairline\" />",
+      "css": ".ds-hairline { width: 100%; height: 1px; margin: 0; border: none; background: #F4ECDC42; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Catalog Sleeve",
+    "overview": "ONAY is dressed like the back of a record. The app frames the broadcast the way liner notes frame a pressing: a warm-black sleeve, cream type set in Anton at the top of every plate, JetBrains Mono catalog numbers running in the gutter, Fraunces italic for the host's voice. Amber and oxblood are not decoration; they are the only two ink colors on the press. Amber means signal (live, glowing, ready). Oxblood means stamp (authority, the editorial mark). Everything else is cream on warm black or hairlines that came off a metal rule. The system explicitly rejects three families: Spotify-skin card grids (Yoodio), bright peppy SaaS chrome (Radiant), and AI-radio futurism (synth gradients, neon, glassmorphism). The visual register is editorial print, not app chrome. The system commits to scarcity: one display face, one body face, one mono. Two colors of ink. Radius 0 almost everywhere. Most surfaces are flat; the only shadows in the system are signal cues and the ink-stamp displacement on oxblood plates.",
+    "keyCharacteristics": [
+      "Warm-black (#0B0907) base, never pure black, tinted toward the amber/oxblood family.",
+      "Three faces only: Anton condensed display, Fraunces italic body, JetBrains Mono labels.",
+      "Sharp corners; rounded.none is the default for plates, buttons, sheets, cards.",
+      "Two-ink rule: amber for signal, oxblood for stamp; cream is 'ink' not a third color.",
+      "Hairlines, not dividers: 1px rules at 26-50% cream alpha.",
+      "Mostly flat. Shadows only as signal (on-air glow, CTA ambient haze, ink-stamp offset).",
+      "Editorial gestures everywhere: corner ticks, catalog numbers, sleeve framing, mono metadata."
+    ],
+    "rules": [
+      { "name": "The Two-Ink Rule", "body": "Exactly two ink colors on the press: amber (signal) and oxblood (stamp). Cream is the substrate; warm black is the sleeve. No third accent (no teal info, no green success, no blue link). Errors borrow oxblood. Applies to UI surfaces only: chrome, controls, status, type, hairlines, plates, sheets. Does not apply to simulated physical artifacts (SleeveArt's 8-palette placeholder album art is scoped outside the rule because record sleeves on a shelf are chromatically varied; muting them to amber + oxblood would lose the 'records, not avatars' reading).", "section": "colors" },
+      { "name": "The One Voice Rule", "body": "Amber stays under ~10% of any screen's visible ink. Its rarity is the point.", "section": "colors" },
+      { "name": "The No-Pure-Black Rule", "body": "#000 is forbidden. Every 'black' is #0B0907 or #050403, warm-tinted toward the amber/oxblood family.", "section": "colors" },
+      { "name": "The Anton Cap-Height Rule", "body": "Every Anton run on iOS sets lineHeight to ~1.2x its fontSize explicitly, or the cap-height clips silently.", "section": "typography" },
+      { "name": "The Three-Face Rule", "body": "Anton, Fraunces Italic, JetBrains Mono. Three. Fallbacks resolve to system serif/sans only as graceful-degradation, never as authored choices.", "section": "typography" },
+      { "name": "The All-Caps-Mono Rule", "body": "Mono is always uppercase, always letter-spaced 0.2-0.25em, always 9-12px. Mono in mixed case at 14px+ reads like code, the wrong register.", "section": "typography" },
+      { "name": "The Flat-By-Default Rule", "body": "Surfaces are flat. Cards do not float. The three system shadows (CTA ambient haze, on-air pulse glow, oxblood ink-stamp offset) are the entire elevation vocabulary.", "section": "elevation" },
+      { "name": "The Stamp-Not-Emboss Rule", "body": "When a shadow is needed it goes flat-offset (the oxbloodStamp ink-press), never soft-blurred (the SaaS card hover). Stamps press into the sleeve; embossed cards lift off it. ONAY only stamps.", "section": "elevation" },
+      { "name": "The No-Side-Stripe Rule", "body": "border-left or border-right greater than 1px as a colored accent is forbidden. The current LinerNotes 2px oxblood border-left is a documented violation, scheduled for removal.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do use exactly two ink colors: amber (#E8A24B) for signal, oxblood (#A43A2E) for stamp. Cream is the substrate, not an ink.",
+      "Do set every Anton run with explicit lineHeight: 1.2 * fontSize on iOS (the cap-height clips otherwise).",
+      "Do use Pressable with accessibilityLabel + accessibilityRole on every interactive element. Haptics on every tap (Medium for stamps, Light for rows).",
+      "Do wrap every screen root in BroadcastBackdrop so the amber bloom + grain layer composes correctly underneath.",
+      "Do use a Section Marker to title every list section: catalog number + Anton title + hairline rule + optional side label.",
+      "Do prefer hairlines (1px at 26-50% cream alpha) over dividers, spacing breaks, or background-tint zones.",
+      "Do pause every Animated.loop on useAppActive() === false so the iOS background CPU budget (48s/60s) is not blown.",
+      "Do keep amber under ~10% of any screen's visible ink (the One Voice Rule).",
+      "Do use the StampButton's four corner Ticks. They are the signature; rounded-corner buttons without ticks are off-system."
+    ],
+    "donts": [
+      "Don't use #000 or #fff anywhere; warm-tint every neutral toward the amber/oxblood family.",
+      "Don't introduce a third accent color. No teal info, no green success, no blue link. Status is amber or oxblood. Errors borrow oxblood.",
+      "Don't revive per-vibe accent colors (Colors.vibe.*, getVibeAccent()). Every vibe is amber. The unification was deliberate (commit d7193096); reintroducing it is a regression.",
+      "Don't use side-stripe borders (border-left or border-right greater than 1px as a colored accent). The current LinerNotes 2px oxblood border-left is a known violation, scheduled for removal; do not propagate the pattern.",
+      "Don't ship Spotify-skin card grids. Cards in ONAY are bordered plates with corner ticks, not rounded containers stacked in a uniform feed (the Yoodio anti-reference).",
+      "Don't ship bright, peppy chrome: rounded buttons with gradient fills, breezy SaaS sans, friendly emoji microcopy. The host is unhurried; the chrome should be too (the Radiant anti-reference).",
+      "Don't ship 'AI radio' futurism: synth-glow gradients, neon accents, glassmorphism, robot-host iconography, 'Powered by AI' badges, hero-metric dashboards.",
+      "Don't add rounded corners to plates, buttons, or sheets. rounded.none is the default; rounded.full is for the on-air dot and any other deliberately circular element.",
+      "Don't introduce soft drop shadows under cards or hover-lifts on surfaces. The only shadows in the system are the CTA ambient haze, the on-air pulse glow, and the oxblood ink-stamp displacement.",
+      "Don't mix Animated.loop bounce or elastic easing into transitions. Easing is exponential ease-out; bouncy transitions break the unhurried register.",
+      "Don't use a fourth typeface, even as a fallback. Anton, Fraunces Italic, JetBrains Mono.",
+      "Don't title sections with the legacy small-caps amber label or the 2x40 gold bar. Use Section Marker.",
+      "Don't wrap everything in a card. Most surfaces are flat and framed by hairlines, not by bordered containers."
+    ]
+  }
+}

@@ -1,4 +1,4 @@
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import Svg, { Circle, Defs, Pattern, Rect } from 'react-native-svg';
 import { AM } from '../../tokens/design-tokens';
 
@@ -18,32 +18,40 @@ interface Props {
  * printed-poster feel. Rendered as a single SVG `<Pattern>` — one DOM node
  * regardless of coverage area, so it composes fine inside scrollable lists
  * without the per-dot View overhead of a grid.
+ *
+ * Decorative: wrapped in a hidden a11y view so VoiceOver doesn't traverse
+ * the pattern's child nodes.
  */
 export function Halftone({ opacity = 0.35, color, spacing = 5, radius = 0.7 }: Props) {
   const fill = color ?? AM.cream;
 
   return (
-    <Svg
+    <View
       pointerEvents="none"
       style={[StyleSheet.absoluteFillObject, { opacity }]}
-      // width/height get replaced by the 100% attributes below, but RN-SVG
-      // requires numeric props too; any finite value works since we fill.
-      width="100%"
-      height="100%"
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
     >
-      <Defs>
-        <Pattern
-          id="halftone"
-          x="0"
-          y="0"
-          width={spacing}
-          height={spacing}
-          patternUnits="userSpaceOnUse"
-        >
-          <Circle cx={radius} cy={radius} r={radius} fill={fill} />
-        </Pattern>
-      </Defs>
-      <Rect x="0" y="0" width="100%" height="100%" fill="url(#halftone)" />
-    </Svg>
+      <Svg
+        // width/height get replaced by the 100% attributes below, but RN-SVG
+        // requires numeric props too; any finite value works since we fill.
+        width="100%"
+        height="100%"
+      >
+        <Defs>
+          <Pattern
+            id="halftone"
+            x="0"
+            y="0"
+            width={spacing}
+            height={spacing}
+            patternUnits="userSpaceOnUse"
+          >
+            <Circle cx={radius} cy={radius} r={radius} fill={fill} />
+          </Pattern>
+        </Defs>
+        <Rect x="0" y="0" width="100%" height="100%" fill="url(#halftone)" />
+      </Svg>
+    </View>
   );
 }

@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, View } from 'react-native';
-import { AM } from '../../tokens/design-tokens';
+import { AM, withAlpha } from '../../tokens/design-tokens';
 import { useAppActive } from '../../hooks/useAppActive';
+import { useReduceMotion } from '../../hooks/useReduceMotion';
 
 interface Props {
   size?: number;
@@ -15,15 +16,26 @@ interface Props {
 
 /**
  * Spinning vinyl with a small tonearm — used in TuningInOverlay and
- * as the "authenticating" indicator on login. Pauses when backgrounded.
+ * as the "authenticating" indicator on login. Pauses when backgrounded
+ * and when iOS Reduce Motion is on (vestibular-sensitive users get a
+ * still record).
+ *
+ * The component is decorative; surrounding copy carries the semantic
+ * load (e.g. TuningInOverlay's "DROPPING THE NEEDLE…" headline +
+ * cycling status live region). Hidden from the a11y tree so VoiceOver
+ * doesn't announce the spinning vinyl.
  */
 export function SpinningRecord({ size = 180, labelColor = AM.oxblood, period = 3200, tonearm = true }: Props) {
   const appActive = useAppActive();
+  const reduceMotion = useReduceMotion();
   const rot = useRef(new Animated.Value(0)).current;
   const arm = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    if (!appActive) return;
+    if (!appActive || reduceMotion) {
+      rot.setValue(0);
+      return;
+    }
     const spin = Animated.loop(
       Animated.timing(rot, {
         toValue: 1,
@@ -34,10 +46,13 @@ export function SpinningRecord({ size = 180, labelColor = AM.oxblood, period = 3
     );
     spin.start();
     return () => spin.stop();
-  }, [appActive, rot, period]);
+  }, [appActive, reduceMotion, rot, period]);
 
   useEffect(() => {
-    if (!appActive || !tonearm) return;
+    if (!appActive || !tonearm || reduceMotion) {
+      arm.setValue(0);
+      return;
+    }
     const drop = Animated.loop(
       Animated.sequence([
         Animated.timing(arm, { toValue: 1, duration: 1200, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
@@ -46,13 +61,17 @@ export function SpinningRecord({ size = 180, labelColor = AM.oxblood, period = 3
     );
     drop.start();
     return () => drop.stop();
-  }, [appActive, tonearm, arm]);
+  }, [appActive, tonearm, reduceMotion, arm]);
 
   const rotate = rot.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
   const armRot = arm.interpolate({ inputRange: [0, 1], outputRange: ['-8deg', '2deg'] });
 
   return (
-    <View style={{ width: size, height: size }}>
+    <View
+      style={{ width: size, height: size }}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    >
       {/* Vinyl disc */}
       <Animated.View style={[
         StyleSheet.absoluteFillObject,
@@ -75,7 +94,7 @@ export function SpinningRecord({ size = 180, labelColor = AM.oxblood, period = 3
               height: size * pct,
               borderRadius: (size * pct) / 2,
               borderWidth: 0.5,
-              borderColor: 'rgba(232,162,75,0.08)',
+              borderColor: withAlpha(AM.amber, 0.08),
             }}
           />
         ))}

@@ -22,6 +22,10 @@ interface HairlineRowProps {
   /** When true, the row is inert: no haptic, no onPress, Pressable disabled,
    *  and accessibilityState.disabled is set so VoiceOver announces "dimmed". */
   disabled?: boolean;
+  /** Rule color tone. `cream` (default) is the canonical hairline
+   *  per DESIGN.md; `amber` is reserved for surfaces that want a warmer
+   *  editorial tint (use sparingly). */
+  tone?: 'cream' | 'amber';
   style?: StyleProp<ViewStyle>;
 }
 
@@ -35,11 +39,15 @@ export function HairlineRow({
   verticalPadding = Space.s16,
   leadingWidth,
   disabled,
+  tone = 'cream',
   style,
 }: HairlineRowProps) {
+  const ruleColor = tone === 'amber' ? AM.amberFaint : AM.rule;
   const rowStyle = [
     styles.row,
-    topRule ? styles.topRule : styles.bottomRule,
+    topRule
+      ? { borderTopWidth: 1, borderTopColor: ruleColor }
+      : { borderBottomWidth: 1, borderBottomColor: ruleColor },
     { paddingVertical: verticalPadding },
     style,
   ];
@@ -85,14 +93,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Space.s16,
-  },
-  bottomRule: {
-    borderBottomWidth: 1,
-    borderBottomColor: AM.amberFaint,
-  },
-  topRule: {
-    borderTopWidth: 1,
-    borderTopColor: AM.amberFaint,
   },
   leading: {
     flexShrink: 0,

@@ -14,6 +14,11 @@ interface Props {
  * baked into `StatusStrip`, exported so screens that replace the strip
  * with their own masthead (Tonight, Crates) still expose a settings entry.
  *
+ * Visual icon stays small (14×~7pt) so it reads as restrained editorial
+ * chrome. The Pressable's `hitSlop` expands the effective tap target to
+ * roughly 46×43pt, satisfying iOS HIG 44×44 without inflating the cog's
+ * layout footprint inside StatusStrip's flex row.
+ *
  * Renders nothing if no SettingsProvider is in scope (login/onboarding).
  */
 export function SettingsCog({ color, size = 14 }: Props) {
@@ -27,7 +32,7 @@ export function SettingsCog({ color, size = 14 }: Props) {
       onPress={settings.open}
       accessibilityRole="button"
       accessibilityLabel="Open settings"
-      hitSlop={10}
+      hitSlop={{ top: 18, bottom: 18, left: 16, right: 16 }}
       style={({ pressed }) => [styles.btn, pressed && { opacity: 0.5 }]}
     >
       <View style={{ width: size, height: 1, backgroundColor: fill }} />
