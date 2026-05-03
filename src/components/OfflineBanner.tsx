@@ -33,7 +33,7 @@ export function OfflineBanner({ isOffline }: { isOffline: boolean }) {
   return (
     <Animated.View style={[styles.banner, { transform: [{ translateY }] }]}>
       <LiquidGlassView style={styles.glassFill}>
-        <Text style={styles.text}>NO CONNECTION — MUSIC CONTINUES, ONAY IS QUIET</Text>
+        <Text style={styles.text}>NO CONNECTION. MUSIC CONTINUES, ONAY IS QUIET.</Text>
       </LiquidGlassView>
     </Animated.View>
   );

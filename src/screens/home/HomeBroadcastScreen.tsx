@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
+  Animated,
+  Easing,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,6 +14,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { AM, Fonts, Space, TypeScale } from '../../tokens/design-tokens';
 import { BroadcastBackdrop } from '../../components/BroadcastBackdrop';
+import { HairlineRow } from '../../components/HairlineRow';
 import { TuningInOverlay } from '../../components/broadcast/TuningInOverlay';
 import { SetupSheet, type SetupResult } from '../../components/broadcast/SetupSheet';
 import { FeaturedBroadcastCard } from '../../components/broadcast/FeaturedBroadcastCard';
@@ -24,6 +26,7 @@ import {
   SectionMarker,
   LinerNotes,
   CatalogRow,
+  SpinningRecord,
 } from '../../components/crate';
 import { musicKitPlayer } from '../../services/MusicKitPlayer';
 import {
@@ -46,6 +49,7 @@ import {
 } from '../../services/Storage';
 import { formatLocalTime12h } from '../../utils/time';
 import { useAppActive } from '../../hooks/useAppActive';
+import { useReduceMotion } from '../../hooks/useReduceMotion';
 import { HealthStatusBanner } from '../../components/HealthStatusBanner';
 
 type Vibe   = Manifest['vibe'];
@@ -113,6 +117,14 @@ export default function HomeBroadcastScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const appActive = useAppActive();
+  const reduceMotion = useReduceMotion();
+
+  // Cold-launch reveal: when `loading` flips false, fade the populated
+  // catalog in over 250ms. Carries the editorial "tuning in → tuned in"
+  // continuity from the SpinningRecord moment instead of letting the
+  // populated screen pop in instantly. Reduce-motion users get the
+  // snap-on (opacity goes to 1 without animation).
+  const fadeIn = useRef(new Animated.Value(0)).current;
 
   const [playlistId, setPlaylistId] = useState<string | null>(null);
   const [vibe, setVibe] = useState<Vibe | null>(null);
@@ -139,7 +151,12 @@ export default function HomeBroadcastScreen() {
   const [broadcastActive, setBroadcastActive] = useState(false);
   const [mode, setMode] = useState<HomeCtaMode>({ kind: 'fresh' });
 
-  useEffect(() => {
+  // Poll the broadcast player's status while this tab is focused AND the
+  // app is foregrounded. `useFocusEffect` mounts/unmounts the interval on
+  // tab switches, so the ONAY tab doesn't keep the timer firing in the
+  // background; `appActive` belt-and-braces it for the screen-locked case
+  // when the broadcast tab itself happens to be the last-focused one.
+  useFocusEffect(useCallback(() => {
     if (!appActive) return;
     const tick = () => {
       const status = broadcastPlayer.getStatus();
@@ -157,7 +174,7 @@ export default function HomeBroadcastScreen() {
     tick();
     const id = setInterval(tick, 2000);
     return () => clearInterval(id);
-  }, [appActive]);
+  }, [appActive]));
 
   const refreshRecent = useCallback(() => setRecent(getBroadcastHistory()), []);
 
@@ -222,6 +239,21 @@ export default function HomeBroadcastScreen() {
     })();
     return () => { mounted = false; };
   }, [loadPlaylists]);
+
+  // Trigger the cold-launch reveal once `loading` flips false.
+  useEffect(() => {
+    if (loading) return;
+    if (reduceMotion) {
+      fadeIn.setValue(1);
+      return;
+    }
+    Animated.timing(fadeIn, {
+      toValue: 1,
+      duration: 250,
+      easing: Easing.out(Easing.exp),
+      useNativeDriver: true,
+    }).start();
+  }, [loading, reduceMotion, fadeIn]);
 
   // Derive the primary-CTA mode from two signals:
   //  (a) is the BroadcastPlayer singleton currently active in memory, and
@@ -483,8 +515,13 @@ export default function HomeBroadcastScreen() {
   if (loading) {
     return (
       <BroadcastBackdrop>
-        <View style={styles.loading}>
-          <ActivityIndicator color={AM.amber} />
+        <View
+          style={styles.loading}
+          accessibilityRole="progressbar"
+          accessibilityLabel="Loading tonight's broadcasts"
+        >
+          <SpinningRecord size={120} tonearm={false} period={4200} />
+          <Text style={styles.loadingCaption}>TUNING IN</Text>
         </View>
       </BroadcastBackdrop>
     );
@@ -508,6 +545,7 @@ export default function HomeBroadcastScreen() {
 
   return (
     <BroadcastBackdrop>
+      <Animated.View style={[styles.flex, { opacity: fadeIn }]}>
       <ScrollView
         style={styles.flex}
         contentContainerStyle={[
@@ -544,29 +582,11 @@ export default function HomeBroadcastScreen() {
           <SlotPlaceholderCard slotLabel="EVENING" />
         )}
 
-        {legacyCards.length > 0 && (
-          <>
-            <SectionMarker num="B·04" title="MORE FROM ONAY" side="ARCHIVE" />
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.rail}
-              snapToInterval={162}
-              decelerationRate="fast"
-              snapToAlignment="start"
-            >
-              {legacyCards.map(fb => (
-                <FeaturedRailCard key={fb.id} broadcast={fb} onPress={() => playFeatured(fb)} />
-              ))}
-            </ScrollView>
-          </>
-        )}
-
         {/* Liner note from ONAY */}
         <View style={{ marginTop: Space.s26 }}>
           <LinerNotes>
             {lead?.description
-              ? `Tonight — ${lead.description.toLowerCase()}. Stay with it through the first side.`
+              ? `Tonight: ${lead.description.toLowerCase()}. Stay with it through the first side.`
               : 'Picked records, not algorithms. Stay with them.'}
           </LinerNotes>
         </View>
@@ -574,7 +594,7 @@ export default function HomeBroadcastScreen() {
         {/* Primary CTA — tri-state: fresh / resume / now-playing */}
         {mode.kind === 'resume' && (
           <>
-            <SectionMarker num="B·01" title="RESUME TONIGHT" side="PICK UP WHERE YOU LEFT" />
+            <SectionMarker num="B·01" title="RESUME TONIGHT" side="PICK UP WHERE YOU LEFT OFF" />
             <View style={{ marginTop: 4 }}>
               <CatalogRow
                 label="FROM"
@@ -702,7 +722,7 @@ export default function HomeBroadcastScreen() {
           style={({ pressed }) => [styles.askCard, pressed && { opacity: 0.75 }]}
         >
           <Text style={styles.askQuote}>
-            &ldquo;rainy, autumn, a little melancholy &mdash; nothing obvious&rdquo;
+            &ldquo;rainy, autumn, a little melancholy. nothing obvious.&rdquo;
           </Text>
           <Text style={styles.askHint}>ONAY PULLS FROM THE CRATE →</Text>
         </Pressable>
@@ -712,23 +732,47 @@ export default function HomeBroadcastScreen() {
           <>
             <SectionMarker num="B·03" title="EARLIER TONIGHT" side="24 HOURS" />
             {visibleRecent.map((entry, i) => (
-              <Pressable
+              <HairlineRow
                 key={entry.manifest.broadcastId}
+                leading={
+                  <Text style={styles.recentNum}>{padIndex(visibleRecent.length - i)}</Text>
+                }
+                value={
+                  <View>
+                    <Text style={styles.recentTitle} numberOfLines={1}>
+                      {titleFor(entry, playlists)}
+                    </Text>
+                    <Text style={styles.recentDate}>{dateLabel(entry)}</Text>
+                  </View>
+                }
+                trailing={
+                  <Text style={styles.recentDuration}>{durationFor(entry)}</Text>
+                }
+                verticalPadding={Space.s14}
                 onPress={() => playRecent(entry)}
-                accessibilityRole="button"
                 accessibilityLabel={`Replay ${titleFor(entry, playlists)}`}
-                style={({ pressed }) => [styles.recentRow, pressed && { opacity: 0.7 }]}
-              >
-                <Text style={styles.recentNum}>{padIndex(visibleRecent.length - i)}</Text>
-                <View style={styles.recentBody}>
-                  <Text style={styles.recentTitle} numberOfLines={1}>
-                    {titleFor(entry, playlists)}
-                  </Text>
-                  <Text style={styles.recentDate}>{dateLabel(entry)}</Text>
-                </View>
-                <Text style={styles.recentDuration}>{durationFor(entry)}</Text>
-              </Pressable>
+              />
             ))}
+          </>
+        )}
+
+        {/* More from ONAY — featured archive rail; sits last so the catalog
+            numbers run B·01 → B·04 in document order. */}
+        {legacyCards.length > 0 && (
+          <>
+            <SectionMarker num="B·04" title="MORE FROM ONAY" side="ARCHIVE" />
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.rail}
+              snapToInterval={162}
+              decelerationRate="fast"
+              snapToAlignment="start"
+            >
+              {legacyCards.map(fb => (
+                <FeaturedRailCard key={fb.id} broadcast={fb} onPress={() => playFeatured(fb)} />
+              ))}
+            </ScrollView>
           </>
         )}
 
@@ -741,12 +785,13 @@ export default function HomeBroadcastScreen() {
         </View>
 
         {playlistsError && (
-          <Text style={styles.errorNote}>{playlistsError} — pull to retry.</Text>
+          <Text style={styles.errorNote}>{playlistsError} Pull to retry.</Text>
         )}
         {playlistsLoading && (
           <Text style={styles.loadingNote}>{'Loading your Apple Music playlists…'}</Text>
         )}
       </ScrollView>
+      </Animated.View>
 
       <SetupSheet
         visible={sheetOpen}
@@ -789,6 +834,13 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    gap: Space.s24,
+  },
+  loadingCaption: {
+    fontFamily: Fonts.mono,
+    fontSize: TypeScale.s10,
+    letterSpacing: 3,
+    color: AM.amberDim,
   },
 
   rail: {
@@ -811,11 +863,8 @@ const styles = StyleSheet.create({
   },
 
   askCard: {
-    marginTop: 4,
-    padding: Space.s18,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: AM.amber,
+    marginTop: Space.s4,
+    paddingVertical: Space.s8,
   },
   askQuote: {
     fontFamily: Fonts.serif,
@@ -832,23 +881,12 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
   },
 
-  recentRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    paddingVertical: Space.s14,
-    gap: Space.s12,
-    borderBottomWidth: 0.5,
-    borderBottomColor: AM.rule,
-  },
   recentNum: {
     fontFamily: Fonts.mono,
     fontSize: TypeScale.s10,
     color: AM.amberDim,
     letterSpacing: 1,
     width: 32,
-  },
-  recentBody: {
-    flex: 1,
   },
   recentTitle: {
     fontFamily: Fonts.display,

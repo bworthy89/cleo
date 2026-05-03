@@ -85,7 +85,7 @@ export function TuningInOverlay({
         <Text style={styles.voice}>&ldquo;{voiceLine}&rdquo;</Text>
         {elapsed >= 20 && (
           <Text style={styles.reassurance}>
-            Still writing &mdash; long sets take a minute.
+            Still writing. Long sets take a minute.
           </Text>
         )}
         <CyclingStatusLabel active={visible} />

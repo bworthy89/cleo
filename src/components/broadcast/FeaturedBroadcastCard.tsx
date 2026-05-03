@@ -55,7 +55,11 @@ export function FeaturedBroadcastCard({ broadcast, onPress, stamp = 'TONIGHT', t
       <View style={styles.card}>
         <View style={styles.sleeveWrap}>
           <SleeveArt title={broadcast.title} artist="ONAY" size={124} artworkUrl={artwork} />
-          <View style={styles.bakedStamp}>
+          <View
+            style={styles.bakedStamp}
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+          >
             <Text style={styles.bakedText}>BAKED</Text>
           </View>
         </View>
