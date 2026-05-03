@@ -9,6 +9,14 @@ import { AccessibilityInfo } from 'react-native';
  *
  * Mirrors `useAppActive`'s shape: subscribed event listener, ref-guarded
  * setState to avoid extra renders when the value hasn't actually changed.
+ *
+ * Caveat: initialises to `false` on first mount. `useAppActive` can read
+ * `AppState.currentState` synchronously, but `AccessibilityInfo` only
+ * exposes `isReduceMotionEnabled()` as a Promise. Reduce-motion users
+ * will therefore see a single-frame window where animations kick off
+ * before the Promise resolves and `setEnabled(true)` fires the second
+ * render. Acceptable trade-off: one frame of motion at component
+ * lifetime start is preferable to a synchronous-blocking workaround.
  */
 export function useReduceMotion(): boolean {
   const [enabled, setEnabled] = useState(false);

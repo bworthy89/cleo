@@ -52,6 +52,11 @@ export function VUMeter({
   // Each bar's animated value is a normalized scale (0.2-1.0). The bar's
   // layout height is fixed at `height`; scaleY squashes/stretches it
   // around its bottom edge so growth reads as natural meter movement.
+  //
+  // `values` is sized from the initial `bars` prop and never resized.
+  // All call sites currently pass a static `bars`; if a future caller
+  // ever needs a dynamic count the array would have to be rebuilt
+  // (or the component re-mounted via `key={bars}`).
   const values = useRef<Animated.Value[]>(
     Array.from({ length: bars }).map((_, i) => new Animated.Value(0.4 + ((i % 5) / 10))),
   ).current;
